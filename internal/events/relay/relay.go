@@ -28,6 +28,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/clock"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/credentials"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/ids"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/netpolicy"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/store"
 )
 
@@ -52,7 +53,7 @@ type Publisher interface {
 }
 
 // PulseConnector opens a Pulse publisher.
-type PulseConnector func(url string, creds, ca []byte, source string) (Publisher, error)
+type PulseConnector func(url string, creds, ca []byte, source string, allowPrivate bool) (Publisher, error)
 
 // Relay delivers events to destinations.
 type Relay struct {
@@ -315,7 +316,7 @@ func (r *Relay) send(ctx context.Context, d *cp.Res[cp.DestinationSpec], e Event
 	case "pulse":
 		p, err := r.publisher(ctx, d)
 		if err != nil {
-			return outbound.Result{Retryable: true, Err: "could not connect to Pulse: " + sanitize(err)}
+			return pulseConnectError(err)
 		}
 		pctx, cancel := context.WithTimeout(ctx, time.Duration(d.Spec.TimeoutSeconds)*time.Second)
 		defer cancel()
@@ -330,6 +331,24 @@ func (r *Relay) send(ctx context.Context, d *cp.Res[cp.DestinationSpec], e Event
 	}
 	return outbound.Result{Err: "unknown destination type"}
 }
+
+// pulseConnectError reports a failed connection without the raw dial error,
+// whose wording (refused, timed out, unreachable) would let a configurable
+// destination probe internal ports. A policy refusal is permanent.
+func pulseConnectError(err error) outbound.Result {
+	switch {
+	case errors.Is(err, netpolicy.ErrDestinationBlocked):
+		return outbound.Result{Err: "destination blocked by outbound network policy"}
+	case errors.Is(err, errCredsUnreadable), errors.Is(err, errCAUnreadable):
+		return outbound.Result{Retryable: true, Err: err.Error()}
+	}
+	return outbound.Result{Retryable: true, Err: "could not connect to Pulse"}
+}
+
+var (
+	errCredsUnreadable = errors.New("creds file is not readable")
+	errCAUnreadable    = errors.New("CA file is not readable")
+)
 
 func sanitize(err error) string {
 	s := err.Error()
@@ -355,16 +374,16 @@ func (r *Relay) publisher(ctx context.Context, d *cp.Res[cp.DestinationSpec]) (P
 		creds = []byte(s.Reveal())
 	} else if strings.HasPrefix(d.Spec.CredsRef, "file:") && r.ReadFile != nil {
 		if creds, err = r.ReadFile(strings.TrimPrefix(d.Spec.CredsRef, "file:")); err != nil {
-			return nil, errors.New("creds file is not readable")
+			return nil, errCredsUnreadable
 		}
 	}
 	if strings.HasPrefix(d.Spec.CARef, "file:") && r.ReadFile != nil {
 		var err error
 		if ca, err = r.ReadFile(strings.TrimPrefix(d.Spec.CARef, "file:")); err != nil {
-			return nil, errors.New("CA file is not readable")
+			return nil, errCAUnreadable
 		}
 	}
-	p, err := r.Pulse(d.Spec.PulseURL, creds, ca, d.Spec.PulseSource)
+	p, err := r.Pulse(d.Spec.PulseURL, creds, ca, d.Spec.PulseSource, d.Spec.AllowPrivateNetwork)
 	if err != nil {
 		return nil, err
 	}

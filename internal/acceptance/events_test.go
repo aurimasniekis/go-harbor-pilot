@@ -152,7 +152,7 @@ func embeddedJetStream(t *testing.T) *natsserver.Server {
 
 func TestPulseRelayPublishesWithIdempotencyHeaders(t *testing.T) {
 	ns := embeddedJetStream(t)
-	conn := func(url string, creds, ca []byte, source string) (relay.Publisher, error) {
+	conn := func(url string, creds, ca []byte, source string, _ bool) (relay.Publisher, error) {
 		nc, err := nats.Connect(ns.ClientURL())
 		if err != nil {
 			return nil, err

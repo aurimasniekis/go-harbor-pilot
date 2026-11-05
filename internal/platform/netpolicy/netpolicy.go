@@ -24,9 +24,9 @@ var ErrDestinationBlocked = errors.New("destination blocked")
 // Policy controls which resolved destinations an outbound client may connect
 // to. The zero value allows public internet destinations only.
 type Policy struct {
-	// AllowPrivate permits RFC1918, unique-local, loopback, CGNAT and
-	// link-local destinations. Cloud metadata addresses stay blocked unless
-	// AllowMetadata is also set.
+	// AllowPrivate permits RFC1918, unique-local, loopback and CGNAT
+	// destinations. Link-local and cloud metadata addresses stay blocked
+	// unless AllowMetadata is also set.
 	AllowPrivate bool
 	// AllowMetadata permits well-known cloud metadata endpoints. Never set by
 	// default and not exposed through the API.
@@ -37,11 +37,48 @@ type Policy struct {
 	AllowedCIDRs []netip.Prefix
 }
 
+// metadataPrefixes are cloud metadata and host-agent endpoints. Link-local
+// ranges are included as a whole: several clouds serve metadata or agents
+// there (169.254.0.23, 169.254.169.123, ...), and no supported upstream lives
+// on a link-local address.
 var metadataPrefixes = []netip.Prefix{
-	netip.MustParsePrefix("169.254.169.254/32"),
-	netip.MustParsePrefix("169.254.170.2/32"),
-	netip.MustParsePrefix("100.100.100.200/32"),
-	netip.MustParsePrefix("fd00:ec2::254/128"),
+	netip.MustParsePrefix("169.254.0.0/16"),
+	netip.MustParsePrefix("fe80::/10"),
+	netip.MustParsePrefix("100.100.100.200/32"), // Alibaba
+	netip.MustParsePrefix("168.63.129.16/32"),   // Azure WireServer
+	netip.MustParsePrefix("192.0.0.192/32"),     // Oracle Cloud
+	netip.MustParsePrefix("fd00:ec2::254/128"),  // AWS IPv6
+}
+
+// IPv6 ranges that embed an IPv4 address the packet may reach.
+var (
+	nat64       = netip.MustParsePrefix("64:ff9b::/96")
+	nat64Local  = netip.MustParsePrefix("64:ff9b:1::/48")
+	sixToFour   = netip.MustParsePrefix("2002::/16")
+	v4Compat    = netip.MustParsePrefix("::/96")
+	teredo      = netip.MustParsePrefix("2001::/32")
+	errEmbedded = "embedded IPv4 address: "
+)
+
+// embeddedV4 returns the IPv4 address carried inside translation and
+// tunnelling IPv6 forms, so the policy applies to it as well.
+func embeddedV4(ip netip.Addr) (netip.Addr, bool) {
+	if !ip.Is6() || ip.Is4In6() {
+		return netip.Addr{}, false
+	}
+	b := ip.As16()
+	switch {
+	case nat64.Contains(ip), v4Compat.Contains(ip) && !ip.IsLoopback() && !ip.IsUnspecified():
+		return netip.AddrFrom4([4]byte{b[12], b[13], b[14], b[15]}), true
+	case nat64Local.Contains(ip):
+		return netip.AddrFrom4([4]byte{b[12], b[13], b[14], b[15]}), true
+	case sixToFour.Contains(ip):
+		return netip.AddrFrom4([4]byte{b[2], b[3], b[4], b[5]}), true
+	case teredo.Contains(ip):
+		// The client address is stored inverted in the last 32 bits.
+		return netip.AddrFrom4([4]byte{^b[12], ^b[13], ^b[14], ^b[15]}), true
+	}
+	return netip.Addr{}, false
 }
 
 var alwaysBlocked = []netip.Prefix{
@@ -57,6 +94,11 @@ var cgnat = netip.MustParsePrefix("100.64.0.0/10")
 // CheckAddr reports whether an IP is allowed by the policy.
 func (p Policy) CheckAddr(ip netip.Addr) error {
 	ip = ip.Unmap()
+	if v4, ok := embeddedV4(ip); ok {
+		if err := p.CheckAddr(v4); err != nil {
+			return fmt.Errorf("%w (%s%s)", err, errEmbedded, v4)
+		}
+	}
 	for _, pre := range metadataPrefixes {
 		if pre.Contains(ip) && !p.AllowMetadata {
 			return fmt.Errorf("%w: cloud metadata address", ErrDestinationBlocked)
@@ -67,8 +109,7 @@ func (p Policy) CheckAddr(ip netip.Addr) error {
 			return fmt.Errorf("%w: reserved address", ErrDestinationBlocked)
 		}
 	}
-	private := ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
-		ip.IsLinkLocalMulticast() || ip.IsUnspecified() || cgnat.Contains(ip)
+	private := ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || cgnat.Contains(ip)
 	if !private || p.AllowPrivate {
 		return nil
 	}
@@ -115,12 +156,12 @@ func DefaultTransportOptions() TransportOptions {
 	}
 }
 
-// Transport returns an http.Transport whose dialer enforces the policy on
-// every resolved address. Environment proxies are disabled so the check
-// cannot be bypassed.
-func Transport(p Policy, o TransportOptions) *http.Transport {
-	d := &net.Dialer{
-		Timeout:   o.DialTimeout,
+// Dialer returns a net.Dialer that checks every resolved address against the
+// policy just before connecting (covering DNS rebinding and each address a
+// multi-address dial tries). Non-HTTP clients such as NATS use it directly.
+func Dialer(p Policy, timeout time.Duration) *net.Dialer {
+	return &net.Dialer{
+		Timeout:   timeout,
 		KeepAlive: 30 * time.Second,
 		Control: func(_, address string, _ syscall.RawConn) error {
 			host, _, err := net.SplitHostPort(address)
@@ -134,6 +175,13 @@ func Transport(p Policy, o TransportOptions) *http.Transport {
 			return p.CheckAddr(ip)
 		},
 	}
+}
+
+// Transport returns an http.Transport whose dialer enforces the policy on
+// every resolved address. Environment proxies are disabled so the check
+// cannot be bypassed.
+func Transport(p Policy, o TransportOptions) *http.Transport {
+	d := Dialer(p, o.DialTimeout)
 	return &http.Transport{
 		Proxy: nil,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {

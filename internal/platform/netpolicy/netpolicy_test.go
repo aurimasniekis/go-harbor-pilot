@@ -32,6 +32,16 @@ func TestCheckAddr(t *testing.T) {
 		{name: "private allowed", policy: Policy{AllowPrivate: true}, addr: "192.168.1.10"},
 		{name: "explicit cidr allowed", policy: Policy{AllowedCIDRs: allowOne}, addr: "10.1.2.3"},
 		{name: "explicit cidr exact only", policy: Policy{AllowedCIDRs: allowOne}, addr: "10.1.2.4", blocked: true},
+		{name: "azure wireserver blocked", policy: Policy{AllowPrivate: true}, addr: "168.63.129.16", blocked: true},
+		{name: "oracle metadata blocked", policy: Policy{AllowPrivate: true}, addr: "192.0.0.192", blocked: true},
+		{name: "link-local blocked even when private allowed", policy: Policy{AllowPrivate: true}, addr: "169.254.0.23", blocked: true},
+		{name: "ipv6 link-local blocked even when private allowed", policy: Policy{AllowPrivate: true}, addr: "fe80::1", blocked: true},
+		{name: "nat64 embedded loopback blocked", addr: "64:ff9b::7f00:1", blocked: true},
+		{name: "nat64 embedded metadata blocked with private allowed", policy: Policy{AllowPrivate: true}, addr: "64:ff9b::a9fe:a9fe", blocked: true},
+		{name: "nat64 embedded public allowed", addr: "64:ff9b::5db8:d822"},
+		{name: "6to4 embedded rfc1918 blocked", addr: "2002:a00:5::1", blocked: true},
+		{name: "v4-compatible embedded loopback blocked", addr: "::7f00:1", blocked: true},
+		{name: "teredo embedded private blocked", addr: "2001:0:4136:e378:8000:63bf:f5ff:fffa", blocked: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

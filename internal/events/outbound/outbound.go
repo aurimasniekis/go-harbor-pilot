@@ -87,7 +87,8 @@ func (c *Client) Post(ctx context.Context, url string, body []byte, headers http
 		switch {
 		case errors.Is(err, context.DeadlineExceeded):
 			msg = "timed out"
-		case strings.Contains(err.Error(), "not allowed"):
+		case errors.Is(err, netpolicy.ErrDestinationBlocked):
+			// Permanent: retrying cannot change the policy decision.
 			return Result{Err: "destination blocked by outbound network policy"}
 		}
 		return Result{Retryable: true, Err: msg}
