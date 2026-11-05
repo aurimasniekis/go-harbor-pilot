@@ -1,0 +1,40 @@
+version: "2"
+run:
+  timeout: 5m
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - bodyclose
+    - gosec
+    - misspell
+    - nilerr
+    - rowserrcheck
+    - sqlclosecheck
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*database/sql.Tx).Rollback
+        - (*database/sql.Rows).Close
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*os.Root).Close
+        - (*database/sql.DB).Close
+        - (*github.com/aurimasniekis/go-harbor-pilot/internal/store.DB).Close
+        - (net/http.ResponseWriter).Write
+    gosec:
+      excludes:
+        - G104 # covered by errcheck with explicit exclusions
+        - G304 # file paths are operator-supplied and confined where it matters
+        - G115 # integer conversions are bounds-checked where needed
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [gosec, errcheck, bodyclose]
+formatters:
+  enable:
+    - gofmt
