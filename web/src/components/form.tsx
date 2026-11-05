@@ -528,12 +528,23 @@ function useTouched(open: boolean) {
   useEffect(() => {
     if (open) setTouched(false)
   }, [open])
-  const mark = () => setTouched(true)
+  // React events bubble through portals, so input in a dialog opened from
+  // this overlay reaches these handlers too. The innermost overlay claims
+  // the event and the ones around it ignore it.
+  const claim = (e: React.SyntheticEvent): boolean => {
+    const n = e.nativeEvent as Event & { hpOverlayTouched?: boolean }
+    if (n.hpOverlayTouched) return false
+    n.hpOverlayTouched = true
+    return true
+  }
+  const mark = (e: React.SyntheticEvent) => {
+    if (claim(e)) setTouched(true)
+  }
   const handlers = {
-    onInputCapture: mark,
-    onChangeCapture: mark,
-    onClickCapture: (e: React.MouseEvent) => {
-      if ((e.target as HTMLElement).closest?.('[role="option"]')) mark()
+    onInput: mark,
+    onChange: mark,
+    onClick: (e: React.MouseEvent) => {
+      if ((e.target as HTMLElement).closest?.('[role="option"]')) mark(e)
     },
   }
   return { touched, handlers, reset: () => setTouched(false) }

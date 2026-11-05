@@ -81,6 +81,30 @@ describe('nested overlays', () => {
     await userEvent.keyboard('{Escape}')
     expect(closeDrawer).toHaveBeenCalledOnce()
   })
+
+  it('typing in a dialog opened from a drawer does not leave the drawer with unsaved changes', async () => {
+    const closeDrawer = vi.fn()
+    function Page() {
+      const [dialog, setDialog] = useState(true)
+      return (
+        <FormDrawer open title="Account" onClose={closeDrawer}>
+          <p>details</p>
+          <Dialog open={dialog} title="Add subscription" onClose={() => setDialog(false)}>
+            <TextInput label="Plan name" />
+            <button type="button" onClick={() => setDialog(false)}>
+              Save
+            </button>
+          </Dialog>
+        </FormDrawer>
+      )
+    }
+    render(<Page />)
+    await userEvent.type(screen.getByLabelText('Plan name'), 'Team')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByText('Discard changes?')).toBeNull()
+    expect(closeDrawer).toHaveBeenCalledOnce()
+  })
 })
 
 describe('RevealDialog', () => {
