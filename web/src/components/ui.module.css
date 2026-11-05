@@ -144,3 +144,9 @@
   color: var(--text);
   box-shadow: inset 0 0 0 1px var(--border-strong);
 }
+
+/* Native inputs outside Mantine; colours come from global.css. */
+.input {
+  min-width: 0;
+  width: 100%;
+}

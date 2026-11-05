@@ -45,3 +45,44 @@
   overflow-wrap: anywhere;
   border: 1px dashed var(--accent);
 }
+
+/* Two-column (auto-fitting) field grid used by dialogs and forms. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.error {
+  font-size: var(--mantine-font-size-xs);
+  color: var(--error-text);
+}
+
+/* Native text areas inside <Field>; colours come from global.css. */
+.textarea {
+  display: block;
+  width: 100%;
+}
+
+.authPage {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: var(--mantine-font-size-xs);
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
