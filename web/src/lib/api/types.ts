@@ -76,3 +76,66 @@ export interface ResourceMeta {
   updated_at: string
   secrets?: Record<string, SecretInfo>
 }
+
+// ---------- activity ----------
+export type RequestSummary = S['RequestSummary']
+export type RequestDetail = S['RequestDetail']
+export type Attempt = S['AttemptDTO']
+export type LedgerEntry = S['LedgerDTO']
+export type ObservedSession = S['ObservedSession']
+export type ActivitySummary = S['ActivitySummary']
+export type Tokens = S['Tokens']
+export type Cost = S['CostDTO']
+
+/** Routing explanation recorded with each request (decision JSON). */
+export interface DecisionCandidate {
+  provider_id: string
+  provider: string
+  account_id: string
+  account: string
+  model: string
+  billing: string
+  upstream_protocol: string
+  native: boolean
+  priority: number
+  weight: number
+  score: number
+  reasons: string[] | null
+  health?: { Available?: boolean; Reason?: string; Stale?: boolean; Remaining?: number | null; ResetAt?: string | null } | null
+}
+
+export interface DecisionExclusion {
+  provider_id: string
+  account_id: string
+  account: string
+  model: string
+  stage: string
+  reason: string
+  detail: string
+}
+
+export interface Decision {
+  requested_model?: string
+  alias_id?: string
+  alias?: string
+  alias_chain?: string[] | null
+  resolution?: string
+  pool_id?: string
+  pool?: string
+  strategy?: string
+  plan_id?: string
+  plan_version?: number
+  plan_version_id?: string
+  config_revision?: number
+  required_capabilities?: string[] | null
+  candidates?: DecisionCandidate[] | null
+  excluded?: DecisionExclusion[] | null
+  notes?: string[] | null
+  affinity?: string
+}
+
+export interface TranslationLoss {
+  feature: string
+  detail: string
+  severity: 'approximate' | 'drop' | 'reject' | string
+}

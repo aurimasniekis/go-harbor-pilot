@@ -14,6 +14,7 @@ import { credentialsQuery, resourceQuery } from '@/lib/api/queries'
 import type { BindingRes } from '@/lib/api/types'
 import { useCan } from '@/lib/session'
 import { fmtDateTime, fmtRelative } from '@/lib/format'
+import { RecentRequestsPanel } from '@/features/activity/ActivityPanels'
 
 export const Route = createFileRoute('/clients/$bindingId')({
   component: ClientDetail,
@@ -25,6 +26,7 @@ function ClientDetail() {
   const binding = useQuery(resourceQuery<BindingRes>('client-bindings', bindingId))
   const creds = useQuery(credentialsQuery(bindingId))
   const canTokens = useCan('tokens.manage')
+  const canActivity = useCan('activity.read')
   const [issuing, setIssuing] = useState(false)
   const revoke = useMutation({
     mutationFn: (id: string) => apiSend<void>('DELETE', `/client-bindings/${encodeURIComponent(bindingId)}/credentials/${encodeURIComponent(id)}`),
@@ -89,6 +91,7 @@ function ClientDetail() {
           </TableScroll>
         )}
       </Panel>
+      {canActivity && <RecentRequestsPanel bindingId={b.id} />}
       <Panel title="Client settings">
         <BindingForm key={b.revision} binding={b} onSaved={() => void qc.invalidateQueries({ queryKey: ['resources'] })} />
       </Panel>

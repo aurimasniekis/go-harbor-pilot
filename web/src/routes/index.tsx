@@ -8,6 +8,7 @@ import { effectiveQuery, metaQuery, oidcProvidersQuery, principalsQuery, session
 import { useCan } from '@/lib/session'
 import type { Effective } from '@/lib/api/types'
 import { fmtDateTime } from '@/lib/format'
+import { ActivitySummaryPanel } from '@/features/activity/ActivityPanels'
 
 export const Route = createFileRoute('/')({
   component: Overview,
@@ -103,6 +104,7 @@ function Overview() {
   const sso = useQuery({ ...oidcProvidersQuery, enabled: useCan('auth.settings') })
   const canConfig = useCan('config.read')
   const eff = useQuery({ ...effectiveQuery, enabled: canConfig })
+  const canActivity = useCan('activity.read')
 
   return (
     <>
@@ -133,6 +135,7 @@ function Overview() {
             />
           )}
         </Panel>
+        {canActivity && <ActivitySummaryPanel />}
         {canConfig && <ConfigurationPanel eff={eff} />}
         {isAdmin && (
           <Panel title="Getting started" subtitle="Secure access before connecting clients and providers.">

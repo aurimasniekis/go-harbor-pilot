@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { apiGet } from './client'
-import type { Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken } from './types'
+import type { ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken } from './types'
 
 export const qk = {
   session: ['session'] as const,
@@ -120,4 +120,40 @@ export const credentialsQuery = (bindingId: string) =>
     queryKey: ['resources', 'client-bindings', bindingId, 'credentials'],
     queryFn: ({ signal }) =>
       apiGet<{ items: Credential[] }>(`/client-bindings/${encodeURIComponent(bindingId)}/credentials`, { children: true }, signal),
+  })
+
+// ---------- activity ----------
+export interface RequestFilter {
+  status?: string
+  harness?: string
+  binding_id?: string
+  project_id?: string
+  session_id?: string
+  model?: string
+  cursor?: string
+  limit?: number
+}
+
+export const requestsQuery = (f: RequestFilter) =>
+  queryOptions({
+    queryKey: ['activity', 'requests', f],
+    queryFn: ({ signal }) => apiGet<Page<RequestSummary>>('/activity/requests', { limit: 50, ...f }, signal),
+  })
+
+export const requestQuery = (id: string) =>
+  queryOptions({
+    queryKey: ['activity', 'request', id],
+    queryFn: ({ signal }) => apiGet<RequestDetail>(`/activity/requests/${encodeURIComponent(id)}`, undefined, signal),
+  })
+
+export const sessionsQuery = (f: { binding_id?: string; cursor?: string }) =>
+  queryOptions({
+    queryKey: ['activity', 'sessions', f],
+    queryFn: ({ signal }) => apiGet<Page<ObservedSession>>('/activity/sessions', { limit: 50, ...f }, signal),
+  })
+
+export const activitySummaryQuery = (hours: number) =>
+  queryOptions({
+    queryKey: ['activity', 'summary', hours],
+    queryFn: ({ signal }) => apiGet<ActivitySummary>('/activity/summary', { hours }, signal),
   })

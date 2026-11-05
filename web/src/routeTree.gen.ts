@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AcceptRouteImport } from './routes/accept'
 import { Route as AccountRouteImport } from './routes/account'
+import { Route as ActivityRouteRouteImport } from './routes/activity/route'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProvidersRouteRouteImport } from './routes/providers/route'
 import { Route as RecoverRouteImport } from './routes/recover'
@@ -19,6 +20,9 @@ import { Route as RoutingRouteRouteImport } from './routes/routing/route'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as WorkspacesRouteImport } from './routes/workspaces'
+import { Route as ActivityIndexRouteImport } from './routes/activity/index'
+import { Route as ActivityRequestIdRouteImport } from './routes/activity/$requestId'
+import { Route as ActivitySessionsRouteImport } from './routes/activity/sessions'
 import { Route as ClientsIndexRouteImport } from './routes/clients/index'
 import { Route as ClientsBindingIdRouteImport } from './routes/clients/$bindingId'
 import { Route as ProvidersIndexRouteImport } from './routes/providers/index'
@@ -47,6 +51,11 @@ const AcceptRoute = AcceptRouteImport.update({
 const AccountRoute = AccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActivityRouteRoute = ActivityRouteRouteImport.update({
+  id: '/activity',
+  path: '/activity',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -83,6 +92,21 @@ const WorkspacesRoute = WorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ActivityIndexRoute = ActivityIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ActivityRouteRoute,
+} as any)
+const ActivityRequestIdRoute = ActivityRequestIdRouteImport.update({
+  id: '/$requestId',
+  path: '/$requestId',
+  getParentRoute: () => ActivityRouteRoute,
+} as any)
+const ActivitySessionsRoute = ActivitySessionsRouteImport.update({
+  id: '/sessions',
+  path: '/sessions',
+  getParentRoute: () => ActivityRouteRoute,
 } as any)
 const ClientsIndexRoute = ClientsIndexRouteImport.update({
   id: '/clients/',
@@ -158,6 +182,7 @@ const RoutingPlansPlanIdRoute = RoutingPlansPlanIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/activity': typeof ActivityRouteRouteWithChildren
   '/providers': typeof ProvidersRouteRouteWithChildren
   '/routing': typeof RoutingRouteRouteWithChildren
   '/settings': typeof SettingsRouteRouteWithChildren
@@ -167,6 +192,8 @@ export interface FileRoutesByFullPath {
   '/recover': typeof RecoverRoute
   '/setup': typeof SetupRoute
   '/workspaces': typeof WorkspacesRoute
+  '/activity/$requestId': typeof ActivityRequestIdRoute
+  '/activity/sessions': typeof ActivitySessionsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
   '/providers/accounts': typeof ProvidersAccountsRoute
   '/providers/pools': typeof ProvidersPoolsRoute
@@ -175,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/activity/': typeof ActivityIndexRoute
   '/clients/': typeof ClientsIndexRoute
   '/providers/': typeof ProvidersIndexRoute
   '/routing/': typeof RoutingIndexRoute
@@ -190,6 +218,8 @@ export interface FileRoutesByTo {
   '/recover': typeof RecoverRoute
   '/setup': typeof SetupRoute
   '/workspaces': typeof WorkspacesRoute
+  '/activity/$requestId': typeof ActivityRequestIdRoute
+  '/activity/sessions': typeof ActivitySessionsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
   '/providers/accounts': typeof ProvidersAccountsRoute
   '/providers/pools': typeof ProvidersPoolsRoute
@@ -198,6 +228,7 @@ export interface FileRoutesByTo {
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/activity': typeof ActivityIndexRoute
   '/clients': typeof ClientsIndexRoute
   '/providers': typeof ProvidersIndexRoute
   '/routing': typeof RoutingIndexRoute
@@ -208,6 +239,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/activity': typeof ActivityRouteRouteWithChildren
   '/providers': typeof ProvidersRouteRouteWithChildren
   '/routing': typeof RoutingRouteRouteWithChildren
   '/settings': typeof SettingsRouteRouteWithChildren
@@ -217,6 +249,8 @@ export interface FileRoutesById {
   '/recover': typeof RecoverRoute
   '/setup': typeof SetupRoute
   '/workspaces': typeof WorkspacesRoute
+  '/activity/$requestId': typeof ActivityRequestIdRoute
+  '/activity/sessions': typeof ActivitySessionsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
   '/providers/accounts': typeof ProvidersAccountsRoute
   '/providers/pools': typeof ProvidersPoolsRoute
@@ -225,6 +259,7 @@ export interface FileRoutesById {
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/activity/': typeof ActivityIndexRoute
   '/clients/': typeof ClientsIndexRoute
   '/providers/': typeof ProvidersIndexRoute
   '/routing/': typeof RoutingIndexRoute
@@ -236,6 +271,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/activity'
     | '/providers'
     | '/routing'
     | '/settings'
@@ -245,6 +281,8 @@ export interface FileRouteTypes {
     | '/recover'
     | '/setup'
     | '/workspaces'
+    | '/activity/$requestId'
+    | '/activity/sessions'
     | '/clients/$bindingId'
     | '/providers/accounts'
     | '/providers/pools'
@@ -253,6 +291,7 @@ export interface FileRouteTypes {
     | '/settings/auth'
     | '/settings/service-principals'
     | '/settings/users'
+    | '/activity/'
     | '/clients/'
     | '/providers/'
     | '/routing/'
@@ -268,6 +307,8 @@ export interface FileRouteTypes {
     | '/recover'
     | '/setup'
     | '/workspaces'
+    | '/activity/$requestId'
+    | '/activity/sessions'
     | '/clients/$bindingId'
     | '/providers/accounts'
     | '/providers/pools'
@@ -276,6 +317,7 @@ export interface FileRouteTypes {
     | '/settings/auth'
     | '/settings/service-principals'
     | '/settings/users'
+    | '/activity'
     | '/clients'
     | '/providers'
     | '/routing'
@@ -285,6 +327,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/activity'
     | '/providers'
     | '/routing'
     | '/settings'
@@ -294,6 +337,8 @@ export interface FileRouteTypes {
     | '/recover'
     | '/setup'
     | '/workspaces'
+    | '/activity/$requestId'
+    | '/activity/sessions'
     | '/clients/$bindingId'
     | '/providers/accounts'
     | '/providers/pools'
@@ -302,6 +347,7 @@ export interface FileRouteTypes {
     | '/settings/auth'
     | '/settings/service-principals'
     | '/settings/users'
+    | '/activity/'
     | '/clients/'
     | '/providers/'
     | '/routing/'
@@ -312,6 +358,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ActivityRouteRoute: typeof ActivityRouteRouteWithChildren
   ProvidersRouteRoute: typeof ProvidersRouteRouteWithChildren
   RoutingRouteRoute: typeof RoutingRouteRouteWithChildren
   SettingsRouteRoute: typeof SettingsRouteRouteWithChildren
@@ -346,6 +393,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/activity': {
+      id: '/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof ActivityRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -396,6 +450,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/workspaces'
       preLoaderRoute: typeof WorkspacesRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/activity/': {
+      id: '/activity/'
+      path: '/'
+      fullPath: '/activity/'
+      preLoaderRoute: typeof ActivityIndexRouteImport
+      parentRoute: typeof ActivityRouteRoute
+    }
+    '/activity/$requestId': {
+      id: '/activity/$requestId'
+      path: '/$requestId'
+      fullPath: '/activity/$requestId'
+      preLoaderRoute: typeof ActivityRequestIdRouteImport
+      parentRoute: typeof ActivityRouteRoute
+    }
+    '/activity/sessions': {
+      id: '/activity/sessions'
+      path: '/sessions'
+      fullPath: '/activity/sessions'
+      preLoaderRoute: typeof ActivitySessionsRouteImport
+      parentRoute: typeof ActivityRouteRoute
     }
     '/clients/': {
       id: '/clients/'
@@ -498,6 +573,22 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ActivityRouteRouteChildren {
+  ActivityRequestIdRoute: typeof ActivityRequestIdRoute
+  ActivitySessionsRoute: typeof ActivitySessionsRoute
+  ActivityIndexRoute: typeof ActivityIndexRoute
+}
+
+const ActivityRouteRouteChildren: ActivityRouteRouteChildren = {
+  ActivityRequestIdRoute: ActivityRequestIdRoute,
+  ActivitySessionsRoute: ActivitySessionsRoute,
+  ActivityIndexRoute: ActivityIndexRoute,
+}
+
+const ActivityRouteRouteWithChildren = ActivityRouteRoute._addFileChildren(
+  ActivityRouteRouteChildren,
+)
+
 interface ProvidersRouteRouteChildren {
   ProvidersAccountsRoute: typeof ProvidersAccountsRoute
   ProvidersPoolsRoute: typeof ProvidersPoolsRoute
@@ -554,6 +645,7 @@ const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ActivityRouteRoute: ActivityRouteRouteWithChildren,
   ProvidersRouteRoute: ProvidersRouteRouteWithChildren,
   RoutingRouteRoute: RoutingRouteRouteWithChildren,
   SettingsRouteRoute: SettingsRouteRouteWithChildren,

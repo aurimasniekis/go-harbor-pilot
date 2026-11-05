@@ -3,6 +3,7 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useStore } from '@tanstack/react-store'
 import {
+  Activity,
   Building2,
   Laptop,
   LayoutDashboard,
@@ -38,6 +39,7 @@ interface NavItem {
 /** Primary navigation. Items appear only for screens the caller can use. */
 export const nav: NavItem[] = [
   { to: '/', label: 'Overview', icon: LayoutDashboard, exact: true },
+  { to: '/activity', label: 'Activity', icon: Activity, perm: 'activity.read' },
   { to: '/clients', label: 'Clients', icon: Laptop, perm: 'config.read' },
   { to: '/routing', label: 'Routing', icon: RouteIcon, perm: 'config.read' },
   { to: '/providers', label: 'Providers', icon: Server, perm: 'config.read' },
