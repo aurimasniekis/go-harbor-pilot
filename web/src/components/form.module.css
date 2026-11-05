@@ -61,6 +61,10 @@
   max-height: calc(100vh - 48px);
 }
 
+.dialogWide {
+  width: min(880px, calc(100vw - 32px));
+}
+
 .dialog::backdrop {
   background: rgb(0 0 0 / 0.55);
 }

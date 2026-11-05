@@ -96,11 +96,13 @@ export function Checkbox({ label, checked, onChange, disabled }: {
 }
 
 /** Accessible modal dialog built on the native <dialog> element. */
-export function Dialog({ open, title, onClose, children }: {
+export function Dialog({ open, title, onClose, children, wide }: {
   open: boolean
   title: ReactNode
   onClose: () => void
   children: ReactNode
+  /** Wider dialog for structured editors. */
+  wide?: boolean
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
@@ -111,7 +113,7 @@ export function Dialog({ open, title, onClose, children }: {
     if (!open && d.open) d.close()
   }, [open])
   return (
-    <dialog ref={ref} className={f.dialog} aria-labelledby={titleId} onClose={onClose} onCancel={onClose}>
+    <dialog ref={ref} className={wide ? `${f.dialog} ${f.dialogWide}` : f.dialog} aria-labelledby={titleId} onClose={onClose} onCancel={onClose}>
       {open && (
         <>
           <div className={f.dialogHeader}>

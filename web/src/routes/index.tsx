@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { type UseQueryResult, useQuery } from '@tanstack/react-query'
 import { CheckCircle2, CircleDashed } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
-import { Badge, KeyValues, Panel, Skeleton } from '@/components/ui'
+import { Badge, Banner, KeyValues, Panel, Skeleton } from '@/components/ui'
 import { QueryError } from '@/components/states'
-import { metaQuery, oidcProvidersQuery, principalsQuery, sessionQuery, systemStatusQuery, usersQuery } from '@/lib/api/queries'
+import { effectiveQuery, metaQuery, oidcProvidersQuery, principalsQuery, sessionQuery, systemStatusQuery, usersQuery } from '@/lib/api/queries'
 import { useCan } from '@/lib/session'
+import type { Effective } from '@/lib/api/types'
 import { fmtDateTime } from '@/lib/format'
 
 export const Route = createFileRoute('/')({
@@ -21,6 +22,77 @@ function Step({ done, children }: { done: boolean; children: React.ReactNode }) 
   )
 }
 
+const kindLabels: Record<string, string> = {
+  workspaces: 'Workspaces',
+  projects: 'Projects',
+  providers: 'Providers',
+  provider_accounts: 'Accounts',
+  subscription_entitlements: 'Subscriptions',
+  pools: 'Pools',
+  model_aliases: 'Model aliases',
+  routing_plans: 'Routing plans',
+  client_bindings: 'Clients',
+}
+
+const kindRoute: Record<string, string> = {
+  workspace: '/workspaces',
+  project: '/workspaces',
+  provider: '/providers',
+  provider_account: '/providers/accounts',
+  subscription_entitlement: '/providers/subscriptions',
+  pool: '/providers/pools',
+  model_alias: '/routing',
+  routing_plan: '/routing/plans',
+  client_binding: '/clients',
+}
+
+function ConfigurationPanel({ eff }: { eff: UseQueryResult<Effective> }) {
+  return (
+    <Panel title="Configuration" subtitle="The active compiled configuration served by the gateway.">
+      {eff.isError ? (
+        <QueryError error={eff.error} retry={() => void eff.refetch()} />
+      ) : !eff.data ? (
+        <Skeleton height={80} />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <KeyValues
+            items={[
+              ['Revision', <span className="num">{eff.data.config_revision}</span>],
+              ['Compiled', fmtDateTime(eff.data.compiled_at)],
+              ...Object.entries(kindLabels).map(([k, label]) => [label, <span className="num">{eff.data.counts[k] ?? 0}</span>] as [React.ReactNode, React.ReactNode]),
+            ]}
+          />
+          {eff.data.plans.length > 0 && (
+            <div>
+              <div className="muted" style={{ fontSize: 'var(--text-sm)' }}>Routing plans</div>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {eff.data.plans.map((p) => (
+                  <li key={p.id}>
+                    <Link to="/routing/plans/$planId" params={{ planId: p.id }} className="mono">{p.name}</Link>{' '}
+                    {p.published_version ? <Badge tone="success">v{p.published_version}</Badge> : <Badge tone="warning">unpublished</Badge>}{' '}
+                    <span className="muted">{p.bindings} client{p.bindings === 1 ? '' : 's'}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {eff.data.drifted.length > 0 && (
+            <Banner tone="warning">
+              <strong>Drift.</strong> These Terraform-managed objects were changed outside Terraform:{' '}
+              {eff.data.drifted.map((d, i) => (
+                <span key={d.id}>
+                  {i > 0 && ', '}
+                  <Link to={kindRoute[d.kind] ?? '/'}>{d.kind} {d.name}</Link>
+                </span>
+              ))}
+            </Banner>
+          )}
+        </div>
+      )}
+    </Panel>
+  )
+}
+
 function Overview() {
   const session = useQuery(sessionQuery)
   const meta = useQuery(metaQuery)
@@ -29,6 +101,8 @@ function Overview() {
   const users = useQuery({ ...usersQuery, enabled: isAdmin })
   const principals = useQuery({ ...principalsQuery, enabled: isAdmin })
   const sso = useQuery({ ...oidcProvidersQuery, enabled: useCan('auth.settings') })
+  const canConfig = useCan('config.read')
+  const eff = useQuery({ ...effectiveQuery, enabled: canConfig })
 
   return (
     <>
@@ -59,6 +133,7 @@ function Overview() {
             />
           )}
         </Panel>
+        {canConfig && <ConfigurationPanel eff={eff} />}
         {isAdmin && (
           <Panel title="Getting started" subtitle="Secure access before connecting clients and providers.">
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>

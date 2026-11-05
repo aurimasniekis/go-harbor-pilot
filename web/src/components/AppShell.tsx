@@ -3,6 +3,8 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useStore } from '@tanstack/react-store'
 import {
+  Building2,
+  Laptop,
   LayoutDashboard,
   LogOut,
   type LucideIcon,
@@ -10,6 +12,8 @@ import {
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
+  Route as RouteIcon,
+  Server,
   Settings,
   ShieldAlert,
   ShipWheel,
@@ -34,6 +38,10 @@ interface NavItem {
 /** Primary navigation. Items appear only for screens the caller can use. */
 export const nav: NavItem[] = [
   { to: '/', label: 'Overview', icon: LayoutDashboard, exact: true },
+  { to: '/clients', label: 'Clients', icon: Laptop, perm: 'config.read' },
+  { to: '/routing', label: 'Routing', icon: RouteIcon, perm: 'config.read' },
+  { to: '/providers', label: 'Providers', icon: Server, perm: 'config.read' },
+  { to: '/workspaces', label: 'Workspaces', icon: Building2, perm: 'config.read' },
   { to: '/settings', label: 'Settings', icon: Settings, perm: 'config.read' },
 ]
 

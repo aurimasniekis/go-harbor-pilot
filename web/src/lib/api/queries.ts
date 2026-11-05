@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { apiGet } from './client'
-import type { AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken } from './types'
+import type { Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken } from './types'
 
 export const qk = {
   session: ['session'] as const,
@@ -73,3 +73,51 @@ export const mySessionsQuery = queryOptions({
   queryKey: qk.mySessions,
   queryFn: ({ signal }) => apiGet<{ items: WebSession[] | null }>('/session/all', undefined, signal),
 })
+
+// ---------- managed configuration ----------
+
+/** Resource collection paths, keyed by kind plural (URL segment). */
+export type ResourcePlural =
+  | 'workspaces'
+  | 'projects'
+  | 'providers'
+  | 'provider-accounts'
+  | 'subscription-entitlements'
+  | 'pools'
+  | 'model-aliases'
+  | 'routing-plans'
+  | 'client-bindings'
+
+export const resourceKey = (plural: ResourcePlural) => ['resources', plural] as const
+
+export function resourceListQuery<T>(plural: ResourcePlural) {
+  return queryOptions({
+    queryKey: resourceKey(plural),
+    queryFn: ({ signal }) => apiGet<Page<T>>(`/${plural}`, { limit: 500 }, signal),
+  })
+}
+
+export function resourceQuery<T>(plural: ResourcePlural, id: string) {
+  return queryOptions({
+    queryKey: [...resourceKey(plural), id],
+    queryFn: ({ signal }) => apiGet<T>(`/${plural}/${encodeURIComponent(id)}`, undefined, signal),
+  })
+}
+
+export const effectiveQuery = queryOptions({
+  queryKey: ['resources', 'effective'],
+  queryFn: ({ signal }) => apiGet<Effective>('/config/effective', undefined, signal),
+})
+
+export const planVersionsQuery = (planId: string) =>
+  queryOptions({
+    queryKey: ['resources', 'routing-plans', planId, 'versions'],
+    queryFn: ({ signal }) => apiGet<{ items: PlanVersion[] }>(`/routing-plans/${encodeURIComponent(planId)}/versions`, undefined, signal),
+  })
+
+export const credentialsQuery = (bindingId: string) =>
+  queryOptions({
+    queryKey: ['resources', 'client-bindings', bindingId, 'credentials'],
+    queryFn: ({ signal }) =>
+      apiGet<{ items: Credential[] }>(`/client-bindings/${encodeURIComponent(bindingId)}/credentials`, { children: true }, signal),
+  })

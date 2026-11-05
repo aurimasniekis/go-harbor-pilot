@@ -1,0 +1,91 @@
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--surface-sunken);
+}
+
+.rowHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.checks {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.legend {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-weight: 550;
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.snippet {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.json {
+  composes: snippet;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.cellActions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.step span {
+  flex: 1;
+}

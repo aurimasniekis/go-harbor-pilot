@@ -13,14 +13,26 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AcceptRouteImport } from './routes/accept'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ProvidersRouteRouteImport } from './routes/providers/route'
 import { Route as RecoverRouteImport } from './routes/recover'
+import { Route as RoutingRouteRouteImport } from './routes/routing/route'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as SetupRouteImport } from './routes/setup'
+import { Route as WorkspacesRouteImport } from './routes/workspaces'
+import { Route as ClientsIndexRouteImport } from './routes/clients/index'
+import { Route as ClientsBindingIdRouteImport } from './routes/clients/$bindingId'
+import { Route as ProvidersIndexRouteImport } from './routes/providers/index'
+import { Route as ProvidersAccountsRouteImport } from './routes/providers/accounts'
+import { Route as ProvidersPoolsRouteImport } from './routes/providers/pools'
+import { Route as ProvidersSubscriptionsRouteImport } from './routes/providers/subscriptions'
+import { Route as RoutingIndexRouteImport } from './routes/routing/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsAuditRouteImport } from './routes/settings/audit'
 import { Route as SettingsAuthRouteImport } from './routes/settings/auth'
 import { Route as SettingsServicePrincipalsRouteImport } from './routes/settings/service-principals'
 import { Route as SettingsUsersRouteImport } from './routes/settings/users'
+import { Route as RoutingPlansIndexRouteImport } from './routes/routing/plans/index'
+import { Route as RoutingPlansPlanIdRouteImport } from './routes/routing/plans/$planId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -42,9 +54,19 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProvidersRouteRoute = ProvidersRouteRouteImport.update({
+  id: '/providers',
+  path: '/providers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RecoverRoute = RecoverRouteImport.update({
   id: '/recover',
   path: '/recover',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutingRouteRoute = RoutingRouteRouteImport.update({
+  id: '/routing',
+  path: '/routing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRouteRoute = SettingsRouteRouteImport.update({
@@ -56,6 +78,46 @@ const SetupRoute = SetupRouteImport.update({
   id: '/setup',
   path: '/setup',
   getParentRoute: () => rootRouteImport,
+} as any)
+const WorkspacesRoute = WorkspacesRouteImport.update({
+  id: '/workspaces',
+  path: '/workspaces',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientsIndexRoute = ClientsIndexRouteImport.update({
+  id: '/clients/',
+  path: '/clients/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientsBindingIdRoute = ClientsBindingIdRouteImport.update({
+  id: '/clients/$bindingId',
+  path: '/clients/$bindingId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProvidersIndexRoute = ProvidersIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ProvidersRouteRoute,
+} as any)
+const ProvidersAccountsRoute = ProvidersAccountsRouteImport.update({
+  id: '/accounts',
+  path: '/accounts',
+  getParentRoute: () => ProvidersRouteRoute,
+} as any)
+const ProvidersPoolsRoute = ProvidersPoolsRouteImport.update({
+  id: '/pools',
+  path: '/pools',
+  getParentRoute: () => ProvidersRouteRoute,
+} as any)
+const ProvidersSubscriptionsRoute = ProvidersSubscriptionsRouteImport.update({
+  id: '/subscriptions',
+  path: '/subscriptions',
+  getParentRoute: () => ProvidersRouteRoute,
+} as any)
+const RoutingIndexRoute = RoutingIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => RoutingRouteRoute,
 } as any)
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
@@ -83,20 +145,42 @@ const SettingsUsersRoute = SettingsUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const RoutingPlansIndexRoute = RoutingPlansIndexRouteImport.update({
+  id: '/plans/',
+  path: '/plans/',
+  getParentRoute: () => RoutingRouteRoute,
+} as any)
+const RoutingPlansPlanIdRoute = RoutingPlansPlanIdRouteImport.update({
+  id: '/plans/$planId',
+  path: '/plans/$planId',
+  getParentRoute: () => RoutingRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/providers': typeof ProvidersRouteRouteWithChildren
+  '/routing': typeof RoutingRouteRouteWithChildren
   '/settings': typeof SettingsRouteRouteWithChildren
   '/accept': typeof AcceptRoute
   '/account': typeof AccountRoute
   '/login': typeof LoginRoute
   '/recover': typeof RecoverRoute
   '/setup': typeof SetupRoute
+  '/workspaces': typeof WorkspacesRoute
+  '/clients/$bindingId': typeof ClientsBindingIdRoute
+  '/providers/accounts': typeof ProvidersAccountsRoute
+  '/providers/pools': typeof ProvidersPoolsRoute
+  '/providers/subscriptions': typeof ProvidersSubscriptionsRoute
   '/settings/audit': typeof SettingsAuditRoute
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/clients/': typeof ClientsIndexRoute
+  '/providers/': typeof ProvidersIndexRoute
+  '/routing/': typeof RoutingIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
+  '/routing/plans/': typeof RoutingPlansIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -105,42 +189,76 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/recover': typeof RecoverRoute
   '/setup': typeof SetupRoute
+  '/workspaces': typeof WorkspacesRoute
+  '/clients/$bindingId': typeof ClientsBindingIdRoute
+  '/providers/accounts': typeof ProvidersAccountsRoute
+  '/providers/pools': typeof ProvidersPoolsRoute
+  '/providers/subscriptions': typeof ProvidersSubscriptionsRoute
   '/settings/audit': typeof SettingsAuditRoute
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/clients': typeof ClientsIndexRoute
+  '/providers': typeof ProvidersIndexRoute
+  '/routing': typeof RoutingIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
+  '/routing/plans': typeof RoutingPlansIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/providers': typeof ProvidersRouteRouteWithChildren
+  '/routing': typeof RoutingRouteRouteWithChildren
   '/settings': typeof SettingsRouteRouteWithChildren
   '/accept': typeof AcceptRoute
   '/account': typeof AccountRoute
   '/login': typeof LoginRoute
   '/recover': typeof RecoverRoute
   '/setup': typeof SetupRoute
+  '/workspaces': typeof WorkspacesRoute
+  '/clients/$bindingId': typeof ClientsBindingIdRoute
+  '/providers/accounts': typeof ProvidersAccountsRoute
+  '/providers/pools': typeof ProvidersPoolsRoute
+  '/providers/subscriptions': typeof ProvidersSubscriptionsRoute
   '/settings/audit': typeof SettingsAuditRoute
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/clients/': typeof ClientsIndexRoute
+  '/providers/': typeof ProvidersIndexRoute
+  '/routing/': typeof RoutingIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
+  '/routing/plans/': typeof RoutingPlansIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/providers'
+    | '/routing'
     | '/settings'
     | '/accept'
     | '/account'
     | '/login'
     | '/recover'
     | '/setup'
+    | '/workspaces'
+    | '/clients/$bindingId'
+    | '/providers/accounts'
+    | '/providers/pools'
+    | '/providers/subscriptions'
     | '/settings/audit'
     | '/settings/auth'
     | '/settings/service-principals'
     | '/settings/users'
+    | '/clients/'
+    | '/providers/'
+    | '/routing/'
     | '/settings/'
+    | '/routing/plans/$planId'
+    | '/routing/plans/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -149,35 +267,62 @@ export interface FileRouteTypes {
     | '/login'
     | '/recover'
     | '/setup'
+    | '/workspaces'
+    | '/clients/$bindingId'
+    | '/providers/accounts'
+    | '/providers/pools'
+    | '/providers/subscriptions'
     | '/settings/audit'
     | '/settings/auth'
     | '/settings/service-principals'
     | '/settings/users'
+    | '/clients'
+    | '/providers'
+    | '/routing'
     | '/settings'
+    | '/routing/plans/$planId'
+    | '/routing/plans'
   id:
     | '__root__'
     | '/'
+    | '/providers'
+    | '/routing'
     | '/settings'
     | '/accept'
     | '/account'
     | '/login'
     | '/recover'
     | '/setup'
+    | '/workspaces'
+    | '/clients/$bindingId'
+    | '/providers/accounts'
+    | '/providers/pools'
+    | '/providers/subscriptions'
     | '/settings/audit'
     | '/settings/auth'
     | '/settings/service-principals'
     | '/settings/users'
+    | '/clients/'
+    | '/providers/'
+    | '/routing/'
     | '/settings/'
+    | '/routing/plans/$planId'
+    | '/routing/plans/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ProvidersRouteRoute: typeof ProvidersRouteRouteWithChildren
+  RoutingRouteRoute: typeof RoutingRouteRouteWithChildren
   SettingsRouteRoute: typeof SettingsRouteRouteWithChildren
   AcceptRoute: typeof AcceptRoute
   AccountRoute: typeof AccountRoute
   LoginRoute: typeof LoginRoute
   RecoverRoute: typeof RecoverRoute
   SetupRoute: typeof SetupRoute
+  WorkspacesRoute: typeof WorkspacesRoute
+  ClientsBindingIdRoute: typeof ClientsBindingIdRoute
+  ClientsIndexRoute: typeof ClientsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -210,11 +355,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/providers': {
+      id: '/providers'
+      path: '/providers'
+      fullPath: '/providers'
+      preLoaderRoute: typeof ProvidersRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/recover': {
       id: '/recover'
       path: '/recover'
       fullPath: '/recover'
       preLoaderRoute: typeof RecoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routing': {
+      id: '/routing'
+      path: '/routing'
+      fullPath: '/routing'
+      preLoaderRoute: typeof RoutingRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -230,6 +389,62 @@ declare module '@tanstack/react-router' {
       fullPath: '/setup'
       preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/workspaces': {
+      id: '/workspaces'
+      path: '/workspaces'
+      fullPath: '/workspaces'
+      preLoaderRoute: typeof WorkspacesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clients/': {
+      id: '/clients/'
+      path: '/clients'
+      fullPath: '/clients/'
+      preLoaderRoute: typeof ClientsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clients/$bindingId': {
+      id: '/clients/$bindingId'
+      path: '/clients/$bindingId'
+      fullPath: '/clients/$bindingId'
+      preLoaderRoute: typeof ClientsBindingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/providers/': {
+      id: '/providers/'
+      path: '/'
+      fullPath: '/providers/'
+      preLoaderRoute: typeof ProvidersIndexRouteImport
+      parentRoute: typeof ProvidersRouteRoute
+    }
+    '/providers/accounts': {
+      id: '/providers/accounts'
+      path: '/accounts'
+      fullPath: '/providers/accounts'
+      preLoaderRoute: typeof ProvidersAccountsRouteImport
+      parentRoute: typeof ProvidersRouteRoute
+    }
+    '/providers/pools': {
+      id: '/providers/pools'
+      path: '/pools'
+      fullPath: '/providers/pools'
+      preLoaderRoute: typeof ProvidersPoolsRouteImport
+      parentRoute: typeof ProvidersRouteRoute
+    }
+    '/providers/subscriptions': {
+      id: '/providers/subscriptions'
+      path: '/subscriptions'
+      fullPath: '/providers/subscriptions'
+      preLoaderRoute: typeof ProvidersSubscriptionsRouteImport
+      parentRoute: typeof ProvidersRouteRoute
+    }
+    '/routing/': {
+      id: '/routing/'
+      path: '/'
+      fullPath: '/routing/'
+      preLoaderRoute: typeof RoutingIndexRouteImport
+      parentRoute: typeof RoutingRouteRoute
     }
     '/settings/': {
       id: '/settings/'
@@ -266,8 +481,56 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsUsersRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/routing/plans/': {
+      id: '/routing/plans/'
+      path: '/plans'
+      fullPath: '/routing/plans/'
+      preLoaderRoute: typeof RoutingPlansIndexRouteImport
+      parentRoute: typeof RoutingRouteRoute
+    }
+    '/routing/plans/$planId': {
+      id: '/routing/plans/$planId'
+      path: '/plans/$planId'
+      fullPath: '/routing/plans/$planId'
+      preLoaderRoute: typeof RoutingPlansPlanIdRouteImport
+      parentRoute: typeof RoutingRouteRoute
+    }
   }
 }
+
+interface ProvidersRouteRouteChildren {
+  ProvidersAccountsRoute: typeof ProvidersAccountsRoute
+  ProvidersPoolsRoute: typeof ProvidersPoolsRoute
+  ProvidersSubscriptionsRoute: typeof ProvidersSubscriptionsRoute
+  ProvidersIndexRoute: typeof ProvidersIndexRoute
+}
+
+const ProvidersRouteRouteChildren: ProvidersRouteRouteChildren = {
+  ProvidersAccountsRoute: ProvidersAccountsRoute,
+  ProvidersPoolsRoute: ProvidersPoolsRoute,
+  ProvidersSubscriptionsRoute: ProvidersSubscriptionsRoute,
+  ProvidersIndexRoute: ProvidersIndexRoute,
+}
+
+const ProvidersRouteRouteWithChildren = ProvidersRouteRoute._addFileChildren(
+  ProvidersRouteRouteChildren,
+)
+
+interface RoutingRouteRouteChildren {
+  RoutingIndexRoute: typeof RoutingIndexRoute
+  RoutingPlansPlanIdRoute: typeof RoutingPlansPlanIdRoute
+  RoutingPlansIndexRoute: typeof RoutingPlansIndexRoute
+}
+
+const RoutingRouteRouteChildren: RoutingRouteRouteChildren = {
+  RoutingIndexRoute: RoutingIndexRoute,
+  RoutingPlansPlanIdRoute: RoutingPlansPlanIdRoute,
+  RoutingPlansIndexRoute: RoutingPlansIndexRoute,
+}
+
+const RoutingRouteRouteWithChildren = RoutingRouteRoute._addFileChildren(
+  RoutingRouteRouteChildren,
+)
 
 interface SettingsRouteRouteChildren {
   SettingsAuditRoute: typeof SettingsAuditRoute
@@ -291,12 +554,17 @@ const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ProvidersRouteRoute: ProvidersRouteRouteWithChildren,
+  RoutingRouteRoute: RoutingRouteRouteWithChildren,
   SettingsRouteRoute: SettingsRouteRouteWithChildren,
   AcceptRoute: AcceptRoute,
   AccountRoute: AccountRoute,
   LoginRoute: LoginRoute,
   RecoverRoute: RecoverRoute,
   SetupRoute: SetupRoute,
+  WorkspacesRoute: WorkspacesRoute,
+  ClientsBindingIdRoute: ClientsBindingIdRoute,
+  ClientsIndexRoute: ClientsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
