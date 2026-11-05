@@ -99,7 +99,8 @@ export function TextField({ label, hint, error, value, onChange, type = 'text', 
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChange(e.currentTarget.value),
     inputWrapperOrder: ORDER,
     'data-autofocus': autoFocus || undefined,
-    ff: mono ? 'monospace' : undefined,
+    // Monospace applies to the typed text only, not the label.
+    styles: mono ? { input: { fontFamily: 'var(--font-mono)' } } : undefined,
     ...other,
   }
   if (type === 'password') return <PasswordInput {...common} />
@@ -143,7 +144,7 @@ export function TextAreaField({ label, hint, error, value, onChange, minRows = 3
       minRows={minRows}
       maxRows={maxRows}
       inputWrapperOrder={ORDER}
-      ff={mono ? 'monospace' : undefined}
+      styles={mono ? { input: { fontFamily: 'var(--font-mono)' } } : undefined}
       spellCheck={rest.spellCheck ?? !mono}
       {...rest}
     />
@@ -326,7 +327,7 @@ export function SecretRefField({ label = 'Secret reference', hint, error, value,
       value={value}
       onChange={(e) => onChange(e.currentTarget.value)}
       placeholder={`env:HP_SECRET_${example}`}
-      ff="monospace"
+      styles={{ input: { fontFamily: 'var(--font-mono)' } }}
       disabled={disabled}
       autoComplete="off"
       spellCheck={false}
@@ -380,7 +381,7 @@ export function NameField({ label = 'Short name', value, onChange, error, locked
       disabled={locked}
       required={!locked}
       {...req(!locked)}
-      ff="monospace"
+      styles={{ input: { fontFamily: 'var(--font-mono)' } }}
       autoComplete="off"
       spellCheck={false}
       data-autofocus={autoFocus || undefined}

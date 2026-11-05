@@ -16,8 +16,9 @@
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  /* Keep commands and paths intact; long lines scroll inside the block. */
+  white-space: pre;
+  overflow-x: auto;
 }
 
 .copy {

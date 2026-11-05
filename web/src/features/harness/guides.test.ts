@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { baseURL, commands, guide, harnessKinds, shellArg } from './guides'
+import { baseURL, commands, guide, harnessKinds, saveTokenCommand, shellArg } from './guides'
 
 const input = { url: 'https://hp.example.com/', model: 'coding/default', bindingId: 'bnd_1' }
 
@@ -9,7 +9,15 @@ describe('guide', () => {
       const g = guide(value, input)
       expect(g.snippet).not.toMatch(/hpk_/)
       for (const c of commands(value, input)) expect(c.cmd).not.toMatch(/hpk_/)
+      expect(saveTokenCommand(value)).not.toMatch(/hpk_|pbpaste/)
     }
+  })
+
+  it('gives SDK clients environment variables and no CLI commands', () => {
+    const g = guide('sdk', input)
+    expect(g.snippet).toContain('OPENAI_BASE_URL=https://hp.example.com/v1')
+    expect(g.snippet).toContain('ANTHROPIC_BASE_URL=https://hp.example.com')
+    expect(commands('sdk', input)).toEqual([])
   })
 
   it('points OpenAI-compatible harnesses at /v1 and Claude Code at the root', () => {

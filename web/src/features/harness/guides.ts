@@ -4,7 +4,10 @@
  * reference a 0600 token file or an environment variable.
  */
 
-export type HarnessKind = 'claude' | 'codex' | 'opencode' | 'pi'
+export type HarnessKind = 'claude' | 'codex' | 'opencode' | 'pi' | 'sdk'
+
+/** Tools the harbor-pilot CLI can configure (every kind except an SDK). */
+export type CliKind = Exclude<HarnessKind, 'sdk'>
 
 export interface GuideInput {
   /** Harbor Pilot public URL. */
@@ -20,7 +23,7 @@ export interface Guide {
   label: string
   /** The file setup edits. */
   file: string
-  lang: 'json' | 'toml'
+  lang: 'json' | 'toml' | 'shell'
   /** What setup adds to that file. */
   snippet: string
   /** How the harness gets the token. */
@@ -35,6 +38,7 @@ export const harnessKinds: { value: HarnessKind; label: string }[] = [
   { value: 'codex', label: 'Codex' },
   { value: 'opencode', label: 'OpenCode' },
   { value: 'pi', label: 'Pi' },
+  { value: 'sdk', label: 'Other API client' },
 ]
 
 export const TOKEN_ENV = 'HARBOR_PILOT_TOKEN'
@@ -106,11 +110,38 @@ export function guide(kind: HarnessKind, input: GuideInput): Guide {
         token: `Pi reads the key from the ${TOKEN_ENV} environment variable.`,
         after: [`export ${TOKEN_ENV}="$(cat ${tokenFile(kind)})"`], verified: false,
       }
+    case 'sdk':
+      return {
+        kind, label: 'Other API client', file: 'the environment of the app (shell profile, .env or service settings)', lang: 'shell',
+        snippet: [
+          '# OpenAI SDKs and OpenAI-compatible tools',
+          `export OPENAI_BASE_URL=${url}/v1`,
+          `export OPENAI_API_KEY="$(cat ${tokenFile(kind)})"`,
+          '',
+          '# Anthropic SDKs',
+          `export ANTHROPIC_BASE_URL=${url}`,
+          `export ANTHROPIC_AUTH_TOKEN="$(cat ${tokenFile(kind)})"`,
+          '',
+          `# Gemini clients: base URL ${url}, token in the x-goog-api-key header`,
+        ].join('\n'),
+        token: 'The SDK reads the access token from the environment; the token itself stays in the file.',
+        after: [], verified: false,
+      }
   }
+}
+
+/**
+ * Saves a pasted access token to the tool's token file, readable only by
+ * you. Works in any POSIX shell (macOS, Linux, WSL): it waits for you to
+ * paste the token and press Enter, without echoing it.
+ */
+export function saveTokenCommand(kind: HarnessKind): string {
+  return `mkdir -p ~/.config/harbor-pilot/tokens && umask 077 && printf 'Paste the access token, then press Enter: ' && read -rs HP_TOKEN && printf '%s' "$HP_TOKEN" > ${tokenFile(kind)} && unset HP_TOKEN && echo`
 }
 
 /** CLI commands for a harness: issue a token straight into setup, preview, status, undo. */
 export function commands(kind: HarnessKind, input: GuideInput): { label: string; cmd: string }[] {
+  if (kind === 'sdk') return []
   const url = baseURL(input.url)
   const binding = input.bindingId.trim() || '<binding-id>'
   const model = input.model.trim() ? ` --model ${shellArg(input.model.trim())}` : ''
