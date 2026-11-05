@@ -31,10 +31,13 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/controlplane/cpapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/demo"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/events/eventsapi"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/events/relay"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/executor"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/executor/httpapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/gateway"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/notify"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/clock"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/credentials"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/crypto"
@@ -70,6 +73,8 @@ type Options struct {
 	QuotaScheduler polling.Options
 	// Clock overrides the application clock (tests).
 	Clock clock.Clock
+	// PulseConnector overrides how Pulse publishers connect (tests).
+	PulseConnector relay.PulseConnector
 	// BridgeEnv is appended to CLI bridge environments (tests point the CLI
 	// at a synthetic upstream).
 	BridgeEnv []string
@@ -97,6 +102,8 @@ type App struct {
 	TraceSvc *traces.Service
 	Compat   *compat.Manager
 	Watch    *compat.Watch
+	Relay    *relay.Relay
+	Notify   *notify.Engine
 	Budgets  *accounting.Budgets
 	Started  time.Time
 
@@ -190,6 +197,7 @@ func New(ctx context.Context, o Options) (*App, error) {
 	a.Watch = compat.NewWatch(a.DB, a.Clock, a.Log)
 	a.Compat.OnTransition = func(b compat.Breaker, from, to string) {
 		if to == compat.Closed && from != compat.Closed {
+			a.Gateway.BreakerClosed(b.Key, b.ProviderID, b.Path)
 			_, up, _ := strings.Cut(b.Path, ">")
 			a.Watch.Observe(compat.Signal{Direction: "response", Protocol: ir.Protocol(up), ProviderID: b.ProviderID, Route: b.Key,
 				Action: map[string]any{"restored": true, "path": b.Path, "from": from}})
@@ -207,6 +215,28 @@ func New(ctx context.Context, o Options) (*App, error) {
 	}
 	a.Gateway.HTTP.SampleEvery = 20
 	a.AddBackground(a.Watch.Run)
+	a.Relay = relay.New(a.DB, a.Clock, a.Log, a.CP.Snapshot)
+	a.Relay.Secret = func(ctx context.Context, id, field string) (credentials.Secret, error) {
+		return a.CP.ResolveSecret(ctx, controlplane.DestinationDef, id, field)
+	}
+	a.Relay.ReadFile = func(path string) ([]byte, error) {
+		ref, err := auth.ParseSecretRef("file:" + path)
+		if err != nil {
+			return nil, err
+		}
+		sec, err := auth.SecretResolver.Resolve(ref)
+		return []byte(sec.Reveal()), err
+	}
+	a.Relay.Pulse = o.PulseConnector
+	if a.Relay.Pulse == nil {
+		a.Relay.Pulse = relay.ConnectPulse
+	}
+	a.AddBackground(a.Relay.Run)
+	a.Notify = notify.New(a.DB, a.Clock, a.Log, a.CP.Snapshot)
+	a.Notify.Secret = func(ctx context.Context, id string) (credentials.Secret, error) {
+		return a.CP.ResolveSecret(ctx, controlplane.ChannelDef, id, "secret")
+	}
+	a.AddBackground(a.Notify.Run)
 	a.AddBackground(func(ctx context.Context) {
 		t := time.NewTicker(10 * time.Minute)
 		defer t.Stop()
@@ -298,6 +328,10 @@ func (a *App) CoreAPI() []func(*api.API) {
 					return a.Gateway.AccountHealth(id)
 				}, Origin: func() string { return a.Cfg.PublicOrigin() }})
 			usageapi.Register(ap, usageapi.Deps{DB: func() *store.DB { return a.DB }, Snapshot: func() *controlplane.Snapshot { return a.CP.Snapshot() }, Clock: a.clock()})
+		},
+		func(ap *api.API) {
+			eventsapi.Register(ap, eventsapi.Deps{DB: func() *store.DB { return a.DB }, Relay: func() *relay.Relay { return a.Relay },
+				Notify: func() *notify.Engine { return a.Notify }, Snapshot: func() *controlplane.Snapshot { return a.CP.Snapshot() }})
 		},
 		func(ap *api.API) {
 			compatapi.Register(ap, compatapi.Deps{Compat: func() *compat.Manager { return a.Compat }, Watch: func() *compat.Watch { return a.Watch },

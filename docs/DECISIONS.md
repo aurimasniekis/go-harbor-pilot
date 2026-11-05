@@ -222,3 +222,10 @@ Verified against `claude` 2.1.318 with a synthetic upstream (see `docs/contracts
 ## D-032: Protocol Watch baseline
 
 The structural baseline is seeded from this build's own protocol encoders, then extended by sampling one in twenty healthy upstream streams (64 KiB each). Passthrough samples (256 KiB) are compared with it. Findings are fingerprinted by kind, direction, protocol, provider, path and adapter version, and each fingerprint has one work item.
+
+## D-033: Event relays and notifications are separate outbox consumers
+
+- Each event destination and the notification engine keep their own cursor over `event_outbox`. A new consumer starts at the current end; history is sent only through an explicit replay.
+- Destinations deliver in event order and stop a round at the first failure. Notifications are independent per channel.
+- Webhook signatures follow `t=<unix>,v1=<hex>`. During rotation both the current and the previous secret sign, so receivers can switch without downtime.
+- Notification failures never create domain events, and rules cannot subscribe to `notification.*` or `event.*`, so a failing channel cannot cause a notification storm.

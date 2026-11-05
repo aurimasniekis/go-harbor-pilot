@@ -596,6 +596,131 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/event-destinations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Event destinations */
+        get: operations["list-event-destinations"];
+        put?: never;
+        /** Create a Event destination */
+        post: operations["create-event_destination"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/event-destinations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Event destination */
+        get: operations["get-event_destination"];
+        /** Replace a Event destination */
+        put: operations["replace-event_destination"];
+        post?: never;
+        /** Delete a Event destination */
+        delete: operations["delete-event_destination"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/event-destinations/{id}/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Delivery history */
+        get: operations["list-deliveries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/event-destinations/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Event destination */
+        get: operations["history-event_destination"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/event-destinations/{id}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replay deliveries
+         * @description Delivery is at-least-once; receivers deduplicate by event id.
+         */
+        post: operations["replay-deliveries"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recent domain events (newest first) */
+        get: operations["list-events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Event kinds and their fields */
+        get: operations["event-catalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/meta": {
         parameters: {
             query?: never;
@@ -661,6 +786,165 @@ export interface paths {
         get: operations["history-model_alias"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notification-channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notification channels */
+        get: operations["list-notification-channels"];
+        put?: never;
+        /** Create a Notification channel */
+        post: operations["create-notification_channel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notification-channels/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Notification channel */
+        get: operations["get-notification_channel"];
+        /** Replace a Notification channel */
+        put: operations["replace-notification_channel"];
+        post?: never;
+        /** Delete a Notification channel */
+        delete: operations["delete-notification_channel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notification-channels/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Notification channel */
+        get: operations["history-notification_channel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notification-channels/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a test notification */
+        post: operations["test-notification-channel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notification-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notification rules */
+        get: operations["list-notification-rules"];
+        put?: never;
+        /** Create a Notification rule */
+        post: operations["create-notification_rule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notification-rules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Notification rule */
+        get: operations["get-notification_rule"];
+        /** Replace a Notification rule */
+        put: operations["replace-notification_rule"];
+        post?: never;
+        /** Delete a Notification rule */
+        delete: operations["delete-notification_rule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notification-rules/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Notification rule */
+        get: operations["history-notification_rule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Notification history */
+        get: operations["list-notifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/{id}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replay a dead notification */
+        post: operations["replay-notification"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2500,6 +2784,9 @@ export interface components {
             /** @enum {string} */
             status: "supported" | "partial" | "unsupported" | "unknown";
         };
+        CatOutBody: {
+            items: components["schemas"]["KindInfo"][];
+        };
         ChOutBody: {
             /**
              * Format: int64
@@ -2534,6 +2821,24 @@ export interface components {
             provider_id: string;
             /** @enum {string} */
             recency: "current" | "not_observed_recently";
+        };
+        ChannelSpec: {
+            allow_private_network?: boolean;
+            api_base_url?: string;
+            /** Format: int64 */
+            digest_minutes?: number;
+            enabled: boolean;
+            quiet_hours?: components["schemas"]["QuietHours"];
+            /** Format: int64 */
+            rate_per_minute?: number;
+            secret_ref?: string;
+            telegram_chat_id?: string;
+            /** @description IANA timezone for quiet hours and digests; empty = UTC. */
+            timezone?: string;
+            /** @enum {string} */
+            type: "telegram" | "slack" | "discord" | "webhook";
+            /** @description Generic webhook URL (Slack and Discord URLs are secrets). */
+            webhook_url?: string;
         };
         CompleteInBody: {
             /** @description The code (or redirected URL) shown after approval. */
@@ -2655,6 +2960,61 @@ export interface components {
             breaker: components["schemas"]["Breaker"];
             plans: components["schemas"]["PlanEffect"][];
         };
+        DelOutBody: {
+            items: components["schemas"]["Delivery"][];
+        };
+        Delivery: {
+            /** Format: int64 */
+            attempts: number;
+            consumer: string;
+            /** Format: date-time */
+            delivered_at: string | null;
+            event_id: string;
+            event_type: string;
+            id: string;
+            last_error: string;
+            /** Format: int64 */
+            last_status: number | null;
+            /** Format: date-time */
+            next_attempt_at: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** @enum {string} */
+            status: "pending" | "deferred" | "delivered" | "dead";
+        };
+        DestinationSpec: {
+            /** @description Permit private or loopback addresses (metadata endpoints stay blocked). */
+            allow_private_network?: boolean;
+            /** @description file:/path to a CA bundle for TLS. */
+            ca_ref?: string;
+            /** @description file:/path to the Pulse .creds file (alternative to the write-only creds secret). */
+            creds_ref?: string;
+            enabled: boolean;
+            filter?: components["schemas"]["EventFilter"];
+            /** @description Extra non-secret headers. */
+            headers?: {
+                [key: string]: string;
+            };
+            /**
+             * Format: int64
+             * @description Dead-letter events older than this (default 24).
+             */
+            max_age_hours?: number;
+            /**
+             * Format: int64
+             * @description Dead-letter after this many attempts (default 50).
+             */
+            max_attempts?: number;
+            /** @description ce-source value; default harbor-pilot. */
+            pulse_source?: string;
+            /** @description nats:// or tls:// URL of the Pulse server. */
+            pulse_url?: string;
+            /** Format: int64 */
+            timeout_seconds?: number;
+            /** @enum {string} */
+            type: "pulse" | "webhook";
+            webhook_url?: string;
+        };
         DraftRequest: {
             document: components["schemas"]["PlanDocument"];
             note: string;
@@ -2731,6 +3091,26 @@ export interface components {
             restored: number | null;
             /** Format: date-time */
             t: string;
+        };
+        EventDTO: {
+            envelope: unknown;
+            id: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: int64 */
+            seq: number;
+            severity: string;
+            subject: string;
+            type: string;
+        };
+        EventFilter: {
+            /** @description Event-name globs such as quota.* or routing.account.switched; empty = all. */
+            events?: string[];
+            /** @enum {string} */
+            min_severity?: "info" | "warning" | "critical" | "";
+            subjects?: {
+                [key: string]: string;
+            };
         };
         Exclusion: {
             account: string;
@@ -2957,6 +3337,16 @@ export interface components {
             /** @description The bearer token (hpk_…). Returned exactly once. */
             token: string;
         };
+        KindInfo: {
+            data: string[];
+            description: string;
+            name: string;
+            pair?: string;
+            severity: string;
+            subject: string;
+            subjects: string[];
+            type: string;
+        };
         LedgerDTO: {
             account_id: string;
             /** Format: date-time */
@@ -3081,6 +3471,41 @@ export interface components {
             /** @description The monitor authenticates with an in-app sign-in token. */
             uses_login: boolean;
         };
+        NOutBody: {
+            items: components["schemas"]["Notification"][];
+        };
+        Notification: {
+            /** Format: int64 */
+            attempts: number;
+            body: string;
+            channel_id: string;
+            /** Format: date-time */
+            created_at: string;
+            event_id: string;
+            id: string;
+            /** @enum {string} */
+            kind: "alert" | "recovery" | "digest" | "test";
+            last_error: string;
+            rule_id: string;
+            /** Format: date-time */
+            sent_at: string | null;
+            severity: string;
+            /** @enum {string} */
+            status: "pending" | "digest" | "sent" | "digested" | "dead";
+            title: string;
+        };
+        NotificationRuleSpec: {
+            channel_ids: string[];
+            /** Format: int64 */
+            cooldown_seconds?: number;
+            enabled: boolean;
+            filter: components["schemas"]["EventFilter"];
+            /** Format: int64 */
+            group_seconds?: number;
+            /** @description Notify when a notified condition recovers (e.g. quota window recovered, breaker closed). */
+            recovery?: boolean;
+            template?: string;
+        };
         OIDCLoginOption: {
             display_name: string;
             slug: string;
@@ -3152,6 +3577,9 @@ export interface components {
             scopes?: string[];
             slug: string;
         };
+        OkOutBody: {
+            queued: boolean;
+        };
         OvInBody: {
             /** @enum {string} */
             override: "auto" | "force_open" | "force_closed";
@@ -3162,6 +3590,11 @@ export interface components {
         };
         PageAuditEntryDTO: {
             items: components["schemas"]["AuditEntryDTO"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageEventDTO: {
+            items: components["schemas"]["EventDTO"][];
             /** @description Present when more items are available. */
             next_cursor?: string;
         };
@@ -3195,8 +3628,23 @@ export interface components {
             /** @description Present when more items are available. */
             next_cursor?: string;
         };
+        PageResourceChannelSpec: {
+            items: components["schemas"]["ResourceChannelSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageResourceDestinationSpec: {
+            items: components["schemas"]["ResourceDestinationSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
         PageResourceEntitlementSpec: {
             items: components["schemas"]["ResourceEntitlementSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageResourceNotificationRuleSpec: {
+            items: components["schemas"]["ResourceNotificationRuleSpec"][];
             /** @description Present when more items are available. */
             next_cursor?: string;
         };
@@ -3457,6 +3905,14 @@ export interface components {
             /** @enum {string} */
             type: "anthropic" | "openai" | "gemini" | "openai_compatible" | "ollama" | "claude_code" | "codex";
         };
+        QuietHours: {
+            critical_bypass?: boolean;
+            enabled: boolean;
+            /** @description HH:MM */
+            end?: string;
+            /** @description HH:MM */
+            start?: string;
+        };
         QuotaForecast: {
             caveats: string[];
             confidence: string;
@@ -3563,6 +4019,19 @@ export interface components {
             health_mode?: "current" | "assume_available" | "";
             /** @description Plan version to replay against (default: currently published). */
             version_id?: string;
+        };
+        ReplayInBody1: {
+            /** @description Replay one dead delivery; empty = all dead deliveries. */
+            delivery_id?: string;
+            /**
+             * Format: date-time
+             * @description Instead, re-send every matching event since this time.
+             */
+            since?: string;
+        };
+        ReplayOutBody: {
+            /** Format: int64 */
+            queued: number;
         };
         ReplayResult: {
             /** @description The first-choice candidate or outcome differs. */
@@ -3807,6 +4276,72 @@ export interface components {
             updated_at: string;
             updated_by: string;
         };
+        ResourceChannelSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["ChannelSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
+        ResourceDestinationSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["DestinationSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
         ResourceEntitlementSpec: {
             /** Format: int64 */
             config_revision: number;
@@ -3836,6 +4371,39 @@ export interface components {
                 [key: string]: components["schemas"]["SecretInfo"];
             };
             spec: components["schemas"]["EntitlementSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
+        ResourceNotificationRuleSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["NotificationRuleSpec"];
             /** Format: date-time */
             updated_at: string;
             updated_by: string;
@@ -4314,6 +4882,12 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        TestOutBody1: {
+            delivered: boolean;
+            error?: string;
+            /** Format: int64 */
+            status?: number;
+        };
         TokenInBody: {
             token: string;
         };
@@ -4587,6 +5161,22 @@ export interface components {
             };
             spec: components["schemas"]["BudgetSpec"];
         };
+        WriteBodyChannelSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["ChannelSpec"];
+        };
+        WriteBodyDestinationSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["DestinationSpec"];
+        };
         WriteBodyEntitlementSpec: {
             name: string;
             /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
@@ -4594,6 +5184,14 @@ export interface components {
                 [key: string]: string | null;
             };
             spec: components["schemas"]["EntitlementSpec"];
+        };
+        WriteBodyNotificationRuleSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["NotificationRuleSpec"];
         };
         WriteBodyPlanSpec: {
             name: string;
@@ -6190,6 +6788,351 @@ export interface operations {
             };
         };
     };
+    "list-event-destinations": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourceDestinationSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-event_destination": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyDestinationSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceDestinationSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-event_destination": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceDestinationSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-event_destination": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyDestinationSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceDestinationSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-event_destination": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-deliveries": {
+        parameters: {
+            query?: {
+                status?: "pending" | "deferred" | "delivered" | "dead" | "";
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DelOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-event_destination": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replay-deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplayInBody1"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-events": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+                type?: string;
+                severity?: "info" | "warning" | "critical" | "";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageEventDTO"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "event-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "get-meta": {
         parameters: {
             query?: never;
@@ -6417,6 +7360,523 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-notification-channels": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourceChannelSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-notification_channel": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyChannelSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceChannelSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-notification_channel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceChannelSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-notification_channel": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyChannelSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceChannelSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-notification_channel": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-notification_channel": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "test-notification-channel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestOutBody1"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-notification-rules": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourceNotificationRuleSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-notification_rule": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyNotificationRuleSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceNotificationRuleSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-notification_rule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceNotificationRuleSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-notification_rule": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyNotificationRuleSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceNotificationRuleSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-notification_rule": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-notification_rule": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-notifications": {
+        parameters: {
+            query?: {
+                channel_id?: string;
+                status?: "pending" | "digest" | "sent" | "digested" | "dead" | "";
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replay-notification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkOutBody"];
                 };
             };
             /** @description Error */

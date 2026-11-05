@@ -37,6 +37,8 @@ func (g *Gateway) compatMode(rc *reqCtx, cand *routing.Candidate) (attemptMode, 
 	case compat.Open:
 		ok, losses, why := g.passthroughPlan(rc, cand)
 		if !ok {
+			key, path := compat.Key(cand.ProviderID, rc.inbound, cand.Upstream)
+			g.passthroughRefused(key, cand.ProviderID, path, why)
 			kind := ir.ErrOverloaded
 			if strings.Contains(why, "privacy") || strings.Contains(why, "budget") {
 				kind = ir.ErrPolicy
@@ -184,6 +186,10 @@ func (g *Gateway) deliverRaw(ctx context.Context, w http.ResponseWriter, rc *req
 		g.Watch.Observe(compat.Signal{Direction: "response", Protocol: rc.inbound, ProviderID: fi.cand.ProviderID, Harness: rc.harness.Name,
 			HarnessVer: rc.harness.Version, RequestID: rc.id, Route: fi.cand.ProviderID + "|" + string(rc.inbound) + ">" + string(fi.cand.Upstream),
 			Raw: sample.Bytes(), Action: map[string]any{"mode": "passthrough"}})
+	}
+	if streamErr == nil {
+		key, path := compat.Key(fi.cand.ProviderID, rc.inbound, fi.cand.Upstream)
+		g.passthroughServed(key, fi.cand.ProviderID, path)
 	}
 	fi.usage = sniff.usage
 	fi.stop = ir.StopReason(sniff.stop)

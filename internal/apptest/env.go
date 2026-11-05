@@ -18,6 +18,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/app"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/config"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/events/relay"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/clock"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/crypto"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/polling"
@@ -46,6 +47,9 @@ type Option func(*Setup)
 func WithBridgeEnv(env ...string) Option {
 	return func(s *Setup) { s.App.BridgeEnv = append(s.App.BridgeEnv, env...) }
 }
+
+// WithPulse replaces how the event relay connects to Pulse.
+func WithPulse(c relay.PulseConnector) Option { return func(s *Setup) { s.App.PulseConnector = c } }
 
 // WithClock replaces the application clock.
 func WithClock(c clock.Clock) Option { return func(s *Setup) { s.App.Clock = c } }

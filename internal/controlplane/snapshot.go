@@ -58,6 +58,9 @@ type Snapshot struct {
 	Budgets      map[string]*Res[BudgetSpec]
 	Privacy      map[string]*Res[PrivacyPolicySpec]
 	TracePols    map[string]*Res[TracePolicySpec]
+	Destinations map[string]*Res[DestinationSpec]
+	Channels     map[string]*Res[ChannelSpec]
+	Rules        map[string]*Res[NotificationRuleSpec]
 
 	// AliasPool maps alias id to the pool id it ultimately resolves to.
 	AliasPool map[string]string
@@ -96,7 +99,8 @@ func Compile(ctx context.Context, q store.Execer, now time.Time) (*Snapshot, err
 		Aliases: map[string]*Res[AliasSpec]{}, AliasByName: map[string]*Res[AliasSpec]{}, Plans: map[string]*PlanView{},
 		Bindings: map[string]*Res[BindingSpec]{}, AliasPool: map[string]string{}, AliasChain: map[string][]string{}, Ext: map[string]any{},
 		Monitors: map[string]*Res[QuotaMonitorSpec]{}, Budgets: map[string]*Res[BudgetSpec]{},
-		Privacy: map[string]*Res[PrivacyPolicySpec]{}, TracePols: map[string]*Res[TracePolicySpec]{}}
+		Privacy: map[string]*Res[PrivacyPolicySpec]{}, TracePols: map[string]*Res[TracePolicySpec]{},
+		Destinations: map[string]*Res[DestinationSpec]{}, Channels: map[string]*Res[ChannelSpec]{}, Rules: map[string]*Res[NotificationRuleSpec]{}}
 	if err := q.QueryRowContext(ctx, `SELECT COALESCE(MAX(revision), 0) FROM config_revisions`).Scan(&s.ConfigRevision); err != nil {
 		return nil, err
 	}
@@ -144,6 +148,12 @@ func Compile(ctx context.Context, q store.Execer, now time.Time) (*Snapshot, err
 			derr = put(s.Privacy, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindTracePolicy:
 			derr = put(s.TracePols, x.id, x.name, x.rev, x.managedBy, raw)
+		case KindDestination:
+			derr = put(s.Destinations, x.id, x.name, x.rev, x.managedBy, raw)
+		case KindChannel:
+			derr = put(s.Channels, x.id, x.name, x.rev, x.managedBy, raw)
+		case KindNotificationRule:
+			derr = put(s.Rules, x.id, x.name, x.rev, x.managedBy, raw)
 		default:
 			if h, ok := extraKinds[x.kind]; ok {
 				derr = h(s, x.id, x.name, x.rev, x.managedBy, raw)

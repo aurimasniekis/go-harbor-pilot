@@ -36,6 +36,7 @@ const (
 	Destination      = "dst"
 	Channel          = "nch"
 	NotificationRule = "nrl"
+	Notification     = "nfy"
 	OIDCProvider     = "oid"
 	Request          = "req"
 	Attempt          = "att"

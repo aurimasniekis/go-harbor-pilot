@@ -1070,6 +1070,16 @@ components:
       required:
         - status
       type: object
+    CatOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/KindInfo"
+          type: array
+      required:
+        - items
+      type: object
     ChOutBody:
       additionalProperties: false
       properties:
@@ -1157,6 +1167,48 @@ components:
         - last_seen
         - count
         - recency
+      type: object
+    ChannelSpec:
+      additionalProperties: false
+      properties:
+        allow_private_network:
+          type: boolean
+        api_base_url:
+          type: string
+        digest_minutes:
+          format: int64
+          maximum: 1440
+          minimum: 0
+          type: integer
+        enabled:
+          type: boolean
+        quiet_hours:
+          $ref: "#/components/schemas/QuietHours"
+        rate_per_minute:
+          format: int64
+          maximum: 600
+          minimum: 0
+          type: integer
+        secret_ref:
+          type: string
+        telegram_chat_id:
+          type: string
+        timezone:
+          description: IANA timezone for quiet hours and digests; empty = UTC.
+          type: string
+        type:
+          enum:
+            - telegram
+            - slack
+            - discord
+            - webhook
+          type: string
+        webhook_url:
+          description: Generic webhook URL (Slack and Discord URLs are secrets).
+          type: string
+      required:
+        - type
+        - enabled
       type: object
     CompleteInBody:
       additionalProperties: false
@@ -1476,6 +1528,123 @@ components:
         - breaker
         - plans
       type: object
+    DelOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Delivery"
+          type: array
+      required:
+        - items
+      type: object
+    Delivery:
+      additionalProperties: false
+      properties:
+        attempts:
+          format: int64
+          type: integer
+        consumer:
+          type: string
+        delivered_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        event_id:
+          type: string
+        event_type:
+          type: string
+        id:
+          type: string
+        last_error:
+          type: string
+        last_status:
+          format: int64
+          type:
+            - integer
+            - "null"
+        next_attempt_at:
+          format: date-time
+          type: string
+        occurred_at:
+          format: date-time
+          type: string
+        status:
+          enum:
+            - pending
+            - deferred
+            - delivered
+            - dead
+          type: string
+      required:
+        - id
+        - consumer
+        - event_id
+        - event_type
+        - occurred_at
+        - status
+        - attempts
+        - next_attempt_at
+        - last_status
+        - last_error
+        - delivered_at
+      type: object
+    DestinationSpec:
+      additionalProperties: false
+      properties:
+        allow_private_network:
+          description: Permit private or loopback addresses (metadata endpoints stay blocked).
+          type: boolean
+        ca_ref:
+          description: file:/path to a CA bundle for TLS.
+          type: string
+        creds_ref:
+          description: file:/path to the Pulse .creds file (alternative to the write-only creds secret).
+          type: string
+        enabled:
+          type: boolean
+        filter:
+          $ref: "#/components/schemas/EventFilter"
+        headers:
+          additionalProperties:
+            type: string
+          description: Extra non-secret headers.
+          type: object
+        max_age_hours:
+          description: Dead-letter events older than this (default 24).
+          format: int64
+          maximum: 720
+          minimum: 0
+          type: integer
+        max_attempts:
+          description: Dead-letter after this many attempts (default 50).
+          format: int64
+          maximum: 1000
+          minimum: 0
+          type: integer
+        pulse_source:
+          description: ce-source value; default harbor-pilot.
+          type: string
+        pulse_url:
+          description: nats:// or tls:// URL of the Pulse server.
+          type: string
+        timeout_seconds:
+          format: int64
+          maximum: 60
+          minimum: 0
+          type: integer
+        type:
+          enum:
+            - pulse
+            - webhook
+          type: string
+        webhook_url:
+          type: string
+      required:
+        - type
+        - enabled
+      type: object
     DraftRequest:
       additionalProperties: false
       properties:
@@ -1666,6 +1835,53 @@ components:
         - before
         - after
         - restored
+      type: object
+    EventDTO:
+      additionalProperties: false
+      properties:
+        envelope: {}
+        id:
+          type: string
+        occurred_at:
+          format: date-time
+          type: string
+        seq:
+          format: int64
+          type: integer
+        severity:
+          type: string
+        subject:
+          type: string
+        type:
+          type: string
+      required:
+        - seq
+        - id
+        - type
+        - subject
+        - severity
+        - occurred_at
+        - envelope
+      type: object
+    EventFilter:
+      additionalProperties: false
+      properties:
+        events:
+          description: Event-name globs such as quota.* or routing.account.switched; empty = all.
+          items:
+            type: string
+          type: array
+        min_severity:
+          enum:
+            - info
+            - warning
+            - critical
+            - ""
+          type: string
+        subjects:
+          additionalProperties:
+            type: string
+          type: object
       type: object
     Exclusion:
       additionalProperties: false
@@ -2240,6 +2456,38 @@ components:
         - token
         - base_urls
       type: object
+    KindInfo:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            type: string
+          type: array
+        description:
+          type: string
+        name:
+          type: string
+        pair:
+          type: string
+        severity:
+          type: string
+        subject:
+          type: string
+        subjects:
+          items:
+            type: string
+          type: array
+        type:
+          type: string
+      required:
+        - name
+        - type
+        - subject
+        - severity
+        - description
+        - subjects
+        - data
+      type: object
     LedgerDTO:
       additionalProperties: false
       properties:
@@ -2569,6 +2817,108 @@ components:
         - poll
         - buckets
       type: object
+    NOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Notification"
+          type: array
+      required:
+        - items
+      type: object
+    Notification:
+      additionalProperties: false
+      properties:
+        attempts:
+          format: int64
+          type: integer
+        body:
+          type: string
+        channel_id:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        event_id:
+          type: string
+        id:
+          type: string
+        kind:
+          enum:
+            - alert
+            - recovery
+            - digest
+            - test
+          type: string
+        last_error:
+          type: string
+        rule_id:
+          type: string
+        sent_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        severity:
+          type: string
+        status:
+          enum:
+            - pending
+            - digest
+            - sent
+            - digested
+            - dead
+          type: string
+        title:
+          type: string
+      required:
+        - id
+        - rule_id
+        - channel_id
+        - event_id
+        - kind
+        - severity
+        - title
+        - body
+        - status
+        - attempts
+        - last_error
+        - sent_at
+        - created_at
+      type: object
+    NotificationRuleSpec:
+      additionalProperties: false
+      properties:
+        channel_ids:
+          items:
+            type: string
+          type: array
+        cooldown_seconds:
+          format: int64
+          maximum: 604800
+          minimum: 0
+          type: integer
+        enabled:
+          type: boolean
+        filter:
+          $ref: "#/components/schemas/EventFilter"
+        group_seconds:
+          format: int64
+          maximum: 86400
+          minimum: 0
+          type: integer
+        recovery:
+          description: Notify when a notified condition recovers (e.g. quota window recovered, breaker closed).
+          type: boolean
+        template:
+          maxLength: 2000
+          type: string
+      required:
+        - enabled
+        - filter
+        - channel_ids
+      type: object
     OIDCLoginOption:
       additionalProperties: false
       properties:
@@ -2777,6 +3127,14 @@ components:
         - provisioning
         - enabled
       type: object
+    OkOutBody:
+      additionalProperties: false
+      properties:
+        queued:
+          type: boolean
+      required:
+        - queued
+      type: object
     OvInBody:
       additionalProperties: false
       properties:
@@ -2806,6 +3164,19 @@ components:
         items:
           items:
             $ref: "#/components/schemas/AuditEntryDTO"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageEventDTO:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/EventDTO"
           type: array
         next_cursor:
           description: Present when more items are available.
@@ -2891,12 +3262,51 @@ components:
       required:
         - items
       type: object
+    PageResourceChannelSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourceChannelSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageResourceDestinationSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourceDestinationSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
     PageResourceEntitlementSpec:
       additionalProperties: false
       properties:
         items:
           items:
             $ref: "#/components/schemas/ResourceEntitlementSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageResourceNotificationRuleSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourceNotificationRuleSpec"
           type: array
         next_cursor:
           description: Present when more items are available.
@@ -3539,6 +3949,22 @@ components:
         - stream_idle_timeout_seconds
         - models
       type: object
+    QuietHours:
+      additionalProperties: false
+      properties:
+        critical_bypass:
+          type: boolean
+        enabled:
+          type: boolean
+        end:
+          description: HH:MM
+          type: string
+        start:
+          description: HH:MM
+          type: string
+      required:
+        - enabled
+      type: object
     QuotaForecast:
       additionalProperties: false
       properties:
@@ -3791,6 +4217,26 @@ components:
         version_id:
           description: "Plan version to replay against (default: currently published)."
           type: string
+      type: object
+    ReplayInBody1:
+      additionalProperties: false
+      properties:
+        delivery_id:
+          description: Replay one dead delivery; empty = all dead deliveries.
+          type: string
+        since:
+          description: Instead, re-send every matching event since this time.
+          format: date-time
+          type: string
+      type: object
+    ReplayOutBody:
+      additionalProperties: false
+      properties:
+        queued:
+          format: int64
+          type: integer
+      required:
+        - queued
       type: object
     ReplayResult:
       additionalProperties: false
@@ -4351,6 +4797,140 @@ components:
         - updated_by
         - config_revision
       type: object
+    ResourceChannelSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/ChannelSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
+    ResourceDestinationSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/DestinationSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
     ResourceEntitlementSpec:
       additionalProperties: false
       properties:
@@ -4399,6 +4979,73 @@ components:
           type: object
         spec:
           $ref: "#/components/schemas/EntitlementSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
+    ResourceNotificationRuleSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/NotificationRuleSpec"
         updated_at:
           format: date-time
           type: string
@@ -5449,6 +6096,19 @@ components:
       required:
         - claims
       type: object
+    TestOutBody1:
+      additionalProperties: false
+      properties:
+        delivered:
+          type: boolean
+        error:
+          type: string
+        status:
+          format: int64
+          type: integer
+      required:
+        - delivered
+      type: object
     TokenInBody:
       additionalProperties: false
       properties:
@@ -6155,6 +6815,46 @@ components:
         - name
         - spec
       type: object
+    WriteBodyChannelSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/ChannelSpec"
+      required:
+        - name
+        - spec
+      type: object
+    WriteBodyDestinationSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/DestinationSpec"
+      required:
+        - name
+        - spec
+      type: object
     WriteBodyEntitlementSpec:
       additionalProperties: false
       properties:
@@ -6171,6 +6871,26 @@ components:
           type: object
         spec:
           $ref: "#/components/schemas/EntitlementSpec"
+      required:
+        - name
+        - spec
+      type: object
+    WriteBodyNotificationRuleSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/NotificationRuleSpec"
       required:
         - name
         - spec
@@ -8000,6 +8720,404 @@ paths:
       tags:
         - Configuration
       x-permission: config.read
+  /event-destinations:
+    get:
+      operationId: list-event-destinations
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourceDestinationSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Event destinations
+      tags:
+        - Event destinations
+      x-permission: config.read
+    post:
+      operationId: create-event_destination
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyDestinationSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceDestinationSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Event destination
+      tags:
+        - Event destinations
+      x-permission: secrets.write
+  /event-destinations/{id}:
+    delete:
+      operationId: delete-event_destination
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Event destination
+      tags:
+        - Event destinations
+      x-permission: config.write
+    get:
+      operationId: get-event_destination
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceDestinationSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Event destination
+      tags:
+        - Event destinations
+      x-permission: config.read
+    put:
+      operationId: replace-event_destination
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyDestinationSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceDestinationSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Event destination
+      tags:
+        - Event destinations
+      x-permission: secrets.write
+  /event-destinations/{id}/deliveries:
+    get:
+      operationId: list-deliveries
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: status
+          schema:
+            enum:
+              - pending
+              - deferred
+              - delivered
+              - dead
+              - ""
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 500
+            minimum: 0
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DelOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delivery history
+      tags:
+        - Events
+      x-permission: config.read
+  /event-destinations/{id}/history:
+    get:
+      operationId: history-event_destination
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Event destination
+      tags:
+        - Event destinations
+      x-permission: config.read
+  /event-destinations/{id}/replay:
+    post:
+      description: Delivery is at-least-once; receivers deduplicate by event id.
+      operationId: replay-deliveries
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplayInBody1"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReplayOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replay deliveries
+      tags:
+        - Events
+      x-permission: events.manage
+  /events:
+    get:
+      operationId: list-events
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: type
+          schema:
+            maxLength: 200
+            type: string
+        - explode: false
+          in: query
+          name: severity
+          schema:
+            enum:
+              - info
+              - warning
+              - critical
+              - ""
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageEventDTO"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Recent domain events (newest first)
+      tags:
+        - Events
+      x-permission: config.read
+  /events/catalog:
+    get:
+      operationId: event-catalog
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Event kinds and their fields
+      tags:
+        - Events
+      x-permission: config.read
   /meta:
     get:
       operationId: get-meta
@@ -8266,6 +9384,595 @@ paths:
       tags:
         - Model aliass
       x-permission: config.read
+  /notification-channels:
+    get:
+      operationId: list-notification-channels
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourceChannelSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Notification channels
+      tags:
+        - Notification channels
+      x-permission: config.read
+    post:
+      operationId: create-notification_channel
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyChannelSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceChannelSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Notification channel
+      tags:
+        - Notification channels
+      x-permission: secrets.write
+  /notification-channels/{id}:
+    delete:
+      operationId: delete-notification_channel
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Notification channel
+      tags:
+        - Notification channels
+      x-permission: config.write
+    get:
+      operationId: get-notification_channel
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceChannelSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Notification channel
+      tags:
+        - Notification channels
+      x-permission: config.read
+    put:
+      operationId: replace-notification_channel
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyChannelSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceChannelSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Notification channel
+      tags:
+        - Notification channels
+      x-permission: secrets.write
+  /notification-channels/{id}/history:
+    get:
+      operationId: history-notification_channel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Notification channel
+      tags:
+        - Notification channels
+      x-permission: config.read
+  /notification-channels/{id}/test:
+    post:
+      operationId: test-notification-channel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestOutBody1"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Send a test notification
+      tags:
+        - Notifications
+      x-permission: notifications.manage
+  /notification-rules:
+    get:
+      operationId: list-notification-rules
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourceNotificationRuleSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Notification rules
+      tags:
+        - Notification rules
+      x-permission: config.read
+    post:
+      operationId: create-notification_rule
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyNotificationRuleSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceNotificationRuleSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Notification rule
+      tags:
+        - Notification rules
+      x-permission: config.write
+  /notification-rules/{id}:
+    delete:
+      operationId: delete-notification_rule
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Notification rule
+      tags:
+        - Notification rules
+      x-permission: config.write
+    get:
+      operationId: get-notification_rule
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceNotificationRuleSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Notification rule
+      tags:
+        - Notification rules
+      x-permission: config.read
+    put:
+      operationId: replace-notification_rule
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyNotificationRuleSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceNotificationRuleSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Notification rule
+      tags:
+        - Notification rules
+      x-permission: config.write
+  /notification-rules/{id}/history:
+    get:
+      operationId: history-notification_rule
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Notification rule
+      tags:
+        - Notification rules
+      x-permission: config.read
+  /notifications:
+    get:
+      operationId: list-notifications
+      parameters:
+        - explode: false
+          in: query
+          name: channel_id
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: status
+          schema:
+            enum:
+              - pending
+              - digest
+              - sent
+              - digested
+              - dead
+              - ""
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 500
+            minimum: 0
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Notification history
+      tags:
+        - Notifications
+      x-permission: config.read
+  /notifications/{id}/replay:
+    post:
+      operationId: replay-notification
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replay a dead notification
+      tags:
+        - Notifications
+      x-permission: notifications.manage
   /pools:
     get:
       operationId: list-pools

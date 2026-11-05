@@ -524,7 +524,7 @@ var (
 )
 
 // Registry lists every kind in dependency order (export/import order).
-var Registry = []Kind{WorkspaceDef, ProjectDef, ProviderDef, AccountDef, EntitlementDef, QuotaMonitorDef, PrivacyPolicyDef, TracePolicyDef, PoolDef, AliasDef, PlanDef, BindingDef, BudgetDef}
+var Registry = []Kind{WorkspaceDef, ProjectDef, ProviderDef, AccountDef, EntitlementDef, QuotaMonitorDef, PrivacyPolicyDef, TracePolicyDef, PoolDef, AliasDef, PlanDef, BindingDef, BudgetDef, DestinationDef, ChannelDef, RuleDef}
 
 // KindByName returns a registered kind.
 func KindByName(name string) (Kind, bool) {

@@ -60,7 +60,7 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 			default:
 				wait = 30 * time.Second
 			}
-			g.cooldown(acc.ID, g.Clock.Now().Add(min(wait, time.Hour)))
+			g.noteCooldown(acc.ID, prov.ID, string(ae.Err.Kind), g.Clock.Now().Add(min(wait, time.Hour)))
 		}
 		if g.Metrics != nil {
 			g.Metrics.GatewayAttempts.WithLabelValues(string(cand.Upstream), string(ae.Err.Kind)).Inc()

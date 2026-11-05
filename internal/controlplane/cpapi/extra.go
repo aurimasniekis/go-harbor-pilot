@@ -310,7 +310,9 @@ func registerConfig(a *api.API, svc func() *cp.Service) {
 		s := svc().Snapshot()
 		d := EffectiveDTO{ConfigRevision: s.ConfigRevision, CompiledAt: s.CompiledAt, Plans: []EffectivePlan{}, Aliases: []EffectiveAlias{}, Drifted: []DriftedObject{},
 			Counts: map[string]int{"workspaces": len(s.Workspaces), "projects": len(s.Projects), "providers": len(s.Providers), "provider_accounts": len(s.Accounts),
-				"subscription_entitlements": len(s.Entitlements), "pools": len(s.Pools), "model_aliases": len(s.Aliases), "routing_plans": len(s.Plans), "client_bindings": len(s.Bindings)}}
+				"subscription_entitlements": len(s.Entitlements), "pools": len(s.Pools), "model_aliases": len(s.Aliases), "routing_plans": len(s.Plans), "client_bindings": len(s.Bindings),
+				"quota_monitors": len(s.Monitors), "budgets": len(s.Budgets), "privacy_policies": len(s.Privacy), "trace_policies": len(s.TracePols),
+				"event_destinations": len(s.Destinations), "notification_channels": len(s.Channels), "notification_rules": len(s.Rules)}}
 		bindingsPerPlan := map[string]int{}
 		for _, b := range s.Bindings {
 			bindingsPerPlan[b.Spec.PlanID]++

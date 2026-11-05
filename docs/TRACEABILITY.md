@@ -150,14 +150,14 @@ This matrix maps every requirement in the product brief to the phase, package an
 ## §14 Events and notifications
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R14.1 | Versioned transport-independent events | 10 | planned | |
-| R14.2 | Pulse/NATS against the verified contract | 10 | planned | |
-| R14.3 | Outbox, retries with jitter, idempotency, dead letters, history, replay | 10 | planned | |
-| R14.4 | Event catalog (all listed transitions) | 5–10 | planned | |
-| R14.5 | Telegram, Slack, Discord and webhook adapters | 10 | planned | |
-| R14.6 | Rules, routing, dedupe, hysteresis, quiet hours, digests, recovery, templates, rate limits, test, replay | 10 | planned | |
-| R14.7 | Webhook signing and SSRF; outbound network policy | 1, 10 | in-progress | platform/netpolicy (dial-time SSRF guard) + tests; webhook signing pending |
-| R14.8 | No prompts by default; no loops; outages do not block | 10 | planned | scenario K |
+| R14.1 | Versioned transport-independent events | 10 | implemented | events.Event envelope with schema_version, type harborpilot.<area>.<entity>_<action>.v1, correlation id, subjects, allowlisted data; docs/contracts/events.md generated from internal/events/catalog.go (TestCatalogDoc) |
+| R14.2 | Pulse/NATS against the verified contract | 10 | contract-tested | relay.ConnectPulse via go-pulse v0.1.5 (creds, CA, source); subject evt.harborpilot.*, Nats-Msg-Id = event id, ce-type, ce-time; TestPulseRelayPublishesWithIdempotencyHeaders against embedded JetStream (2-minute dedupe verified); live Pulse: blocked (server) |
+| R14.3 | Outbox, retries with jitter, idempotency, dead letters, history, replay | 10 | contract-tested | transactional outbox, per-destination cursors, FIFO delivery stopping at first failure, 2^(n-1)s ±50% jitter capped at 5 min, Retry-After, dead letters (attempts/age), claims against double sends, delivery history, audited replay (TestWebhookRelaySignedRetriedAndReplayed) |
+| R14.4 | Event catalog (all listed transitions) | 5–10 | implemented | catalog: account switched, fallback selected, request blocked, quota exhausted/recovered/auth failed, budget warning/exceeded, account cooldown/recovered, plan published, breaker opened/half-opened/closed, passthrough activated/blocked/deactivated, protocol change detected, config changes |
+| R14.5 | Telegram, Slack, Discord and webhook adapters | 10 | contract-tested | notify adapters: Telegram (HTML escaping, retry_after), Slack (mrkdwn escaping, Retry-After), Discord (allowed_mentions none, retry_after), signed webhook; contract-tested against local fakes; live: blocked (credentials) |
+| R14.6 | Rules, routing, dedupe, hysteresis, quiet hours, digests, recovery, templates, rate limits, test, replay | 10 | contract-tested | rules with event globs, severity and subject filters; channel routing; hysteresis/grouping by dedupe key with "+N similar"; recovery notices; quiet hours with timezone and critical bypass; digests; text/template with per-channel escaping and 3500-character bound; per-channel rate limit; test delivery; audited replay (TestNotificationsChannelsHysteresisRecoveryAndTest, notify unit tests) |
+| R14.7 | Webhook signing and SSRF; outbound network policy | 1, 10 | contract-tested | webhook X-Harbor-Signature t=..,v1=.. over "<t>.<body>" with rotation (current + previous secret); outbound.Client: netpolicy dial guard, metadata always blocked, private only when allowed, no redirects, 10s timeout, 64 KiB response limit |
+| R14.8 | No prompts by default; no loops; outages do not block | 10 | contract-tested | bodies built from allowlisted fields only; rules cannot match notification.* or event.* (no loops); delivery runs on background goroutines (TestScenarioK) |
 
 ## §15 Auth
 | ID | Requirement | Phase | Status | Evidence |
@@ -211,7 +211,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | H | Drift activates approved passthrough with no splice | 9 | contract-tested | internal/acceptance/compat_test.go TestScenarioH_DriftActivatesApprovedPassthrough |
 | I | Protocol Watch dedupes a sanitized change | 9 | contract-tested | internal/acceptance/compat_test.go TestScenarioH_DriftActivatesApprovedPassthrough (Protocol Watch assertions) |
 | J | Required privacy blocks raw fallback | 8 | contract-tested | internal/acceptance/compat_test.go TestScenarioJ_RequiredPrivacyBlocksRawFallback |
-| K | Pulse or notification outage does not block requests | 10 | planned | scenario_k |
+| K | Pulse or notification outage does not block requests | 10 | contract-tested | internal/acceptance/events_test.go TestScenarioK_DeliveryOutagesDoNotBlockGateway |
 | L | Terraform lifecycle | 14 | planned | TF acceptance |
 | M | Restart and restore integrity | 13 | planned | scenario_m |
 | N | SpaceMan and standalone client isolated | 11 | planned | scenario_n |

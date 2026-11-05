@@ -84,9 +84,12 @@ type Gateway struct {
 	// AfterRequest runs after the response has been written (events).
 	AfterRequest func(ctx context.Context, r *Outcome)
 
-	cooldowns sync.Map // account id -> time.Time
-	limMu     sync.Mutex
-	limiters  map[string]*ratelimit.Limiter
+	cooldowns    sync.Map // account id -> time.Time
+	cooldownMeta sync.Map // account id -> cooldownInfo
+	ptActive     sync.Map // breaker key -> passthrough served
+	ptBlocked    sync.Map // breaker key -> passthrough refused
+	limMu        sync.Mutex
+	limiters     map[string]*ratelimit.Limiter
 }
 
 // Observation is a compatibility signal for Protocol Watch.
@@ -211,6 +214,7 @@ func (g *Gateway) health(accountID string) routing.Health {
 			return h
 		}
 		g.cooldowns.Delete(accountID)
+		g.noteCooldownEnded(accountID)
 	}
 	return h
 }
