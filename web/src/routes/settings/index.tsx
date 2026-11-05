@@ -10,8 +10,10 @@ export const Route = createFileRoute('/settings/')({
 function SettingsIndex() {
   const users = useCan('users.manage')
   const audit = useCan('audit.read')
+  const system = useCan('system.manage')
   if (users) return <Navigate to="/settings/users" replace />
   if (audit) return <Navigate to="/settings/audit" replace />
+  if (system) return <Navigate to="/settings/system" replace />
   return (
     <Panel>
       <EmptyState icon={Lock} title="No settings available">

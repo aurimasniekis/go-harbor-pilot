@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Badge, type Tone } from '@/components/ui'
 import type { Cost, Tokens } from '@/lib/api/types'
 import { fmtMoney, isKnown } from '@/lib/format'
+import { intentSourceHelp } from '@/features/stats/stats'
 
 const NOT_REPORTED = 'not reported by upstream'
 
@@ -139,5 +140,22 @@ export function MapTable({ m, label, empty }: { m: Record<string, string> | null
         ))}
       </tbody>
     </table>
+  )
+}
+
+const intentSourceTone: Record<string, Tone> = { declared: 'neutral', rule: 'info', classifier: 'purple' }
+
+/** An intent label with where it came from (declared, rule or classifier). */
+export function IntentBadge({ intent, source }: { intent?: string | null; source?: string | null }) {
+  if (!intent) return <span className="muted">—</span>
+  return (
+    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+      <span className="mono">{intent}</span>
+      {source && (
+        <Badge tone={intentSourceTone[source] ?? 'neutral'} title={intentSourceHelp[source] ?? source}>
+          {source}
+        </Badge>
+      )}
+    </span>
   )
 }

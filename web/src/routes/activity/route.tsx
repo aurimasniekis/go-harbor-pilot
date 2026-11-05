@@ -8,7 +8,7 @@ export const Route = createFileRoute('/activity')({
 
 function ActivityLayout() {
   const path = useRouterState({ select: (r) => r.location.pathname })
-  const list = path === '/activity' || path === '/activity/' || path === '/activity/sessions'
+  const list = path === '/activity' || path === '/activity/' || path === '/activity/sessions' || path === '/activity/stats'
   return (
     <>
       {list && (
@@ -22,6 +22,7 @@ function ActivityLayout() {
             items={[
               { to: '/activity', label: 'Requests', exact: true },
               { to: '/activity/sessions', label: 'Sessions' },
+              { to: '/activity/stats', label: 'Statistics' },
             ]}
           />
         </>

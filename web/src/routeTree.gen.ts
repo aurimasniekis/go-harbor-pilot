@@ -30,8 +30,10 @@ import { Route as WorkspacesRouteImport } from './routes/workspaces'
 import { Route as ActivityIndexRouteImport } from './routes/activity/index'
 import { Route as ActivityRequestIdRouteImport } from './routes/activity/$requestId'
 import { Route as ActivitySessionsRouteImport } from './routes/activity/sessions'
+import { Route as ActivityStatsRouteImport } from './routes/activity/stats'
 import { Route as ClientsIndexRouteImport } from './routes/clients/index'
 import { Route as ClientsBindingIdRouteImport } from './routes/clients/$bindingId'
+import { Route as ClientsSetupRouteImport } from './routes/clients/setup'
 import { Route as CompatibilityIndexRouteImport } from './routes/compatibility/index'
 import { Route as CompatibilityWatchRouteImport } from './routes/compatibility/watch'
 import { Route as EventsIndexRouteImport } from './routes/events/index'
@@ -53,6 +55,7 @@ import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsAuditRouteImport } from './routes/settings/audit'
 import { Route as SettingsAuthRouteImport } from './routes/settings/auth'
 import { Route as SettingsServicePrincipalsRouteImport } from './routes/settings/service-principals'
+import { Route as SettingsSystemRouteImport } from './routes/settings/system'
 import { Route as SettingsUsersRouteImport } from './routes/settings/users'
 import { Route as TracesIndexRouteImport } from './routes/traces/index'
 import { Route as TracesTraceIdRouteImport } from './routes/traces/$traceId'
@@ -170,6 +173,11 @@ const ActivitySessionsRoute = ActivitySessionsRouteImport.update({
   path: '/sessions',
   getParentRoute: () => ActivityRouteRoute,
 } as any)
+const ActivityStatsRoute = ActivityStatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
+  getParentRoute: () => ActivityRouteRoute,
+} as any)
 const ClientsIndexRoute = ClientsIndexRouteImport.update({
   id: '/clients/',
   path: '/clients/',
@@ -178,6 +186,11 @@ const ClientsIndexRoute = ClientsIndexRouteImport.update({
 const ClientsBindingIdRoute = ClientsBindingIdRouteImport.update({
   id: '/clients/$bindingId',
   path: '/clients/$bindingId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientsSetupRoute = ClientsSetupRouteImport.update({
+  id: '/clients/setup',
+  path: '/clients/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CompatibilityIndexRoute = CompatibilityIndexRouteImport.update({
@@ -286,6 +299,11 @@ const SettingsServicePrincipalsRoute =
     path: '/service-principals',
     getParentRoute: () => SettingsRouteRoute,
   } as any)
+const SettingsSystemRoute = SettingsSystemRouteImport.update({
+  id: '/system',
+  path: '/system',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const SettingsUsersRoute = SettingsUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -366,7 +384,9 @@ export interface FileRoutesByFullPath {
   '/workspaces': typeof WorkspacesRoute
   '/activity/$requestId': typeof ActivityRequestIdRoute
   '/activity/sessions': typeof ActivitySessionsRoute
+  '/activity/stats': typeof ActivityStatsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
+  '/clients/setup': typeof ClientsSetupRoute
   '/compatibility/watch': typeof CompatibilityWatchRoute
   '/events/catalog': typeof EventsCatalogRoute
   '/notifications/history': typeof NotificationsHistoryRoute
@@ -380,6 +400,7 @@ export interface FileRoutesByFullPath {
   '/settings/audit': typeof SettingsAuditRoute
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
+  '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
   '/traces/$traceId': typeof TracesTraceIdRoute
   '/usage/budgets': typeof UsageBudgetsRoute
@@ -412,7 +433,9 @@ export interface FileRoutesByTo {
   '/workspaces': typeof WorkspacesRoute
   '/activity/$requestId': typeof ActivityRequestIdRoute
   '/activity/sessions': typeof ActivitySessionsRoute
+  '/activity/stats': typeof ActivityStatsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
+  '/clients/setup': typeof ClientsSetupRoute
   '/compatibility/watch': typeof CompatibilityWatchRoute
   '/events/catalog': typeof EventsCatalogRoute
   '/notifications/history': typeof NotificationsHistoryRoute
@@ -426,6 +449,7 @@ export interface FileRoutesByTo {
   '/settings/audit': typeof SettingsAuditRoute
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
+  '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
   '/traces/$traceId': typeof TracesTraceIdRoute
   '/usage/budgets': typeof UsageBudgetsRoute
@@ -470,7 +494,9 @@ export interface FileRoutesById {
   '/workspaces': typeof WorkspacesRoute
   '/activity/$requestId': typeof ActivityRequestIdRoute
   '/activity/sessions': typeof ActivitySessionsRoute
+  '/activity/stats': typeof ActivityStatsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
+  '/clients/setup': typeof ClientsSetupRoute
   '/compatibility/watch': typeof CompatibilityWatchRoute
   '/events/catalog': typeof EventsCatalogRoute
   '/notifications/history': typeof NotificationsHistoryRoute
@@ -484,6 +510,7 @@ export interface FileRoutesById {
   '/settings/audit': typeof SettingsAuditRoute
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
+  '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
   '/traces/$traceId': typeof TracesTraceIdRoute
   '/usage/budgets': typeof UsageBudgetsRoute
@@ -529,7 +556,9 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/activity/$requestId'
     | '/activity/sessions'
+    | '/activity/stats'
     | '/clients/$bindingId'
+    | '/clients/setup'
     | '/compatibility/watch'
     | '/events/catalog'
     | '/notifications/history'
@@ -543,6 +572,7 @@ export interface FileRouteTypes {
     | '/settings/audit'
     | '/settings/auth'
     | '/settings/service-principals'
+    | '/settings/system'
     | '/settings/users'
     | '/traces/$traceId'
     | '/usage/budgets'
@@ -575,7 +605,9 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/activity/$requestId'
     | '/activity/sessions'
+    | '/activity/stats'
     | '/clients/$bindingId'
+    | '/clients/setup'
     | '/compatibility/watch'
     | '/events/catalog'
     | '/notifications/history'
@@ -589,6 +621,7 @@ export interface FileRouteTypes {
     | '/settings/audit'
     | '/settings/auth'
     | '/settings/service-principals'
+    | '/settings/system'
     | '/settings/users'
     | '/traces/$traceId'
     | '/usage/budgets'
@@ -632,7 +665,9 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/activity/$requestId'
     | '/activity/sessions'
+    | '/activity/stats'
     | '/clients/$bindingId'
+    | '/clients/setup'
     | '/compatibility/watch'
     | '/events/catalog'
     | '/notifications/history'
@@ -646,6 +681,7 @@ export interface FileRouteTypes {
     | '/settings/audit'
     | '/settings/auth'
     | '/settings/service-principals'
+    | '/settings/system'
     | '/settings/users'
     | '/traces/$traceId'
     | '/usage/budgets'
@@ -689,6 +725,7 @@ export interface RootRouteChildren {
   SetupRoute: typeof SetupRoute
   WorkspacesRoute: typeof WorkspacesRoute
   ClientsBindingIdRoute: typeof ClientsBindingIdRoute
+  ClientsSetupRoute: typeof ClientsSetupRoute
   ClientsIndexRoute: typeof ClientsIndexRoute
 }
 
@@ -841,6 +878,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActivitySessionsRouteImport
       parentRoute: typeof ActivityRouteRoute
     }
+    '/activity/stats': {
+      id: '/activity/stats'
+      path: '/stats'
+      fullPath: '/activity/stats'
+      preLoaderRoute: typeof ActivityStatsRouteImport
+      parentRoute: typeof ActivityRouteRoute
+    }
     '/clients/': {
       id: '/clients/'
       path: '/clients'
@@ -853,6 +897,13 @@ declare module '@tanstack/react-router' {
       path: '/clients/$bindingId'
       fullPath: '/clients/$bindingId'
       preLoaderRoute: typeof ClientsBindingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clients/setup': {
+      id: '/clients/setup'
+      path: '/clients/setup'
+      fullPath: '/clients/setup'
+      preLoaderRoute: typeof ClientsSetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/compatibility/': {
@@ -1002,6 +1053,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsServicePrincipalsRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/system': {
+      id: '/settings/system'
+      path: '/system'
+      fullPath: '/settings/system'
+      preLoaderRoute: typeof SettingsSystemRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/settings/users': {
       id: '/settings/users'
       path: '/users'
@@ -1085,12 +1143,14 @@ declare module '@tanstack/react-router' {
 interface ActivityRouteRouteChildren {
   ActivityRequestIdRoute: typeof ActivityRequestIdRoute
   ActivitySessionsRoute: typeof ActivitySessionsRoute
+  ActivityStatsRoute: typeof ActivityStatsRoute
   ActivityIndexRoute: typeof ActivityIndexRoute
 }
 
 const ActivityRouteRouteChildren: ActivityRouteRouteChildren = {
   ActivityRequestIdRoute: ActivityRequestIdRoute,
   ActivitySessionsRoute: ActivitySessionsRoute,
+  ActivityStatsRoute: ActivityStatsRoute,
   ActivityIndexRoute: ActivityIndexRoute,
 }
 
@@ -1216,6 +1276,7 @@ interface SettingsRouteRouteChildren {
   SettingsAuditRoute: typeof SettingsAuditRoute
   SettingsAuthRoute: typeof SettingsAuthRoute
   SettingsServicePrincipalsRoute: typeof SettingsServicePrincipalsRoute
+  SettingsSystemRoute: typeof SettingsSystemRoute
   SettingsUsersRoute: typeof SettingsUsersRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
@@ -1224,6 +1285,7 @@ const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsAuditRoute: SettingsAuditRoute,
   SettingsAuthRoute: SettingsAuthRoute,
   SettingsServicePrincipalsRoute: SettingsServicePrincipalsRoute,
+  SettingsSystemRoute: SettingsSystemRoute,
   SettingsUsersRoute: SettingsUsersRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }
@@ -1280,6 +1342,7 @@ const rootRouteChildren: RootRouteChildren = {
   SetupRoute: SetupRoute,
   WorkspacesRoute: WorkspacesRoute,
   ClientsBindingIdRoute: ClientsBindingIdRoute,
+  ClientsSetupRoute: ClientsSetupRoute,
   ClientsIndexRoute: ClientsIndexRoute,
 }
 export const routeTree = rootRouteImport

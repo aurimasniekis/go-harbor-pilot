@@ -31,6 +31,7 @@ import {
   CostKindLabel,
   CostValue,
   HarnessBadge,
+  IntentBadge,
   MapTable,
   ModeBadge,
   Ms,
@@ -240,6 +241,7 @@ function TrustedContext({ r, names }: { r: RequestDetail; names: NameMaps }) {
               <div className="muted">Heuristic, not proof of identity.</div>
             </span>,
           ],
+          ['Intent', <IntentBadge intent={asDecision(r.decision).intent} source={asDecision(r.decision).intent_source} />],
           ['Protocol', <span><ProtocolBadge p={r.inbound_protocol} /> {r.stream ? <Badge tone="info">stream</Badge> : <Badge>non-stream</Badge>}</span>],
         ]}
       />
@@ -334,8 +336,7 @@ function Candidates({ d, names }: { d: Decision; names: NameMaps }) {
       {d.affinity && <p className="secondary">Session affinity: {d.affinity}</p>}
       {d.intent && (
         <p className="secondary">
-          Intent <span className="mono">{d.intent}</span>
-          {d.intent_source ? ` (${d.intent_source})` : ''}
+          Intent <IntentBadge intent={d.intent} source={d.intent_source} />
         </p>
       )}
       <CandidateTable candidates={d.candidates ?? []} />

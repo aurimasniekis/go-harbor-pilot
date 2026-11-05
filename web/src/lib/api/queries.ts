@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { apiGet } from './client'
-import type { Delivery, EventItem, EventKindInfo, NotificationItem, Breaker, Degradation, ProtocolChange, WorkItem, WorkStatus, BridgeStatus, TraceContent, TraceHit, TraceMeta, BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummary, ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
+import type { Backup, Stats, StatsBy, Delivery, EventItem, EventKindInfo, NotificationItem, Breaker, Degradation, ProtocolChange, WorkItem, WorkStatus, BridgeStatus, TraceContent, TraceHit, TraceMeta, BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummary, ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
 
 export const qk = {
   session: ['session'] as const,
@@ -350,3 +350,16 @@ export const notificationsQuery = (channelID?: string, status?: string) =>
     queryFn: ({ signal }) => apiGet<{ items: NotificationItem[] }>('/notifications', { channel_id: channelID, status, limit: 200 }, signal),
     refetchInterval: 15_000,
   })
+
+// ---------- statistics ----------
+export const statsQuery = (r: { from: string; to: string }, by: StatsBy, step: 'hour' | 'day') =>
+  queryOptions({
+    queryKey: ['stats', r, by, step],
+    queryFn: ({ signal }) => apiGet<Stats>('/stats', { ...r, by, ...(by === 'period' ? { step } : {}) }, signal),
+  })
+
+// ---------- system ----------
+export const backupsQuery = queryOptions({
+  queryKey: ['system', 'backups'],
+  queryFn: ({ signal }) => apiGet<{ items: Backup[] | null }>('/system/backups', undefined, signal),
+})

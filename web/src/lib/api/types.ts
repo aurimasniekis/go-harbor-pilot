@@ -292,3 +292,42 @@ export interface EventEnvelope {
   subjects?: Record<string, string>
   data?: Record<string, unknown>
 }
+
+// ---------- statistics ----------
+export type Stats = S['Stats']
+export type StatsGroup = S['Group']
+export type StatsLatency = S['Latency']
+export type StatsCost = S['Cost']
+export type StatsBy = 'client' | 'harness' | 'project' | 'plan' | 'intent' | 'model' | 'account' | 'provider' | 'session' | 'period'
+
+// ---------- backups ----------
+// Hand-written: the backup operations are not yet in api/openapi.yaml
+// (regenerate with `make gen` and switch these to schema aliases).
+export interface BackupFile {
+  name: string
+  sha256: string
+  bytes: number
+  schema_version: number
+}
+
+export interface BackupManifest {
+  format: number
+  created_at: string
+  server_version: string
+  master_key_ids: string[] | null
+  include_traces: boolean
+  files: BackupFile[] | null
+}
+
+export interface Backup {
+  name: string
+  path: string
+  intact: boolean
+  problem?: string
+  manifest?: BackupManifest
+}
+
+export interface BackupCreated {
+  path: string
+  manifest: BackupManifest
+}

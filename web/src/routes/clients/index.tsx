@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Laptop, Plus } from 'lucide-react'
+import { BookOpen, Laptop, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
-import { Badge, Button, EmptyState, Panel, TableScroll } from '@/components/ui'
+import { Badge, Button, EmptyState, Panel, TableScroll, uiStyles } from '@/components/ui'
 import { Dialog } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { ResourceBadges } from '@/components/ResourceBadges'
@@ -35,7 +35,15 @@ function Clients() {
   const items = list.data?.items ?? []
   return (
     <>
-      <PageHeader title="Clients" subtitle="A client binding connects a harness or application to a routing plan, project, limits and telemetry policy. Clients authenticate with gateway credentials." />
+      <PageHeader
+        title="Clients"
+        subtitle="A client binding connects a harness or application to a routing plan, project, limits and telemetry policy. Clients authenticate with gateway credentials."
+        actions={
+          <Link to="/clients/setup" className={uiStyles.button}>
+            <BookOpen size={14} aria-hidden="true" /> Harness setup
+          </Link>
+        }
+      />
       <Panel title="Client bindings" actions={canWrite && <Button variant="primary" icon={Plus} onClick={() => setCreating(true)}>Add client</Button>}>
         {list.isError ? (
           <QueryError error={list.error} retry={() => void list.refetch()} />

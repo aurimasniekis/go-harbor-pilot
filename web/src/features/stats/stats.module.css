@@ -1,0 +1,45 @@
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.tileLabel {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.tileValue {
+  font-size: var(--text-xl);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.tileMeta {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.label {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
