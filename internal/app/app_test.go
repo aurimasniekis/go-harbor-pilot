@@ -42,9 +42,7 @@ func NewTestEnv(t *testing.T) *TestEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.readyMu.Lock()
-	a.ready = true
-	a.readyMu.Unlock()
+	a.MarkReady()
 	srv.Config.Handler = a.Handler()
 	srv.Start()
 	t.Cleanup(func() { srv.Close(); a.Close() })

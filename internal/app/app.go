@@ -20,6 +20,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/aurimasniekis/go-harbor-pilot/internal/accounting"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/api"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth/authapi"
@@ -27,6 +28,9 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/controlplane/cpapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/demo"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/executor"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/executor/httpapi"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/gateway"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/clock"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/credentials"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/crypto"
@@ -34,6 +38,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/observability"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/reqmeta"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/store"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/telemetry"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/web"
 	"github.com/aurimasniekis/go-harbor-pilot/migrations"
 )
@@ -59,9 +64,13 @@ type App struct {
 	Keys    *store.ServerKeys
 	Auth    *auth.Service
 	CP      *controlplane.Service
+	Acct    *accounting.Service
+	Tel     *telemetry.Writer
+	Gateway *gateway.Gateway
 	Started time.Time
 
 	unlock   func()
+	bgWG     sync.WaitGroup
 	bg       []func(ctx context.Context)
 	routes   []func(r chi.Router)
 	apiRegs  []func(a *api.API)
@@ -112,6 +121,21 @@ func New(ctx context.Context, o Options) (*App, error) {
 	}
 	a.CP.OnSwap(func(s *controlplane.Snapshot) { a.Metrics.ConfigRevision.Set(float64(s.ConfigRevision)) })
 	a.Metrics.ConfigRevision.Set(float64(a.CP.Snapshot().ConfigRevision))
+	a.Acct = accounting.New(a.DB, a.Clock, a.Log)
+	if _, err := a.Acct.RecoverStartup(ctx); err != nil {
+		return fail(fmt.Errorf("accounting recovery: %w", err))
+	}
+	a.Tel = telemetry.NewWriter(a.DB, a.Log, a.Metrics, 0)
+	sessKey, err := a.Keys.Get(ctx, store.KeySessionPepper)
+	if err != nil {
+		return fail(err)
+	}
+	a.Gateway = &gateway.Gateway{CP: a.CP, Acct: a.Acct, Tel: a.Tel, Sessions: telemetry.NewSessions(a.Tel, sessKey),
+		HTTP: httpapi.New("harbor-pilot/" + o.Version), Bridges: map[string]executor.Executor{}, DB: a.DB, Clock: a.Clock, Log: a.Log,
+		Metrics: a.Metrics, Limits: gateway.DefaultLimits}
+	a.AddBackground(a.Acct.Run)
+	a.AddBackground(a.Tel.Run)
+	a.AddRoutes(a.Gateway.Routes)
 	if c.Server.MetricsTokenFile != "" {
 		b, err := os.ReadFile(c.Server.MetricsTokenFile)
 		if err != nil {
@@ -261,14 +285,29 @@ func (a *App) metrics(w http.ResponseWriter, r *http.Request) {
 	promhttp.HandlerFor(a.Metrics.Registry, promhttp.HandlerOpts{}).ServeHTTP(w, r)
 }
 
+// MarkReady flips the readiness probe.
+func (a *App) MarkReady() {
+	a.readyMu.Lock()
+	a.ready = true
+	a.readyMu.Unlock()
+}
+
+// StartBackground starts every registered background worker.
+func (a *App) StartBackground(ctx context.Context) {
+	for _, fn := range a.bg {
+		a.bgWG.Add(1)
+		go func() { defer a.bgWG.Done(); fn(ctx) }()
+	}
+}
+
+// WaitBackground waits for background workers to stop.
+func (a *App) WaitBackground() { a.bgWG.Wait() }
+
 // Run serves HTTP until ctx is cancelled, then shuts down gracefully.
 func (a *App) Run(ctx context.Context) error {
 	bgCtx, cancelBg := context.WithCancel(context.Background())
-	var wg sync.WaitGroup
-	for _, fn := range a.bg {
-		wg.Add(1)
-		go func() { defer wg.Done(); fn(bgCtx) }()
-	}
+	a.StartBackground(bgCtx)
+	wg := &a.bgWG
 	srv := &http.Server{
 		Addr:              a.Cfg.Server.Listen,
 		Handler:           a.Handler(),
