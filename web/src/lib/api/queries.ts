@@ -132,6 +132,7 @@ export const credentialsQuery = (bindingId: string) =>
 // ---------- activity ----------
 export interface RequestFilter {
   status?: string
+  fallbacks?: boolean
   harness?: string
   binding_id?: string
   project_id?: string

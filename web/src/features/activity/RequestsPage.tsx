@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { Badge, Button, Chip, Group, Pill, Popover, Select, Skeleton, Stack, Text, TextInput, Tooltip, UnstyledButton } from '@mantine/core'
+import { Badge, Button, Group, Pill, SegmentedControl, Popover, Select, Skeleton, Stack, Text, TextInput, Tooltip, UnstyledButton } from '@mantine/core'
 import { Activity as ActivityIcon, Filter, Search } from 'lucide-react'
 import { z } from 'zod'
 import { QueryError } from '@/components/states'
@@ -22,6 +22,7 @@ export const requestSearch = z.object({
   project_id: z.string().optional().catch(undefined),
   session_id: z.string().optional().catch(undefined),
   model: z.string().optional().catch(undefined),
+  fallbacks: z.boolean().optional().catch(undefined),
 })
 
 export type RequestSearch = z.infer<typeof requestSearch>
@@ -129,7 +130,15 @@ export function RequestsPage() {
   const project = byId(projects.data?.items)
   const [text, setText] = useState('')
   const [moreOpen, setMoreOpen] = useState(false)
-  const filter = { status: f.status, harness: f.harness, binding_id: f.binding_id, project_id: f.project_id, session_id: f.session_id, model: f.model }
+  const filter = {
+    status: f.status,
+    fallbacks: f.fallbacks || undefined,
+    harness: f.harness,
+    binding_id: f.binding_id,
+    project_id: f.project_id,
+    session_id: f.session_id,
+    model: f.model,
+  }
   const list = useInfiniteQuery({
     queryKey: ['activity', 'requests', 'log', filter],
     initialPageParam: '',
@@ -165,7 +174,7 @@ export function RequestsPage() {
   if (f.session_id) chips.push({ key: 'session_id', label: 'This session' })
   if (f.model) chips.push({ key: 'model', label: `Model: ${f.model}` })
   const moreCount = [f.binding_id, f.harness, f.project_id].filter(Boolean).length
-  const statusChip = f.status === 'error' || f.status === 'blocked' ? f.status : 'all'
+  const statusView = f.fallbacks ? 'fallbacks' : f.status === 'error' || f.status === 'blocked' ? f.status : 'all'
 
   // Rows grouped by day, newest first.
   const groups: { day: string; rows: RequestSummary[] }[] = []
@@ -193,19 +202,20 @@ export function RequestsPage() {
             onChange={(e) => setText(e.currentTarget.value)}
           />
         </form>
-        <Chip.Group multiple={false} value={statusChip} onChange={(v) => set({ status: v === 'all' ? undefined : (v as string) })}>
-          <Group gap={6} wrap="nowrap" role="radiogroup" aria-label="Status">
-            <Chip value="all" size="sm" variant="light">
-              All
-            </Chip>
-            <Chip value="error" size="sm" variant="light" color="red">
-              Errors
-            </Chip>
-            <Chip value="blocked" size="sm" variant="light" color="yellow">
-              Blocked
-            </Chip>
-          </Group>
-        </Chip.Group>
+        <SegmentedControl
+          aria-label="Show"
+          size="sm"
+          value={statusView}
+          onChange={(v) =>
+            set(v === 'fallbacks' ? { status: undefined, fallbacks: true } : { status: v === 'all' ? undefined : v, fallbacks: undefined })
+          }
+          data={[
+            { value: 'all', label: 'All' },
+            { value: 'error', label: 'Errors' },
+            { value: 'blocked', label: 'Blocked' },
+            { value: 'fallbacks', label: 'Fallbacks' },
+          ]}
+        />
         <Popover opened={moreOpen} onChange={setMoreOpen} position="bottom-end" width={260} shadow="md" withinPortal>
           <Popover.Target>
             <Button variant="default" size="sm" leftSection={<Filter size={14} />} onClick={() => setMoreOpen((o) => !o)}>
@@ -257,7 +267,7 @@ export function RequestsPage() {
               {c.label}
             </Pill>
           ))}
-          <Button variant="subtle" size="compact-sm" color="gray" onClick={() => set({ status: undefined, harness: undefined, binding_id: undefined, project_id: undefined, session_id: undefined, model: undefined })}>
+          <Button variant="subtle" size="compact-sm" color="gray" onClick={() => set({ status: undefined, fallbacks: undefined, harness: undefined, binding_id: undefined, project_id: undefined, session_id: undefined, model: undefined })}>
             Clear
           </Button>
         </Group>
@@ -268,8 +278,8 @@ export function RequestsPage() {
       ) : !list.data ? (
         <Skeleton height={320} radius="md" />
       ) : items.length === 0 ? (
-        <Empty icon={<ActivityIcon size={22} />} title={chips.length || f.status ? 'No matching requests' : 'No requests yet'} action={!chips.length && !f.status ? <Link to="/clients/setup">Connect a tool</Link> : undefined}>
-          {chips.length || f.status ? 'Try removing a filter.' : undefined}
+        <Empty icon={<ActivityIcon size={22} />} title={chips.length || f.status || f.fallbacks ? 'No matching requests' : 'No requests yet'} action={!chips.length && !f.status && !f.fallbacks ? <Link to="/clients/setup">Connect a tool</Link> : undefined}>
+          {chips.length || f.status || f.fallbacks ? 'Try removing a filter.' : undefined}
         </Empty>
       ) : compact ? (
         <div role="region" aria-label="Requests" className={s.log}>
