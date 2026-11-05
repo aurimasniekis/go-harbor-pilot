@@ -92,6 +92,10 @@ func Compile(id string, s cp.PrivacyPolicySpec, secretValues []string) (*Policy,
 	return p, nil
 }
 
+// HasConfiguredSecrets reports whether the compiled policy holds configured
+// secret values (write-only values an operator stored or referenced).
+func (p *Policy) HasConfiguredSecrets() bool { return p != nil && len(p.secrets) > 0 }
+
 // DefaultRedaction is the policy used for trace redaction when none is
 // configured: every built-in credential detector, masking.
 func DefaultRedaction() *Policy {

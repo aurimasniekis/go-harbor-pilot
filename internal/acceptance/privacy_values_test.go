@@ -1,6 +1,8 @@
 package acceptance_test
 
 import (
+	"encoding/json"
+	"net/http"
 	"regexp"
 	"strings"
 	"testing"
@@ -88,4 +90,52 @@ func TestPlaceholdersAreScopedToTheCredential(t *testing.T) {
 	if got := send(tokB, ph); strings.Contains(got, key) {
 		t.Fatal("another credential on the same client and session recovered the secret")
 	}
+}
+
+// The sandbox would let a reader test guesses against stored secret values,
+// so testing such a saved policy requires secrets.write.
+func TestSandboxGuardsConfiguredValues(t *testing.T) {
+	e := apptest.New(t)
+	var pp struct {
+		ID string `json:"id"`
+	}
+	e.Admin.MustDo(201, "POST", "/api/v1/privacy-policies", map[string]any{"name": "vals", "spec": map[string]any{"required": true,
+		"detectors": []string{"configured_secrets"}}, "secrets": map[string]string{"secret_values": "Winter2026!secret"}}, &pp)
+	var sp struct {
+		ID string `json:"id"`
+	}
+	e.Admin.MustDo(201, "POST", "/api/v1/service-principals", map[string]any{"name": "reader", "permissions": []string{"config.read"}}, &sp)
+	var tok struct {
+		Plaintext string `json:"plaintext"`
+	}
+	e.Admin.MustDo(201, "POST", "/api/v1/service-principals/"+sp.ID+"/tokens", map[string]any{"name": "t"}, &tok)
+	guess := map[string]any{"policy_id": pp.ID, "text": "Summer2026!secret Winter2026!secret"}
+	req, _ := http.NewRequest("POST", e.Srv.URL+"/api/v1/privacy/sandbox", strings.NewReader(mustJSON(t, guess)))
+	req.Header.Set("Authorization", "Bearer "+tok.Plaintext)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := apptest.ReadAll(resp)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("reader tested guesses against stored values: %d %s", resp.StatusCode, body)
+	}
+	// Unsaved definitions and admins are unaffected.
+	var res struct {
+		Findings []any `json:"findings"`
+	}
+	e.Admin.MustDo(200, "POST", "/api/v1/privacy/sandbox", guess, &res)
+	if len(res.Findings) != 1 {
+		t.Fatalf("admin sandbox findings %d", len(res.Findings))
+	}
+}
+
+func mustJSON(t *testing.T, v any) string {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }

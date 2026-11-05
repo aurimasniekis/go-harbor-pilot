@@ -3,6 +3,7 @@ package privacyapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/api"
@@ -35,8 +36,13 @@ func Register(a *api.API, svc func() *privacy.Service, snap func() *cp.Snapshot)
 		switch {
 		case i.Body.PolicyID != "":
 			p, err := svc().Policy(ctx, snap(), i.Body.PolicyID)
-			if err != nil || p == nil {
+			if (err != nil && !errors.Is(err, privacy.ErrSecretValuesUnavailable)) || p == nil {
 				return nil, api.NotFound("privacy policy")
+			}
+			// Matching against stored secret values would let a reader test
+			// guesses for them, so that needs the right to set them.
+			if p.HasConfiguredSecrets() && !auth.FromContext(ctx).Can(auth.PermSecretsWrite) {
+				return nil, api.Forbidden("testing a policy with configured secret values requires secrets.write; test an unsaved definition instead")
 			}
 			pol = p
 		case i.Body.Policy != nil:
