@@ -66,6 +66,10 @@ func do(h http.Handler, method, path, body string) (*httptest.ResponseRecorder, 
 
 func TestPermissionsAndCSRF(t *testing.T) {
 	viewer := auth.NewPrincipal(auth.KindUser, "usr_v", "v", auth.RoleViewer, nil)
+	viewerCSRF := auth.NewPrincipal(auth.KindUser, "usr_v", "v", auth.RoleViewer, nil)
+	viewerCSRF.CSRFChecked = true
+	opForeign := auth.NewPrincipal(auth.KindUser, "usr_o", "o", auth.RoleOperator, nil)
+	opForeign.CSRFOrigin = "https://evil.example"
 	opNoCSRF := auth.NewPrincipal(auth.KindUser, "usr_o", "o", auth.RoleOperator, nil)
 	opCSRF := auth.NewPrincipal(auth.KindUser, "usr_o", "o", auth.RoleOperator, nil)
 	opCSRF.CSRFChecked = true
@@ -83,8 +87,9 @@ func TestPermissionsAndCSRF(t *testing.T) {
 		{name: "public anon", p: auth.Anonymous, method: "GET", path: "/pub", status: 200},
 		{name: "read anon", p: auth.Anonymous, method: "GET", path: "/read", status: 401, code: "unauthenticated"},
 		{name: "read viewer", p: viewer, method: "GET", path: "/read", status: 200},
-		{name: "write viewer", p: viewer, method: "POST", path: "/write", body: `{"name":"x"}`, status: 403, code: "forbidden"},
-		{name: "write operator without csrf", p: opNoCSRF, method: "POST", path: "/write", body: `{"name":"x"}`, status: 403, code: "forbidden"},
+		{name: "write viewer", p: viewerCSRF, method: "POST", path: "/write", body: `{"name":"x"}`, status: 403, code: "forbidden"},
+		{name: "write operator without csrf", p: opNoCSRF, method: "POST", path: "/write", body: `{"name":"x"}`, status: 403, code: "csrf_invalid"},
+		{name: "write from a foreign origin", p: opForeign, method: "POST", path: "/write", body: `{"name":"x"}`, status: 403, code: "origin_mismatch"},
 		{name: "write operator with csrf", p: opCSRF, method: "POST", path: "/write", body: `{"name":"x"}`, status: 200},
 		{name: "write service token no csrf needed", p: svc, method: "POST", path: "/write", body: `{"name":"x"}`, status: 200},
 		{name: "validation envelope", p: opCSRF, method: "POST", path: "/write", body: `{"name":"waytoolongname"}`, status: 422, code: "validation_failed"},
