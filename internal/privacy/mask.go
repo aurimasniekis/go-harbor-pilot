@@ -6,6 +6,7 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -285,10 +286,14 @@ func (p *Policy) maskParts(parts []ir.Part, v *Vault, scope string, sum *Summary
 		case ir.PartText, ir.PartRefusal:
 			pt.Text, err = p.maskText(pt.Text, v, scope, sum)
 		case ir.PartReasoning:
-			// Exposed reasoning text may be masked; a signature over it
-			// (sealed) must then not be replayed, so signed reasoning is
-			// left untouched.
-			if pt.Reasoning != nil && pt.Sealed == nil {
+			// Exposed reasoning text may be masked. Signed reasoning must
+			// round-trip byte for byte, so it cannot be masked: if it holds
+			// something the policy would mask or block, the request is
+			// blocked rather than sending the value upstream (D-035).
+			switch {
+			case pt.Sealed != nil:
+				p.blockSigned(pt, sum)
+			case pt.Reasoning != nil:
 				pt.Reasoning.Text, err = p.maskText(pt.Reasoning.Text, v, scope, sum)
 			}
 		case ir.PartToolCall:
@@ -309,6 +314,26 @@ func (p *Policy) maskParts(parts []ir.Part, v *Vault, scope string, sum *Summary
 		}
 	}
 	return nil
+}
+
+// SignedReasoningRule names the finding recorded when signed reasoning holds
+// a value the policy masks or blocks.
+const SignedReasoningRule = "signed_reasoning"
+
+func (p *Policy) blockSigned(pt *ir.Part, sum *Summary) {
+	texts := []string{pt.Sealed.Attached}
+	if pt.Reasoning != nil && pt.Reasoning.Text != pt.Sealed.Attached {
+		texts = append(texts, pt.Reasoning.Text)
+	}
+	for _, t := range texts {
+		for _, f := range p.Scan(t) {
+			if f.Action == cp.PrivacyMask || f.Action == cp.PrivacyBlock {
+				sum.add(Finding{Rule: SignedReasoningRule, Action: cp.PrivacyBlock})
+				return
+			}
+			sum.add(f)
+		}
+	}
 }
 
 // MaskRequest masks a copy of the request's content in place of the
@@ -385,6 +410,10 @@ type Restorer struct {
 	scope string
 	carry map[int]string
 	args  map[int]*argBuf
+	// kinds records each streamed part's kind from its PartStart. Only text
+	// parts are restored; tool-call arguments only through the allowlist;
+	// reasoning (often signed) and parts never announced pass through.
+	kinds map[int]ir.PartKind
 }
 
 type argBuf struct {
@@ -476,7 +505,7 @@ func (r *Restorer) restoreArgs(raw string) string {
 		if json.Unmarshal(v, &s) != nil || !PlaceholderRE.MatchString(s) {
 			continue
 		}
-		if strings.Contains(s, "://") && !r.hostAllowed(s) {
+		if !r.hostsAllowed(s) {
 			continue
 		}
 		out := r.restoreText(s)
@@ -493,21 +522,40 @@ func (r *Restorer) restoreArgs(raw string) string {
 	return string(b)
 }
 
-var urlHostRE = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://([^/\s:?#@]+)`)
+var (
+	// urlRE finds URL-like spans (scheme://... up to whitespace or quotes).
+	urlRE = regexp.MustCompile(`(?i)[a-z][a-z0-9+.-]*:[/\\]{2}[^\s"'<>]*`)
+	// hostLikeRE finds bare domain names and IPv4 addresses.
+	hostLikeRE = regexp.MustCompile(`(?i)\b(?:(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,62}|\d{1,3}(?:\.\d{1,3}){3})\b`)
+)
 
-func (r *Restorer) hostAllowed(s string) bool {
-	hosts := urlHostRE.FindAllStringSubmatch(s, -1)
-	if len(hosts) == 0 {
-		return false
-	}
-	for _, h := range hosts {
-		ok := false
+// hostsAllowed reports whether every destination mentioned in s is an
+// allowlisted host. URLs are parsed with net/url (userinfo and backslash
+// authorities are refused); any other host-like token must also be on the
+// list, so scheme-less commands cannot smuggle a destination.
+func (r *Restorer) hostsAllowed(s string) bool {
+	allowed := func(h string) bool {
+		h = strings.TrimSuffix(strings.ToLower(h), ".")
 		for _, a := range r.p.ToolArgs.AllowedHosts {
-			if strings.EqualFold(h[1], a) {
-				ok = true
+			if strings.EqualFold(h, a) {
+				return true
 			}
 		}
-		if !ok {
+		return false
+	}
+	rest := s
+	for _, raw := range urlRE.FindAllString(s, -1) {
+		if strings.Contains(raw, `\`) {
+			return false
+		}
+		u, err := url.Parse(raw)
+		if err != nil || u.User != nil || u.Host == "" || !allowed(u.Hostname()) {
+			return false
+		}
+		rest = strings.Replace(rest, raw, " ", 1)
+	}
+	for _, h := range hostLikeRE.FindAllString(rest, -1) {
+		if !allowed(h) {
 			return false
 		}
 	}
@@ -518,8 +566,17 @@ func (r *Restorer) hostAllowed(s string) bool {
 func (r *Restorer) Event(e ir.Event) []ir.Event {
 	switch e.Kind {
 	case ir.EvPartStart:
-		if e.Part != nil && e.Part.ToolCall != nil && r.allowedTool(e.Part.ToolCall.Name) {
-			r.args[e.Index] = &argBuf{name: e.Part.ToolCall.Name}
+		if r.kinds == nil {
+			r.kinds = map[int]ir.PartKind{}
+		}
+		if e.Part != nil {
+			r.kinds[e.Index] = e.Part.Kind
+			if e.Part.ToolCall != nil {
+				r.kinds[e.Index] = ir.PartToolCall
+				if r.allowedTool(e.Part.ToolCall.Name) {
+					r.args[e.Index] = &argBuf{name: e.Part.ToolCall.Name}
+				}
+			}
 		}
 		return []ir.Event{e}
 	case ir.EvDelta:
@@ -527,7 +584,7 @@ func (r *Restorer) Event(e ir.Event) []ir.Event {
 			ab.b.WriteString(e.Delta)
 			return nil
 		}
-		if !r.p.Restore {
+		if !r.p.Restore || r.kinds[e.Index] != ir.PartText {
 			return []ir.Event{e}
 		}
 		s := r.carry[e.Index] + e.Delta
