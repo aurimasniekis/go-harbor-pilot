@@ -30,7 +30,7 @@ var secretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`xai-[A-Za-z0-9]{20,}`),
 	regexp.MustCompile(`AIza[0-9A-Za-z_-]{30,}`),
 	regexp.MustCompile(`hp[a-z]_[A-Za-z0-9]{6,}_[A-Za-z0-9_-]{16,}`),
-	regexp.MustCompile(`HPSEC_[A-Z2-7]{26}`),
+	regexp.MustCompile(`HPSEC_[A-Z2-7]{20}`), // masking placeholders (privacy.PlaceholderRE; kept in sync by a test there)
 }
 
 // RedactString masks secret-looking substrings.

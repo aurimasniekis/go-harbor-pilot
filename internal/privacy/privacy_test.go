@@ -1,13 +1,16 @@
 package privacy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 	"testing"
 
 	cp "github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/observability"
 )
 
 // Synthetic credential-shaped values (not real secrets).
@@ -288,5 +291,60 @@ func TestSignedReasoningWithSecretBlocks(t *testing.T) {
 				t.Fatalf("signed text was modified: %q", got)
 			}
 		})
+	}
+}
+
+// One credential cannot grow the vault without bound or push another
+// credential's mappings out: over its budget, values are still masked but
+// not stored.
+func TestVaultBudgets(t *testing.T) {
+	v := NewVault(nil)
+	v.OwnerMax, v.OwnerMaxBytes, v.MaxBytes = 100, 4096, 8192
+	victim := "cbn_1|crd|crd_victim"
+	ph, err := v.placeholder(victim, "victim-secret-value", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	big := strings.Repeat("A", 1000)
+	attacker := "cbn_1|crd|crd_attacker"
+	stored := 0
+	for i := range 50 {
+		// Many sessions of the same credential share one budget.
+		p, err := v.placeholder(attacker+"|ses|"+string(rune('a'+i%26))+string(rune('a'+i/26)), big+string(rune('a'+i)), "")
+		if err != nil || !strings.HasPrefix(p, PlaceholderPrefix) {
+			t.Fatalf("value %d was not masked: %q %v", i, p, err)
+		}
+		if _, ok := v.original(attacker+"|ses|"+string(rune('a'+i%26))+string(rune('a'+i/26)), p); ok {
+			stored++
+		}
+	}
+	if stored == 0 || stored > 4 {
+		t.Fatalf("stored %d large values; the 4 KiB owner budget allows about 3", stored)
+	}
+	if v.Unstored == 0 {
+		t.Fatal("expected unstored placeholders once the budget was used")
+	}
+	if got, ok := v.original(victim, ph); !ok || got != "victim-secret-value" {
+		t.Fatal("another credential's mapping was evicted")
+	}
+	if v.bytes > v.MaxBytes {
+		t.Fatalf("vault holds %d bytes, over its %d limit", v.bytes, v.MaxBytes)
+	}
+}
+
+// Log redaction recognises the placeholders this package generates (a
+// placeholder is a restoration handle, so it is kept out of logs).
+func TestLogRedactionMatchesPlaceholders(t *testing.T) {
+	ph, err := NewVault(nil).placeholder("s", "some-secret-value", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	observability.NewLogger(&buf, slog.LevelDebug).Info("x", "note", "masked "+ph)
+	if strings.Contains(buf.String(), ph) {
+		t.Fatalf("placeholder %s was logged: %s", ph, buf.String())
+	}
+	if !PlaceholderRE.MatchString(ph) {
+		t.Fatalf("PlaceholderRE does not match %s", ph)
 	}
 }

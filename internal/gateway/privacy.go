@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -21,7 +22,17 @@ func (g *Gateway) applyPrivacy(ctx context.Context, w http.ResponseWriter, rc *r
 		return true
 	}
 	pol, err := g.Privacy.Policy(ctx, rc.snap, id)
-	scope := privacy.Scope(rc.binding.ID, rc.session.ID, rc.cred.ID)
+	if errors.Is(err, privacy.ErrSecretValuesUnavailable) && pol != nil && (!pol.Required || pol.AllowUnmasked) {
+		// The policy permits dispatch without full masking: mask with the
+		// detectors that still work rather than with none.
+		g.Log.Warn("privacy.secret_values_unavailable", "request_id", rc.id, "policy_id", id)
+		err = nil
+	}
+	owner := rc.cred.ID
+	if rc.cred.ParentID != "" {
+		owner = rc.cred.ParentID
+	}
+	scope := privacy.Scope(rc.binding.ID, rc.session.ID, owner)
 	var sum *privacy.Summary
 	if err == nil {
 		masked := privacy.CloneRequest(rc.ir)

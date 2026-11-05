@@ -30,62 +30,107 @@ var b32 = base32.StdEncoding.WithPadding(base32.NoPadding)
 // ---------- vault ----------
 
 type scopeVault struct {
-	fwd  map[string]string // original -> placeholder
-	rev  map[string]string // placeholder -> original
-	used time.Time
+	fwd   map[string]string // original -> placeholder
+	rev   map[string]string // placeholder -> original
+	used  time.Time
+	owner string
+	bytes int
+}
+
+// usage is the memory held by one owner (a credential's scopes).
+type usage struct {
+	bytes, entries int
 }
 
 // Vault keeps placeholder mappings in memory only. Mappings are scoped
-// (binding plus session), expire after an idle TTL and are bounded in
-// total size; after a restart or expiry earlier placeholders can no longer
-// be restored.
+// (binding, credential and session), expire after an idle TTL and are
+// bounded in total and per owner, in entries and bytes; after a restart,
+// expiry or eviction earlier placeholders can no longer be restored.
+//
+// The owner of a scope is its credential part (session ids are client
+// hints, so one credential could otherwise create unlimited scopes). An
+// owner over its budget still gets placeholders (the value is masked) but
+// they are not stored, so they cannot be restored and cannot push other
+// owners' mappings out.
 type Vault struct {
 	mu      sync.Mutex
 	scopes  map[string]*scopeVault
+	owners  map[string]*usage
 	entries int
+	bytes   int
 	TTL     time.Duration
-	Max     int
-	Now     func() time.Time
+	// Max and MaxBytes bound the whole vault; OwnerMax and OwnerMaxBytes
+	// bound one credential's scopes.
+	Max, MaxBytes           int
+	OwnerMax, OwnerMaxBytes int
+	// Unstored counts placeholders issued without a stored mapping.
+	Unstored int
+	Now      func() time.Time
 }
 
-// NewVault creates a vault (TTL 24h, at most 200k mappings).
+// NewVault creates a vault (TTL 24h; at most 200k mappings or 128 MiB in
+// total, 5k mappings or 8 MiB per credential).
 func NewVault(now func() time.Time) *Vault {
 	if now == nil {
 		now = time.Now
 	}
-	return &Vault{scopes: map[string]*scopeVault{}, TTL: 24 * time.Hour, Max: 200_000, Now: now}
+	return &Vault{scopes: map[string]*scopeVault{}, owners: map[string]*usage{}, TTL: 24 * time.Hour,
+		Max: 200_000, MaxBytes: 128 << 20, OwnerMax: 5_000, OwnerMaxBytes: 8 << 20, Now: now}
+}
+
+// ownerOf is the scope without its session part.
+func ownerOf(scope string) string {
+	if i := strings.Index(scope, "|ses|"); i >= 0 {
+		return scope[:i]
+	}
+	return scope
 }
 
 func (v *Vault) scope(name string) *scopeVault {
 	s := v.scopes[name]
 	if s == nil {
-		s = &scopeVault{fwd: map[string]string{}, rev: map[string]string{}}
+		s = &scopeVault{fwd: map[string]string{}, rev: map[string]string{}, owner: ownerOf(name)}
 		v.scopes[name] = s
 	}
 	s.used = v.Now()
 	return s
 }
 
-// evict drops expired scopes, then the least recently used, until under
-// the size bound.
-func (v *Vault) evict() {
-	now := v.Now()
-	for k, s := range v.scopes {
-		if now.Sub(s.used) > v.TTL {
-			v.entries -= len(s.fwd)
-			delete(v.scopes, k)
+func (v *Vault) drop(name string) {
+	s := v.scopes[name]
+	v.entries -= len(s.fwd)
+	v.bytes -= s.bytes
+	if u := v.owners[s.owner]; u != nil {
+		u.entries -= len(s.fwd)
+		u.bytes -= s.bytes
+		if u.entries <= 0 {
+			delete(v.owners, s.owner)
 		}
 	}
-	for v.entries > v.Max && len(v.scopes) > 0 {
+	delete(v.scopes, name)
+}
+
+// evict drops expired scopes, then the least recently used (never keep),
+// until under the bounds.
+func (v *Vault) evict(keep string) {
+	now := v.Now()
+	for k, s := range v.scopes {
+		if now.Sub(s.used) > v.TTL && k != keep {
+			v.drop(k)
+		}
+	}
+	for (v.entries > v.Max || v.bytes > v.MaxBytes) && len(v.scopes) > 1 {
 		var oldest string
 		var at time.Time
 		for k, s := range v.scopes {
-			if oldest == "" || s.used.Before(at) {
+			if k != keep && (oldest == "" || s.used.Before(at)) {
 				oldest, at = k, s.used
 			}
 		}
-		v.entries -= len(v.scopes[oldest].fwd)
-		delete(v.scopes, oldest)
+		if oldest == "" {
+			return
+		}
+		v.drop(oldest)
 	}
 }
 
@@ -108,10 +153,24 @@ func (v *Vault) placeholder(scope, value, avoid string) (string, error) {
 		if _, taken := s.rev[p]; taken || strings.Contains(avoid, p) {
 			continue
 		}
+		cost := len(value) + 2*len(p)
+		u := v.owners[s.owner]
+		if u == nil {
+			u = &usage{}
+			v.owners[s.owner] = u
+		}
+		if u.entries+1 > v.OwnerMax || u.bytes+cost > v.OwnerMaxBytes || cost > v.MaxBytes {
+			v.Unstored++
+			return p, nil
+		}
 		s.fwd[value], s.rev[p] = p, value
+		s.bytes += cost
+		u.entries++
+		u.bytes += cost
 		v.entries++
-		if v.entries > v.Max {
-			v.evict()
+		v.bytes += cost
+		if v.entries > v.Max || v.bytes > v.MaxBytes {
+			v.evict(scope)
 		}
 		return p, nil
 	}
@@ -135,7 +194,7 @@ func (v *Vault) original(scope, placeholder string) (string, bool) {
 // Sweep removes expired scopes (call periodically).
 func (v *Vault) Sweep() {
 	v.mu.Lock()
-	v.evict()
+	v.evict("")
 	v.mu.Unlock()
 }
 
