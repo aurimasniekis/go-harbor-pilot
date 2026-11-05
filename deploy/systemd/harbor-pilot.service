@@ -1,0 +1,57 @@
+# Harbor Pilot systemd unit.
+#
+#   useradd --system --home-dir /var/lib/harbor-pilot --shell /usr/sbin/nologin harbor-pilot
+#   install -m 0755 harbor-pilot /usr/local/bin/harbor-pilot
+#   install -d -m 0750 -g harbor-pilot /etc/harbor-pilot
+#   install -m 0640 -g harbor-pilot deploy/examples/harbor-pilot.yaml /etc/harbor-pilot/harbor-pilot.yaml
+#   harbor-pilot keys generate | install -m 0600 -o harbor-pilot /dev/stdin /etc/harbor-pilot/master.key
+#   systemctl enable --now harbor-pilot
+#   sudo -u harbor-pilot harbor-pilot admin bootstrap --config /etc/harbor-pilot/harbor-pilot.yaml
+#
+# Back up master.key separately from the data: backups cannot be restored
+# without it. StateDirectory creates /var/lib/harbor-pilot owned by the
+# service user.
+[Unit]
+Description=Harbor Pilot LLM gateway and control plane
+Documentation=https://github.com/aurimasniekis/go-harbor-pilot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=harbor-pilot
+Group=harbor-pilot
+StateDirectory=harbor-pilot
+StateDirectoryMode=0700
+Environment=HP_DATA_DIR=/var/lib/harbor-pilot
+ExecStart=/usr/local/bin/harbor-pilot serve --config /etc/harbor-pilot/harbor-pilot.yaml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=45s
+LimitNOFILE=65536
+
+# Hardening. The CLI bridges need to execute the vendor binaries and write
+# per-account config under the state directory, which these settings allow.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

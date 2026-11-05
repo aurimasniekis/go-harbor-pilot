@@ -1,0 +1,60 @@
+# syntax=docker/dockerfile:1.7
+#
+# Harbor Pilot with the vendor CLIs for the subscription bridges: the
+# claude binary (Claude Code) and the codex binary. Each provider account
+# gets an isolated config directory under the data volume; credentials are
+# the per-account tokens configured in Harbor Pilot, never a shared login.
+# Pin the CLI versions you have verified (docs/COMPATIBILITY.md).
+
+ARG CLAUDE_CODE_VERSION=2.1.318
+ARG CODEX_VERSION=0.166.0
+
+# ---- Frontend build ----
+FROM node:24.11.1-alpine3.22 AS web
+WORKDIR /src/web
+RUN corepack enable && corepack prepare pnpm@11.23.0 --activate
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml web/.npmrc ./
+RUN pnpm install --frozen-lockfile
+COPY web/ ./
+RUN mkdir -p /src/internal/web/dist && pnpm run build
+
+# ---- Backend build ----
+FROM golang:1.27.3-alpine3.23 AS go
+WORKDIR /src
+ENV CGO_ENABLED=0 GOFLAGS=-trimpath
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd ./cmd
+COPY internal ./internal
+COPY migrations ./migrations
+COPY api ./api
+COPY --from=web /src/internal/web/dist ./internal/web/dist
+ARG VERSION=docker
+RUN go build -ldflags "-s -w -X main.version=${VERSION}" -o /out/harbor-pilot ./cmd/harbor-pilot
+
+# ---- Runtime ----
+FROM node:24.11.1-bookworm-slim
+ARG CLAUDE_CODE_VERSION
+ARG CODEX_VERSION
+RUN npm install -g --omit=dev "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" "@openai/codex@${CODEX_VERSION}" \
+ && npm cache clean --force \
+ && apt-get update && apt-get install -y --no-install-recommends ca-certificates git \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --system --gid 65532 harbor \
+ && useradd --system --uid 65532 --gid harbor --home-dir /data/home --shell /usr/sbin/nologin harbor \
+ && mkdir -p /data/home && chown -R harbor:harbor /data
+COPY --from=go /out/harbor-pilot /usr/local/bin/harbor-pilot
+USER 65532:65532
+ENV HOME=/data/home \
+    HP_DATA_DIR=/data \
+    HP_LISTEN=:8080 \
+    HP_MASTER_KEY_FILE=/run/secrets/master_key \
+    HP_CLAUDE_BINARY=/usr/local/bin/claude \
+    HP_CODEX_BINARY=/usr/local/bin/codex \
+    DISABLE_AUTOUPDATER=1
+EXPOSE 8080
+VOLUME ["/data"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD ["/usr/local/bin/harbor-pilot", "healthcheck", "--url", "http://127.0.0.1:8080/readyz"]
+ENTRYPOINT ["/usr/local/bin/harbor-pilot"]
+CMD ["serve"]

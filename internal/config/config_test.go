@@ -26,6 +26,29 @@ func TestLoadPrecedence(t *testing.T) {
 	}
 }
 
+func TestDerivedPublicURL(t *testing.T) {
+	tests := []struct {
+		listen, want string
+	}{
+		{"127.0.0.1:9000", "http://127.0.0.1:9000"},
+		{":8080", "http://localhost:8080"},
+		{"0.0.0.0:8080", "http://localhost:8080"},
+		{"[::]:8080", "http://localhost:8080"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.listen, func(t *testing.T) {
+			env := map[string]string{"HP_LISTEN": tt.listen}
+			c, err := Load("", func(k string) string { return env[k] }, Flags{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.Server.PublicURL != tt.want {
+				t.Fatalf("public url %q, want %q", c.Server.PublicURL, tt.want)
+			}
+		})
+	}
+}
+
 func TestLoadRejects(t *testing.T) {
 	tests := []struct {
 		name, yaml, want string

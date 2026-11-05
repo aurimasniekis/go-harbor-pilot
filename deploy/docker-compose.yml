@@ -1,0 +1,38 @@
+# Harbor Pilot with a persistent data volume.
+#
+#   harbor-pilot keys generate > deploy/master.key   # once; back it up separately
+#   chmod 600 deploy/master.key && sudo chown 65532 deploy/master.key   # Linux: readable only by the container user
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#   docker compose -f deploy/docker-compose.yml exec harbor-pilot harbor-pilot admin bootstrap
+#
+# For the Claude Code and Codex bridges, set `dockerfile: deploy/Dockerfile.bridge`.
+services:
+  harbor-pilot:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: harbor-pilot:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      HP_PUBLIC_URL: ${HP_PUBLIC_URL:-http://127.0.0.1:8080}
+      HP_LOG_LEVEL: info
+    secrets:
+      - master_key
+    volumes:
+      - harbor-data:/data
+    stop_grace_period: 40s
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+
+secrets:
+  master_key:
+    file: ./master.key
+
+volumes:
+  harbor-data:

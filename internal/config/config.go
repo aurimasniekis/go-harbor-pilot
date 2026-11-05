@@ -161,9 +161,15 @@ func Load(path string, env func(string) string, f Flags) (Config, error) {
 		c.Demo.Clock = f.DemoClock
 	}
 	if c.Server.PublicURL == "" {
-		c.Server.PublicURL = "http://" + c.Server.Listen
+		// A wildcard listen address is not a usable origin; assume local
+		// access until public_url is set.
+		hostport := c.Server.Listen
+		if host, port, err := net.SplitHostPort(hostport); err == nil && (host == "" || host == "0.0.0.0" || host == "::") {
+			hostport = net.JoinHostPort("localhost", port)
+		}
+		c.Server.PublicURL = "http://" + hostport
 		if c.Server.TLS.CertFile != "" {
-			c.Server.PublicURL = "https://" + c.Server.Listen
+			c.Server.PublicURL = "https://" + hostport
 		}
 	}
 	return c, c.Validate()

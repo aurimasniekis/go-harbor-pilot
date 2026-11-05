@@ -24,3 +24,4 @@ internal/web/dist/*
 coverage.out
 .DS_Store
 /.data-dev/
+/harbor-pilot

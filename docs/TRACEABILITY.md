@@ -32,7 +32,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R2.14 | Local password and OIDC SSO | 2 | auth | implemented | internal/auth, internal/auth/authapi; auth/oidc_test.go (contract) |
 | R2.15 | UI preserving Quota Harbor's stack and theme | 0–15 | web | planned | |
 | R2.16 | Terraform provider | 14 | ../terraform-provider-harbor-pilot | planned | |
-| R2.17 | Migration, backup, recovery, security, ops docs | 13 | store, cmd, docs | in-progress | backup/verify/restore (internal/ops, TestScenarioM); Quota Harbor importer (internal/migrate/quotaharbor, TestImport); upgrade, rollback and troubleshooting docs pending |
+| R2.17 | Migration, backup, recovery, security, ops docs | 13 | store, cmd, docs | contract-tested | backup/verify/restore (internal/ops, TestScenarioM); Quota Harbor importer with dry run and idempotent re-runs (internal/migrate/quotaharbor, TestImport; live import of a real Quota Harbor deployment not run); docs/operations/{deployment,backup-restore,upgrade-rollback,troubleshooting}.md; docs/guides/migrate-quota-harbor.md |
 
 ## §3 Discovery and design deliverables
 | ID | Requirement | Status | Evidence |
@@ -47,7 +47,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R4.1 | Go, one binary, embedded UI | 0–1 | implemented | cmd/harbor-pilot, internal/app, internal/web; app_test.go |
 | R4.2 | SQLite WAL, single instance, documented capacity | 1, 15 | planned | |
 | R4.3 | Quota Harbor UI stack, pnpm, lint/test/E2E conventions | 0 | implemented | web/ (pinned stack), make check, web/e2e |
-| R4.4 | Container and native deployment | 13 | planned | |
+| R4.4 | Container and native deployment | 13 | implemented | deploy/Dockerfile (distroless, non-root) and deploy/Dockerfile.bridge (claude 2.1.318, codex 0.166.0) built and smoke-run locally on 2026-11-05: health check, bootstrap, backup, doctor; deploy/docker-compose.yml; deploy/systemd/harbor-pilot.service; goreleaser snapshot builds linux/darwin amd64/arm64; release workflow not yet run on GitHub (blocked: owner pushes) |
 | R4.5 | Deterministic, isolated demo mode | 4+ | implemented | demo seed + synthetic upstreams + real-path traffic (internal/demo) |
 | R4.6 | Execution, control, telemetry, events and notifications kept separate; bounded queues | 4, 10 | implemented | bounded telemetry queue with drop counters; outbox-only events (D-020) |
 
