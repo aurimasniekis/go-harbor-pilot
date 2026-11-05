@@ -28,7 +28,7 @@ harbor-pilot harness setup claude --url https://pilot.example.com --token-file ~
 ## Documentation
 - [Product](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md), [decisions](docs/DECISIONS.md), [threat model](docs/THREAT_MODEL.md)
 - [Compatibility matrix](docs/COMPATIBILITY.md), [limitations](docs/LIMITATIONS.md), [requirement traceability](docs/TRACEABILITY.md)
-- Operations: [deployment](docs/operations/deployment.md), [master key](docs/operations/master-key.md), [backup and restore](docs/operations/backup-restore.md), [upgrade and rollback](docs/operations/upgrade-rollback.md), [troubleshooting](docs/operations/troubleshooting.md), [demo](docs/operations/demo.md)
+- Operations: [deployment](docs/operations/deployment.md), [master key](docs/operations/master-key.md), [backup and restore](docs/operations/backup-restore.md), [upgrade and rollback](docs/operations/upgrade-rollback.md), [capacity](docs/operations/capacity.md), [troubleshooting](docs/operations/troubleshooting.md), [demo](docs/operations/demo.md)
 - Guides: [harness setup](docs/guides/harnesses.md), [migrating from Quota Harbor](docs/guides/migrate-quota-harbor.md)
 - API: `api/openapi.yaml` (generated; `harbor-pilot openapi`)
 

@@ -9,7 +9,7 @@ E2E_PORT ?= 18189
 FUZZTIME ?= 30s
 
 .PHONY: all web web-deps build build-go run demo dev test test-go test-web race lint golint vet typecheck check \
-	gen gen-api gen-web fuzz-smoke e2e e2e-install docker docker-up release-snapshot clean
+	gen gen-api gen-web fuzz-smoke load e2e e2e-install docker docker-up release-snapshot clean
 
 all: build
 
@@ -87,6 +87,10 @@ fuzz-smoke:
 
 e2e-install:
 	cd web && $(PNPM) exec playwright install chromium
+
+# load runs the load tests at capacity scale (see docs/operations/capacity.md).
+load:
+	HP_LOAD=1 $(GO) test -count=1 -run TestLoad -v ./internal/acceptance
 
 e2e: build
 	cd web && HP_E2E_PORT=$(E2E_PORT) HP_E2E_BIN=$(CURDIR)/$(BIN) HP_E2E_CLOCK=$(DEMO_CLOCK) $(PNPM) exec playwright test

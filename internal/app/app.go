@@ -63,10 +63,13 @@ import (
 
 // Options configure New.
 type Options struct {
-	Config  config.Config
-	Version string
-	Log     *slog.Logger
-	Env     func(string) string
+	Config config.Config
+	// TelemetryQueue bounds the activity writer queue (0 = default); tests
+	// shrink it to exercise back-pressure.
+	TelemetryQueue int
+	Version        string
+	Log            *slog.Logger
+	Env            func(string) string
 	// QuotaTransport overrides the quota adapters' outbound transport
 	// (tests point adapters at local fakes).
 	QuotaTransport http.RoundTripper
@@ -179,7 +182,7 @@ func New(ctx context.Context, o Options) (*App, error) {
 	if _, err := a.Acct.RecoverStartup(ctx); err != nil {
 		return fail(fmt.Errorf("accounting recovery: %w", err))
 	}
-	a.Tel = telemetry.NewWriter(a.DB, a.Log, a.Metrics, 0)
+	a.Tel = telemetry.NewWriter(a.DB, a.Log, a.Metrics, o.TelemetryQueue)
 	sessKey, err := a.Keys.Get(ctx, store.KeySessionPepper)
 	if err != nil {
 		return fail(err)

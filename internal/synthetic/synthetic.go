@@ -23,7 +23,11 @@ type Reply struct {
 	ToolName   string        // when set, the reply is a tool call
 	ToolArgs   string        // JSON arguments for the tool call
 	Delay      time.Duration // wait before responding
-	ErrorEvent string        // stream an error event (after headers) instead of content
+	// Chunks splits streamed text into this many deltas (default 3) and
+	// ChunkDelay waits between them, to simulate long generations.
+	Chunks     int
+	ChunkDelay time.Duration
+	ErrorEvent string // stream an error event (after headers) instead of content
 	InputTok   int64
 	OutputTok  int64
 	CacheRead  int64
@@ -210,7 +214,8 @@ func (u *Upstream) anthropicStream(w http.ResponseWriter, r Reply) {
 		sse(w, "content_block_delta", js(map[string]any{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "input_json_delta", "partial_json": r.ToolArgs[half:]}}))
 	} else {
 		sse(w, "content_block_start", js(map[string]any{"type": "content_block_start", "index": 0, "content_block": map[string]any{"type": "text", "text": ""}}))
-		for _, chunk := range splitN(r.Text, 3) {
+		for i, chunk := range splitN(r.Text, r.chunks()) {
+			r.pace(i)
 			sse(w, "content_block_delta", js(map[string]any{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "text_delta", "text": chunk}}))
 		}
 	}
@@ -245,7 +250,8 @@ func (u *Upstream) chatStream(w http.ResponseWriter, r Reply) {
 			sse(w, "", js(map[string]any{"id": "c1", "choices": []any{map[string]any{"index": 0, "delta": map[string]any{"tool_calls": []any{map[string]any{"index": 0, "function": map[string]any{"arguments": chunk}}}}}}}))
 		}
 	} else {
-		for _, chunk := range splitN(r.Text, 3) {
+		for i, chunk := range splitN(r.Text, r.chunks()) {
+			r.pace(i)
 			sse(w, "", js(map[string]any{"id": "c1", "choices": []any{map[string]any{"index": 0, "delta": map[string]any{"content": chunk}}}}))
 		}
 	}
@@ -317,6 +323,20 @@ func (u *Upstream) gemini(w http.ResponseWriter, r Reply, stream bool) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(200)
 	sse(w, "", js(resp))
+}
+
+func (r Reply) chunks() int {
+	if r.Chunks > 0 {
+		return r.Chunks
+	}
+	return 3
+}
+
+// pace waits between streamed deltas (not before the first).
+func (r Reply) pace(i int) {
+	if i > 0 && r.ChunkDelay > 0 {
+		time.Sleep(r.ChunkDelay)
+	}
 }
 
 func splitN(s string, n int) []string {

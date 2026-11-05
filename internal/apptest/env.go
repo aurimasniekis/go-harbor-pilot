@@ -67,6 +67,9 @@ func WithBridgeEnv(env ...string) Option {
 // WithPulse replaces how the event relay connects to Pulse.
 func WithPulse(c relay.PulseConnector) Option { return func(s *Setup) { s.App.PulseConnector = c } }
 
+// WithApp adjusts application options (queue sizes and similar).
+func WithApp(fn func(*app.Options)) Option { return func(s *Setup) { fn(s.App) } }
+
 // WithLog routes application logs to l (tests that inspect log output).
 func WithLog(l *slog.Logger) Option { return func(s *Setup) { s.App.Log = l } }
 
