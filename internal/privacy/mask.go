@@ -511,6 +511,11 @@ func heldSuffix(s string) int {
 	if start < 0 {
 		start = 0
 	}
+	// Never hold back part of a placeholder that is already complete (its
+	// last character can look like the start of the next "HPSEC_").
+	if m := PlaceholderRE.FindAllStringIndex(s, -1); len(m) > 0 && m[len(m)-1][1] > start {
+		start = m[len(m)-1][1]
+	}
 	for i := start; i < len(s); i++ {
 		if s[i] != 'H' {
 			continue

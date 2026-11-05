@@ -399,3 +399,25 @@ func TestToolResultsAreMaskedJSONAware(t *testing.T) {
 		})
 	}
 }
+
+func TestHeldSuffixKeepsCompletePlaceholders(t *testing.T) {
+	full := PlaceholderPrefix + strings.Repeat("A", placeholderBody-1) + "H" // ends in 'H'
+	tests := []struct {
+		name string
+		in   string
+		want int
+	}{
+		{"complete placeholder ending in H", "key " + full, 0},
+		{"complete placeholder then a partial one", "key " + full + " HPSEC_AB", len("HPSEC_AB")},
+		{"partial prefix", "text HPS", len("HPS")},
+		{"partial body", "x " + PlaceholderPrefix + "ABC", len(PlaceholderPrefix) + 3},
+		{"no placeholder", "plain text", 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := heldSuffix(tt.in); got != tt.want {
+				t.Fatalf("heldSuffix(%q) = %d, want %d", tt.in, got, tt.want)
+			}
+		})
+	}
+}
