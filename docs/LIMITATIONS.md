@@ -42,6 +42,9 @@ This file is kept current alongside the implementation. Each entry is one of:
 - **Passthrough telemetry (design).** In passthrough, usage is read best-effort from the raw stream; tool calls, intent signals in responses and traces are not available. Passthrough does not avoid provider-side flags or restrictions.
 - **Protocol Watch is an observed changelog (design).** It reports what this gateway observed, not provider release history. Absent fields are reported with low confidence and are not proof of removal. The learned baseline lives in memory and is re-seeded at start.
 
+- **Statistics are computed on demand (design).** `/stats` aggregates up to 200,000 requests per query directly from SQLite; larger ranges are flagged as truncated. Rollup tables are not used yet.
+- **History deduplication needs a session (design).** Without a trusted session reference or session header, occurrences are recorded as uncertain and never merged across conversations.
+
 ## Pending
 
 Pending items are tracked per requirement in TRACEABILITY.md (status `planned` or `in-progress`).

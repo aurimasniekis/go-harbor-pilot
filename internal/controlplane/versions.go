@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"regexp"
 	"slices"
 	"sort"
 	"time"
@@ -67,6 +68,7 @@ type PlanDocument struct {
 	Fallback       FallbackPolicy   `json:"fallback"`
 	Privacy        PlanPrivacy      `json:"privacy" required:"false"`
 	Compatibility  PlanCompat       `json:"compatibility" required:"false"`
+	Intent         PlanIntent       `json:"intent" required:"false"`
 	// Engine holds routing-engine sections (rules, decision tables, ranking,
 	// privacy, compatibility); validated by the engine at compile time.
 	Engine json.RawMessage `json:"engine,omitempty"`
@@ -102,6 +104,17 @@ func NormalizeDocument(d *PlanDocument) {
 	}
 	if c.UnenforceableBudget == "" {
 		c.UnenforceableBudget = "block"
+	}
+	in := &d.Intent
+	if in.Mode == "" {
+		in.Mode = "off"
+	}
+	in.Labels = SortedUnique(in.Labels)
+	if in.MaxLatencyMs == 0 {
+		in.MaxLatencyMs = 1500
+	}
+	if in.MaxInputChars == 0 {
+		in.MaxInputChars = 2000
 	}
 	if len(bytes.TrimSpace(d.Engine)) == 0 || string(bytes.TrimSpace(d.Engine)) == "null" {
 		d.Engine = nil
@@ -190,7 +203,46 @@ func ValidateDocument(d *PlanDocument) []FieldError {
 	if c.UnenforceableBudget != "block" && c.UnenforceableBudget != "allow" {
 		fail("compatibility.unenforceable_budget", "must be block or allow")
 	}
+	validateIntent(fail, d)
 	return out
+}
+
+// PlanIntent configures optional intent classification. Declared (trusted)
+// and rule-derived intents take precedence over the classifier.
+type PlanIntent struct {
+	// Mode: off, heuristic (local keyword rules) or model (an alias
+	// classifies the last user message).
+	Mode   string   `json:"mode" required:"false" enum:"off,heuristic,model"`
+	Labels []string `json:"labels" required:"false" doc:"Allowed intent labels; empty = the default set."`
+	// Model mode only.
+	AliasID       string `json:"alias_id" required:"false"`
+	MaxLatencyMs  int    `json:"max_latency_ms" required:"false" minimum:"0" maximum:"10000"`
+	MaxInputChars int    `json:"max_input_chars" required:"false" minimum:"0" maximum:"20000"`
+	// SendContent authorizes sending the (masked, truncated) last user
+	// message to the classifier model; without it model mode does nothing.
+	SendContent bool `json:"send_content" required:"false"`
+}
+
+var intentLabelRE = regexp.MustCompile(`^[a-z][a-z0-9_]{0,40}$`)
+
+func validateIntent(fail func(loc, msg string), d *PlanDocument) {
+	in := d.Intent
+	if !slices.Contains([]string{"off", "heuristic", "model"}, in.Mode) {
+		fail("intent.mode", "must be off, heuristic or model")
+	}
+	for _, l := range in.Labels {
+		if !intentLabelRE.MatchString(l) {
+			fail("intent.labels", "labels are lowercase identifiers")
+		}
+	}
+	if in.Mode == "model" {
+		if in.AliasID == "" {
+			fail("intent.alias_id", "model classification needs an alias")
+		}
+		if !in.SendContent {
+			fail("intent.send_content", "model classification sends the last user message (after masking); set send_content to authorize it")
+		}
+	}
 }
 
 // DegradableFeatures may be pre-authorized for loss during degradation.
@@ -215,6 +267,9 @@ func ValidateDocumentRefs(s *Snapshot, d *PlanDocument) []FieldError {
 	fail := func(loc, msg string) { out = append(out, FieldError{Location: "body.document." + loc, Message: msg}) }
 	if id := d.Privacy.PolicyID; id != "" && s.Privacy[id] == nil {
 		fail("privacy.policy_id", "unknown privacy policy "+id)
+	}
+	if id := d.Intent.AliasID; id != "" && s.Aliases[id] == nil {
+		fail("intent.alias_id", "unknown model alias "+id)
 	}
 	if id := d.Privacy.TracePolicyID; id != "" && s.TracePols[id] == nil {
 		fail("privacy.trace_policy_id", "unknown trace policy "+id)

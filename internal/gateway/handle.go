@@ -225,10 +225,26 @@ func (g *Gateway) serve(w http.ResponseWriter, r *http.Request, p ir.Protocol, p
 	rc.outcome.BindingID, rc.outcome.ProjectID = rc.binding.ID, rc.project
 	g.Tel.Request(rc.rec)
 
+	rc.rec.Fingerprints, rc.rec.ToolResultIDs = telemetry.MessageFingerprints(req)
+
+	// Outbound masking runs before anything (including an intent
+	// classifier) can send content out.
+	if !g.applyPrivacy(ctx, w, rc) {
+		return
+	}
+
 	// 4–6. Capability requirements, filtering and ranking.
 	intent, intentSrc := "", ""
+	var intentDetail map[string]any
 	if v := rc.claims["intent"]; v != "" && rc.binding.Spec.Trust.IntentHints {
 		intent, intentSrc = v, "declared"
+	} else if rc.plan.Published.Document.Intent.Mode != "off" {
+		if l, d := g.classify(ctx, rc); l != "" {
+			intent, intentSrc = l, "classifier"
+			intentDetail = d
+		} else {
+			intentDetail = d
+		}
 	}
 	reqs := ir.Requirements(req)
 	dec, derr := routing.Decide(routing.Input{Snapshot: rc.snap, Binding: rc.binding, Plan: rc.plan, RequestedModel: req.Model,
@@ -239,6 +255,12 @@ func (g *Gateway) serve(w http.ResponseWriter, r *http.Request, p ir.Protocol, p
 		SessionConfidence: rc.session.Confidence, Refs: rc.refs, ProjectID: rc.project, WorkspaceID: rc.workspace})
 	rc.outcome.Decision = dec
 	rc.rec.Decision = dec
+	if dec != nil {
+		rc.rec.Intent, rc.rec.IntentSource = dec.Intent, dec.IntentSource
+	}
+	if intentDetail != nil {
+		rc.rec.IntentDetail = intentDetail
+	}
 	if dec != nil {
 		rc.rec.AliasID, rc.rec.Resolution, rc.rec.PlanID, rc.rec.PlanVersion = dec.AliasID, dec.Resolution, dec.PlanID, dec.PlanVersion
 		rc.rec.RequiredCaps = dec.Required
@@ -255,10 +277,6 @@ func (g *Gateway) serve(w http.ResponseWriter, r *http.Request, p ir.Protocol, p
 		return
 	}
 
-	// Outbound masking (after routing, before anything leaves the gateway).
-	if !g.applyPrivacy(ctx, w, rc) {
-		return
-	}
 	g.startTrace(ctx, rc)
 
 	// 7–9. Reserve, dispatch, reconcile with policy-controlled failover.
@@ -434,6 +452,7 @@ func (g *Gateway) finish(ctx context.Context, rc *reqCtx, status string, e *ir.E
 	}
 	rc.outcome.Status = status
 	g.Tel.Request(rc.rec)
+	g.logCompletion(rc, status)
 	if final != nil {
 		g.finishTrace(rc, final.usage)
 		var perr *ir.Error
@@ -505,4 +524,31 @@ func inputChars(r *ir.Request) int {
 		}
 	}
 	return n
+}
+
+// logCompletion writes one structured, correlated line per request
+// (identifiers and figures only; never content) for log pipelines such as
+// OpenSearch.
+func (g *Gateway) logCompletion(rc *reqCtx, status string) {
+	if g.Log == nil {
+		return
+	}
+	r := rc.rec
+	attrs := []any{"request_id", r.ID, "status", status, "binding_id", r.BindingID, "project_id", r.ProjectID, "session_id", r.SessionID,
+		"plan_id", r.PlanID, "harness", r.Harness, "inbound_protocol", r.InboundProtocol, "requested_model", r.RequestedModel,
+		"final_model", r.FinalModel, "account_id", r.FinalAccountID, "provider_id", r.FinalProviderID, "mode", r.Mode, "attempts", r.AttemptCount,
+		"intent", r.Intent, "error_kind", r.ErrorKind}
+	if r.TTFTms != nil {
+		attrs = append(attrs, "ttft_ms", *r.TTFTms)
+	}
+	if r.DurationMs != nil {
+		attrs = append(attrs, "duration_ms", *r.DurationMs)
+	}
+	if r.InputTokens != nil {
+		attrs = append(attrs, "input_tokens", *r.InputTokens)
+	}
+	if r.OutputTokens != nil {
+		attrs = append(attrs, "output_tokens", *r.OutputTokens)
+	}
+	g.Log.Info("gateway.request.completed", attrs...)
 }

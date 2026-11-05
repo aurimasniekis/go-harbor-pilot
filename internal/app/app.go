@@ -54,6 +54,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/store"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/telemetry"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/telemetry/activityapi"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/telemetry/statsapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/traces"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/traces/tracesapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/web"
@@ -328,6 +329,9 @@ func (a *App) CoreAPI() []func(*api.API) {
 					return a.Gateway.AccountHealth(id)
 				}, Origin: func() string { return a.Cfg.PublicOrigin() }})
 			usageapi.Register(ap, usageapi.Deps{DB: func() *store.DB { return a.DB }, Snapshot: func() *controlplane.Snapshot { return a.CP.Snapshot() }, Clock: a.clock()})
+		},
+		func(ap *api.API) {
+			statsapi.Register(ap, statsapi.Deps{DB: func() *store.DB { return a.DB }, Snapshot: func() *controlplane.Snapshot { return a.CP.Snapshot() }, Clock: a.clock()})
 		},
 		func(ap *api.API) {
 			eventsapi.Register(ap, eventsapi.Deps{DB: func() *store.DB { return a.DB }, Relay: func() *relay.Relay { return a.Relay },

@@ -177,7 +177,7 @@ func Decide(in Input) (*Decision, error) {
 				required = cp.SortedUnique(append(required, e.capability))
 				env.Request.Required = required
 			case "set_intent":
-				if d.Intent == "" {
+				if d.Intent == "" || d.IntentSource == "classifier" {
 					d.Intent, d.IntentSource = e.intent, "rule"
 					env.Request.Intent, env.Request.IntentSource = e.intent, "rule"
 				}

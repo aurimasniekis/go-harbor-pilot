@@ -70,9 +70,17 @@ type RequestRecord struct {
 	Losses            any
 	Decision          any
 	Privacy           any
-	BytesOut          int64
-	ClientIP          string
-	UserAgent         string
+	Intent            string
+	IntentSource      string
+	IntentDetail      any
+	// Fingerprints identify the request's messages (hashes only) and
+	// ToolResultIDs its tool results; the writer deduplicates them per
+	// session once the request finishes.
+	Fingerprints  []string
+	ToolResultIDs []string
+	BytesOut      int64
+	ClientIP      string
+	UserAgent     string
 }
 
 // AttemptRecord is one upstream attempt.
@@ -313,6 +321,11 @@ func (w *Writer) write(ctx context.Context, batch []item) error {
 					jsOr(r.ToolNames, "[]"), jsOr(r.Losses, "[]"), jsOr(r.Decision, "{}"), r.BytesOut, ns(r.ClientIP), ns(r.UserAgent), jsOr(r.Privacy, "{}")); err != nil {
 					return err
 				}
+				if r.Status != "in_progress" && r.Fingerprints != nil {
+					if err := dedupe(ctx, tx, r); err != nil {
+						return err
+					}
+				}
 			case it.att != nil:
 				a := it.att
 				if _, err := tx.ExecContext(ctx, `INSERT INTO attempts(id, request_id, n, started_at, finished_at, account_id, provider_id, model,
@@ -355,4 +368,50 @@ func nullInt(v int64) any {
 		return nil
 	}
 	return v
+}
+
+// dedupe records which of a finished request's messages and tool results
+// are new for its session. Without a known session every occurrence is
+// recorded as uncertain (never merged across conversations).
+func dedupe(ctx context.Context, tx *sql.Tx, r *RequestRecord) error {
+	newMsgs, repeated, uniqueTools := 0, 0, 0
+	occurrence := "uncertain"
+	if r.SessionID != "" && r.SessionConfidence != "unknown" && r.SessionConfidence != "" {
+		occurrence = "unique"
+		seen := func(fp string) (bool, error) {
+			res, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO session_messages(session_id, fingerprint, first_request_id, first_seen) VALUES (?, ?, ?, ?)`,
+				r.SessionID, fp, r.ID, r.CreatedAt.UnixMilli())
+			if err != nil {
+				return false, err
+			}
+			n, _ := res.RowsAffected()
+			return n == 0, nil
+		}
+		for _, fp := range r.Fingerprints {
+			old, err := seen(fp)
+			if err != nil {
+				return err
+			}
+			if old {
+				repeated++
+			} else {
+				newMsgs++
+			}
+		}
+		for _, id := range r.ToolResultIDs {
+			old, err := seen("tool_result:" + id)
+			if err != nil {
+				return err
+			}
+			if !old {
+				uniqueTools++
+			}
+		}
+	} else {
+		newMsgs, uniqueTools = len(r.Fingerprints), len(r.ToolResultIDs)
+	}
+	_, err := tx.ExecContext(ctx, `UPDATE requests SET new_messages = ?, repeated_messages = ?, unique_tool_results = ?, occurrence = ?,
+		intent = ?, intent_source = ?, intent_detail = ? WHERE id = ?`, newMsgs, repeated, uniqueTools, occurrence,
+		ns(r.Intent), ns(r.IntentSource), jsOr(r.IntentDetail, "{}"), r.ID)
+	return err
 }

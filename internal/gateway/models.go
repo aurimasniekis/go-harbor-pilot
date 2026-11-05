@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"encoding/json"
+	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
 	"time"
@@ -183,4 +184,26 @@ func asValidation(err error, target **cp.ValidationError) bool {
 		*target = ve
 	}
 	return ok
+}
+
+// revokeChild lets a run owner (the minting parent) or the child itself
+// revoke a child credential, e.g. when an agent run ends.
+func (g *Gateway) revokeChild(w http.ResponseWriter, r *http.Request) {
+	p := ir.OpenAIChat
+	cred, err := g.CP.AuthenticateGateway(r.Context(), credentialFrom(r))
+	if err != nil {
+		g.writeError(w, p, &ir.Error{Kind: ir.ErrAuthentication, Message: "invalid, expired or revoked gateway credential"}, "")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	target, err := g.CP.GetCredential(r.Context(), id)
+	if err != nil || target.ParentID == "" || (target.ParentID != cred.ID && target.ID != cred.ID) {
+		g.writeError(w, p, &ir.Error{Kind: ir.ErrNotFound, Message: "no child credential with this id is owned by the caller"}, "")
+		return
+	}
+	if err := g.CP.RevokeCredential(r.Context(), target.BindingID, target.ID, "revoked by its run owner"); err != nil {
+		g.writeError(w, p, &ir.Error{Kind: ir.ErrInternal, Message: "revocation failed"}, "")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

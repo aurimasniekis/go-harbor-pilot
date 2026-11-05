@@ -103,11 +103,11 @@ This matrix maps every requirement in the product brief to the phase, package an
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
 | R9.1 | Requested, alias, capability, recommendation, actual, rules: each recorded separately | 4–5 | implemented | requests table: requested/alias/resolution/plan/caps/actual + decision JSON |
-| R9.2 | Intent sources with classifier controls | 11 | planned | |
+| R9.2 | Intent sources with classifier controls | 11 | contract-tested | declared (trusted bindings) > rule (engine set_intent) > classifier; heuristic-v1 local classifier; model-v1 classifier needs send_content authorization, runs after masking, bounded latency/input, validates the label, records version/latency/outcome and separately accounted ledger usage (TestIntentClassifierAndPrecedence, TestModelIntentClassifierSeesMaskedContent) |
 | R9.3 | Honest tool observation (offered, generated, results seen, provider-executed) | 4 | implemented | tools offered/calls generated/results seen/errors (ObserveTools) |
-| R9.4 | History dedupe; unique vs uncertain occurrences | 11 | planned | |
-| R9.5 | Statistics across all listed dimensions | 11 | planned | |
-| R9.6 | OpenSearch-ready logs; no high-cardinality metric labels | 1, 11 | in-progress | platform/observability (redacting JSON logs, low-cardinality metrics) |
+| R9.4 | History dedupe; unique vs uncertain occurrences | 11 | contract-tested | per-session message fingerprints (hashes only) in session_messages; new vs repeated messages and unique tool results; requests without a known session marked uncertain (TestScenarioN) |
+| R9.5 | Statistics across all listed dimensions | 11 | contract-tested | GET /stats by client, harness, project, plan, intent, model, account, provider, session or period: requests, attempts, failovers, passthrough, compat failures, tokens, unknown usage, costs per category, tool activity, unique vs uncertain, TTFT/latency avg/p50/p95, classifier runs/tokens/latency/costs, switches/fallbacks, unattributed ledger entries |
+| R9.6 | OpenSearch-ready logs; no high-cardinality metric labels | 1, 11 | implemented | redacting JSON logs with one correlated gateway.request.completed line per request (ids and figures only); metric labels stay low-cardinality |
 
 ## §10 Traces
 | ID | Requirement | Phase | Status | Evidence |
@@ -214,7 +214,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | K | Pulse or notification outage does not block requests | 10 | contract-tested | internal/acceptance/events_test.go TestScenarioK_DeliveryOutagesDoNotBlockGateway |
 | L | Terraform lifecycle | 14 | planned | TF acceptance |
 | M | Restart and restore integrity | 13 | planned | scenario_m |
-| N | SpaceMan and standalone client isolated | 11 | planned | scenario_n |
+| N | SpaceMan and standalone client isolated | 11 | contract-tested | internal/acceptance/spaceman_test.go TestScenarioN_SpaceManAndStandaloneClientCoexist |
 
 ## §20 Final delivery
 Phase 15 tracks the final delivery checklist. It is updated when the project completes.

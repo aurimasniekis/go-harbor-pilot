@@ -1895,6 +1895,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Activity statistics by dimension */
+        get: operations["activity-stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/subscription-entitlements": {
         parameters: {
             query?: never;
@@ -2869,6 +2886,11 @@ export interface components {
             size_bytes: number;
             truncated: boolean;
         };
+        Cost: {
+            amount: string;
+            currency: string;
+            kind: string;
+        };
         CostAmount: {
             amount: string;
             currency: string;
@@ -3183,6 +3205,84 @@ export interface components {
         GrantsInBody: {
             grants: ("traces.content.read" | "traces.content.unredacted" | "traces.export")[];
         };
+        Group: {
+            /** Format: int64 */
+            attempts: number;
+            /** Format: int64 */
+            blocked: number;
+            /** Format: int64 */
+            cache_read_tokens: number;
+            /** Format: int64 */
+            cache_write_tokens: number;
+            classifier_costs: components["schemas"]["Cost"][];
+            classifier_latency: components["schemas"]["Latency"];
+            /** Format: int64 */
+            classifier_runs: number;
+            /** Format: int64 */
+            classifier_tokens: number;
+            /**
+             * Format: int64
+             * @description Attempts that failed on unparseable or incompatible upstream output.
+             */
+            compat_failures: number;
+            costs: components["schemas"]["Cost"][];
+            duration: components["schemas"]["Latency"];
+            /** Format: int64 */
+            errors: number;
+            /**
+             * Format: int64
+             * @description Requests that needed more than one attempt.
+             */
+            failovers: number;
+            /** Format: int64 */
+            input_tokens: number;
+            key: string;
+            label: string;
+            /** Format: int64 */
+            new_messages: number;
+            /** Format: int64 */
+            ok: number;
+            /** Format: int64 */
+            output_tokens: number;
+            /** Format: int64 */
+            passthrough: number;
+            /** Format: int64 */
+            reasoning_tokens: number;
+            /** Format: int64 */
+            repeated_messages: number;
+            /** Format: int64 */
+            requests: number;
+            /**
+             * Format: int64
+             * @description Calls the model generated (not proof the tool ran).
+             */
+            tool_calls: number;
+            /** Format: int64 */
+            tool_result_errors: number;
+            /**
+             * Format: int64
+             * @description Tool results first seen in this request's session.
+             */
+            tool_results_unique: number;
+            /** Format: int64 */
+            tools_offered: number;
+            ttft: components["schemas"]["Latency"];
+            /**
+             * Format: int64
+             * @description Requests without a known session; occurrences may repeat.
+             */
+            uncertain_requests: number;
+            /**
+             * Format: int64
+             * @description Requests whose session is known (history deduplicated).
+             */
+            unique_requests: number;
+            /**
+             * Format: int64
+             * @description Completed requests whose usage the upstream did not report.
+             */
+            unknown_usage: number;
+        };
         Health: {
             Available: boolean;
             Reason: string;
@@ -3346,6 +3446,16 @@ export interface components {
             subject: string;
             subjects: string[];
             type: string;
+        };
+        Latency: {
+            /** Format: double */
+            avg_ms: number | null;
+            /** Format: int64 */
+            count: number;
+            /** Format: int64 */
+            p50_ms: number | null;
+            /** Format: int64 */
+            p95_ms: number | null;
         };
         LedgerDTO: {
             account_id: string;
@@ -3729,6 +3839,7 @@ export interface components {
             default_alias_id: string;
             engine?: unknown;
             fallback: components["schemas"]["FallbackPolicy"];
+            intent?: components["schemas"]["PlanIntent"];
             model_mappings: components["schemas"]["ModelMapping"][];
             privacy?: components["schemas"]["PlanPrivacy"];
             restrictions: components["schemas"]["PlanRestrictions"];
@@ -3742,6 +3853,18 @@ export interface components {
             losses: string[];
             name: string;
             plan_id: string;
+        };
+        PlanIntent: {
+            alias_id?: string;
+            /** @description Allowed intent labels; empty = the default set. */
+            labels?: string[];
+            /** Format: int64 */
+            max_input_chars?: number;
+            /** Format: int64 */
+            max_latency_ms?: number;
+            /** @enum {string} */
+            mode?: "off" | "heuristic" | "model";
+            send_content?: boolean;
         };
         PlanPrivacy: {
             /** @description Privacy (masking) policy; empty = no outbound masking. */
@@ -4836,6 +4959,23 @@ export interface components {
             authorize_url: string;
             instructions: string;
             state: string;
+        };
+        Stats: {
+            /** Format: int64 */
+            account_switches: number;
+            by: string;
+            /** Format: int64 */
+            fallbacks: number;
+            /** Format: date-time */
+            from: string;
+            groups: components["schemas"]["Group"][];
+            /** Format: date-time */
+            to: string;
+            totals: components["schemas"]["Group"];
+            /** @description More than 200,000 requests matched; narrow the range. */
+            truncated: boolean;
+            /** Format: int64 */
+            unattributed_ledger_entries: number;
         };
         StatusDTO: {
             data_dir: string;
@@ -10719,6 +10859,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "activity-stats": {
+        parameters: {
+            query?: {
+                by?: "client" | "harness" | "project" | "plan" | "intent" | "model" | "account" | "provider" | "session" | "period" | "";
+                /** @description RFC 3339; default 7 days before to. */
+                from?: string;
+                /** @description RFC 3339; default now. */
+                to?: string;
+                /** @description Bucket size for by=period. */
+                step?: "hour" | "day" | "";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Stats"];
+                };
             };
             /** @description Error */
             default: {

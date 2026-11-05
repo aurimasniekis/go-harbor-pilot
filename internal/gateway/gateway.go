@@ -124,6 +124,7 @@ func (g *Gateway) Routes(r chi.Router) {
 			r.Get(base+"/v1beta/models", g.listModels(ir.Gemini))
 		}
 		r.Post("/v1/harbor/credentials", g.mintChild)
+		r.Delete("/v1/harbor/credentials/{id}", g.revokeChild)
 	})
 }
 
