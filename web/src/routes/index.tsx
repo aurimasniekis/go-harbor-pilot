@@ -11,6 +11,7 @@ import { fmtDateTime } from '@/lib/format'
 import { ActivitySummaryPanel } from '@/features/activity/ActivityPanels'
 import { QuotaBudgetPanel } from '@/features/quota/OverviewPanel'
 import { BridgesPanel } from '@/features/config/BridgesPanel'
+import o from '@/features/overview/overview.module.css'
 
 export const Route = createFileRoute('/')({
   component: Overview,
@@ -18,7 +19,7 @@ export const Route = createFileRoute('/')({
 
 function Step({ done, children }: { done: boolean; children: React.ReactNode }) {
   return (
-    <li style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+    <li className={o.step}>
       {done ? <CheckCircle2 size={16} color="var(--success)" aria-label="done" /> : <CircleDashed size={16} color="var(--text-muted)" aria-label="pending" />}
       <span>{children}</span>
     </li>
@@ -37,6 +38,30 @@ const kindLabels: Record<string, string> = {
   client_bindings: 'Clients',
   quota_monitors: 'Quota monitors',
   budgets: 'Budgets',
+  privacy_policies: 'Privacy policies',
+  trace_policies: 'Trace policies',
+  event_destinations: 'Event destinations',
+  notification_channels: 'Notify channels',
+  notification_rules: 'Notify rules',
+}
+
+const countRoute: Record<string, string> = {
+  workspaces: '/workspaces',
+  projects: '/workspaces',
+  providers: '/providers',
+  provider_accounts: '/providers/accounts',
+  subscription_entitlements: '/providers/subscriptions',
+  pools: '/providers/pools',
+  model_aliases: '/routing',
+  routing_plans: '/routing/plans',
+  client_bindings: '/clients',
+  quota_monitors: '/quotas/monitors',
+  budgets: '/usage/budgets',
+  privacy_policies: '/privacy',
+  trace_policies: '/privacy/trace-policies',
+  event_destinations: '/events/destinations',
+  notification_channels: '/notifications',
+  notification_rules: '/notifications/rules',
 }
 
 const kindRoute: Record<string, string> = {
@@ -51,38 +76,54 @@ const kindRoute: Record<string, string> = {
   client_binding: '/clients',
   quota_monitor: '/quotas/monitors',
   budget: '/usage/budgets',
+  privacy_policy: '/privacy',
+  trace_policy: '/privacy/trace-policies',
+  event_destination: '/events/destinations',
+  notification_channel: '/notifications',
+  notification_rule: '/notifications/rules',
 }
 
 function ConfigurationPanel({ eff }: { eff: UseQueryResult<Effective> }) {
   return (
-    <Panel title="Configuration" subtitle="The active compiled configuration served by the gateway.">
+    <Panel title="Configuration" subtitle="The active compiled configuration served by the gateway." className={o.wide}>
       {eff.isError ? (
         <QueryError error={eff.error} retry={() => void eff.refetch()} />
       ) : !eff.data ? (
         <Skeleton height={80} />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <KeyValues
-            items={[
-              ['Revision', <span className="num">{eff.data.config_revision}</span>],
-              ['Compiled', fmtDateTime(eff.data.compiled_at)],
-              ...Object.entries(kindLabels).map(([k, label]) => [label, <span className="num">{eff.data.counts[k] ?? 0}</span>] as [React.ReactNode, React.ReactNode]),
-            ]}
-          />
-          {eff.data.plans.length > 0 && (
-            <div>
-              <div className="muted" style={{ fontSize: 'var(--text-sm)' }}>Routing plans</div>
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {eff.data.plans.map((p) => (
-                  <li key={p.id}>
-                    <Link to="/routing/plans/$planId" params={{ planId: p.id }} className="mono">{p.name}</Link>{' '}
-                    {p.published_version ? <Badge tone="success">v{p.published_version}</Badge> : <Badge tone="warning">unpublished</Badge>}{' '}
-                    <span className="muted">{p.bindings} client{p.bindings === 1 ? '' : 's'}</span>
-                  </li>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className={o.configBody}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
+              <div className={o.meta}>
+                <span>
+                  Revision <span className="num" style={{ color: 'var(--text)' }}>{eff.data.config_revision}</span>
+                </span>
+                <span>Compiled {fmtDateTime(eff.data.compiled_at)}</span>
+              </div>
+              <div className={o.counts}>
+                {Object.entries(kindLabels).map(([k, label]) => (
+                  <Link key={k} to={countRoute[k] ?? '/'} className={o.count}>
+                    <span className={o.countValue}>{eff.data.counts[k] ?? 0}</span>
+                    <span className={o.countLabel} title={label}>{label}</span>
+                  </Link>
                 ))}
-              </ul>
+              </div>
             </div>
-          )}
+            {eff.data.plans.length > 0 && (
+              <div>
+                <div className={o.sectionLabel}>Routing plans</div>
+                <div className={o.plans}>
+                  {eff.data.plans.map((p) => (
+                    <div key={p.id} className={o.plan}>
+                      <Link to="/routing/plans/$planId" params={{ planId: p.id }} className="mono">{p.name}</Link>
+                      {p.published_version ? <Badge tone="success">v{p.published_version}</Badge> : <Badge tone="warning">unpublished</Badge>}
+                      <span className="muted">{p.bindings} client{p.bindings === 1 ? '' : 's'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           {eff.data.drifted.length > 0 && (
             <Banner tone="warning">
               <strong>Drift.</strong> These Terraform-managed objects were changed outside Terraform:{' '}
@@ -119,7 +160,9 @@ function Overview() {
         title="Overview"
         subtitle="Harbor Pilot connects coding agents to models and subscriptions, routes each request through explicit policies, and explains what happened."
       />
-      <div style={{ display: 'grid', gap: 'var(--space-4)', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+      <div className={o.grid}>
+        {canActivity && <ActivitySummaryPanel />}
+        {canUsage && <QuotaBudgetPanel />}
         <Panel title="This instance">
           {meta.isError ? (
             <QueryError error={meta.error} retry={() => void meta.refetch()} />
@@ -128,27 +171,26 @@ function Overview() {
           ) : (
             <KeyValues
               items={[
-                ['Version', meta.data.version],
-                ['Public URL', <span className="mono">{meta.data.public_url}</span>],
+                ['Version', <span className="mono">{meta.data.version}</span>],
+                ['Public URL', <span className="ident">{meta.data.public_url}</span>],
                 ['Started', fmtDateTime(meta.data.started_at)],
                 ['Signed in as', <>{session.data?.user?.email ?? session.data?.principal_kind} <Badge>{session.data?.role ?? 'service'}</Badge></>],
                 ...(system.data
                   ? ([
-                      ['Schema', `harbor.db v${system.data.schema_version} · traces.db v${system.data.traces_schema_version}`],
-                      ['Master key', <span className="mono">{system.data.master_key_id}</span>],
+                      ['harbor.db schema', <span className="mono num">{system.data.schema_version}</span>],
+                      ['traces.db schema', <span className="mono num">{system.data.traces_schema_version}</span>],
+                      ['Master key', <span className="ident">{system.data.master_key_id}</span>],
                     ] as [React.ReactNode, React.ReactNode][])
                   : []),
               ]}
             />
           )}
         </Panel>
-        {canActivity && <ActivitySummaryPanel />}
-        {canUsage && <QuotaBudgetPanel />}
         {canConfig && <ConfigurationPanel eff={eff} />}
         {canConfig && <BridgesPanel />}
         {isAdmin && (
           <Panel title="Getting started" subtitle="Secure access before connecting clients and providers.">
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <ul className={o.steps}>
               <Step done>Create the first administrator</Step>
               <Step done={(users.data?.items?.length ?? 0) > 1}>
                 <Link to="/settings/users">Invite operators and viewers</Link>

@@ -2,3 +2,6 @@ Harbor Pilot
 Copyright 2026 Aurimas Niekis
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The web UI color palettes (web/src/styles/tokens.css) are adapted from the
+Night Owl and Light Owl themes by Sarah Drasner, used under the MIT License.

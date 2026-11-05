@@ -142,7 +142,7 @@ function Requests() {
                         {fmtRelative(r.created_at)}
                       </Link>
                     </td>
-                    <td>{bindingById[r.binding_id]?.name ?? <span className="mono muted">{r.binding_id || '—'}</span>}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{bindingById[r.binding_id]?.name ?? <span className="mono muted">{r.binding_id || '—'}</span>}</td>
                     <td>
                       <HarnessBadge h={r.harness} />
                     </td>
@@ -172,7 +172,7 @@ function Requests() {
                       <TokenTriple t={r.tokens} />
                     </td>
                     <td>
-                      <CostValue cost={r.cost} />
+                      <CostValue cost={r.cost} stacked />
                     </td>
                     <td className="num">{r.tool_calls}</td>
                   </tr>

@@ -45,11 +45,21 @@ export function CostKindLabel({ kind }: { kind: string }) {
   return <span className="muted">{costKindLabel[kind] ?? kind}</span>
 }
 
-export function CostValue({ cost }: { cost?: Cost | null }) {
+export function CostValue({ cost, stacked }: { cost?: Cost | null; stacked?: boolean }) {
   if (!cost) {
     return (
       <span className="muted" title="No price configured or usage not reported">
         —
+      </span>
+    )
+  }
+  if (stacked) {
+    return (
+      <span style={{ display: 'inline-flex', flexDirection: 'column' }}>
+        <span className="num" style={{ whiteSpace: 'nowrap' }}>{fmtMoney(cost.amount, cost.currency)}</span>
+        <span style={{ fontSize: 'var(--text-xs)', whiteSpace: 'nowrap' }}>
+          <CostKindLabel kind={cost.kind} />
+        </span>
       </span>
     )
   }

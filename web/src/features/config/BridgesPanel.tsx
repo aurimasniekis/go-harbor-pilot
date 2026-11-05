@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Panel, TableScroll } from '@/components/ui'
+import { AlertTriangle, CheckCircle2, CircleSlash } from 'lucide-react'
+import { Badge, Panel } from '@/components/ui'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { bridgesQuery } from '@/lib/api/queries'
+import o from '@/features/overview/overview.module.css'
 
 const labels: Record<string, string> = { claude_code: 'Claude Code', codex: 'Codex' }
 
@@ -15,37 +17,29 @@ export function BridgesPanel() {
       ) : !q.data ? (
         <TableSkeleton rows={2} />
       ) : (
-        <TableScroll label="CLI bridge status">
-          <table className="data-table" style={{ width: '100%' }}>
-            <thead>
-              <tr>
-                <th>Bridge</th>
-                <th>Status</th>
-                <th>Version</th>
-                <th>Binary</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(q.data.items ?? []).map((b) => (
-                <tr key={b.kind}>
-                  <td>{labels[b.kind] ?? b.kind}</td>
-                  <td>
-                    {b.enabled && !b.last_error ? (
-                      <Badge tone="success">Available</Badge>
-                    ) : b.enabled ? (
-                      <Badge tone="warning" title={b.last_error}>Self-test failed</Badge>
-                    ) : (
-                      <Badge title={b.last_error}>Unavailable</Badge>
-                    )}
-                    {b.last_error && <div className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 4 }}>{b.last_error}</div>}
-                  </td>
-                  <td className="mono">{b.version || <span className="muted">—</span>}</td>
-                  <td className="mono" style={{ overflowWrap: 'anywhere' }}>{b.binary || <span className="muted">—</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableScroll>
+        <ul className={o.list} aria-label="CLI bridge status">
+          {(q.data.items ?? []).map((b) => (
+            <li key={b.kind} className={o.row}>
+              <div className={o.rowMain}>
+                <span className={o.rowTitle}>{labels[b.kind] ?? b.kind}</span>
+                {b.version && <span className={o.rowDetail}>{b.version}</span>}
+                {b.binary && (
+                  <span className={`${o.rowDetail} mono`} title={b.binary}>
+                    {b.binary}
+                  </span>
+                )}
+                {b.last_error && <span className={o.rowDetail}>{b.last_error}</span>}
+              </div>
+              {b.enabled && !b.last_error ? (
+                <Badge tone="success" icon={CheckCircle2}>Available</Badge>
+              ) : b.enabled ? (
+                <Badge tone="warning" icon={AlertTriangle} title={b.last_error}>Self-test failed</Badge>
+              ) : (
+                <Badge icon={CircleSlash} title={b.last_error}>Unavailable</Badge>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </Panel>
   )

@@ -1,98 +1,110 @@
 /*
- * Harbor Pilot design tokens.
- * Dark "chartroom" theme is the default; a light theme shares the same token
- * names under [data-theme='light'].
+ * Dark (default) and light palettes. Every text color is checked for WCAG AA
+ * (4.5:1) against each surface and each tinted badge/banner background.
+ * Dark-theme accents are light, so filled controls use dark text
+ * (--text-inverse).
  */
 :root {
   color-scheme: dark;
 
-  --bg: #0c141a;
-  --sidebar: #131d25;
-  --surface: #16212a;
-  --surface-raised: #1d2b36;
-  --surface-sunken: #0f181f;
-  --border: #2b3b47;
-  --border-strong: #3a4e5c;
+  --bg: #011627;
+  --sidebar: #010f1c;
+  --surface: #071e33;
+  --surface-raised: #0b2942;
+  --surface-sunken: #01111e;
+  --border: #1d3b53;
+  --border-strong: #2a4a63;
 
-  --text: #eee6d2;
-  --text-secondary: #b8af98;
-  --text-muted: #8c979d; /* slightly lifted from #7F8A90 for WCAG AA on surfaces */
-  --text-inverse: #0c141a;
+  --text: #d6deeb;
+  --text-secondary: #b2bccc;
+  --text-muted: #8b9fae;
+  --text-inverse: #011627;
 
-  --accent: #d77a59;
-  --accent-soft: rgb(215 122 89 / 0.16);
-  --success: #72bc87;
-  --success-soft: rgb(114 188 135 / 0.14);
-  --info: #79aed0;
-  --info-soft: rgb(121 174 208 / 0.14);
-  --warning: #d9b65a;
-  --warning-soft: rgb(217 182 90 / 0.14);
-  --error: #d76d6d;
-  --error-soft: rgb(215 109 109 / 0.15);
-  --purple: #b49ad6;
-  --purple-soft: rgb(180 154 214 / 0.15);
-  /* Small text on tinted (-soft) backgrounds: lighter variants of the theme
-     colors that keep WCAG AA contrast (4.5:1) at 12px. */
-  --error-text: #e88a8a;
-  --accent-text: #e08e70;
+  --accent: #82aaff;
+  --accent-soft: rgb(130 170 255 / 0.14);
+  --success: #addb67;
+  --success-soft: rgb(173 219 103 / 0.14);
+  --info: #7fdbca;
+  --info-soft: rgb(127 219 202 / 0.14);
+  --warning: #ecc48d;
+  --warning-soft: rgb(236 196 141 / 0.14);
+  --error: #f2726f;
+  --error-soft: rgb(239 83 80 / 0.16);
+  --purple: #c792ea;
+  --purple-soft: rgb(199 146 234 / 0.14);
+  --orange: #f78c6c;
+  /* Small text on tinted (-soft) backgrounds. */
+  --error-text: #f78c8a;
+  --accent-text: #82aaff;
+  --link: #82aaff;
 
-  --focus: #f0c27a;
+  --focus: #7fdbca;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  --font-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
 
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 8px;
   --radius-pill: 999px;
 
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
+  --space-5: 20px;
+  --space-6: 28px;
+  --space-7: 40px;
 
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
   --text-base: 0.875rem;
-  --text-md: 1rem;
-  --text-lg: 1.25rem;
-  --text-xl: 1.75rem;
-  --text-2xl: 2.25rem;
-  --text-metric: 2.75rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.625rem;
+  --text-metric: 2.25rem;
 
-  --sidebar-width: 232px;
+  --sidebar-width: 224px;
   --content-max: 1480px;
-  --shadow: 0 1px 0 rgb(255 255 255 / 0.02), 0 8px 24px rgb(0 0 0 / 0.25);
+  --shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+  --overlay: rgb(1 10 19 / 0.7);
   --transition: 140ms ease;
 }
 
 [data-theme='light'] {
   color-scheme: light;
-  --bg: #f6f2e8;
-  --sidebar: #ece6d8;
-  --surface: #fbf8f1;
-  --surface-raised: #f1ebde;
-  --surface-sunken: #efe9dc;
-  --border: #d5cbb6;
-  --border-strong: #bfb39a;
-  --text: #1b2329;
-  --text-secondary: #4f4a3e;
-  --text-muted: #5f6a70;
-  --text-inverse: #fbf8f1;
-  --accent: #b55a3a;
-  --accent-soft: rgb(181 90 58 / 0.12);
-  --success: #2f7d48;
-  --info: #2f6d95;
-  --warning: #8a6a10;
-  --error: #b03a3a;
-  --purple: #6e4fa0;
-  --error-text: #b03a3a;
-  --accent-text: #b55a3a;
-  --focus: #b55a3a;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  --bg: #fbfbfb;
+  --sidebar: #f2f3f5;
+  --surface: #ffffff;
+  --surface-raised: #f4f5f7;
+  --surface-sunken: #f0f1f3;
+  --border: #d9dde2;
+  --border-strong: #b8c0c8;
+  --text: #403f53;
+  --text-secondary: #4d5a66;
+  --text-muted: #5c6670;
+  --text-inverse: #ffffff;
+  --accent: #3a63bd;
+  --accent-soft: rgb(72 118 214 / 0.1);
+  --success: #066b4e;
+  --success-soft: rgb(8 145 106 / 0.1);
+  --info: #0a6e72;
+  --info-soft: rgb(12 150 155 / 0.1);
+  --warning: #7f5f22;
+  --warning-soft: rgb(201 145 50 / 0.12);
+  --error: #c22f2d;
+  --error-soft: rgb(222 61 59 / 0.1);
+  --purple: #7a3aa0;
+  --purple-soft: rgb(153 76 195 / 0.1);
+  --orange: #a3450f;
+  --error-text: #a32523;
+  --accent-text: #2f56a8;
+  --link: #2f56a8;
+  --focus: #3a63bd;
+  --shadow: 0 4px 16px rgb(15 23 42 / 0.12);
+  --overlay: rgb(15 23 42 / 0.4);
 }
 
 @media (prefers-reduced-motion: reduce) {
