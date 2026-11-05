@@ -1,10 +1,10 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Accordion, Alert, Badge, Breadcrumbs, Button, Code, Drawer, Group, SegmentedControl, Skeleton, Stack, Text, Timeline, Title, Tooltip } from '@mantine/core'
+import { Accordion, Alert, Badge, Breadcrumbs, Button, Code, Group, SegmentedControl, Skeleton, Stack, Text, Timeline, Title, Tooltip } from '@mantine/core'
 import { Check, CircleAlert, CircleCheck, CircleDashed, CircleX, History, ScrollText, X } from 'lucide-react'
 import { QueryError } from '@/components/states'
-import { MutationError } from '@/components/form'
+import { FormDrawer, MutationError } from '@/components/form'
 import { apiSend, ApiError } from '@/lib/api/client'
 import { requestQuery, resourceListQuery, tracesQuery } from '@/lib/api/queries'
 import { byId } from '@/lib/api/resources'
@@ -26,7 +26,7 @@ import { useCan } from '@/lib/session'
 import { fmtDateTime, fmtRelative, getDisplayTimeZone, isKnown } from '@/lib/format'
 import { asPrivacySummary } from '@/features/privacy/PrivacySummaryPanel'
 import { detectorLabel } from '@/features/privacy/privacy'
-import { CopyText, Empty, Fields, InfoTip, Unknown, useCompact } from '@/ui/kit'
+import { CopyText, Empty, Fields, InfoTip, PageHeader, Unknown, useCompact } from '@/ui/kit'
 import { costKindHelp, costKindName, harnessName, human, money, ms, protocolName, short, statusName } from '@/ui/fmt'
 import s from './activity.module.css'
 
@@ -69,14 +69,33 @@ const statusColor: Record<string, string> = { ok: 'green', error: 'red', blocked
 /** One request, answered: where it went and why. */
 export function RequestPage({ id }: { id: string }) {
   const q = useQuery({ ...requestQuery(id), retry: false })
+  const model = q.data?.requested_model
+  useEffect(() => {
+    if (!model) return
+    document.title = `${model} · Request · Harbor Pilot`
+    return () => {
+      document.title = 'Harbor Pilot'
+    }
+  }, [model])
   const names = useNames()
+  const compact = useCompact()
   const [replayOpen, setReplayOpen] = useState(false)
   if (q.isError) {
     if (q.error instanceof ApiError && q.error.status === 404) {
       return (
-        <Empty title="Request not found" action={<Link to="/activity">Back to requests</Link>}>
-          The ID is unknown, or the record has expired.
-        </Empty>
+        <>
+          <PageHeader title="Request not found" crumbs={[{ label: 'Requests', to: '/activity' }, { label: 'Not found' }]} />
+          <Empty
+            title="This request is not here"
+            action={
+              <Button component={Link} to="/activity" variant="light">
+                Back to requests
+              </Button>
+            }
+          >
+            The ID is unknown, or the record has expired.
+          </Empty>
+        </>
       )
     }
     return <QueryError error={q.error} retry={() => void q.refetch()} />
@@ -86,6 +105,12 @@ export function RequestPage({ id }: { id: string }) {
   const d = asDecision(r.decision)
   const losses = asLosses(r.losses)
   const served = r.final_model && r.final_model !== r.requested_model ? r.final_model : ''
+  const fellBack = r.status === 'ok' && r.attempt_list.length > 1
+  const replayButton = (
+    <Button variant="default" leftSection={<History size={15} />} onClick={() => setReplayOpen(true)}>
+      Replay with current config
+    </Button>
+  )
   return (
     <>
       <Stack gap={6}>
@@ -102,13 +127,12 @@ export function RequestPage({ id }: { id: string }) {
               {served && <span className={s.arrow}> → </span>}
               {served}
             </Title>
-            <Badge color={statusColor[r.status] ?? 'gray'} size="lg">
+            <Badge color={fellBack ? 'yellow' : (statusColor[r.status] ?? 'gray')} size="lg">
               {statusName[r.status] ?? r.status}
+              {fellBack ? ' · Fallback' : ''}
             </Badge>
           </Group>
-          <Button variant="default" leftSection={<History size={15} />} onClick={() => setReplayOpen(true)}>
-            Replay with current config
-          </Button>
+          {!compact && replayButton}
         </Group>
       </Stack>
 
@@ -176,6 +200,8 @@ export function RequestPage({ id }: { id: string }) {
           </Accordion.Panel>
         </Accordion.Item>
       </Accordion>
+
+      {compact && replayButton}
 
       <ReplayDrawer r={r} d={d} opened={replayOpen} onClose={() => setReplayOpen(false)} />
     </>
@@ -280,9 +306,18 @@ function Facts({ r, names }: { r: Detail; names: Names }) {
       <div>
         <dt>Latency</dt>
         <dd>
-          {isKnown(r.duration_ms) ? ms(r.duration_ms) : <Unknown reason="Not finished" />}
-          {isKnown(r.ttft_ms) && <span className="muted"> · first token {ms(r.ttft_ms)}</span>}
+          {!isKnown(r.duration_ms) ? (
+            <Unknown reason="Not finished" />
+          ) : r.duration_ms === 0 ? (
+            <Unknown reason="Timing was not recorded for this request" />
+          ) : (
+            ms(r.duration_ms)
+          )}
         </dd>
+      </div>
+      <div>
+        <dt>First token</dt>
+        <dd>{isKnown(r.ttft_ms) && r.ttft_ms > 0 ? ms(r.ttft_ms) : <span className="muted">—</span>}</dd>
       </div>
       <div>
         <dt>Cost</dt>
@@ -303,7 +338,9 @@ function Facts({ r, names }: { r: Detail; names: Names }) {
         <dt>When</dt>
         <dd>
           <Tooltip label={fmtDateTime(r.created_at, { seconds: true })}>
-            <span>{fmtRelative(r.created_at)}</span>
+            <span>
+              {clock(r.created_at)} <span className="muted">({fmtRelative(r.created_at)})</span>
+            </span>
           </Tooltip>
           {trace && (
             <>
@@ -320,7 +357,7 @@ function Facts({ r, names }: { r: Detail; names: Names }) {
 }
 
 function matchedRule(resolution: string): string {
-  if (resolution.startsWith('mapping:')) return `Rule “${resolution.slice(8)}”`
+  if (resolution.startsWith('mapping:')) return `Rule ${resolution.slice(8)}`
   if (resolution === 'alias_name') return 'Asked by model name'
   if (resolution === 'default_alias') return 'Plan default'
   return '—'
@@ -339,7 +376,7 @@ function RoutePath({ r, d, names }: { r: Detail; d: Decision; names: Names }) {
     },
     { label: 'Fallback group', value: d.pool || '—', hint: 'The ordered list of account and model pairs tried in turn.' },
     {
-      label: 'Served by',
+      label: r.mode === 'translated' ? 'Served by · translated' : 'Served by',
       value: r.final_account_id ? `${names.account(r.final_account_id)} · ${r.final_model}` : 'Not served',
       hint: r.mode === 'translated' ? 'Translated: the request was converted to the provider’s format.' : r.mode === 'native' ? 'Direct: no conversion was needed.' : undefined,
     },
@@ -377,11 +414,6 @@ function RoutePath({ r, d, names }: { r: Detail; d: Decision; names: Names }) {
           </Tooltip>
         </span>
       ))}
-      {r.mode === 'translated' && (
-        <Badge color="teal" variant="outline" ml={4}>
-          Translated
-        </Badge>
-      )}
     </div>
   )
 }
@@ -414,7 +446,7 @@ function Attempts({ attempts, names }: { attempts: Attempt[]; names: Names }) {
                 {a.status === 'ok' && isKnown(a.duration_ms) ? ` · ${ms(a.duration_ms)}` : ''}
               </Text>
               {a.failover_reason && (
-                <Badge color="violet" variant="outline" size="sm">
+                <Badge color="yellow" variant="light" size="sm">
                   {human(a.failover_reason)}
                 </Badge>
               )}
@@ -459,7 +491,9 @@ function Candidates({ d }: { d: Decision }) {
           <span className={s.candName}>
             {c.account} <span className="muted">· {c.model}</span>
           </span>
-          <span className={s.candWhy}>{c.native ? 'Direct' : 'Translated'}</span>
+          <Badge color="gray" variant="light" size="sm">
+            {c.native ? 'Direct' : 'Translated'}
+          </Badge>
         </li>
       ))}
       {excluded.map((x) => (
@@ -469,7 +503,9 @@ function Candidates({ d }: { d: Decision }) {
             {x.account} <span className="muted">· {x.model}</span>
           </span>
           <Tooltip label={x.detail || human(x.reason)} disabled={!x.detail}>
-            <span className={s.candWhy}>Skipped: {human(x.reason).toLowerCase()}</span>
+            <Badge color="red" variant="light" size="sm">
+              Skipped: {human(x.reason).toLowerCase()}
+            </Badge>
           </Tooltip>
         </li>
       ))}
@@ -588,10 +624,24 @@ function Reported({ r }: { r: Detail }) {
       <Fields
         items={[
           ['Tool', r.harness ? `${harnessName[r.harness] ?? r.harness}${r.harness_version ? ` ${r.harness_version}` : ''} (${confidenceName[r.harness_confidence] ?? r.harness_confidence})` : '—'],
-          ...claims.map(([k, v]) => [k, v] as [ReactNode, ReactNode]),
+          ...claims.map(([k, v]) => [claimLabel(k), v] as [ReactNode, ReactNode]),
         ]}
       />
     </Stack>
+  )
+}
+
+/** Plain label for a tool-reported hint such as "session:x-claude-code-session-id". */
+export function claimLabel(key: string): ReactNode {
+  const [kind, header] = key.includes(':') ? (key.split(/:(.*)/s) as [string, string]) : [key, '']
+  const names: Record<string, string> = { session: 'Session', project: 'Project', intent: 'Purpose', external_ref: 'Reference', run: 'Run' }
+  const label = names[kind] ? `${names[kind]} (from tool)` : human(kind)
+  return header ? (
+    <Tooltip label={`Header ${header}`}>
+      <span>{label}</span>
+    </Tooltip>
+  ) : (
+    label
   )
 }
 
@@ -616,6 +666,7 @@ function Ledger({ ledger, names }: { ledger: LedgerEntry[]; names: Names }) {
       {ledger.map((l) => (
         <div key={l.id}>
           <Text size="sm">
+            <span className="muted">{clock(l.at)} · {human(l.kind)} · </span>
             {names.account(l.account_id)} <span className="muted">· {l.model}</span>
           </Text>
           <Text size="xs" c="dimmed">
@@ -633,15 +684,33 @@ function Ledger({ ledger, names }: { ledger: LedgerEntry[]; names: Names }) {
           </Text>
         </div>
       ))}
-      <Code block style={{ fontSize: 'var(--text-xs)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-        {JSON.stringify(
-          ledger.map((l) => ({ kind: l.kind, at: l.at, billing: l.billing, provenance: l.provenance })),
-          null,
-          2,
-        )}
-      </Code>
+      <RawJson
+        value={ledger.map((l) => ({ kind: l.kind, at: l.at, billing: l.billing, provenance: l.provenance }))}
+      />
     </Stack>
   )
+}
+
+/** Raw record behind a toggle, for support and debugging. */
+function RawJson({ value }: { value: unknown }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div>
+      <Button variant="subtle" size="compact-xs" color="gray" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        {open ? 'Hide raw record' : 'Show raw record'}
+      </Button>
+      {open && (
+        <Code block mt={6} style={{ fontSize: 'var(--text-xs)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+          {JSON.stringify(value, null, 2)}
+        </Code>
+      )}
+    </div>
+  )
+}
+
+const healthModeText: Record<string, string> = {
+  current: 'today’s account health',
+  assume_available: 'every account available',
 }
 
 function firstChoice(d: Decision | null | undefined, refused?: boolean): string {
@@ -652,21 +721,29 @@ function firstChoice(d: Decision | null | undefined, refused?: boolean): string 
 
 /** Re-runs routing for this request against today's configuration. */
 function ReplayDrawer({ r, d, opened, onClose }: { r: Detail; d: Decision; opened: boolean; onClose: () => void }) {
-  const compact = useCompact()
+  const names = useNames()
   const [health, setHealth] = useState<'current' | 'assume_available'>('current')
   const run = useMutation({
     mutationFn: () => apiSend<ReplayResult>('POST', `/activity/requests/${encodeURIComponent(r.id)}/replay`, { health_mode: health }),
   })
   const res = run.data
+  const failed = r.attempt_list.filter((a) => a.status !== 'ok')
+  const servedThen = r.final_account_id
+    ? `${names.account(r.final_account_id)} · ${r.final_model}${failed.length > 0 ? ` (after ${failed.map((a) => attemptProblem(a)).join(', ')})` : ''}`
+    : 'not served'
   return (
-    <Drawer opened={opened} onClose={onClose} position={compact ? 'bottom' : 'right'} size={compact ? '100%' : 480} title="Replay with current config" padding="lg">
+    <FormDrawer open={opened} onClose={onClose} title="Replay with current config" size="md" dirty={false}>
       <Stack gap="md" aria-label="Replay" role="region">
         <Text size="sm" c="dimmed">
-          Runs this request’s routing again against today’s plan and account health. Nothing is sent to a provider.
+          Runs this request’s routing again against today’s plan. Nothing is sent to a provider. Choose whether to use today’s account health or to
+          assume every account is available.
         </Text>
         <SegmentedControl
           value={health}
-          onChange={(v) => setHealth(v as typeof health)}
+          onChange={(v) => {
+            setHealth(v as typeof health)
+            run.reset()
+          }}
           data={[
             { value: 'current', label: 'Live account health' },
             { value: 'assume_available', label: 'All accounts available' },
@@ -684,20 +761,31 @@ function ReplayDrawer({ r, d, opened, onClose }: { r: Detail; d: Decision; opene
             title={res.replay.error ? 'Would now be refused' : res.changed ? 'Routing would change' : 'Same routing today'}
             role="status"
           >
-            <Text size="sm">Then: {firstChoice(d)}</Text>
-            <Text size="sm">
-              Now: {firstChoice(res.replay.decision, Boolean(res.replay.error))}
-              {res.replay.version ? ` (plan v${res.replay.version})` : ''}
-            </Text>
-            {res.replay.error && <Text size="sm">{res.replay.error}</Text>}
-            {res.notes.map((n) => (
-              <Text key={n} size="xs" c="dimmed">
-                {n}
+            <Stack gap={4}>
+              <Text size="sm">
+                <b>Served then:</b> {servedThen}
               </Text>
-            ))}
+              <Text size="sm">
+                <b>First choice then:</b> {firstChoice(d)}
+              </Text>
+              <Text size="sm">
+                <b>First choice now:</b> {firstChoice(res.replay.decision, Boolean(res.replay.error))}
+                {res.replay.version ? ` (plan v${res.replay.version}, ${healthModeText[health]})` : ` (${healthModeText[health]})`}
+              </Text>
+              {res.replay.error && <Text size="sm">{res.replay.error}</Text>}
+            </Stack>
           </Alert>
         )}
+        {res && res.notes.length > 0 && (
+          <Stack gap={4}>
+            {res.notes.map((n) => (
+              <Text key={n} size="xs" c="dimmed">
+                {n.replace(/\bassume_available\b/g, 'every account available').replace(/\bcurrent\b state/g, 'today’s state')}
+              </Text>
+            ))}
+          </Stack>
+        )}
       </Stack>
-    </Drawer>
+    </FormDrawer>
   )
 }

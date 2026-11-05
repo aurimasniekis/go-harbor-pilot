@@ -1,30 +1,50 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { Badge, Button, Group, Pill, SegmentedControl, Popover, Select, Skeleton, Stack, Text, TextInput, Tooltip, UnstyledButton } from '@mantine/core'
-import { Activity as ActivityIcon, Filter, Search } from 'lucide-react'
+import { Autocomplete, Badge, Button, Group, Pill, SegmentedControl, Popover, Select, Skeleton, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core'
+import { Activity as ActivityIcon, ArrowLeft, CalendarDays, Filter, Search } from 'lucide-react'
 import { z } from 'zod'
 import { QueryError } from '@/components/states'
 import { apiGet } from '@/lib/api/client'
 import { resourceListQuery } from '@/lib/api/queries'
 import { byId } from '@/lib/api/resources'
-import type { BindingRes, Page, ProjectRes, RequestSummary } from '@/lib/api/types'
+import type { AccountRes, BindingRes, Page, ProjectRes, RequestSummary } from '@/lib/api/types'
 import { fmtDateTime, fmtRelative, getDisplayTimeZone, isKnown, serverNow } from '@/lib/format'
 import { Empty, Stat, StatGrid, StatSkeleton, Unknown, useCompact } from '@/ui/kit'
 import { costKindHelp, costKindName, harnessName, human, money, ms, short } from '@/ui/fmt'
 import { delta, series, useDayStats } from './useDayStats'
 import s from './activity.module.css'
 
+/** Time ranges of the request log: days, or all time. Numbers stay numbers in the URL. */
+const rangeValue = z
+  .union([z.literal('all'), z.coerce.number().pipe(z.union([z.literal(1), z.literal(7), z.literal(30)]))])
+  .optional()
+  .catch(undefined)
+
 export const requestSearch = z.object({
-  status: z.string().optional().catch(undefined),
+  status: z.enum(['error', 'blocked']).optional().catch(undefined),
   harness: z.string().optional().catch(undefined),
   binding_id: z.string().optional().catch(undefined),
+  account_id: z.string().optional().catch(undefined),
   project_id: z.string().optional().catch(undefined),
   session_id: z.string().optional().catch(undefined),
+  /** Request id or the start of a requested or served model name. */
+  q: z.string().optional().catch(undefined),
+  /** Older links: same as q. */
   model: z.string().optional().catch(undefined),
   fallbacks: z.boolean().optional().catch(undefined),
-  range: z.enum(['1', '7', '30', 'all']).optional().catch(undefined),
+  range: rangeValue,
 })
+
+/** Default range of the log, matching the 24-hour headline numbers above it. */
+export const DEFAULT_LOG_RANGE = 1
+
+const rangeOptions = [
+  { value: '1', label: 'Last 24 hours' },
+  { value: '7', label: 'Last 7 days' },
+  { value: '30', label: 'Last 30 days' },
+  { value: 'all', label: 'All time' },
+]
 
 export type RequestSearch = z.infer<typeof requestSearch>
 
@@ -38,8 +58,8 @@ export function ActivityStats() {
   const failed = totals.errors + totals.blocked
   const rate = totals.requests ? (failed / totals.requests) * 100 : 0
   return (
-    <StatGrid cols={4} label="Last 24 hours">
-      <Stat label="Requests · 24h" value={short(totals.requests)} hint={delta(totals.requests, previous?.requests) ?? 'Last 24 hours'} spark={series(hours, (g) => g.requests)} />
+    <StatGrid cols={4} label="All requests in the last 24 hours">
+      <Stat label="Requests" value={short(totals.requests)} hint={delta(totals.requests, previous?.requests) ?? 'No earlier data to compare'} spark={series(hours, (g) => g.requests)} />
       <Stat
         label="Error rate"
         value={`${rate.toFixed(rate > 0 && rate < 10 ? 1 : 0)}%`}
@@ -71,6 +91,23 @@ function clock(iso: string): string {
   return new Intl.DateTimeFormat('en-GB', { timeZone: getDisplayTimeZone(), hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date(iso))
 }
 
+/** Headline caption: what the numbers cover, and when the log last refreshed. */
+export function StatsCaption({ updatedAt }: { updatedAt?: number }) {
+  return (
+    <Group justify="space-between" gap="xs" wrap="nowrap">
+      <Text size="xs" c="dimmed" fw={500}>
+        All requests · last 24 hours
+      </Text>
+      {updatedAt ? (
+        <Text size="xs" c="dimmed" className={s.live} aria-live="polite">
+          <span className={s.liveDot} aria-hidden="true" />
+          Live · updated {fmtRelative(new Date(updatedAt).toISOString(), Date.now())}
+        </Text>
+      ) : null}
+    </Group>
+  )
+}
+
 /** Status only when something is off: fallback, error or blocked. */
 function Status({ r }: { r: RequestSummary }) {
   if (r.status === 'error') return <Badge color="red">{r.error_kind ? human(r.error_kind) : 'Failed'}</Badge>
@@ -80,7 +117,7 @@ function Status({ r }: { r: RequestSummary }) {
   if (r.attempts > 1)
     return (
       <Tooltip label="The first account failed before any output, so the next one in the plan served it">
-        <Badge color="violet" variant="outline">
+        <Badge color="yellow" variant="light">
           Fallback
         </Badge>
       </Tooltip>
@@ -111,11 +148,27 @@ function Model({ r }: { r: RequestSummary }) {
   )
 }
 
+/** Latency, or unknown when the request is still running or reported no timing. */
+function Latency({ r }: { r: RequestSummary }) {
+  if (!isKnown(r.duration_ms)) return <Unknown reason="Not finished yet" />
+  if (r.duration_ms === 0 && r.status !== 'in_progress') return <Unknown reason="Timing was not recorded for this request" />
+  return <>{ms(r.duration_ms)}</>
+}
+
+/** Per-request cost with one precision for the whole column: 4 decimals under 1, else 2. */
+export function requestCost(amount: string | number, currency: string): string {
+  const n = Number(amount)
+  if (!Number.isFinite(n) || Math.abs(n) >= 1 || n === 0) return money(amount, currency)
+  const body = Math.abs(n).toFixed(4)
+  const sym = ({ USD: '$', EUR: '€', GBP: '£' } as Record<string, string>)[currency]
+  return `${n < 0 ? '-' : ''}${sym ?? `${currency} `}${body}`
+}
+
 function Cost({ r }: { r: RequestSummary }) {
   if (!r.cost) return <Unknown reason="No price configured, or usage not reported" />
   return (
     <Tooltip label={`${costKindName[r.cost.kind] ?? r.cost.kind}. ${costKindHelp[r.cost.kind] ?? ''}`}>
-      <span>{money(r.cost.amount, r.cost.currency)}</span>
+      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{requestCost(r.cost.amount, r.cost.currency)}</span>
     </Tooltip>
   )
 }
@@ -127,21 +180,28 @@ export function RequestsPage() {
   const compact = useCompact()
   const bindings = useQuery(resourceListQuery<BindingRes>('client-bindings'))
   const projects = useQuery(resourceListQuery<ProjectRes>('projects'))
+  const accounts = useQuery(resourceListQuery<AccountRes>('provider-accounts'))
   const client = byId(bindings.data?.items)
   const project = byId(projects.data?.items)
-  const [text, setText] = useState('')
+  const account = byId(accounts.data?.items)
+  const query = f.q ?? f.model
+  const [text, setText] = useState(query ?? '')
+  useEffect(() => setText(query ?? ''), [query])
   const [moreOpen, setMoreOpen] = useState(false)
+  // A session view covers the whole session, however old.
+  const range = f.range ?? (f.session_id ? 'all' : DEFAULT_LOG_RANGE)
   // Range start rounded to the minute so the query key stays stable.
-  const days = f.range === 'all' ? 0 : Number(f.range ?? '7')
+  const days = range === 'all' ? 0 : range
   const from = days ? new Date(Math.floor((serverNow() - days * 86_400_000) / 60_000) * 60_000).toISOString() : undefined
   const filter = {
     status: f.status,
     fallbacks: f.fallbacks || undefined,
     harness: f.harness,
     binding_id: f.binding_id,
+    account_id: f.account_id,
     project_id: f.project_id,
     session_id: f.session_id,
-    q: f.model,
+    q: query,
     from,
   }
   const list = useInfiniteQuery({
@@ -149,7 +209,8 @@ export function RequestsPage() {
     initialPageParam: '',
     queryFn: ({ pageParam, signal }) => apiGet<Page<RequestSummary> & { total?: number }>('/activity/requests', { limit: PAGE, ...filter, ...(pageParam ? { cursor: pageParam } : {}) }, signal),
     getNextPageParam: (last) => last.next_cursor || undefined,
-    refetchInterval: 15_000,
+    // Refresh the newest page only; refetching every loaded page grows with "Load more".
+    refetchInterval: (q) => ((q.state.data?.pages.length ?? 1) > 1 ? false : 15_000),
   })
   const [, tick] = useState(0)
   useEffect(() => {
@@ -157,30 +218,56 @@ export function RequestsPage() {
     return () => clearInterval(t)
   }, [])
 
-  const set = (patch: Partial<RequestSearch>) => void navigate({ to: '/activity', search: { ...f, ...patch } })
+  const set = (patch: Partial<RequestSearch>) => void navigate({ to: '/activity', search: { ...f, model: undefined, ...patch } })
   const open = (r: RequestSummary) => void navigate({ to: '/activity/$requestId', params: { requestId: r.id } })
+  // Suggestions: clients by name or display name, and tools.
+  const clientOptions = (bindings.data?.items ?? []).map((b) => ({ value: `client:${b.id}`, label: b.spec.display_name ? `${b.spec.display_name} (${b.name})` : b.name }))
+  const toolOptions = Object.entries(harnessName).map(([k, label]) => ({ value: `tool:${k}`, label }))
+  const pick = (value: string) => {
+    if (value.startsWith('client:')) {
+      setText('')
+      set({ binding_id: value.slice(7), q: undefined })
+    } else if (value.startsWith('tool:')) {
+      setText('')
+      set({ harness: value.slice(5), q: undefined })
+    }
+  }
   const submit = () => {
     const q = text.trim()
-    if (!q) return
+    if (!q) {
+      set({ q: undefined })
+      return
+    }
     if (/^req_[a-z0-9]+$/i.test(q)) {
       void navigate({ to: '/activity/$requestId', params: { requestId: q } })
       return
     }
-    const match = (bindings.data?.items ?? []).find((b) => b.name.toLowerCase() === q.toLowerCase())
-    setText('')
-    set(match ? { binding_id: match.id } : { model: q })
+    const lower = q.toLowerCase()
+    const clients = (bindings.data?.items ?? []).filter((b) => b.name.toLowerCase().includes(lower) || (b.spec.display_name ?? '').toLowerCase().includes(lower))
+    const tools = toolOptions.filter((t) => t.label.toLowerCase().includes(lower) || t.value.slice(5).includes(lower))
+    if (clients.length === 1 && tools.length === 0) return pick(`client:${clients[0]!.id}`)
+    if (tools.length === 1 && clients.length === 0) return pick(tools[0]!.value)
+    set({ q })
   }
 
   const items = useMemo(() => (list.data?.pages ?? []).flatMap((p) => p.items ?? []), [list.data])
   const total = list.data?.pages[0]?.total
   const chips: { key: keyof RequestSearch; label: string }[] = []
   if (f.binding_id) chips.push({ key: 'binding_id', label: `Client: ${client[f.binding_id]?.name ?? f.binding_id}` })
+  if (f.account_id) chips.push({ key: 'account_id', label: `Account: ${account[f.account_id]?.name ?? f.account_id}` })
   if (f.harness) chips.push({ key: 'harness', label: `Tool: ${harnessName[f.harness] ?? f.harness}` })
   if (f.project_id) chips.push({ key: 'project_id', label: `Project: ${project[f.project_id]?.name ?? f.project_id}` })
-  if (f.session_id) chips.push({ key: 'session_id', label: 'This session' })
-  if (f.model) chips.push({ key: 'model', label: `Model: ${f.model}` })
+  if (f.session_id) {
+    const first = items[items.length - 1]
+    const who = first ? (client[first.binding_id]?.spec.display_name ?? client[first.binding_id]?.name) : undefined
+    chips.push({ key: 'session_id', label: ['Session', who, first ? `started ${fmtDateTime(first.created_at)}` : undefined].filter(Boolean).join(' · ') })
+  }
+  if (query) chips.push({ key: 'q', label: `Search: ${query}` })
   const moreCount = [f.binding_id, f.harness, f.project_id].filter(Boolean).length
-  const statusView = f.fallbacks ? 'fallbacks' : f.status === 'error' || f.status === 'blocked' ? f.status : 'all'
+  const statusView = f.fallbacks ? 'fallbacks' : (f.status ?? 'all')
+  const filtered = chips.length > 0 || !!f.status || !!f.fallbacks
+  const clearAll = () =>
+    set({ status: undefined, fallbacks: undefined, harness: undefined, binding_id: undefined, account_id: undefined, project_id: undefined, session_id: undefined, q: undefined })
 
   // Rows grouped by day, newest first.
   const groups: { day: string; rows: RequestSummary[] }[] = []
@@ -192,6 +279,13 @@ export function RequestsPage() {
 
   return (
     <Stack gap="md">
+      {f.session_id && (
+        <Group gap={6}>
+          <Button component={Link} to="/activity/sessions" variant="subtle" size="compact-sm" leftSection={<ArrowLeft size={14} />}>
+            Back to sessions
+          </Button>
+        </Group>
+      )}
       <Group gap="xs" wrap="wrap" role="search" aria-label="Filter requests" className={s.toolbar}>
         <form
           onSubmit={(e) => {
@@ -200,20 +294,25 @@ export function RequestsPage() {
           }}
           className={s.search}
         >
-          <TextInput
+          <Autocomplete
             aria-label="Search requests"
-            placeholder="Request ID, client or model"
+            placeholder="Client, tool, model or request ID"
             leftSection={<Search size={14} />}
+            size={compact ? 'md' : 'sm'}
             value={text}
-            onChange={(e) => setText(e.currentTarget.value)}
+            onChange={setText}
+            onOptionSubmit={pick}
+            data={text.trim().length > 0 ? [{ group: 'Clients', items: clientOptions }, { group: 'Tools', items: toolOptions }] : []}
+            limit={8}
+            comboboxProps={{ withinPortal: true }}
           />
         </form>
         <SegmentedControl
           aria-label="Show"
-          size="sm"
+          size={compact ? 'md' : 'sm'}
           value={statusView}
           onChange={(v) =>
-            set(v === 'fallbacks' ? { status: undefined, fallbacks: true } : { status: v === 'all' ? undefined : v, fallbacks: undefined })
+            set(v === 'fallbacks' ? { status: undefined, fallbacks: true } : { status: v === 'all' ? undefined : (v as RequestSearch['status']), fallbacks: undefined })
           }
           data={[
             { value: 'all', label: 'All' },
@@ -222,17 +321,15 @@ export function RequestsPage() {
             { value: 'fallbacks', label: 'Fallbacks' },
           ]}
         />
-        <SegmentedControl
+        <Select
           aria-label="Time range"
-          size="sm"
-          value={f.range ?? '7'}
-          onChange={(v) => set({ range: v === '7' ? undefined : (v as RequestSearch['range']) })}
-          data={[
-            { value: '1', label: '24h' },
-            { value: '7', label: '7d' },
-            { value: '30', label: '30d' },
-            { value: 'all', label: 'All' },
-          ]}
+          size={compact ? 'md' : 'sm'}
+          w={170}
+          leftSection={<CalendarDays size={14} />}
+          allowDeselect={false}
+          value={String(range)}
+          onChange={(v) => v && set({ range: v === String(DEFAULT_LOG_RANGE) && !f.session_id ? undefined : v === 'all' ? 'all' : (Number(v) as 1 | 7 | 30) })}
+          data={rangeOptions}
         />
         <Popover opened={moreOpen} onChange={setMoreOpen} position="bottom-end" width={260} shadow="md" withinPortal>
           <Popover.Target>
@@ -273,10 +370,6 @@ export function RequestsPage() {
             </Stack>
           </Popover.Dropdown>
         </Popover>
-        <Text size="xs" c="dimmed" className={s.live} aria-live="polite">
-          <span className={s.liveDot} aria-hidden="true" />
-          Live{list.dataUpdatedAt ? ` · updated ${fmtRelative(new Date(list.dataUpdatedAt).toISOString(), Date.now())}` : ''}
-        </Text>
       </Group>
       {chips.length > 0 && (
         <Group gap={6} wrap="wrap">
@@ -285,7 +378,7 @@ export function RequestsPage() {
               {c.label}
             </Pill>
           ))}
-          <Button variant="subtle" size="compact-sm" color="gray" onClick={() => set({ status: undefined, fallbacks: undefined, harness: undefined, binding_id: undefined, project_id: undefined, session_id: undefined, model: undefined })}>
+          <Button variant="subtle" size="compact-sm" color="gray" onClick={clearAll}>
             Clear
           </Button>
         </Group>
@@ -296,9 +389,25 @@ export function RequestsPage() {
       ) : !list.data ? (
         <Skeleton height={320} radius="md" />
       ) : items.length === 0 ? (
-        <Empty icon={<ActivityIcon size={22} />} title={chips.length || f.status || f.fallbacks ? 'No matching requests' : 'No requests yet'} action={!chips.length && !f.status && !f.fallbacks ? <Link to="/clients/setup">Connect a tool</Link> : undefined}>
-          {chips.length || f.status || f.fallbacks ? 'Try removing a filter.' : undefined}
-        </Empty>
+        <Empty
+          icon={<ActivityIcon size={22} />}
+          title={filtered ? 'No matching requests' : range !== 'all' ? 'No requests in this range' : 'No requests yet'}
+          action={
+            filtered ? (
+              <Button variant="light" onClick={clearAll}>
+                Show all requests
+              </Button>
+            ) : range !== 'all' ? (
+              <Button variant="light" onClick={() => set({ range: 'all' })}>
+                Show all time
+              </Button>
+            ) : (
+              <Button component={Link} to="/clients/setup" variant="light">
+                Connect a tool
+              </Button>
+            )
+          }
+        />
       ) : compact ? (
         <div role="region" aria-label="Requests" className={s.log}>
           {groups.map((g) => (
@@ -317,9 +426,13 @@ export function RequestsPage() {
                       </span>
                       <span className={s.logMeta}>
                         <Status r={r} />
-                        <span>{harnessName[r.harness] ?? (r.harness || 'Unknown tool')}</span>
-                        <span>{ms(r.duration_ms)}</span>
-                        <span>{r.cost ? money(r.cost.amount, r.cost.currency) : '—'}</span>
+                        {[
+                          harnessName[r.harness] ?? (r.harness || 'Unknown tool'),
+                          isKnown(r.duration_ms) && r.duration_ms > 0 ? ms(r.duration_ms) : null,
+                          r.cost ? requestCost(r.cost.amount, r.cost.currency) : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </span>
                     </UnstyledButton>
                   </li>
@@ -377,7 +490,9 @@ export function RequestsPage() {
                     <td>
                       <Status r={r} />
                     </td>
-                    <td className={s.right}>{isKnown(r.duration_ms) ? ms(r.duration_ms) : <Unknown reason="Not finished" />}</td>
+                    <td className={s.right}>
+                      <Latency r={r} />
+                    </td>
                     <td className={s.right}>
                       <Cost r={r} />
                     </td>
@@ -390,10 +505,12 @@ export function RequestsPage() {
       )}
       {list.data && items.length > 0 && (
         <Group justify="space-between" gap="xs">
-          <Text size="xs" c="dimmed">
-            Showing {items.length.toLocaleString('en-US')}
-            {total !== undefined && total > items.length ? ` of ${total.toLocaleString('en-US')}` : ''} {(total ?? items.length) === 1 ? 'request' : 'requests'}
-            {!list.hasNextPage ? ' · that’s all' : ''}
+          <Text size="xs" c="dimmed" className={s.live} aria-live="polite">
+            <span className={s.liveDot} aria-hidden="true" />
+            {total !== undefined && total > items.length
+              ? `Showing ${items.length.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} requests`
+              : `${items.length.toLocaleString('en-US')} ${items.length === 1 ? 'request' : 'requests'}`}
+            {list.dataUpdatedAt ? ` · live, updated ${fmtRelative(new Date(list.dataUpdatedAt).toISOString(), Date.now())}` : ''}
           </Text>
           {list.hasNextPage && (
             <Button variant="default" size="xs" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>
