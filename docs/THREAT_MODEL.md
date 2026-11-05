@@ -33,7 +33,11 @@
    - Upstream error bodies are redacted before they reach logs, events or traces.
    - Bridge environments are scrubbed.
 3. **SSRF through provider base URLs, webhooks, OIDC discovery or diagnostic probes.**
-   - All outbound HTTP goes through `netpolicy`, which denies by default: link-local, metadata (169.254.169.254, fd00:ec2::254), loopback and RFC1918 addresses, unless that specific endpoint has an explicit allowance.
+   - All outbound connections go through `netpolicy`: provider executors, quota adapters, webhooks, notification channels, OIDC and Pulse. It denies loopback, RFC1918 and CGNAT addresses unless that endpoint explicitly allows private networks.
+   - It always denies link-local ranges and cloud metadata addresses: AWS/GCP 169.254.169.254, fd00:ec2::254, Azure 168.63.129.16, Oracle Cloud 192.0.0.192 and Alibaba 100.100.100.200.
+   - IPv4 addresses embedded in NAT64, 6to4, IPv4-compatible and Teredo IPv6 forms are checked as IPv4.
+   - Environment proxies are ignored. Connection errors are reported generically, so they cannot be used as a port scanner.
+   - Stored secrets do not follow a destination change: moving a channel, destination or quota monitor to another origin requires re-entering its secrets, and moving a provider clears its accounts' stored credentials.
    - DNS is resolved and pinned for each connection.
    - Redirect following is limited to the same host.
    - Response size and timeouts are bounded.

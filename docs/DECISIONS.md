@@ -173,8 +173,8 @@ Delivery is at-least-once.
 **Per account and per request**
 
 - Each account gets its own config directory under `<data>/bridges/<kind>/<account_id>/`, protected by an advisory file lock.
-- Each request runs in a fresh working directory, with a scrubbed environment and the binary's built-in tools disabled.
-- Client tools are exposed through a per-request loopback MCP endpoint, protected by a one-time token.
+- Each request runs in a fresh working directory, with a scrubbed environment and the binary's built-in tools disabled (see D-038 for exactly how, per CLI).
+- Client tools are exposed through a per-request loopback MCP endpoint. Its bearer token travels in a 0600 file or the child's environment, never in process arguments.
 
 **Credential handling**
 
@@ -291,4 +291,32 @@ The structural baseline is seeded from this build's own protocol encoders, then 
   - Client addresses join every `X-Forwarded-For` header line.
   - Token-less `/metrics` is served only to direct loopback requests without forwarding headers, and never when trusted proxies are configured.
   - Demo mode refuses a non-loopback listen address without `--demo-allow-public`.
+
+## D-038: Network and process hardening after the security review
+
+**CLI bridges**
+
+- **Codex built-in tools.** The bridge turns off the CLI's own tools with `-c` flags, verified against codex 0.166.0 with `codex debug prompt-input`:
+  - `features.shell_tool`, `features.unified_exec`, `features.view_image`, `features.image_generation`, `features.multi_agent`, `features.apps`, `features.plugins`;
+  - the browser and computer-use features, `features.skill_search`, `features.tool_suggest`, `features.sleep_tool`;
+  - `web_search="disabled"`.
+
+  What remains is the CLI's code-mode wrapper (no file system or network of its own) and its patch tool. These are contained by `--sandbox read-only` and by a fail-closed check: any `command_execution`, `file_change` or `web_search` item, or a call to an MCP server other than the client's, stops the turn and kills the process group.
+- **Claude Code built-in tools.** The bridge runs with `--tools ""`, `--strict-mcp-config`, `--allowedTools mcp__client` and `--setting-sources ""`. A test asserts these arguments.
+- **No secrets in arguments.**
+  - Claude Code gets its MCP configuration and system prompt as 0600 files (`--mcp-config <file>`, `--system-prompt-file`).
+  - Codex gets them in a 0600 per-run profile (`-p hp-<random>`).
+  - The MCP token is a bearer header (Claude) or comes from `HP_MCP_TOKEN` (Codex `bearer_token_env_var`).
+  - The MCP server accepts only `Authorization: Bearer`, checks the `Host` header, and has read and idle timeouts.
+- **Content does not outlive processes.**
+  - Claude transcripts, per-workdir CLI caches and per-run files are removed when the process ends.
+  - Codex rollouts are removed once older than the thread TTL (24 h by default), and its prompt history is turned off (`history.persistence="none"`).
+  - A periodic sweep removes anything a crash left behind.
+- **Processes.** Each process runs in its own process group and is killed as a group. Spawns hold a real slot reservation. Parked processes and resumable threads are reused only within the same client scope (`executor.Request.Scope`). Files of deleted accounts are removed.
+
+**Outbound network**
+
+- **Quota adapters and Pulse.** Quota adapters use the `netpolicy` transport: public destinations only, with no proxy from the environment. Private or loopback endpoints need the monitor's `allow_private_network`. Pulse connections dial through the same policy, and a failed dial is reported generically.
+- **Blocked addresses.** Link-local ranges are always blocked, as are the Azure WireServer and Oracle Cloud metadata addresses. IPv4 addresses embedded in NAT64, 6to4, IPv4-compatible and Teredo IPv6 forms are checked as IPv4.
+- **Secrets and destination changes.** Stored secrets do not follow a destination change. A channel, event destination or quota monitor whose URL moves to another origin must have its secrets entered again. A provider whose base URL moves has its accounts' stored credentials cleared, and the clearing is audited. Provider base URLs need https unless `allow_private_network` is set.
 

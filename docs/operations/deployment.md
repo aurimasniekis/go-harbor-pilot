@@ -48,6 +48,7 @@ The Compose service runs with a read-only root filesystem, no capabilities and `
 - Each provider account that runs through a bridge gets its own CLI config directory under `/data`. The credentials are the per-account tokens stored in Harbor Pilot (a `claude setup-token` token, or a Codex login per account). No login is shared or rewritten.
 - The CLIs' auto-updaters are disabled. Upgrade them by rebuilding with new version arguments, after checking the new versions against `docs/COMPATIBILITY.md`.
 - `harbor-pilot doctor` inside the container reports the CLI versions it found.
+- Bridges turn off the CLIs' own tools and stop any turn that tries to use them (D-038). The CLIs still run as the server's user, so for defence in depth run the bridge image on a host or volume layout where that user cannot read anything beyond the data directory. Better still, run bridge workloads as a separate instance.
 
 ## Environment variables
 | Variable | Meaning |
