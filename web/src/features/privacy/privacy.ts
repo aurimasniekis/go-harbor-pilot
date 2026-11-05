@@ -90,12 +90,16 @@ export const traceSections = [
   { value: 'usage', label: 'Usage' },
 ] as const
 
-export const traceModes: { value: TracePolicySpec['mode']; label: string; hint: string }[] = [
-  { value: 'off', label: 'Off', hint: 'No content is captured. Request metadata is still recorded in Activity.' },
-  { value: 'masked_diagnostic', label: 'Masked diagnostics', hint: 'Redacted content, with long texts shortened to their first and last 1,000 characters.' },
-  { value: 'masked_full', label: 'Masked full trace', hint: 'Complete content with credentials redacted. Recommended with 3-day retention.' },
-  { value: 'unredacted', label: 'Unredacted (privileged, time-boxed)', hint: 'Original content for a limited diagnostic window. Reading it needs the traces.content.unredacted grant.' },
+export const traceModes: { value: TracePolicySpec['mode']; label: string; short: string; hint: string }[] = [
+  { value: 'off', label: 'Nothing (off)', short: 'Off', hint: 'No content is captured. Request details are still recorded in Requests.' },
+  { value: 'masked_diagnostic', label: 'Masked excerpts', short: 'Masked excerpts', hint: 'Redacted content, with long texts shortened to their first and last 1,000 characters.' },
+  { value: 'masked_full', label: 'Masked full content', short: 'Masked full', hint: 'Complete content with credentials redacted. Recommended with 3-day retention.' },
+  { value: 'unredacted', label: 'Unredacted (privileged, time-boxed)', short: 'Unredacted', hint: 'Original content for a limited diagnostic window. Reading it needs the traces.content.unredacted grant.' },
 ]
+
+export function traceModeLabel(mode: string): string {
+  return traceModes.find((m) => m.value === mode)?.short ?? mode
+}
 
 export function defaultTraceSpec(): TracePolicySpec {
   return {
@@ -162,6 +166,63 @@ export function fromLocalInput(v: string): string {
   if (!v) return ''
   const d = new Date(v)
   return Number.isNaN(d.getTime()) ? '' : d.toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
+
+/** What happens when masking can't run, as one choice instead of two flags. */
+export type Enforcement = 'block' | 'flag' | 'send'
+
+export const enforcementOptions: { value: Enforcement; label: string; hint: string; tone: 'success' | 'warning' }[] = [
+  { value: 'block', label: 'Block the request', hint: 'Recommended. Nothing leaves Harbor Pilot unmasked.', tone: 'success' },
+  { value: 'flag', label: 'Send unmasked and flag it', hint: 'Keeps tools working during incidents; each such request is marked in Requests.', tone: 'warning' },
+  { value: 'send', label: 'Send anyway', hint: 'Not recommended. Requests go out unmasked without being flagged.', tone: 'warning' },
+]
+
+export function enforcementOf(s: Pick<PrivacyPolicySpec, 'required' | 'allow_unmasked_fallback'>): Enforcement {
+  if (!s.required) return 'send'
+  return s.allow_unmasked_fallback ? 'flag' : 'block'
+}
+
+export function enforcementSpec(e: Enforcement): { required: boolean; allow_unmasked_fallback: boolean } {
+  return { required: e !== 'send', allow_unmasked_fallback: e === 'flag' }
+}
+
+/** Shortest configured secret value the server masks (and accepts). */
+export const MIN_SECRET_VALUE = 6
+
+/** 1-based numbers of non-empty lines too short to be masked. */
+export function shortSecretLines(text: string): number[] {
+  const out: number[] = []
+  text.split('\n').forEach((line, i) => {
+    const t = line.trim()
+    if (t !== '' && t.length < MIN_SECRET_VALUE) out.push(i + 1)
+  })
+  return out
+}
+
+export function secretLineCount(text: string): number {
+  return text.split('\n').filter((l) => l.trim() !== '').length
+}
+
+/** "All credential types · Email addresses, Phone numbers · 2 custom rules" */
+export function masksSummary(spec: Pick<PrivacyPolicySpec, 'detectors' | 'personal_data' | 'rules'>): string {
+  const builtin = spec.detectors ?? []
+  const personal = spec.personal_data ?? []
+  const parts: string[] = []
+  const all = builtin.length === 0 || credentialDetectors.every((d) => builtin.includes(d.id))
+  if (all) parts.push('All credential types')
+  else if (builtin.length <= 2) parts.push(builtin.map(detectorLabel).join(', '))
+  else parts.push(`${builtin.length} of ${credentialDetectors.length} credential types`)
+  if (personal.length) parts.push(personal.map(detectorLabel).join(', '))
+  const n = spec.rules?.length ?? 0
+  if (n) parts.push(`${n} custom ${n === 1 ? 'rule' : 'rules'}`)
+  return parts.join(' · ')
+}
+
+/** A detected value shown without revealing it: first and last two characters. */
+export function hint(value: string): string {
+  const v = value.replace(/\s+/g, ' ')
+  if (v.length <= 6) return '•'.repeat(Math.max(v.length, 3))
+  return `${v.slice(0, 2)}…${v.slice(-2)} (${v.length} characters)`
 }
 
 export const MAX_UNREDACTED_MS = 7 * 24 * 3600 * 1000

@@ -12,3 +12,14 @@ export function accountLabel(acc: AccountRes | undefined, providers: Record<stri
   const provName = prov ? prov.spec.display_name || prov.name : ''
   return provName ? `${name} (${provName})` : name
 }
+
+/** Fallback steps in plain words. */
+export const stepWords: Record<string, string> = {
+  first: 'First choice',
+  primary: 'First choice',
+  retry: 'Retry the same account',
+  alternate_account: 'Another account, same model',
+  alternate_model: 'Another model in the group',
+  alternate_provider: 'Another provider',
+  wait: 'Wait for capacity',
+}

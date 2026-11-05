@@ -110,8 +110,8 @@ export function Simulator({ planId, versions, accounts, defaultModel, accountNam
 
   const run = useMutation({
     mutationFn: (req: SimulateRequest) => apiSend<SimulationResult>('POST', `/routing-plans/${encodeURIComponent(planId)}/simulate`, req),
-    onSuccess: (r) => {
-      if (r.error) setWhy('why')
+    onSuccess: (result) => {
+      if (result.error) setWhy('why')
       requestAnimationFrame(() => resultRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }))
     },
   })
@@ -283,9 +283,9 @@ export function Simulator({ planId, versions, accounts, defaultModel, accountNam
                       </ul>
                     )}
                     <Title order={5}>Accounts in the order they would be tried</Title>
-                    <CandidateTable candidates={d.candidates ?? []} label="Simulated candidates" showScore />
+                    <CandidateTable candidates={d.candidates ?? []} label="Simulated candidates" showScore accountName={accountName} />
                     <Title order={5}>Skipped</Title>
-                    <ExclusionTable excluded={d.excluded ?? []} label="Simulated exclusions" />
+                    <ExclusionTable excluded={d.excluded ?? []} label="Simulated exclusions" accountName={accountName} />
                     <Title order={5}>Rules</Title>
                     <RuleTraceTable traces={d.rules ?? []} accountName={accountName} label="Simulated rule evaluations" />
                   </Stack>

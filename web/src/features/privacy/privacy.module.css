@@ -4,24 +4,13 @@
   gap: var(--space-4);
 }
 
-.group {
-  display: grid;
-  gap: 6px 16px;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+.detectorTable td {
+  vertical-align: middle;
 }
 
-.detector {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.detectorRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+.detectorHint {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
 }
 
 .hint {
@@ -45,34 +34,46 @@
 }
 
 .mark {
+  --c: var(--info);
   border-radius: 3px;
-  padding: 0 2px;
-  outline: 1px solid currentColor;
-  background: transparent;
+  padding: 0 1px;
   color: inherit;
-}
-
-.mark[data-action='mask'] {
-  background: var(--info-soft);
+  background: color-mix(in srgb, var(--c) 28%, transparent);
+  box-shadow: inset 0 -2px 0 var(--c);
 }
 
 .mark[data-action='block'] {
-  background: var(--error-soft);
+  --c: var(--error);
 }
 
 .mark[data-action='warn'] {
-  background: var(--warning-soft);
+  --c: var(--warning);
 }
 
 .mark[data-action='allow'] {
-  background: var(--success-soft);
+  --c: var(--success);
 }
 
-.markLabel {
-  font-family: var(--font-sans);
-  font-size: 10px;
-  vertical-align: super;
-  margin-left: 2px;
+/* Legend chips use the same colours as the marks. */
+.legend {
+  --c: var(--info);
+  font-size: var(--text-xs);
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--c) 28%, transparent);
+  box-shadow: inset 0 -2px 0 var(--c);
+}
+
+.legend[data-action='block'] {
+  --c: var(--error);
+}
+
+.legend[data-action='warn'] {
+  --c: var(--warning);
+}
+
+.legend[data-action='allow'] {
+  --c: var(--success);
 }
 
 .twoCol {
@@ -109,4 +110,13 @@
   font-size: var(--text-xs);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.ruleCard {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }

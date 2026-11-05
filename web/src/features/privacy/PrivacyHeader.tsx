@@ -1,22 +1,25 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Text } from '@mantine/core'
+import { Link } from '@tanstack/react-router'
 import { effectiveQuery, planVersionsQuery, resourceListQuery } from '@/lib/api/queries'
 import { byId } from '@/lib/api/resources'
-import type { TracePolicyRes } from '@/lib/api/types'
+import type { PlanRes, TracePolicyRes } from '@/lib/api/types'
 import { LinkTabs, PageHeader } from '@/ui/kit'
 import { retentionLabel } from './privacy'
 
-/** "Masking is on for 1 of 4 clients. Content capture is on for 1 plan (kept 3 days, masked)." */
+/** "Masking is on for 1 of 4 clients. Content capture is on for Private only (kept 3 days, masked)." */
 function Coverage() {
   const eff = useQuery(effectiveQuery)
   const traces = useQuery(resourceListQuery<TracePolicyRes>('trace-policies'))
+  const planList = useQuery(resourceListQuery<PlanRes>('routing-plans'))
   const plans = (eff.data?.plans ?? []).filter((p) => p.published_version > 0)
   const versions = useQueries({ queries: plans.map((p) => planVersionsQuery(p.id)) })
   if (!eff.data || versions.some((v) => !v.data)) return null
   const tp = byId(traces.data?.items)
+  const pl = byId(planList.data?.items)
   let total = 0
   let masked = 0
-  const capture: string[] = []
+  const capture: { id: string; name: string; how: string }[] = []
   plans.forEach((p, i) => {
     const live = versions[i]?.data?.items.find((v) => v.status === 'published')
     const priv = live?.document.privacy
@@ -24,12 +27,32 @@ function Coverage() {
     if (priv?.policy_id) masked += p.bindings
     if (priv?.trace_policy_id) {
       const t = tp[priv.trace_policy_id]
-      capture.push(t ? `${p.name}: kept ${retentionLabel[t.spec.retention] ?? 'custom'}, ${t.spec.mode === 'unredacted' ? 'unredacted' : 'masked'}` : p.name)
+      const name = pl[p.id]?.spec.display_name || p.name
+      capture.push({ id: p.id, name, how: t ? `kept ${retentionLabel[t.spec.retention] ?? 'for a custom time'}, ${t.spec.mode === 'unredacted' ? 'unredacted' : 'masked'}` : '' })
     }
   })
-  const maskText = `Masking is on for ${masked} of ${total} ${total === 1 ? 'client' : 'clients'}.`
-  const captureText = capture.length ? ` Content capture is on for ${capture.length} ${capture.length === 1 ? 'plan' : 'plans'} (${capture.join('; ')}).` : ' Content capture is off everywhere.'
-  return <Text size="md">{maskText + captureText}</Text>
+  return (
+    <Text size="md">
+      Masking is on for {masked} of {total} {total === 1 ? 'client' : 'clients'}.{' '}
+      {capture.length === 0 ? (
+        'Content capture is off everywhere.'
+      ) : (
+        <>
+          Content capture is on for{' '}
+          {capture.map((c, i) => (
+            <span key={c.id}>
+              {i > 0 && (i === capture.length - 1 ? ' and ' : ', ')}
+              <Link to="/routing/plans/$planId" params={{ planId: c.id }} style={{ color: 'var(--link)' }}>
+                {c.name}
+              </Link>
+              {c.how && ` (${c.how})`}
+            </span>
+          ))}
+          .
+        </>
+      )}
+    </Text>
+  )
 }
 
 export function PrivacyHeader() {

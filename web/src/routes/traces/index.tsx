@@ -1,15 +1,15 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Alert, Button, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Button, Group, SegmentedControl, Select, Stack, Text, TextInput } from '@mantine/core'
 import { AlertTriangle, Lock, ScrollText, Search } from 'lucide-react'
 import { z } from 'zod'
 import { Badge, Banner } from '@/components/ui'
 import { QueryError, TableSkeleton } from '@/components/states'
-import { TraceModeBadge } from '@/features/traces/bits'
+import { fmtSize, GrantLink, TraceModeBadge } from '@/features/traces/bits'
 import { resourceListQuery, traceSearchQuery, tracesQuery, type TraceFilter } from '@/lib/api/queries'
 import { byId } from '@/lib/api/resources'
-import type { BindingRes, TraceMeta } from '@/lib/api/types'
+import type { BindingRes, PlanRes, TraceHit, TraceMeta } from '@/lib/api/types'
 import { useCan } from '@/lib/session'
 import { fmtDateTime, fmtRelative } from '@/lib/format'
 import { type Column, DataTable, Empty } from '@/ui/kit'
@@ -18,6 +18,7 @@ const search = z.object({
   request_id: z.string().optional().catch(undefined),
   session_id: z.string().optional().catch(undefined),
   binding_id: z.string().optional().catch(undefined),
+  q: z.string().optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/traces/')({
@@ -25,54 +26,22 @@ export const Route = createFileRoute('/traces/')({
   component: Traces,
 })
 
-/** 1640 → "1.6 KB". */
-function size(b: number): string {
-  if (b < 1024) return `${b} B`
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
-  return `${(b / 1024 / 1024).toFixed(1)} MB`
-}
-
-function ContentSearch() {
-  const [text, setText] = useState('')
-  const [q, setQ] = useState('')
-  const res = useQuery({ ...traceSearchQuery(q), enabled: q !== '' })
+/** The excerpt with matches marked; section breaks shown as separators. */
+function Snippet({ hit }: { hit: TraceHit }) {
+  const parts = hit.snippet_parts?.length ? hit.snippet_parts : [{ text: hit.snippet, match: false }]
   return (
-    <Stack gap="sm">
-      <Title order={2}>Search captured content</Title>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          setQ(text.trim())
-        }}
-      >
-        <Group gap="xs" wrap="nowrap">
-          <TextInput aria-label="Words to find" placeholder="Words to find (masked text only)" value={text} onChange={(e) => setText(e.currentTarget.value)} style={{ flex: 1 }} maw={420} />
-          <Button type="submit" leftSection={<Search size={14} />} disabled={!text.trim()}>
-            Search
-          </Button>
-        </Group>
-      </form>
-      {res.isError ? (
-        <QueryError error={res.error} />
-      ) : q && !res.data ? (
-        <TableSkeleton rows={2} />
-      ) : res.data && res.data.items.length === 0 ? (
-        <Text size="sm" c="dimmed">
-          Nothing kept matches “{q}”.
-        </Text>
-      ) : res.data ? (
-        <Stack gap={6}>
-          {res.data.items.map((h) => (
-            <Link key={h.id} to="/traces/$traceId" params={{ traceId: h.id }}>
-              <Text size="sm">{h.snippet}</Text>
-              <Text size="xs" c="dimmed">
-                Kept until {fmtDateTime(h.expires_at)}
-              </Text>
-            </Link>
-          ))}
-        </Stack>
-      ) : null}
-    </Stack>
+    <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+      {parts.map((p, i) => {
+        const pieces = p.text.split('\n')
+        const body = pieces.map((t, j) => (
+          <Fragment key={j}>
+            {j > 0 && <Text span c="dimmed"> · </Text>}
+            {t}
+          </Fragment>
+        ))
+        return p.match ? <mark key={i}>{body}</mark> : <Fragment key={i}>{body}</Fragment>
+      })}
+    </Text>
   )
 }
 
@@ -80,13 +49,24 @@ function Traces() {
   const f = Route.useSearch()
   const navigate = useNavigate({ from: '/traces/' })
   const canRead = useCan('traces.content.read')
-  const filter: TraceFilter = f
+  const filter: TraceFilter = { request_id: f.request_id, session_id: f.session_id, binding_id: f.binding_id }
   const list = useQuery(tracesQuery(filter))
   const bindings = useQuery(resourceListQuery<BindingRes>('client-bindings'))
+  const plans = useQuery(resourceListQuery<PlanRes>('routing-plans'))
   const client = byId(bindings.data?.items)
-  const [id, setId] = useState(f.request_id ?? f.session_id ?? '')
+  const plan = byId(plans.data?.items)
+  const [mode, setMode] = useState<'id' | 'words'>(f.q ? 'words' : 'id')
+  const [text, setText] = useState(f.q ?? f.request_id ?? f.session_id ?? '')
+  const hits = useQuery({ ...traceSearchQuery(canRead ? (f.q ?? '') : ''), enabled: !!f.q && canRead })
   const items = list.data?.items ?? []
-  const filtered = !!(f.request_id || f.session_id || f.binding_id)
+  const words = canRead ? (f.q ?? '') : ''
+  const filtered = !!(f.request_id || f.session_id || f.binding_id || words)
+  const clientName = (id: string) => client[id]?.spec.display_name || client[id]?.name || 'Unknown client'
+  const planName = (id: string) => (id ? plan[id]?.spec.display_name || plan[id]?.name || '—' : '—')
+  const clear = () => {
+    setText('')
+    void navigate({ search: {} })
+  }
 
   const cols: Column<TraceMeta>[] = [
     {
@@ -102,7 +82,7 @@ function Traces() {
       cell: (t) => (
         <Stack gap={0}>
           <Text size="sm" fw={500}>
-            {client[t.binding_id]?.spec.display_name || client[t.binding_id]?.name || 'Unknown client'}
+            {clientName(t.binding_id)}
           </Text>
           <Link to="/activity/$requestId" params={{ requestId: t.request_id }} onClick={(e) => e.stopPropagation()}>
             <Text size="xs" span>
@@ -112,6 +92,7 @@ function Traces() {
         </Stack>
       ),
     },
+    { id: 'plan', header: 'Plan', mobile: 'meta', cell: (t) => planName(t.plan_id) },
     { id: 'mode', header: 'Content', mobile: 'meta', cell: (t) => <TraceModeBadge mode={t.mode} /> },
     { id: 'kept', header: 'Kept until', mobile: 'meta', cell: (t) => <span title={fmtDateTime(t.expires_at)}>{fmtRelative(t.expires_at)}</span> },
     {
@@ -121,7 +102,7 @@ function Traces() {
       mobile: 'meta',
       cell: (t) => (
         <>
-          {size(t.size_bytes)}
+          {fmtSize(t.size_bytes)}
           {t.truncated && (
             <>
               {' '}
@@ -133,67 +114,98 @@ function Traces() {
     },
   ]
 
+  const hitCols: Column<TraceHit>[] = [
+    { id: 'when', header: 'Captured', mobile: 'aside', cell: (h) => <span title={fmtDateTime(h.created_at)}>{fmtRelative(h.created_at)}</span> },
+    { id: 'client', header: 'Client', mobile: 'title', cell: (h) => clientName(h.binding_id) },
+    { id: 'match', header: 'Match', mobile: 'line', cell: (h) => <Snippet hit={h} /> },
+  ]
+  const submit = () => {
+    const v = text.trim()
+    if (mode === 'words') void navigate({ search: (s) => ({ binding_id: s.binding_id, q: v || undefined }) })
+    else void navigate({ search: (s) => ({ binding_id: s.binding_id, request_id: v.startsWith('req_') ? v : undefined, session_id: v && !v.startsWith('req_') ? v : undefined }) })
+  }
+  const nothing = (
+    <Empty icon={<ScrollText size={22} />} title={filtered ? 'Nothing matches' : 'Nothing captured yet'}>
+      {filtered ? (
+        <>
+          No captured content matches {words || f.request_id || f.session_id ? <>“{words || f.request_id || f.session_id}”</> : 'this client'}.{' '}
+          <Button variant="subtle" size="compact-sm" onClick={clear}>
+            Clear filters
+          </Button>
+        </>
+      ) : (
+        <>
+          Content is captured only for plans that choose a{' '}
+          <Link to="/privacy/trace-policies" style={{ textDecoration: 'underline' }}>
+            content capture rule
+          </Link>
+          .
+        </>
+      )}
+    </Empty>
+  )
+
   return (
     <Stack gap="lg">
       {!canRead && (
         <Alert color="gray" variant="light" icon={<Lock size={16} />}>
           <Text size="sm">
-            You can see what was captured but not read it. Reading content needs an explicit grant; ask an administrator to add it under{' '}
-            <Link to="/settings/users" style={{ textDecoration: 'underline' }}>Settings → People</Link>. Every read is audited.
+            You can see what was captured but not read it. Reading content needs an explicit grant; ask an administrator to add it under <GrantLink />. Every
+            read is audited.
           </Text>
         </Alert>
       )}
-      <Group gap="xs" wrap="wrap" role="search" aria-label="Filter captured content">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            const v = id.trim()
-            void navigate({ search: (s) => ({ ...s, request_id: v.startsWith('req_') ? v : undefined, session_id: v && !v.startsWith('req_') ? v : undefined }) })
-          }}
-        >
-          <TextInput aria-label="Request or session id" placeholder="Request or session id" leftSection={<Search size={14} />} value={id} onChange={(e) => setId(e.currentTarget.value)} w={260} />
-        </form>
-        <Select
-          aria-label="Client"
-          placeholder="Any client"
-          clearable
-          searchable
-          w={200}
-          value={f.binding_id ?? null}
-          onChange={(v) => void navigate({ search: (s) => ({ ...s, binding_id: v ?? undefined }) })}
-          data={(bindings.data?.items ?? []).map((b) => ({ value: b.id, label: b.spec.display_name || b.name }))}
-        />
-        {filtered && (
-          <Button variant="subtle" color="gray" size="sm" onClick={() => { setId(''); void navigate({ search: {} }) }}>
-            Clear
+      <form
+        role="search"
+        aria-label="Find captured content"
+        onSubmit={(e) => {
+          e.preventDefault()
+          submit()
+        }}
+      >
+        <Group gap="xs" wrap="wrap" align="flex-end">
+          {canRead && (
+            <SegmentedControl aria-label="Find by" value={mode} onChange={(v) => setMode(v as 'id' | 'words')}
+              data={[{ value: 'id', label: 'Request or session id' }, { value: 'words', label: 'Words in content' }]} />
+          )}
+          <TextInput aria-label={mode === 'words' ? 'Words to find' : 'Request or session id'} placeholder={mode === 'words' ? 'Words to find (masked text only)' : 'e.g. req_01…'}
+            leftSection={<Search size={14} />} value={text} onChange={(e) => setText(e.currentTarget.value)} w={280} />
+          <Button type="submit" disabled={!text.trim()}>
+            Find
           </Button>
-        )}
-      </Group>
+          <Select aria-label="Client" placeholder="Any client" clearable searchable w={200} value={f.binding_id ?? null}
+            onChange={(v) => void navigate({ search: (s) => ({ ...s, binding_id: v ?? undefined }) })}
+            data={(bindings.data?.items ?? []).map((b) => ({ value: b.id, label: b.spec.display_name || b.name }))} />
+          {filtered && (
+            <Button variant="subtle" color="gray" onClick={clear}>
+              Clear
+            </Button>
+          )}
+        </Group>
+      </form>
       {list.data && (list.data.dropped > 0 || list.data.over_quota > 0) && (
         <Banner tone="warning" icon={AlertTriangle}>
           Some content wasn’t captured: {list.data.dropped} dropped while the writer was busy and {list.data.over_quota} over a plan’s storage limit since the
           server started.
         </Banner>
       )}
-      {list.isError ? (
+      {words ? (
+        hits.isError ? (
+          <QueryError error={hits.error} />
+        ) : !hits.data ? (
+          <TableSkeleton rows={2} />
+        ) : (
+          <DataTable label="Search results" rows={hits.data.items.filter((h) => !f.binding_id || h.binding_id === f.binding_id)} columns={hitCols} rowKey={(h) => h.id}
+            onRow={(h) => void navigate({ to: '/traces/$traceId', params: { traceId: h.id } })} empty={nothing} />
+        )
+      ) : list.isError ? (
         <QueryError error={list.error} retry={() => void list.refetch()} />
       ) : !list.data ? (
         <TableSkeleton />
       ) : (
-        <DataTable
-          label="Captured content"
-          rows={items}
-          columns={cols}
-          rowKey={(t) => t.id}
-          onRow={(t) => void navigate({ to: '/traces/$traceId', params: { traceId: t.id } })}
-          empty={
-            <Empty icon={<ScrollText size={22} />} title={filtered ? 'Nothing captured matches' : 'No live traces'}>
-              Content is captured only for plans that choose a <Link to="/privacy/trace-policies" style={{ textDecoration: 'underline' }}>content capture rule</Link>.
-            </Empty>
-          }
-        />
+        <DataTable label="Captured content" rows={items} columns={cols} rowKey={(t) => t.id}
+          onRow={canRead ? (t) => void navigate({ to: '/traces/$traceId', params: { traceId: t.id } }) : undefined} empty={nothing} />
       )}
-      {canRead && <ContentSearch />}
     </Stack>
   )
 }

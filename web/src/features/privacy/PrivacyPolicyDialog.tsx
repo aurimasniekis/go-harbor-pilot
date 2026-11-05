@@ -1,44 +1,77 @@
-import { Select } from '@mantine/core'
-import { useState } from 'react'
+import { Anchor, Group, MultiSelect, Radio, Select, Stack, Table, Text, Title } from '@mantine/core'
+import { useMemo, useState } from 'react'
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react'
 import { Banner, Button } from '@/components/ui'
-import { Checkbox, Dialog, Field, MutationError, SelectField, TextField, formStyles as f, useFieldErrors } from '@/components/form'
+import {
+  Checkbox, Dialog, DialogActions, MutationError, NameField, NumberField, SelectField, TextAreaField, TextField, formStyles as f, nameError, useFieldErrors,
+} from '@/components/form'
 import { TerraformEditWarning } from '@/components/ResourceBadges'
 import { useSaveResource } from '@/lib/api/resources'
 import type { PrivacyAllowRule, PrivacyPolicyRes, PrivacyPolicySpec, PrivacyRule } from '@/lib/api/types'
 import { toggle } from '@/features/config/constants'
-import c from '@/features/config/config.module.css'
-import { credentialDetectors, defaultPrivacySpec, type DetectorInfo, heuristicDetectors, personalDetectors, splitList } from './privacy'
+import {
+  allDetectors, credentialDetectors, defaultPrivacySpec, type DetectorInfo, type Enforcement, enforcementOf, enforcementOptions, enforcementSpec,
+  heuristicDetectors, MIN_SECRET_VALUE, personalDetectors, secretLineCount, shortSecretLines, splitList,
+} from './privacy'
+import { TryPolicy } from './Sandbox'
 import p from './privacy.module.css'
 
 type SecretMode = 'keep' | 'stored' | 'reference' | 'none'
 
-function DetectorGroup({ legend, items, selected, onSelected, actions, onActions, defaultAction }: {
-  legend: string
+const actionOptions = [
+  { value: 'mask', label: 'Mask' },
+  { value: 'block', label: 'Block' },
+  { value: 'warn', label: 'Warn' },
+]
+
+/** One table per detector group, so the action column lines up. */
+function DetectorTable({ title, items, selected, onSelected, actions, onActions, defaultAction, bulk }: {
+  title: string
   items: DetectorInfo[]
   selected: string[]
   onSelected: (v: string[]) => void
   actions: Record<string, string>
   onActions: (v: Record<string, string>) => void
   defaultAction: 'mask' | 'warn'
+  bulk?: boolean
 }) {
+  const ids = items.map((d) => d.id)
   return (
-    <fieldset className={c.checks} style={{ flexDirection: 'column' }}>
-      <legend className={c.legend}>{legend}</legend>
-      <div className={p.group}>
-        {items.map((d) => {
-          const on = selected.includes(d.id)
-          return (
-            <div key={d.id} className={p.detector}>
-              <div className={p.detectorRow}>
-                <Checkbox label={d.label} checked={on} onChange={(v) => onSelected(toggle(selected, d.id, v))} />
-                {on && (
+    <Stack gap={6}>
+      <Group justify="space-between" gap="xs">
+        <Title order={4}>{title}</Title>
+        {bulk && (
+          <Group gap="xs">
+            <Anchor component="button" type="button" size="sm" onClick={() => onSelected([...new Set([...selected, ...ids])])} disabled={ids.every((id) => selected.includes(id))}>
+              Select all
+            </Anchor>
+            <Anchor component="button" type="button" size="sm" onClick={() => onSelected(selected.filter((x) => !ids.includes(x)))} disabled={!ids.some((id) => selected.includes(id))}>
+              Select none
+            </Anchor>
+          </Group>
+        )}
+      </Group>
+      <Table className={p.detectorTable} verticalSpacing={4} aria-label={title}>
+        <Table.Tbody>
+          {items.map((d) => {
+            const on = selected.includes(d.id)
+            return (
+              <Table.Tr key={d.id}>
+                <Table.Td w="40%">
+                  <Checkbox label={d.label} checked={on} onChange={(v) => onSelected(toggle(selected, d.id, v))} />
+                </Table.Td>
+                <Table.Td visibleFrom="sm">
+                  <span className={p.detectorHint}>{d.hint}</span>
+                </Table.Td>
+                <Table.Td w={120}>
                   <Select
                     size="xs"
                     w={110}
                     aria-label={`Action for ${d.label}`}
                     value={actions[d.id] ?? defaultAction}
                     allowDeselect={false}
+                    disabled={!on}
+                    style={{ visibility: on ? undefined : 'hidden' }}
                     onChange={(v) => {
                       if (!v) return
                       const next = { ...actions }
@@ -46,38 +79,30 @@ function DetectorGroup({ legend, items, selected, onSelected, actions, onActions
                       else next[d.id] = v
                       onActions(next)
                     }}
-                    data={[
-                      { value: 'mask', label: 'Mask' },
-                      { value: 'block', label: 'Block' },
-                      { value: 'warn', label: 'Warn' },
-                    ]}
+                    data={actionOptions}
                   />
-                )}
-              </div>
-              {d.hint && <span className={p.hint}>{d.hint}</span>}
-            </div>
-          )
-        })}
-      </div>
-    </fieldset>
+                </Table.Td>
+              </Table.Tr>
+            )
+          })}
+        </Table.Tbody>
+      </Table>
+    </Stack>
   )
 }
 
-/** Create or edit a privacy (outbound masking) policy. */
+/** Create or edit a masking policy. */
 export function PrivacyPolicyDialog({ policy, onClose }: { policy: PrivacyPolicyRes | null; onClose: () => void }) {
   const init: PrivacyPolicySpec = policy?.spec ?? defaultPrivacySpec()
   const [name, setName] = useState(policy?.name ?? '')
   const [description, setDescription] = useState(init.description ?? '')
-  const [required, setRequired] = useState(init.required)
-  const [fallback, setFallback] = useState(init.allow_unmasked_fallback ?? false)
+  const [enforcement, setEnforcement] = useState<Enforcement>(enforcementOf(init))
   const [detectors, setDetectors] = useState<string[]>(init.detectors ?? [])
   const [personal, setPersonal] = useState<string[]>(init.personal_data ?? [])
   const [supplementary, setSupplementary] = useState<string[]>(init.supplementary ?? [])
   const [actions, setActions] = useState<Record<string, string>>(init.detector_actions ?? {})
   const [rules, setRules] = useState<PrivacyRule[]>(init.rules ?? [])
-  const [allow, setAllow] = useState<(PrivacyAllowRule & { detectorsText: string })[]>(
-    (init.allow ?? []).map((a) => ({ ...a, detectorsText: (a.detectors ?? []).join(', ') })),
-  )
+  const [allow, setAllow] = useState<PrivacyAllowRule[]>(init.allow ?? [])
   const [restore, setRestore] = useState(init.restore_in_responses ?? false)
   const tar = init.tool_arg_restore ?? { enabled: false }
   const [tarOn, setTarOn] = useState(tar.enabled)
@@ -92,179 +117,207 @@ export function PrivacyPolicyDialog({ policy, onClose }: { policy: PrivacyPolicy
   const errs = useFieldErrors(save.error)
   const err = (loc: string) => errs[`body.spec.${loc}`]
 
+  const buildSpec = (): PrivacyPolicySpec => ({
+    description: description.trim(),
+    ...enforcementSpec(enforcement),
+    detectors,
+    personal_data: personal,
+    supplementary,
+    detector_actions: Object.fromEntries(Object.entries(actions).filter(([k]) => detectors.includes(k) || personal.includes(k) || supplementary.includes(k))),
+    rules: rules.map((r) => ({ ...r, name: r.name.trim(), group: r.group ?? 0 })),
+    allow: allow.map((a) => ({ ...a, name: a.name.trim() })),
+    restore_in_responses: restore,
+    tool_arg_restore: { enabled: tarOn, tools: splitList(tarTools), fields: splitList(tarFields), allowed_hosts: splitList(tarHosts) },
+    secret_values_ref: secretMode === 'reference' ? secretRef.trim() : '',
+  })
+  const initial = useMemo(() => JSON.stringify(policy?.spec ?? defaultPrivacySpec()), [policy])
+  const dirty = name !== (policy?.name ?? '') || JSON.stringify(buildSpec()) !== initial || secretValues !== '' || (stored && secretMode !== 'keep')
+
+  const short = secretMode === 'stored' ? shortSecretLines(secretValues) : []
+  const valueCount = secretLineCount(secretValues)
+  const secretError =
+    errs['body.secrets.secret_values'] ??
+    (short.length === 0
+      ? undefined
+      : `${short.length === 1 ? `Line ${short[0]} is` : `Lines ${short.join(', ')} are`} shorter than ${MIN_SECRET_VALUE} characters and would not be masked.`)
+  const configuredOn = detectors.includes('configured_secrets')
+  const nameProblem = policy ? undefined : name ? nameError(name) : undefined
+
   const submit = () => {
-    const spec: PrivacyPolicySpec = {
-      description: description.trim(),
-      required,
-      allow_unmasked_fallback: required && fallback,
-      detectors,
-      personal_data: personal,
-      supplementary,
-      detector_actions: Object.fromEntries(
-        Object.entries(actions).filter(([k]) => detectors.includes(k) || personal.includes(k) || supplementary.includes(k)),
-      ),
-      rules: rules.map((r) => ({ ...r, name: r.name.trim(), group: r.group ?? 0 })),
-      allow: allow.map(({ detectorsText, ...a }) => ({ ...a, name: a.name.trim(), detectors: splitList(detectorsText) })),
-      restore_in_responses: restore,
-      tool_arg_restore: { enabled: tarOn, tools: splitList(tarTools), fields: splitList(tarFields), allowed_hosts: splitList(tarHosts) },
-      secret_values_ref: secretMode === 'reference' ? secretRef.trim() : '',
-    }
     let secrets: Record<string, string> | undefined
     if (secretMode === 'stored' && secretValues.trim()) secrets = { secret_values: secretValues }
     else if (secretMode !== 'keep' && secretMode !== 'stored' && stored) secrets = { secret_values: '' }
-    save.mutate({ existing: policy ?? undefined, body: { name, spec, secrets } }, { onSuccess: onClose })
+    save.mutate({ existing: policy ?? undefined, body: { name, spec: buildSpec(), secrets } }, { onSuccess: onClose })
   }
 
   const setRule = (i: number, patch: Partial<PrivacyRule>) => setRules(rules.map((r, j) => (j === i ? { ...r, ...patch } : r)))
-  const setAllowRule = (i: number, patch: Partial<(typeof allow)[number]>) => setAllow(allow.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+  const setAllowRule = (i: number, patch: Partial<PrivacyAllowRule>) => setAllow(allow.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+  // Allow rules can be limited to built-in detectors or to this policy's own rules.
+  const allowTargets = [
+    ...allDetectors.map((d) => ({ value: d.id, label: d.label })),
+    ...rules.filter((r) => r.name.trim()).map((r) => ({ value: r.name.trim(), label: `Rule ${r.name.trim()}` })),
+  ]
+  const blocked =
+    !name ||
+    !!nameProblem ||
+    (tarOn && splitList(tarTools).length === 0) ||
+    (secretMode === 'reference' && !secretRef.trim()) ||
+    short.length > 0
+  const choice = enforcementOptions.find((o) => o.value === enforcement)
 
   return (
-    <Dialog open wide title={policy ? `Edit privacy policy ${policy.name}` : 'Add privacy policy'} onClose={onClose}>
-      <TerraformEditWarning r={policy} />
-      <div className={f.grid}>
-        <TextField label="Name" value={name} onChange={setName} disabled={!!policy} required error={errs['body.name']} />
-        <TextField label="Description" value={description} onChange={setDescription} maxLength={1000} />
-      </div>
+    <Dialog
+      open
+      wide
+      title={policy ? `Edit masking policy ${policy.name}` : 'Add masking policy'}
+      onClose={onClose}
+      dirty={dirty}
+      footer={
+        <DialogActions>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" busy={save.isPending} disabled={blocked} onClick={submit}>
+            {policy ? 'Save policy' : 'Create policy'}
+          </Button>
+        </DialogActions>
+      }
+    >
+      <Stack gap="lg">
+        <TerraformEditWarning r={policy} />
+        <div className={f.grid}>
+          <NameField value={name} onChange={setName} locked={!!policy} autoFocus={!policy} error={errs['body.name'] ?? nameProblem} />
+          <TextField label="Description" value={description} onChange={setDescription} maxLength={1000} placeholder="Optional" />
+        </div>
 
-      <fieldset className={c.checks} style={{ flexDirection: 'column' }}>
-        <legend className={c.legend}>Enforcement</legend>
-        <Checkbox label="Masking is required" checked={required} onChange={setRequired} />
-        <span className={p.hint}>When masking cannot run safely (for example on a byte-for-byte passthrough route) the request is blocked instead of being sent unmasked.</span>
-        {required && (
-          <>
-            <Checkbox label="Availability first: dispatch unmasked when masking cannot run" checked={fallback} onChange={setFallback} />
-            <span className={p.hint}>Pre-authorizes unmasked dispatch during incidents. Each such request is marked on its activity record.</span>
-          </>
-        )}
-        {required && fallback && (
+        <Radio.Group label={<Title order={4}>When masking can’t run</Title>} description="For example on a byte-for-byte passthrough route, or when stored values can’t be read."
+          value={enforcement} onChange={(v) => setEnforcement(v as Enforcement)}>
+          <Stack gap="xs" mt="xs">
+            {enforcementOptions.map((o) => (
+              <Radio key={o.value} value={o.value} label={o.label} description={o.hint} />
+            ))}
+          </Stack>
+        </Radio.Group>
+        {enforcement !== 'block' && (
           <Banner tone="warning" icon={AlertTriangle}>
-            With availability-first fallback, secrets can reach providers unmasked whenever masking cannot run.
+            With “{choice?.label}”, secrets can reach providers unmasked whenever masking can’t run.
           </Banner>
         )}
-      </fieldset>
 
-      <DetectorGroup legend="Credential detectors" items={credentialDetectors} selected={detectors} onSelected={setDetectors}
-        actions={actions} onActions={setActions} defaultAction="mask" />
-      {detectors.length === 0 && <Banner tone="info">With no credential detector selected the server enables all of them.</Banner>}
-      {err('detectors') && <Banner tone="error">{err('detectors')}</Banner>}
-      <DetectorGroup legend="Personal data (optional)" items={personalDetectors} selected={personal} onSelected={setPersonal}
-        actions={actions} onActions={setActions} defaultAction="mask" />
-      <DetectorGroup legend="Heuristics (supplementary)" items={heuristicDetectors} selected={supplementary} onSelected={setSupplementary}
-        actions={actions} onActions={setActions} defaultAction="warn" />
+        <DetectorTable title="Secrets and credentials" items={credentialDetectors} selected={detectors} onSelected={setDetectors} actions={actions} onActions={setActions}
+          defaultAction="mask" bulk />
+        {detectors.length === 0 && <Banner tone="info">With no credential type selected, every one of them is used.</Banner>}
+        {err('detectors') && <Banner tone="error">{err('detectors')}</Banner>}
+        <DetectorTable title="Personal data (optional)" items={personalDetectors} selected={personal} onSelected={setPersonal} actions={actions} onActions={setActions}
+          defaultAction="mask" bulk />
+        <DetectorTable title="Heuristics" items={heuristicDetectors} selected={supplementary} onSelected={setSupplementary} actions={actions} onActions={setActions}
+          defaultAction="warn" />
 
-      <fieldset className={c.checks} style={{ flexDirection: 'column' }}>
-        <legend className={c.legend}>Custom rules (RE2 regular expressions)</legend>
-        <div className={c.rows}>
+        <Stack gap="sm">
+          <Title order={4}>Configured secret values</Title>
+          <Text size="sm" c="dimmed">
+            Exact values to mask, such as internal passwords no detector knows about. One per line, at least {MIN_SECRET_VALUE} characters.
+            {!configuredOn && ' Turn on “Configured secret values” above to use them.'}
+          </Text>
+          <SelectField<SecretMode>
+            label="Values"
+            value={secretMode}
+            onChange={setSecretMode}
+            options={[
+              ...(stored ? [{ value: 'keep' as SecretMode, label: `Keep the stored values (${policy?.secrets?.secret_values?.fingerprint ?? 'set'})` }] : []),
+              { value: 'stored', label: stored ? 'Replace the stored values' : 'Store values (encrypted)' },
+              { value: 'reference', label: 'Read from an environment variable or file' },
+              { value: 'none', label: stored ? 'Remove the stored values' : 'None' },
+            ]}
+          />
+          {secretMode === 'stored' && (
+            <TextAreaField label="Values (one per line)" value={secretValues} onChange={setSecretValues} mono minRows={3} autoComplete="off" spellCheck={false}
+              error={secretError} hint={valueCount > 0 ? `${valueCount} ${valueCount === 1 ? 'value' : 'values'} will be stored. They are never shown again.` : 'Never shown again after saving.'} />
+          )}
+          {secretMode === 'reference' && (
+            <TextField label="Reference" value={secretRef} onChange={setSecretRef} placeholder="e.g. file:/run/secrets/mask-values" error={err('secret_values_ref')} />
+          )}
+        </Stack>
+
+        <Stack gap="sm">
+          <Title order={4}>Custom rules</Title>
+          <Text size="sm" c="dimmed">
+            Your own patterns (RE2 regular expressions), for example internal host names.
+          </Text>
           {rules.map((r, i) => (
-            <div key={i} className={c.row}>
-              <div className={c.rowHeader}>
+            <div key={i} className={p.ruleCard}>
+              <Group justify="space-between" gap="xs">
                 <strong className="mono">{r.name || `Rule ${i + 1}`}</strong>
                 <Button size="small" variant="ghost" icon={Trash2} aria-label={`Remove rule ${r.name || i + 1}`} onClick={() => setRules(rules.filter((_, j) => j !== i))} />
-              </div>
+              </Group>
               <div className={f.grid}>
-                <TextField label="Name" value={r.name} onChange={(v) => setRule(i, { name: v })} placeholder="internal_host" error={err(`rules[${i}].name`)}
-                  hint="Lowercase identifier; shown in summaries." />
-                <TextField label="Pattern" value={r.pattern} onChange={(v) => setRule(i, { pattern: v })} placeholder="prod-db-[0-9]+" error={err(`rules[${i}].pattern`)} />
-                <TextField label="Capture group (0 = whole match)" type="number" value={String(r.group ?? 0)}
-                  onChange={(v) => setRule(i, { group: Math.max(0, Math.min(9, Number(v) || 0)) })} error={err(`rules[${i}].group`)} />
+                <TextField label="Name" value={r.name} onChange={(v) => setRule(i, { name: v })} placeholder="e.g. internal_host" error={err(`rules[${i}].name`)}
+                  hint="Lowercase; shown in summaries." />
+                <TextField label="Pattern" value={r.pattern} onChange={(v) => setRule(i, { pattern: v })} placeholder="e.g. prod-db-[0-9]+" error={err(`rules[${i}].pattern`)} />
+                <NumberField label="Part to mask" value={r.group ?? 0} min={0} max={9} onChange={(v) => setRule(i, { group: v ?? 0 })} error={err(`rules[${i}].group`)}
+                  hint="0 masks the whole match; 1–9 a capture group." />
                 <SelectField<PrivacyRule['action']> label="Action" value={r.action} onChange={(v) => setRule(i, { action: v })}
                   options={[{ value: 'mask', label: 'Mask' }, { value: 'block', label: 'Block the request' }, { value: 'warn', label: 'Warn only' }]} />
               </div>
             </div>
           ))}
-        </div>
-        <div>
-          <Button size="small" icon={Plus} onClick={() => setRules([...rules, { name: '', pattern: '', group: 0, action: 'mask' }])}>Add rule</Button>
-        </div>
-        {err('rules') && <Banner tone="error">{err('rules')}</Banner>}
-      </fieldset>
+          <div>
+            <Button size="small" icon={Plus} onClick={() => setRules([...rules, { name: '', pattern: '', group: 0, action: 'mask' }])}>
+              Add rule
+            </Button>
+          </div>
+          {err('rules') && <Banner tone="error">{err('rules')}</Banner>}
+        </Stack>
 
-      <fieldset className={c.checks} style={{ flexDirection: 'column' }}>
-        <legend className={c.legend}>Allow rules (narrow exemptions)</legend>
-        <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
-          A detection whose whole text matches an allow pattern is not masked or warned about. Precedence: block, then allow, then mask, then warn —
-          an allow rule never overrides a block.
-        </span>
-        <div className={c.rows}>
+        <Stack gap="sm">
+          <Title order={4}>Exceptions</Title>
+          <Text size="sm" c="dimmed">
+            A detection whose whole text matches an exception is sent as it is. Exceptions never override a block.
+          </Text>
           {allow.map((a, i) => (
-            <div key={i} className={c.row}>
-              <div className={c.rowHeader}>
-                <strong className="mono">{a.name || `Allow rule ${i + 1}`}</strong>
-                <Button size="small" variant="ghost" icon={Trash2} aria-label={`Remove allow rule ${a.name || i + 1}`} onClick={() => setAllow(allow.filter((_, j) => j !== i))} />
-              </div>
+            <div key={i} className={p.ruleCard}>
+              <Group justify="space-between" gap="xs">
+                <strong className="mono">{a.name || `Exception ${i + 1}`}</strong>
+                <Button size="small" variant="ghost" icon={Trash2} aria-label={`Remove exception ${a.name || i + 1}`} onClick={() => setAllow(allow.filter((_, j) => j !== i))} />
+              </Group>
               <div className={f.grid}>
-                <TextField label="Name" value={a.name} onChange={(v) => setAllowRule(i, { name: v })} error={err(`allow[${i}].name`)} />
-                <TextField label="Pattern (whole detection must match)" value={a.pattern} onChange={(v) => setAllowRule(i, { pattern: v })}
-                  placeholder="sk-ant-api03-TEST.*" error={err(`allow[${i}].pattern`)} />
-                <TextField label="Only for detectors or rules (comma separated, empty = all)" value={a.detectorsText}
-                  onChange={(v) => setAllowRule(i, { detectorsText: v })} placeholder="anthropic_key" error={err(`allow[${i}].detectors`)} />
+                <TextField label="Name" value={a.name} onChange={(v) => setAllowRule(i, { name: v })} placeholder="e.g. test-keys" error={err(`allow[${i}].name`)} />
+                <TextField label="Pattern (the whole detection must match)" value={a.pattern} onChange={(v) => setAllowRule(i, { pattern: v })}
+                  placeholder="e.g. sk-ant-api03-TEST.*" error={err(`allow[${i}].pattern`)} />
+                <MultiSelect label="Only for" placeholder={(a.detectors ?? []).length ? undefined : 'All detectors'} data={allowTargets} value={a.detectors ?? []}
+                  onChange={(v) => setAllowRule(i, { detectors: v })} searchable clearable error={err(`allow[${i}].detectors`)} comboboxProps={{ withinPortal: true }} />
               </div>
             </div>
           ))}
-        </div>
-        <div>
-          <Button size="small" icon={Plus} onClick={() => setAllow([...allow, { name: '', pattern: '', detectors: [], detectorsText: '' }])}>Add allow rule</Button>
-        </div>
-      </fieldset>
+          <div>
+            <Button size="small" icon={Plus} onClick={() => setAllow([...allow, { name: '', pattern: '', detectors: [] }])}>
+              Add exception
+            </Button>
+          </div>
+        </Stack>
 
-      <fieldset className={c.checks} style={{ flexDirection: 'column' }}>
-        <legend className={c.legend}>Restoration</legend>
-        <Checkbox label="Restore placeholders in text returned to the same client" checked={restore} onChange={setRestore} />
-        <span className={p.hint}>The client sees its own values again when the model repeats a placeholder. Placeholders from other sessions are never restored.</span>
-        <Checkbox label="Restore originals into tool-call arguments (off by default)" checked={tarOn} onChange={setTarOn} />
-        {tarOn && (
-          <>
-            <Banner tone="warning" icon={AlertTriangle}>
-              Restored tool arguments let the model pass your secrets to tools on the client — commands, file writes or HTTP calls. Limit this
-              to specific tools and argument fields. Values are never restored inside URLs to hosts you have not listed.
-            </Banner>
-            <div className={f.grid}>
-              <TextField label="Tools allowed to receive originals" value={tarTools} onChange={setTarTools} placeholder="set_env, write_secret"
-                error={err('tool_arg_restore.tools')} hint="Comma separated tool names. Required." />
-              <TextField label="Argument fields (empty = any top-level field)" value={tarFields} onChange={setTarFields} placeholder="value" />
-              <TextField label="Hosts allowed inside URLs" value={tarHosts} onChange={setTarHosts} placeholder="api.internal.example" />
-            </div>
-          </>
-        )}
-      </fieldset>
+        <Stack gap="sm">
+          <Title order={4}>Unmasking replies</Title>
+          <Checkbox label="Put the original values back in text returned to the same client" checked={restore} onChange={setRestore}
+            description="The client sees its own values when the model repeats a placeholder. Placeholders from other sessions are never restored." />
+          <Checkbox label="Also put them back in tool-call arguments" checked={tarOn} onChange={setTarOn} description="Off by default. Limit it to specific tools." />
+          {tarOn && (
+            <>
+              <Banner tone="warning" icon={AlertTriangle}>
+                Restored tool arguments let the model pass your secrets to tools on the client — commands, file writes or HTTP calls. Values are never
+                restored inside URLs to hosts you have not listed.
+              </Banner>
+              <div className={f.grid}>
+                <TextField label="Tools allowed to receive originals" value={tarTools} onChange={setTarTools} placeholder="e.g. set_env, write_secret"
+                  error={err('tool_arg_restore.tools') ?? (splitList(tarTools).length === 0 ? 'Name at least one tool.' : undefined)} hint="Comma separated." />
+                <TextField label="Argument fields" value={tarFields} onChange={setTarFields} placeholder="Any top-level field" />
+                <TextField label="Hosts allowed inside URLs" value={tarHosts} onChange={setTarHosts} placeholder="e.g. api.internal.example" />
+              </div>
+            </>
+          )}
+        </Stack>
 
-      <fieldset className={c.checks} style={{ flexDirection: 'column' }}>
-        <legend className={c.legend}>Configured secret values (write-only)</legend>
-        <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
-          Exact values to mask, one per line (six characters or more). Used when the “Configured secret values” detector is on.
-        </span>
-        <SelectField<SecretMode>
-          label="Secret values"
-          value={secretMode}
-          onChange={setSecretMode}
-          options={[
-            ...(stored ? [{ value: 'keep' as SecretMode, label: `Keep stored values (${policy?.secrets?.secret_values?.fingerprint ?? 'set'})` }] : []),
-            { value: 'stored', label: stored ? 'Replace stored values' : 'Store values (encrypted)' },
-            { value: 'reference', label: 'Reference (env/file)' },
-            { value: 'none', label: stored ? 'Remove the stored values' : 'None' },
-          ]}
-        />
-        {secretMode === 'stored' && (
-          <Field label="Values (one per line)" hint="Never shown again after saving.">
-            {(fp) => (
-              <textarea {...fp} className={f.textarea} rows={4} autoComplete="off" spellCheck={false} value={secretValues}
-                onChange={(e) => setSecretValues(e.target.value)} style={{ fontFamily: 'var(--font-mono)' }} />
-            )}
-          </Field>
-        )}
-        {secretMode === 'reference' && (
-          <TextField label="Reference" value={secretRef} onChange={setSecretRef} placeholder="file:/run/secrets/mask-values" error={err('secret_values_ref')} />
-        )}
-      </fieldset>
-
-      <MutationError error={save.error} />
-      <div className={f.actions}>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" busy={save.isPending} disabled={!name || (tarOn && splitList(tarTools).length === 0) || (secretMode === 'reference' && !secretRef.trim())}
-          onClick={submit}>
-          Save policy
-        </Button>
-      </div>
+        <TryPolicy spec={buildSpec} hasStoredValues={stored || secretMode === 'stored'} />
+        <MutationError error={save.error} />
+      </Stack>
     </Dialog>
   )
 }

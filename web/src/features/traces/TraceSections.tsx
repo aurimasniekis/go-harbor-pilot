@@ -1,5 +1,9 @@
+import type { ReactNode } from 'react'
+import { Paper, SimpleGrid, Stack, Text } from '@mantine/core'
 import { Badge, Banner, KeyValues, Panel, TableScroll } from '@/components/ui'
-import { CandidateTable, ExclusionTable } from '@/features/routing/DecisionParts'
+import { CandidateTable, DecisionSummary, ExclusionTable } from '@/features/routing/DecisionParts'
+import { stepWords } from '@/features/routing/names'
+import { useCompact } from '@/ui/kit'
 import type { Decision } from '@/lib/api/types'
 import c from '@/features/config/config.module.css'
 import p from '@/features/privacy/privacy.module.css'
@@ -87,8 +91,8 @@ function RequestSection({ title, subtitle, value }: { title: string; subtitle: s
         {(r.model || (r.tools ?? []).length > 0) && (
           <KeyValues
             items={[
-              ...(r.model ? ([['Model', <span className="mono">{r.model}</span>]] as [React.ReactNode, React.ReactNode][]) : []),
-              ...((r.tools ?? []).length ? ([['Tools offered', (r.tools ?? []).map((t) => <Badge key={t}>{t}</Badge>)]] as [React.ReactNode, React.ReactNode][]) : []),
+              ...(r.model ? ([['Model', <span className="mono">{r.model}</span>]] as [ReactNode, ReactNode][]) : []),
+              ...((r.tools ?? []).length ? ([['Tools offered', (r.tools ?? []).map((t) => <Badge key={t}>{t}</Badge>)]] as [ReactNode, ReactNode][]) : []),
             ]}
           />
         )}
@@ -113,8 +117,18 @@ function RequestSection({ title, subtitle, value }: { title: string; subtitle: s
   )
 }
 
+/** "input_tokens" → "Input tokens"; booleans as Yes/No. */
+function usageRows(usage: Record<string, unknown>): [string, ReactNode][] {
+  return Object.entries(usage).map(([k, v]) => {
+    const label = k.replaceAll('_', ' ')
+    const value = typeof v === 'boolean' ? (v ? 'Yes' : 'No') : typeof v === 'number' ? v.toLocaleString('en-GB') : String(v)
+    return [label.charAt(0).toUpperCase() + label.slice(1), value]
+  })
+}
+
 /** Renders a decrypted trace's sections. */
-export function TraceSections({ sections }: { sections: Record<string, unknown> }) {
+export function TraceSections({ sections, accountName = (id) => id }: { sections: Record<string, unknown>; accountName?: (id: string) => string }) {
+  const compact = useCompact()
   const events = sections.stream_events as StreamEvent[] | undefined
   const attempts = sections.attempts as TraceAttempt[] | undefined
   const routing = sections.routing as Decision | undefined
@@ -130,41 +144,69 @@ export function TraceSections({ sections }: { sections: Record<string, unknown> 
       {'response' in sections && <RequestSection title="Response" subtitle="What the model produced (before placeholders were restored for the client)." value={sections.response} />}
       {Array.isArray(attempts) && (
         <Panel title="Attempts">
-          <TableScroll label="Attempts">
-            <table className="data-table" style={{ width: '100%' }}>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Account</th>
-                  <th>Model</th>
-                  <th>Step</th>
-                  <th>Error</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attempts.map((a, i) => (
-                  <tr key={i}>
-                    <td className="num">{i + 1}</td>
-                    <td className="mono">{a.account_id}</td>
-                    <td className="mono">{a.model}</td>
-                    <td>{a.step}</td>
-                    <td>{a.error ? <Badge tone="error">{a.error}</Badge> : <span className="muted">—</span>}</td>
+          {compact ? (
+            <Stack gap={6} aria-label="Attempts">
+              {attempts.map((a, i) => (
+                <Paper key={i} withBorder p="xs" radius="sm">
+                  <Text size="sm" fw={600}>
+                    {i + 1}. {accountName(a.account_id)}
+                  </Text>
+                  <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+                    {a.model} · {stepWords[a.step] ?? a.step}
+                  </Text>
+                  {a.error && <Badge tone="error">{a.error}</Badge>}
+                </Paper>
+              ))}
+            </Stack>
+          ) : (
+            <TableScroll label="Attempts">
+              <table className="data-table" style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Account</th>
+                    <th>Model</th>
+                    <th>Why this attempt</th>
+                    <th>Result</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
+                </thead>
+                <tbody>
+                  {attempts.map((a, i) => (
+                    <tr key={i}>
+                      <td className="num">{i + 1}</td>
+                      <td>{accountName(a.account_id)}</td>
+                      <td className="mono">{a.model}</td>
+                      <td>{stepWords[a.step] ?? a.step}</td>
+                      <td>{a.error ? <Badge tone="error">{a.error}</Badge> : <Badge tone="success">OK</Badge>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScroll>
+          )}
         </Panel>
       )}
       {routing && !isTruncated(routing) && (routing.candidates || routing.excluded) && (
-        <Panel title="Routing decision" subtitle={routing.alias ? `Alias ${routing.alias} → pool ${routing.pool ?? ''}` : undefined}>
-          <CandidateTable candidates={routing.candidates ?? []} />
-          {(routing.excluded ?? []).length > 0 && <ExclusionTable excluded={routing.excluded ?? []} />}
+        <Panel title="Routing decision">
+          <Stack gap="sm">
+            <DecisionSummary d={routing} />
+            <CandidateTable candidates={routing.candidates ?? []} accountName={accountName} />
+            {(routing.excluded ?? []).length > 0 && <ExclusionTable excluded={routing.excluded ?? []} accountName={accountName} />}
+          </Stack>
         </Panel>
       )}
       {usage && !isTruncated(usage) && (
         <Panel title="Usage">
-          <KeyValues items={Object.entries(usage).map(([k, v]) => [k.replaceAll('_', ' '), <span className="num">{String(v)}</span>])} />
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={4} verticalSpacing={4}>
+            {usageRows(usage).map(([k, v]) => (
+              <Text key={k} size="sm">
+                <Text span c="dimmed">
+                  {k}:
+                </Text>{' '}
+                <span className="num">{v}</span>
+              </Text>
+            ))}
+          </SimpleGrid>
         </Panel>
       )}
       {Array.isArray(events) && (

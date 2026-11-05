@@ -79,7 +79,7 @@ export function RowMenu({ name, onEdit, onDelete, extra, deleteDisabledReason }:
 
 /** Generic list of a managed resource kind with create, edit and delete. */
 export function ResourceList<T extends ResourceMeta>({
-  plural, title, subtitle, noun, columns, dialog, empty, writePerm = 'config.write', nameCell, extra, onRow, usedBy, explain, hideTitle,
+  plural, title, subtitle, noun, columns, dialog, empty, writePerm = 'config.write', nameCell, extra, onRow, usedBy, explain, hideTitle, rowActions,
 }: {
   plural: ResourcePlural
   title: string
@@ -99,6 +99,8 @@ export function ResourceList<T extends ResourceMeta>({
   explain?: ReactNode
   /** Leave out the visible title when the surrounding tab already names the list. */
   hideTitle?: boolean
+  /** Extra `Menu.Item`s in each row's "⋯" menu. */
+  rowActions?: (r: T) => ReactNode
 }) {
   const list = useQuery(resourceListQuery<T>(plural))
   const canWrite = useCan(writePerm)
@@ -143,6 +145,7 @@ export function ResourceList<T extends ResourceMeta>({
           name={r.name}
           onEdit={canWrite ? () => setEditing(r) : undefined}
           onDelete={canDelete ? () => setDeleting(r) : undefined}
+          extra={rowActions?.(r)}
           deleteDisabledReason={usedBy && usedBy(r).length > 0 ? `Used by ${usedBy(r).join(', ')}. Change those first.` : undefined}
         />
       ),

@@ -49,7 +49,14 @@ function fmtScore(v: number): string {
 }
 
 /** Eligible candidates in the order they would be tried. */
-export function CandidateTable({ candidates, label = 'Candidates', showScore }: { candidates: DecisionCandidate[]; label?: string; showScore?: boolean }) {
+export function CandidateTable({ candidates, label = 'Candidates', showScore, accountName }: {
+  candidates: DecisionCandidate[]
+  label?: string
+  showScore?: boolean
+  /** Display names for accounts; defaults to the decision's slugs. */
+  accountName?: (id: string) => string
+}) {
+  const nameOf = (c: DecisionCandidate) => (accountName ? accountName(c.account_id) : candidateName(c))
   const compact = useCompact()
   if (candidates.length === 0) return <p className="secondary">No account could serve this request.</p>
   // Score and reasons only matter when something set them.
@@ -61,7 +68,7 @@ export function CandidateTable({ candidates, label = 'Candidates', showScore }: 
         {candidates.map((c, i) => (
           <Paper key={c.account_id + c.model} withBorder p="xs" radius="sm">
             <Text size="sm" fw={600}>
-              {i + 1}. {candidateName(c)}
+              {i + 1}. {nameOf(c)}
             </Text>
             <Text size="xs" c="dimmed">
               {c.model} · {c.native ? 'direct' : 'translated'}
@@ -92,7 +99,7 @@ export function CandidateTable({ candidates, label = 'Candidates', showScore }: 
           {candidates.map((c, i) => (
             <tr key={c.account_id + c.model}>
               <td className="num">{i + 1}</td>
-              <td>{candidateName(c)}</td>
+              <td>{nameOf(c)}</td>
               <td className="mono">{c.model}</td>
               <td>
                 <BillingBadge value={c.billing} />
@@ -133,7 +140,8 @@ export function CandidateTable({ candidates, label = 'Candidates', showScore }: 
 }
 
 /** Pool members removed before ranking, with the stage and reason. */
-export function ExclusionTable({ excluded, label = 'Excluded candidates' }: { excluded: DecisionExclusion[]; label?: string }) {
+export function ExclusionTable({ excluded, label = 'Excluded candidates', accountName }: { excluded: DecisionExclusion[]; label?: string; accountName?: (id: string) => string }) {
+  const nameOf = (x: DecisionExclusion) => (accountName ? accountName(x.account_id) : x.account || x.account_id)
   const compact = useCompact()
   if (excluded.length === 0) return <p className="secondary">No account in the fallback group was skipped.</p>
   if (compact) {
@@ -142,7 +150,7 @@ export function ExclusionTable({ excluded, label = 'Excluded candidates' }: { ex
         {excluded.map((x, i) => (
           <Paper key={i} withBorder p="xs" radius="sm">
             <Text size="sm" fw={600}>
-              {x.account || x.account_id} · {x.model}
+              {nameOf(x)} · {x.model}
             </Text>
             <Text size="xs" c="dimmed">
               {stageWords[x.stage] ?? x.stage}: {x.detail || x.reason.replaceAll('_', ' ')}
@@ -166,7 +174,7 @@ export function ExclusionTable({ excluded, label = 'Excluded candidates' }: { ex
         <tbody>
           {excluded.map((x, i) => (
             <tr key={i}>
-              <td>{x.account || <span className="mono">{x.account_id}</span>}</td>
+              <td>{nameOf(x)}</td>
               <td className="mono">{x.model}</td>
               <td>
                 <Badge tone={stageTone[x.stage] ?? 'neutral'}>{stageWords[x.stage] ?? x.stage}</Badge> {x.reason.replaceAll('_', ' ')}

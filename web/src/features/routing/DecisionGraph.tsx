@@ -7,7 +7,7 @@ import { parseEngine } from './engine'
 import type { Lane } from './graph'
 import r from './routing.module.css'
 import { orderedMembers } from './flow'
-import { accountLabel } from './names'
+import { accountLabel, stepWords } from './names'
 import { plural } from '@/ui/glossary'
 
 const strategyWords: Record<string, string> = {
@@ -18,13 +18,6 @@ const strategyWords: Record<string, string> = {
   round_robin: 'take turns',
 }
 
-const stepWords: Record<string, string> = {
-  retry: 'Retry the same account',
-  alternate_account: 'Another account, same model',
-  alternate_model: 'Another model in the group',
-  alternate_provider: 'Another provider',
-  wait: 'Wait for capacity',
-}
 
 function Edge() {
   return (

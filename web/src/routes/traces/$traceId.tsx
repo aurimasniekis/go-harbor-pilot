@@ -1,18 +1,21 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Compass, Download, ShieldAlert, Trash2 } from 'lucide-react'
-import { PageHeader } from '@/components/PageHeader'
 import { Badge, Banner, Button, EmptyState, KeyValues, Panel, Skeleton } from '@/components/ui'
 import { ConfirmButton, MutationError } from '@/components/form'
-import { Anchor, Text } from '@mantine/core'
+import { Group, Tooltip } from '@mantine/core'
 import { QueryError } from '@/components/states'
-import { GrantNeeded, TraceModeBadge } from '@/features/traces/bits'
+import { fmtSize, GrantNeeded, TraceModeBadge } from '@/features/traces/bits'
 import { TraceSections } from '@/features/traces/TraceSections'
+import { accountLabel } from '@/features/routing/names'
 import p from '@/features/privacy/privacy.module.css'
 import { API, ApiError, apiSend } from '@/lib/api/client'
-import { traceQuery } from '@/lib/api/queries'
+import { resourceListQuery, traceQuery } from '@/lib/api/queries'
+import { byId } from '@/lib/api/resources'
+import type { AccountRes, BindingRes, PlanRes, ProviderRes, TracePolicyRes } from '@/lib/api/types'
 import { useCan } from '@/lib/session'
-import { fmtCompact, fmtDateTime, fmtRelative } from '@/lib/format'
+import { fmtDateTime, fmtRelative } from '@/lib/format'
+import { PageHeader } from '@/ui/kit'
 
 export const Route = createFileRoute('/traces/$traceId')({
   component: TraceView,
@@ -58,19 +61,16 @@ function TraceView() {
     },
   })
 
-  const back = (
-    <Text size="sm">
-      <Anchor component={Link} to="/privacy" c="dimmed">
-        Privacy
-      </Anchor>{' '}
-      <Text span c="dimmed">
-        /
-      </Text>{' '}
-      <Anchor component={Link} to="/traces" c="dimmed">
-        Captured content
-      </Anchor>
-    </Text>
-  )
+  const accounts = useQuery(resourceListQuery<AccountRes>('provider-accounts'))
+  const providers = useQuery(resourceListQuery<ProviderRes>('providers'))
+  const bindings = useQuery(resourceListQuery<BindingRes>('client-bindings'))
+  const plans = useQuery(resourceListQuery<PlanRes>('routing-plans'))
+  const rules = useQuery(resourceListQuery<TracePolicyRes>('trace-policies'))
+  const acc = byId(accounts.data?.items)
+  const prov = byId(providers.data?.items)
+  const accountName = (id: string) => accountLabel(acc[id], prov, id)
+  const crumbs = [{ label: 'Privacy', to: '/privacy' }, { label: 'Captured content', to: '/traces' }, { label: 'Capture' }]
+  const back = <PageHeader title="Captured content" crumbs={crumbs} />
   if (!canRead) {
     return (
       <>
@@ -88,8 +88,8 @@ function TraceView() {
         {back}
         {e instanceof ApiError && e.status === 404 ? (
           <Panel>
-            <EmptyState icon={Compass} title="Trace not found or expired">
-              Expired traces are unreadable immediately and are erased shortly after, together with their search entries and keys.
+            <EmptyState icon={Compass} title="Captured content not found or expired">
+              Expired captures are unreadable immediately and are erased shortly after, together with their search entries and keys.
             </EmptyState>
           </Panel>
         ) : e instanceof ApiError && e.status === 403 ? (
@@ -104,53 +104,63 @@ function TraceView() {
   }
   if (!q.data) return <Skeleton height={240} />
   const t = q.data
+  const client = bindings.data?.items?.find((x) => x.id === t.binding_id)
+  const plan = plans.data?.items?.find((x) => x.id === t.plan_id)
+  const rule = rules.data?.items?.find((x) => x.id === t.policy_id)
   return (
     <>
-      {back}
       <PageHeader
+        crumbs={crumbs.slice(0, 2)}
         title={`Captured ${fmtDateTime(t.created_at)}`}
-        subtitle={
-          <span style={{ display: 'inline-flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        context={
+          <Group gap={12} wrap="wrap" component="span">
             <TraceModeBadge mode={t.mode} />
-            <span>
-              Request <Link to="/activity/$requestId" params={{ requestId: t.request_id }} className="mono">{t.request_id}</Link>
-            </span>
-            <span title={fmtDateTime(t.expires_at)}>Expires {fmtRelative(t.expires_at)}</span>
-          </span>
+            <Link to="/activity/$requestId" params={{ requestId: t.request_id }}>
+              Open the request
+            </Link>
+            <span title={fmtDateTime(t.expires_at)}>Erased {fmtRelative(t.expires_at)}</span>
+          </Group>
         }
         actions={
-          <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap' }}>
-            {canExport && <Button icon={Download} busy={exp.isPending} onClick={() => exp.mutate()}>Export</Button>}
+          <Group gap={8} wrap="wrap">
+            {canExport && (
+              <Tooltip label="This capture rule doesn’t allow downloads." disabled={t.allow_export}>
+                <span>
+                  <Button icon={Download} busy={exp.isPending} disabled={!t.allow_export} onClick={() => exp.mutate()}>
+                    Download
+                  </Button>
+                </span>
+              </Tooltip>
+            )}
             {canDelete && (
               <ConfirmButton variant="default" icon={Trash2} busy={del.isPending} title="Delete this captured content?"
-                message="Its content and search entries are erased now instead of at expiry. Request metadata stays in Requests." confirmLabel="Delete"
+                message="Its content and search entries are erased now instead of at expiry. Request details stay in Requests." confirmLabel="Delete"
                 onConfirm={() => del.mutate()}>
                 Delete
               </ConfirmButton>
             )}
-          </span>
+          </Group>
         }
       />
       <div className={p.stack}>
         <Banner tone="info" icon={ShieldAlert}>
           Reading, downloading and deleting this content is recorded in the audit log. It is erased {fmtDateTime(t.expires_at)}.
         </Banner>
-        {t.mode === 'unredacted' && <Banner tone="warning">This trace holds unredacted content, which may include secrets the client sent.</Banner>}
+        {t.mode === 'unredacted' && <Banner tone="warning">This capture holds unredacted content, which may include secrets the client sent.</Banner>}
         <MutationError error={exp.error} />
         <MutationError error={del.error} />
         <Panel title="Details">
           <KeyValues
             items={[
-              ['Captured', fmtDateTime(t.created_at)],
-              ['Expires', `${fmtDateTime(t.expires_at)} (${fmtRelative(t.expires_at)})`],
-              ['Size', <span className="num">{fmtCompact(t.size_bytes)} bytes {t.truncated && <Badge tone="warning">truncated to the policy limit</Badge>}</span>],
+              ['Client', client ? <Link to="/clients/$bindingId" params={{ bindingId: client.id }}>{client.spec.display_name || client.name}</Link> : <span className="muted">Unknown client</span>],
+              ['Plan', plan ? <Link to="/routing/plans/$planId" params={{ planId: plan.id }}>{plan.spec.display_name || plan.name}</Link> : <span className="muted">—</span>],
+              ['Capture rule', rule ? <Link to="/privacy/trace-policies">{rule.name}</Link> : <span className="muted">—</span>],
+              ['Size', <span className="num">{fmtSize(t.size_bytes)} {t.truncated && <Badge tone="warning">Shortened to the rule’s limit</Badge>}</span>],
               ['Session', t.session_id ? <span className="mono">{t.session_id}</span> : <span className="muted">—</span>],
-              ['Client', <span className="mono">{t.binding_id || '—'}</span>],
-              ['Capture rule', <span className="mono">{t.policy_id}</span>],
             ]}
           />
         </Panel>
-        <TraceSections sections={t.sections} />
+        <TraceSections sections={t.sections} accountName={accountName} />
       </div>
     </>
   )
