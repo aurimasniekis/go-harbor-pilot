@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/crypto"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/store"
 
 	_ "modernc.org/sqlite" // database/sql driver
 )
@@ -174,6 +175,11 @@ func Backup(ctx context.Context, src Sources, outDir string, includeTraces bool,
 			return nil, err
 		}
 		dst := filepath.Join(outDir, it.name)
+		// Created 0600 first: VACUUM INTO keeps an existing empty file's mode.
+		if err := store.CreatePrivate(dst); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
 		if _, err := db.ExecContext(ctx, `VACUUM INTO ?`, dst); err != nil {
 			_ = db.Close()
 			return nil, fmt.Errorf("snapshot %s: %w", it.name, err)

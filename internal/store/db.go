@@ -48,8 +48,11 @@ func Open(ctx context.Context, o Options) (*DB, error) {
 	if o.Readers <= 0 {
 		o.Readers = 4
 	}
-	if err := os.MkdirAll(filepath.Dir(o.Path), 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(o.Path), 0o700); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
+	}
+	if err := privateFiles(o.Path); err != nil {
+		return nil, err
 	}
 	base := url.Values{}
 	for _, p := range []string{"journal_mode(WAL)", "busy_timeout(10000)", "foreign_keys(1)", "synchronous(NORMAL)"} {
@@ -124,11 +127,37 @@ func (db *DB) Tx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 // BackupTo writes a consistent online copy of the database to dst using
 // VACUUM INTO. dst must not exist.
 func (db *DB) BackupTo(ctx context.Context, dst string) error {
-	if _, err := os.Stat(dst); err == nil {
-		return fmt.Errorf("backup target %s already exists", dst)
+	if err := CreatePrivate(dst); err != nil {
+		return fmt.Errorf("backup target %s: %w", dst, err)
 	}
 	_, err := db.W.ExecContext(ctx, `VACUUM INTO ?`, dst)
 	return err
+}
+
+// CreatePrivate creates an empty 0600 file that must not exist yet. SQLite
+// writes VACUUM INTO targets and database files with the mode of an existing
+// file, so creating it first keeps the data private regardless of umask.
+func CreatePrivate(path string) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // data directory path
+	if err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+// privateFiles makes the database and its WAL and shared-memory files
+// owner-only. SQLite creates the -wal and -shm files with the database
+// file's mode, so a 0600 database keeps them private too.
+func privateFiles(path string) error {
+	if err := CreatePrivate(path); err != nil && !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("create database: %w", err)
+	}
+	for _, p := range []string{path, path + "-wal", path + "-shm"} {
+		if err := os.Chmod(p, 0o600); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("protect %s: %w", filepath.Base(p), err)
+		}
+	}
+	return nil
 }
 
 var migrationName = regexp.MustCompile(`^(\d{17})_([a-z0-9]+(?:_[a-z0-9]+)*)_up\.sql$`)
@@ -199,6 +228,9 @@ func (db *DB) migrate(ctx context.Context, fsys fs.FS, backup bool, log *slog.Lo
 	if backup && len(applied) > 0 {
 		dst := fmt.Sprintf("%s.pre-%d.bak", db.path, pending[0].version)
 		if _, err := os.Stat(dst); errors.Is(err, os.ErrNotExist) {
+			if err := CreatePrivate(dst); err != nil {
+				return fmt.Errorf("pre-migration backup: %w", err)
+			}
 			if _, err := db.W.ExecContext(ctx, `VACUUM INTO ?`, dst); err != nil {
 				return fmt.Errorf("pre-migration backup: %w", err)
 			}

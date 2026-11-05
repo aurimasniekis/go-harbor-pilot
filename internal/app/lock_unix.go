@@ -12,7 +12,7 @@ import (
 // lockDataDir takes an exclusive advisory lock so two serving processes can
 // never share a data directory (the supported topology is single instance).
 func lockDataDir(dir string) (func(), error) {
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
 	f, err := os.OpenFile(filepath.Join(dir, ".lock"), os.O_CREATE|os.O_RDWR, 0o600)
