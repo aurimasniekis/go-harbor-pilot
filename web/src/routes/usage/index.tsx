@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { useMemo } from 'react'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Accordion, Badge, Button, Group, Paper, Progress, SegmentedControl, Skeleton, Stack, Text, Tooltip } from '@mantine/core'
 import { Coins, Download } from 'lucide-react'
@@ -12,7 +12,7 @@ import { bucketFor, bucketize, stepFor } from '@/features/usage/buckets'
 import { UsageChart } from '@/features/usage/UsageCharts'
 import { type Column, DataTable, Empty, Section, Stat, StatGrid, StatSkeleton } from '@/ui/kit'
 import { costKindHelp, money, short } from '@/ui/fmt'
-import { Route as UsageRoute } from './route'
+import { DEFAULT_RANGE, Route as UsageRoute, type SpendSearch } from './route'
 
 export const Route = createFileRoute('/usage/')({
   component: SpendPage,
@@ -33,11 +33,32 @@ function estimate(g: UsageGroup, currency: string): number {
   return Number(g.costs.find((c) => c.kind === 'estimated_api_charge' && c.currency === currency)?.amount ?? 0)
 }
 
+/** Where a breakdown row leads: the matching requests. */
+function rowSearch(groupBy: UsageGroupBy, key: string, days: number): Record<string, string | number> | null {
+  if (!key) return null
+  const range = days <= 1 ? 1 : days <= 7 ? 7 : days <= 30 ? 30 : 'all'
+  switch (groupBy) {
+    case 'binding':
+      return { binding_id: key, range }
+    case 'account':
+      return { account_id: key, range }
+    case 'project':
+      return { project_id: key, range }
+    case 'model':
+      return { q: key, range }
+    default:
+      return null
+  }
+}
+
 function SpendPage() {
-  const { range: rangeDays = 30 } = UsageRoute.useSearch()
+  const search = UsageRoute.useSearch()
+  const navigate = useNavigate()
+  const rangeDays = search.range ?? DEFAULT_RANGE
   const preset = String(rangeDays)
-  const [groupBy, setGroupBy] = useState<UsageGroupBy>('account')
-  const [mode, setMode] = useState<'cost' | 'tokens'>('cost')
+  const groupBy: UsageGroupBy = search.group ?? 'account'
+  const mode = search.view ?? 'cost'
+  const set = (patch: Partial<SpendSearch>) => void navigate({ to: '/usage', search: { ...search, ...patch }, replace: true })
   const days = Number(preset)
   const bucket = bucketFor(days)
   const range = useMemo(() => presetRange(days), [days])
@@ -72,6 +93,12 @@ function SpendPage() {
   const fees = useMemo(() => (s?.subscription_fees ?? []).reduce((n, f) => n + (f.currency === currency ? Number(f.prorated) : 0), 0), [s, currency])
   const busyBuckets = rows.filter((r) => r.attempts > 0).length
   const totalEst = (s?.groups ?? []).reduce((n, g) => n + estimate(g, currency), 0)
+  const sortedGroups = useMemo(
+    () => [...(s?.groups ?? [])].sort((a, b) => estimate(b, currency) - estimate(a, currency) || b.attempts - a.attempts),
+    [s, currency],
+  )
+  const estAmount = est ? Number(est.amount) : 0
+  const outside = billed !== null ? Math.max(0, billed - estAmount) : null
 
   const groupLabel = groupOptions.find((g) => g.value === groupBy)?.label ?? 'Name'
   const columns: Column<UsageGroup>[] = [
@@ -150,27 +177,49 @@ function SpendPage() {
       ) : !s || !series.data ? (
         <StatSkeleton count={4} />
       ) : (
-        <StatGrid cols={fees > 0 ? 4 : 3} label={`Spend for the ${rangeName[preset]}`}>
-          <Stat label="Estimated cost" value={est ? money(est.amount, est.currency) : '—'} hint={cap(rangeName[preset] ?? '')} info={costKindHelp.estimated_api_charge} spark={rows.map((r) => r.costs[`estimated_api_charge|${currency}`] ?? 0)} />
-          <Stat
-            label="Billed by providers"
-            value={billed === null ? '—' : money(billed, currency)}
-            hint={billed === null ? 'No provider billing data' : cap(rangeName[preset] ?? '')}
-            info={`${costKindHelp.actual_api_charge} Only accounts with quota tracking that reports billing are included.`}
-          />
-          {fees > 0 && <Stat label="Subscription fees" value={money(fees, currency)} hint="Prorated to the range" info={costKindHelp.subscription_fee} />}
-          <Stat label="Tokens" value={short(tokens.input + tokens.output)} hint={`${short(tokens.input)} in · ${short(tokens.output)} out`} spark={rows.map((r) => r.input + r.output)} />
-        </StatGrid>
+        <Stack gap={6}>
+          <Text size="xs" c="dimmed" fw={500}>
+            {cap(rangeName[preset] ?? '')}
+          </Text>
+          <StatGrid cols={(billed !== null ? 3 : 1) + (fees > 0 ? 1 : 0) + 1} label={`Spend for the ${rangeName[preset]}`}>
+            {billed !== null && (
+              <Stat
+                label="Billed by providers"
+                value={money(billed, currency)}
+                hint="What tracked providers charged"
+                info={`${costKindHelp.actual_api_charge} Only accounts whose quota tracking reports billing are included. It covers all their usage, also usage that did not go through Harbor Pilot.`}
+              />
+            )}
+            <Stat
+              label={billed !== null ? 'Through Harbor Pilot' : 'Estimated cost'}
+              value={est ? money(est.amount, est.currency) : '—'}
+              hint={billed !== null ? 'Estimated from gateway requests' : 'Gateway requests at list price'}
+              info={costKindHelp.estimated_api_charge}
+              spark={rows.map((r) => r.costs[`estimated_api_charge|${currency}`] ?? 0)}
+            />
+            {outside !== null && (
+              <Stat
+                label="Not through Harbor Pilot"
+                value={money(outside, currency)}
+                tone={outside > 0 ? 'warning' : 'default'}
+                hint={outside > 0 ? 'Billed, but not seen by the gateway' : 'Everything went through the gateway'}
+                info="Billed by providers minus the gateway estimate. Usually other tools or keys using the same accounts. See Provider vs gateway below."
+              />
+            )}
+            {fees > 0 && <Stat label="Subscription fees" value={money(fees, currency)} hint="Prorated to the range" info={costKindHelp.subscription_fee} />}
+            <Stat label="Tokens" value={short(tokens.input + tokens.output)} hint={`${short(tokens.input)} in · ${short(tokens.output)} out`} spark={rows.map((r) => r.input + r.output)} />
+          </StatGrid>
+        </Stack>
       )}
 
       <Section
-        title={mode === 'cost' ? `Cost per ${bucket}` : `Tokens per ${bucket}`}
+        title={`${bucket === 'hour' ? 'Hourly' : bucket === 'day' ? 'Daily' : 'Weekly'} ${mode === 'cost' ? 'cost' : 'tokens'}`}
         actions={
           <SegmentedControl
             size="xs"
             aria-label="Chart"
             value={mode}
-            onChange={(v) => setMode(v as typeof mode)}
+            onChange={(v) => set({ view: v as 'cost' | 'tokens' })}
             data={[
               { value: 'cost', label: 'Cost' },
               { value: 'tokens', label: 'Tokens' },
@@ -184,12 +233,6 @@ function SpendPage() {
           <Skeleton height={240} radius="md" />
         ) : busyBuckets === 0 ? (
           <Empty icon={<Coins size={22} />} title="No usage in this range" />
-        ) : busyBuckets < 3 ? (
-          <Paper withBorder radius="md" p="md">
-            <Text size="sm" c="dimmed">
-              Not enough data for a trend yet: usage on {busyBuckets} {busyBuckets === 1 ? bucket : `${bucket}s`} so far.
-            </Text>
-          </Paper>
         ) : (
           <Paper withBorder radius="md" p="md">
             <UsageChart rows={rows} bucket={bucket} mode={mode} groups={stacked.length > 1 ? stacked : undefined} />
@@ -200,13 +243,23 @@ function SpendPage() {
       <Section
         title="Breakdown"
         actions={
-          <SegmentedControl size="xs" aria-label="Group by" value={groupBy} onChange={(v) => setGroupBy(v as UsageGroupBy)} data={groupOptions} />
+          <SegmentedControl size="xs" aria-label="Group by" value={groupBy} onChange={(v) => set({ group: v as SpendSearch['group'] })} data={groupOptions} />
         }
       >
         {!s ? (
           <Skeleton height={160} radius="md" />
         ) : (
-          <DataTable label="Usage by group" rows={s.groups} rowKey={(g) => g.key || '(none)'} columns={columns} empty={<Empty title="No usage in this range" />} />
+          <DataTable
+            label="Usage by group"
+            rows={sortedGroups}
+            rowKey={(g) => g.key || '(none)'}
+            columns={columns}
+            empty={<Empty title="No usage in this range" />}
+            onRow={(g) => {
+              const to = rowSearch(groupBy, g.key, rangeDays)
+              if (to) void navigate({ to: '/activity', search: to as never })
+            }}
+          />
         )}
       </Section>
 

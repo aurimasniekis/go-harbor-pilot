@@ -1,14 +1,15 @@
 import type { StatsBy, StatsCost, StatsGroup } from '@/lib/api/types'
+import { costKindName } from '@/ui/fmt'
 
 export const dimensions: { value: Exclude<StatsBy, 'period'>; label: string }[] = [
   { value: 'client', label: 'Client' },
-  { value: 'harness', label: 'Harness' },
-  { value: 'intent', label: 'Intent' },
-  { value: 'model', label: 'Model (served)' },
-  { value: 'account', label: 'Provider account' },
+  { value: 'harness', label: 'Tool' },
+  { value: 'model', label: 'Model' },
+  { value: 'account', label: 'Account' },
   { value: 'provider', label: 'Provider' },
-  { value: 'plan', label: 'Routing plan' },
+  { value: 'plan', label: 'Plan' },
   { value: 'project', label: 'Project' },
+  { value: 'intent', label: 'Purpose' },
   { value: 'session', label: 'Session' },
 ]
 
@@ -21,13 +22,7 @@ export const metrics: { value: Metric; label: string }[] = [
   { value: 'cost', label: 'Cost' },
 ]
 
-export const costKindLabel: Record<string, string> = {
-  estimated_api_charge: 'Estimated API charge',
-  actual_api_charge: 'Actual API charge',
-  list_equivalent: 'List-price equivalent (not an invoice)',
-  subscription_fee: 'Subscription fee',
-  allocation: 'Internal allocation',
-}
+export { costKindName as costKindLabel } from '@/ui/fmt'
 
 export interface Series {
   name: string
@@ -37,6 +32,8 @@ export interface Series {
   secondary?: boolean
   tone: 'success' | 'error' | 'warning' | 'info' | 'purple' | 'accent' | 'muted'
   data: [string, number | null][]
+  /** Currency of a cost series. */
+  currency?: string
 }
 
 /**
@@ -50,8 +47,8 @@ export function buildSeries(groups: StatsGroup[], metric: Metric): Series[] {
       return [
         { name: 'OK', kind: 'bar', stack: 'r', tone: 'success', data: pts((g) => g.ok) },
         { name: 'Errors', kind: 'bar', stack: 'r', tone: 'error', data: pts((g) => g.errors) },
-        { name: 'Blocked', kind: 'bar', stack: 'r', tone: 'warning', data: pts((g) => g.blocked) },
-        { name: 'Failovers', kind: 'line', tone: 'purple', data: pts((g) => g.failovers) },
+        { name: 'Blocked', kind: 'bar', stack: 'r', tone: 'purple', data: pts((g) => g.blocked) },
+        { name: 'Fallbacks', kind: 'line', tone: 'warning', data: pts((g) => g.failovers) },
       ]
     case 'tokens':
       return [
@@ -71,10 +68,12 @@ export function buildSeries(groups: StatsGroup[], metric: Metric): Series[] {
       const keys = new Set<string>()
       for (const g of groups) for (const c of g.costs ?? []) keys.add(`${c.kind}|${c.currency}`)
       const tones: Series['tone'][] = ['accent', 'warning', 'success', 'info', 'purple']
+      const currencies = new Set([...keys].map((k) => k.split('|')[1]))
       return [...keys].sort().map((k, i) => {
         const [kind, cur] = k.split('|') as [string, string]
         return {
-          name: `${costKindLabel[kind] ?? kind} (${cur})`,
+          name: currencies.size > 1 ? `${costKindName[kind] ?? kind} (${cur})` : (costKindName[kind] ?? kind),
+          currency: cur,
           kind: 'line',
           tone: tones[i % tones.length]!,
           data: pts((g) => Number(findCost(g.costs, kind, cur)?.amount ?? 0)),

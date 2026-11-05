@@ -22,9 +22,9 @@ describe('buildSeries', () => {
     ]
     const s = buildSeries(gs, 'cost')
     expect(s.map((x) => x.name)).toEqual([
-      'Estimated API charge (EUR)',
-      'Estimated API charge (USD)',
-      'List-price equivalent (not an invoice) (USD)',
+      'Estimated cost (EUR)',
+      'Estimated cost (USD)',
+      'Subscription value (USD)',
     ])
     expect(s[1]!.data).toEqual([
       ['2026-11-01T00:00:00Z', 1.5],
@@ -46,5 +46,12 @@ describe('rates', () => {
     expect(uniqueShare({ unique_requests: 0, uncertain_requests: 0 })).toBeNull()
     expect(errorRate({ requests: 4, errors: 1 })).toBe(25)
     expect(uniqueShare({ unique_requests: 3, uncertain_requests: 1 })).toBe(75)
+  })
+})
+
+describe('buildSeries names', () => {
+  it('drops the currency when there is only one', () => {
+    const gs = [{ key: 'k', period: '2026-01-01T00:00:00Z', costs: [{ kind: 'estimated_api_charge', currency: 'USD', amount: '1' }] }] as unknown as StatsGroup[]
+    expect(buildSeries(gs, 'cost').map((x) => x.name)).toEqual(['Estimated cost'])
   })
 })
