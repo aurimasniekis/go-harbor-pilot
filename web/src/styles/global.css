@@ -83,14 +83,13 @@ body {
 }
 
 /* Native text areas outside Mantine (render-prop Field children and the
-   code editors) look and size like Mantine inputs in both schemes, on
-   their own line under the label. */
+   code editors) look like Mantine inputs in both schemes, on their own
+   line. Height comes from rows or the owning component, so inline cell
+   editors stay compact. */
 textarea:not([class*='mantine-']) {
   display: block;
   box-sizing: border-box;
   width: 100%;
-  min-height: 84px;
-  margin-top: 4px;
   padding: 8px 12px;
   border: 1px solid var(--mantine-color-default-border);
   border-radius: var(--mantine-radius-sm);
@@ -267,4 +266,26 @@ kbd,
 
 .table-scroll {
   overflow-x: auto;
+}
+
+/* Off switches stay visible in both schemes: a sunken track with a border
+   and a muted thumb, distinct from the accent of an on switch. */
+.mantine-Switch-track {
+  border-color: var(--border-strong);
+}
+
+.mantine-Switch-input:not(:checked) + .mantine-Switch-track {
+  background-color: var(--surface-sunken);
+}
+
+.mantine-Switch-input:not(:checked) + .mantine-Switch-track .mantine-Switch-thumb {
+  background-color: var(--text-muted);
+  border-color: var(--text-muted);
+}
+
+/* Required fields: a marker after the label, drawn so it never joins the
+   label text or the accessible name (the input carries aria-required). */
+[data-required-mark]::after {
+  content: ' *';
+  color: var(--error-text);
 }

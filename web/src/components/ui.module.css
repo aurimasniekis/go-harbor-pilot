@@ -112,20 +112,9 @@
   border: 1px solid var(--border);
 }
 
+/* Banners take their colours from the Alert tone (info, warning, error). */
 .banner {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: 10px var(--space-4);
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface);
   font-size: var(--text-sm);
-}
-
-.banner svg {
-  flex: none;
-  margin-top: 2px;
 }
 
 .banner strong {

@@ -137,6 +137,25 @@ export const theme = createTheme({
       styles: { th: { color: 'var(--text-muted)', fontWeight: 600, fontSize: 'var(--text-xs)', whiteSpace: 'nowrap' } },
     },
     Badge: { defaultProps: { variant: 'light', radius: 'sm', tt: 'none', fw: 600 } },
+    // One label style for every field, Mantine or custom.
+    InputWrapper: {
+      styles: {
+        label: { fontWeight: 600, fontSize: 'var(--mantine-font-size-sm)', color: 'var(--text)', marginBottom: 4 },
+        description: { color: 'var(--text-muted)' },
+      },
+    },
+    Fieldset: {
+      styles: {
+        root: { background: 'var(--surface)', borderColor: 'var(--border)' },
+        legend: { fontWeight: 600, fontSize: 'var(--mantine-font-size-sm)', color: 'var(--text)' },
+      },
+    },
+    Accordion: {
+      styles: {
+        item: { backgroundColor: 'var(--surface)', borderColor: 'var(--border)' },
+        label: { fontWeight: 600 },
+      },
+    },
     Anchor: { defaultProps: { underline: 'hover' } },
   },
 })

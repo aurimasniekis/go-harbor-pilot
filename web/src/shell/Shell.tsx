@@ -106,17 +106,21 @@ export function Shell({ children }: { children: ReactNode }) {
       <a href="#main" className="skip-link">
         Skip to content
       </a>
-      <AppShell.Header className={s.header}>
-        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
-            <Burger opened={opened} onClick={toggle} size="sm" aria-label={opened ? 'Close navigation' : 'Open navigation'} />
-            <Brand demo={meta.data?.demo} />
+      {/* The phone header exists only at phone widths: a collapsed Mantine
+          header is merely moved off-screen and would stay in the tab order. */}
+      {compact && (
+        <AppShell.Header className={s.header}>
+          <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+            <Group gap="sm" wrap="nowrap">
+              <Burger opened={opened} onClick={toggle} size="sm" aria-label={opened ? 'Close navigation' : 'Open navigation'} />
+              <Brand demo={meta.data?.demo} />
+            </Group>
+            <ActionIcon variant="subtle" color="gray" size="lg" aria-label="Search" onClick={() => spotlight.open()}>
+              <Search size={18} />
+            </ActionIcon>
           </Group>
-          <ActionIcon variant="subtle" color="gray" size="lg" aria-label="Search" onClick={() => spotlight.open()}>
-            <Search size={18} />
-          </ActionIcon>
-        </Group>
-      </AppShell.Header>
+        </AppShell.Header>
+      )}
 
       <AppShell.Navbar className={s.navbar} data-rail={rail || undefined} aria-label="Primary">
         <AppShell.Section className={s.navTop}>
