@@ -1,0 +1,25 @@
+/bin/
+/dist/
+/.data/
+/.data-*/
+/secrets/
+/configs/local/
+*.db
+*.db-wal
+*.db-shm
+*.bak
+*.key
+.env
+.env.*
+!.env.example
+web/node_modules/
+web/test-results/
+web/playwright-report/
+web/blob-report/
+web/.e2e/
+# Re-include the embed directory even if a global ignore excludes dist/.
+!internal/web/dist/
+internal/web/dist/*
+!internal/web/dist/.gitkeep
+coverage.out
+.DS_Store

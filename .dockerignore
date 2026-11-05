@@ -1,0 +1,15 @@
+.git
+bin
+dist
+.data
+.data-*
+secrets
+configs/local
+web/node_modules
+web/test-results
+web/playwright-report
+internal/web/dist
+*.db
+*.db-*
+*.key
+.env
