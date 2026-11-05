@@ -76,6 +76,7 @@ func (g *Gateway) finishTrace(rc *reqCtx, usage any) {
 		return
 	}
 	c.Sent, c.Original = rc.ir, rc.unmasked
+	c.Masking = rc.privacy
 	if c.Original == nil {
 		c.Original = rc.ir
 	}

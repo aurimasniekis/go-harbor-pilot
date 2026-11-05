@@ -42,6 +42,11 @@ type Capture struct {
 	Policy    cp.TracePolicySpec
 	// Redaction redacts masked modes (nil = built-in credential detectors).
 	Redaction *privacy.Policy
+	// Masking is the plan's outbound masking policy, when one ran. Its
+	// detectors and configured values are also redacted from masked modes
+	// and always from the search index, so nothing the policy kept from the
+	// provider is stored in clear.
+	Masking *privacy.Policy
 	// Original is the client's request before outbound masking; Sent is
 	// what went upstream.
 	Original *ir.Request
@@ -123,6 +128,11 @@ func (s *Service) Enqueue(c *Capture) {
 
 // Run writes captures and sweeps expired content until ctx ends.
 func (s *Service) Run(ctx context.Context) {
+	// FTS5 keeps deleted terms in its segments until they are merged;
+	// secure-delete removes them at delete time (persistent table option).
+	if _, err := s.DB.W.ExecContext(ctx, `INSERT INTO trace_search(trace_search, rank) VALUES('secure-delete', 1)`); err != nil {
+		s.Log.Warn("traces.search_secure_delete_unavailable", "error", err.Error())
+	}
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
 	for {
@@ -165,7 +175,19 @@ func truncateMiddle(s string) string {
 }
 
 // view renders a request for the trace in the given mode.
-func view(r *ir.Request, mode string, red *privacy.Policy, search *strings.Builder) any {
+// redactors applies each policy's redaction in turn (nil entries skipped).
+type redactors []*privacy.Policy
+
+func (rs redactors) Redact(s string) string {
+	for _, p := range rs {
+		if p != nil {
+			s = p.Redact(s)
+		}
+	}
+	return s
+}
+
+func view(r *ir.Request, mode string, red redactors, search *strings.Builder) any {
 	if r == nil {
 		return nil
 	}
@@ -234,10 +256,11 @@ func view(r *ir.Request, mode string, red *privacy.Policy, search *strings.Build
 }
 
 func (s *Service) sections(c *Capture, mode string) (map[string]any, string) {
-	red := c.Redaction
-	if red == nil {
-		red = privacy.DefaultRedaction()
+	base := c.Redaction
+	if base == nil {
+		base = privacy.DefaultRedaction()
 	}
+	red := redactors{base, c.Masking}
 	var search strings.Builder
 	want := map[string]bool{}
 	for _, x := range c.Policy.Sections {
@@ -579,6 +602,9 @@ func (s *Service) Delete(ctx context.Context, id, requestID, sessionID string) (
 	}
 	var n int64
 	err := s.DB.Tx(ctx, func(tx *sql.Tx) error {
+		if err := secureDelete(ctx, tx); err != nil {
+			return err
+		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM trace_search WHERE trace_id IN (SELECT id FROM traces WHERE `+where+`)`, arg); err != nil { //nolint:gosec // where is one of three constants
 			return err
 		}
@@ -589,7 +615,32 @@ func (s *Service) Delete(ctx context.Context, id, requestID, sessionID string) (
 		n, _ = res.RowsAffected()
 		return nil
 	})
-	return n, err
+	if err != nil {
+		return n, err
+	}
+	if n > 0 {
+		s.purge(ctx)
+	}
+	return n, nil
+}
+
+// secureDelete makes the writer overwrite freed pages with zeros, so
+// deleted trace content does not linger in the database file.
+func secureDelete(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `PRAGMA secure_delete = ON`)
+	return err
+}
+
+// purge merges the search index so deleted entries leave its segments, and
+// truncates the write-ahead log, which may still hold copies of deleted
+// pages. Failures are logged: the rows are already gone.
+func (s *Service) purge(ctx context.Context) {
+	if _, err := s.DB.W.ExecContext(ctx, `INSERT INTO trace_search(trace_search) VALUES('optimize')`); err != nil {
+		s.Log.Warn("traces.search_optimize_failed", "error", err.Error())
+	}
+	if _, err := s.DB.W.ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`); err != nil {
+		s.Log.Warn("traces.checkpoint_failed", "error", err.Error())
+	}
 }
 
 // SweepResult reports one expiry pass.
@@ -606,6 +657,9 @@ func (s *Service) Sweep(ctx context.Context) (SweepResult, error) {
 	for i := 0; i < 20; i++ {
 		var n int64
 		err := s.DB.Tx(ctx, func(tx *sql.Tx) error {
+			if err := secureDelete(ctx, tx); err != nil {
+				return err
+			}
 			if _, err := tx.ExecContext(ctx, `DELETE FROM trace_search WHERE trace_id IN (SELECT id FROM traces WHERE expires_at <= ? LIMIT 500)`, now); err != nil {
 				return err
 			}
@@ -643,6 +697,9 @@ func (s *Service) Sweep(ctx context.Context) (SweepResult, error) {
 			delete(s.deks, id)
 			s.mu.Unlock()
 		}
+	}
+	if out.Traces > 0 || out.Keys > 0 {
+		s.purge(ctx)
 	}
 	return out, nil
 }
