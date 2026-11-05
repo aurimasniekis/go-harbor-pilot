@@ -18,6 +18,7 @@
   --text: #d6deeb;
   --text-secondary: #b2bccc;
   --text-muted: #8b9fae;
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238b9fae' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --text-inverse: #011627;
 
   --accent: #82aaff;
@@ -85,6 +86,7 @@
   --text: #403f53;
   --text-secondary: #4d5a66;
   --text-muted: #5c6670;
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235c6670' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --text-inverse: #ffffff;
   --accent: #3a63bd;
   --accent-soft: rgb(72 118 214 / 0.1);

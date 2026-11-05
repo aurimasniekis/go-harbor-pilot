@@ -57,26 +57,28 @@ export function Sandbox() {
       </Banner>
       <div className={p.twoCol}>
         <Panel title="Policy and sample" subtitle="Test a saved policy (including its configured secret values) or an unsaved definition.">
-          <SelectField label="Policy" value={source} onChange={setSource}
-            options={[{ value: 'unsaved', label: 'Unsaved policy (edit below)' }, ...items.map((x) => ({ value: x.id, label: x.name }))]} />
-          {src.kind === 'unsaved' && (
-            <Field label="Policy definition (JSON)" error={specError} hint="The same fields as a saved privacy policy.">
+          <div className={p.stack}>
+            <SelectField label="Policy" value={source} onChange={setSource}
+              options={[{ value: 'unsaved', label: 'Unsaved policy (edit below)' }, ...items.map((x) => ({ value: x.id, label: x.name }))]} />
+            {src.kind === 'unsaved' && (
+              <Field label="Policy definition (JSON)" error={specError} hint="The same fields as a saved privacy policy.">
+                {(fp) => (
+                  <textarea {...fp} className={`${f.textarea} ${p.textarea}`} rows={10} spellCheck={false} value={specText} onChange={(e) => setSpecText(e.target.value)} />
+                )}
+              </Field>
+            )}
+            <Field label="Sample text">
               {(fp) => (
-                <textarea {...fp} className={`${f.textarea} ${p.textarea}`} rows={10} spellCheck={false} value={specText} onChange={(e) => setSpecText(e.target.value)} />
+                <textarea {...fp} className={`${f.textarea} ${p.textarea}`} rows={8} spellCheck={false} autoComplete="off" value={text}
+                  onChange={(e) => setText(e.target.value)} placeholder="Paste a synthetic sample…" />
               )}
             </Field>
-          )}
-          <Field label="Sample text">
-            {(fp) => (
-              <textarea {...fp} className={`${f.textarea} ${p.textarea}`} rows={8} spellCheck={false} autoComplete="off" value={text}
-                onChange={(e) => setText(e.target.value)} placeholder="Paste a synthetic sample…" />
-            )}
-          </Field>
-          <div className={f.actions} style={{ justifyContent: 'flex-start' }}>
-            <Button onClick={() => setText(SYNTHETIC_SAMPLE)}>Use a synthetic sample</Button>
-            <Button variant="primary" icon={FlaskConical} busy={run.isPending} disabled={!text} onClick={submit}>Test</Button>
+            <div className={f.actions} style={{ justifyContent: 'flex-start' }}>
+              <Button onClick={() => setText(SYNTHETIC_SAMPLE)}>Use a synthetic sample</Button>
+              <Button variant="primary" icon={FlaskConical} busy={run.isPending} disabled={!text} onClick={submit}>Test</Button>
+            </div>
+            <MutationError error={run.error} />
           </div>
-          <MutationError error={run.error} />
         </Panel>
         <Panel title="Result" subtitle="What the policy detects and what a provider would receive.">
           {!res ? (
