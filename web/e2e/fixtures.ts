@@ -43,5 +43,6 @@ export async function signIn(page: Page, who = DEMO_ADMIN): Promise<void> {
 export const ADMIN_PAGES = [
   '/', '/account', '/activity', '/activity/sessions', '/clients', '/routing', '/routing/plans', '/providers', '/providers/accounts', '/providers/subscriptions',
   '/providers/pools', '/quotas', '/quotas/monitors', '/usage', '/usage/budgets', '/privacy', '/privacy/sandbox', '/privacy/trace-policies', '/traces',
-  '/compatibility', '/compatibility/watch', '/compatibility/work-items', '/workspaces', '/settings/users', '/settings/service-principals', '/settings/auth', '/settings/audit',
+  '/compatibility', '/compatibility/watch', '/compatibility/work-items', '/events', '/events/catalog', '/events/destinations',
+  '/notifications', '/notifications/rules', '/notifications/history', '/workspaces', '/settings/users', '/settings/service-principals', '/settings/auth', '/settings/audit',
 ]

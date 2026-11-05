@@ -14,7 +14,9 @@ import { Route as AcceptRouteImport } from './routes/accept'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as ActivityRouteRouteImport } from './routes/activity/route'
 import { Route as CompatibilityRouteRouteImport } from './routes/compatibility/route'
+import { Route as EventsRouteRouteImport } from './routes/events/route'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as NotificationsRouteRouteImport } from './routes/notifications/route'
 import { Route as PrivacyRouteRouteImport } from './routes/privacy/route'
 import { Route as ProvidersRouteRouteImport } from './routes/providers/route'
 import { Route as QuotasRouteRouteImport } from './routes/quotas/route'
@@ -32,6 +34,11 @@ import { Route as ClientsIndexRouteImport } from './routes/clients/index'
 import { Route as ClientsBindingIdRouteImport } from './routes/clients/$bindingId'
 import { Route as CompatibilityIndexRouteImport } from './routes/compatibility/index'
 import { Route as CompatibilityWatchRouteImport } from './routes/compatibility/watch'
+import { Route as EventsIndexRouteImport } from './routes/events/index'
+import { Route as EventsCatalogRouteImport } from './routes/events/catalog'
+import { Route as NotificationsIndexRouteImport } from './routes/notifications/index'
+import { Route as NotificationsHistoryRouteImport } from './routes/notifications/history'
+import { Route as NotificationsRulesRouteImport } from './routes/notifications/rules'
 import { Route as PrivacyIndexRouteImport } from './routes/privacy/index'
 import { Route as PrivacySandboxRouteImport } from './routes/privacy/sandbox'
 import { Route as PrivacyTracePoliciesRouteImport } from './routes/privacy/trace-policies'
@@ -53,6 +60,8 @@ import { Route as UsageIndexRouteImport } from './routes/usage/index'
 import { Route as UsageBudgetsRouteImport } from './routes/usage/budgets'
 import { Route as CompatibilityWorkItemsIndexRouteImport } from './routes/compatibility/work-items/index'
 import { Route as CompatibilityWorkItemsItemIdRouteImport } from './routes/compatibility/work-items/$itemId'
+import { Route as EventsDestinationsIndexRouteImport } from './routes/events/destinations/index'
+import { Route as EventsDestinationsDestIdRouteImport } from './routes/events/destinations/$destId'
 import { Route as RoutingPlansIndexRouteImport } from './routes/routing/plans/index'
 import { Route as RoutingPlansPlanIdRouteImport } from './routes/routing/plans/$planId'
 
@@ -81,9 +90,19 @@ const CompatibilityRouteRoute = CompatibilityRouteRouteImport.update({
   path: '/compatibility',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EventsRouteRoute = EventsRouteRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRouteRoute = NotificationsRouteRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRouteRoute = PrivacyRouteRouteImport.update({
@@ -170,6 +189,31 @@ const CompatibilityWatchRoute = CompatibilityWatchRouteImport.update({
   id: '/watch',
   path: '/watch',
   getParentRoute: () => CompatibilityRouteRoute,
+} as any)
+const EventsIndexRoute = EventsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => EventsRouteRoute,
+} as any)
+const EventsCatalogRoute = EventsCatalogRouteImport.update({
+  id: '/catalog',
+  path: '/catalog',
+  getParentRoute: () => EventsRouteRoute,
+} as any)
+const NotificationsIndexRoute = NotificationsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => NotificationsRouteRoute,
+} as any)
+const NotificationsHistoryRoute = NotificationsHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => NotificationsRouteRoute,
+} as any)
+const NotificationsRulesRoute = NotificationsRulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
+  getParentRoute: () => NotificationsRouteRoute,
 } as any)
 const PrivacyIndexRoute = PrivacyIndexRouteImport.update({
   id: '/',
@@ -279,6 +323,17 @@ const CompatibilityWorkItemsItemIdRoute =
     path: '/work-items/$itemId',
     getParentRoute: () => CompatibilityRouteRoute,
   } as any)
+const EventsDestinationsIndexRoute = EventsDestinationsIndexRouteImport.update({
+  id: '/destinations/',
+  path: '/destinations/',
+  getParentRoute: () => EventsRouteRoute,
+} as any)
+const EventsDestinationsDestIdRoute =
+  EventsDestinationsDestIdRouteImport.update({
+    id: '/destinations/$destId',
+    path: '/destinations/$destId',
+    getParentRoute: () => EventsRouteRoute,
+  } as any)
 const RoutingPlansIndexRoute = RoutingPlansIndexRouteImport.update({
   id: '/plans/',
   path: '/plans/',
@@ -294,6 +349,8 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRouteRouteWithChildren
   '/compatibility': typeof CompatibilityRouteRouteWithChildren
+  '/events': typeof EventsRouteRouteWithChildren
+  '/notifications': typeof NotificationsRouteRouteWithChildren
   '/privacy': typeof PrivacyRouteRouteWithChildren
   '/providers': typeof ProvidersRouteRouteWithChildren
   '/quotas': typeof QuotasRouteRouteWithChildren
@@ -311,6 +368,9 @@ export interface FileRoutesByFullPath {
   '/activity/sessions': typeof ActivitySessionsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
   '/compatibility/watch': typeof CompatibilityWatchRoute
+  '/events/catalog': typeof EventsCatalogRoute
+  '/notifications/history': typeof NotificationsHistoryRoute
+  '/notifications/rules': typeof NotificationsRulesRoute
   '/privacy/sandbox': typeof PrivacySandboxRoute
   '/privacy/trace-policies': typeof PrivacyTracePoliciesRoute
   '/providers/accounts': typeof ProvidersAccountsRoute
@@ -326,6 +386,8 @@ export interface FileRoutesByFullPath {
   '/activity/': typeof ActivityIndexRoute
   '/clients/': typeof ClientsIndexRoute
   '/compatibility/': typeof CompatibilityIndexRoute
+  '/events/': typeof EventsIndexRoute
+  '/notifications/': typeof NotificationsIndexRoute
   '/privacy/': typeof PrivacyIndexRoute
   '/providers/': typeof ProvidersIndexRoute
   '/quotas/': typeof QuotasIndexRoute
@@ -334,8 +396,10 @@ export interface FileRoutesByFullPath {
   '/traces/': typeof TracesIndexRoute
   '/usage/': typeof UsageIndexRoute
   '/compatibility/work-items/$itemId': typeof CompatibilityWorkItemsItemIdRoute
+  '/events/destinations/$destId': typeof EventsDestinationsDestIdRoute
   '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
   '/compatibility/work-items/': typeof CompatibilityWorkItemsIndexRoute
+  '/events/destinations/': typeof EventsDestinationsIndexRoute
   '/routing/plans/': typeof RoutingPlansIndexRoute
 }
 export interface FileRoutesByTo {
@@ -350,6 +414,9 @@ export interface FileRoutesByTo {
   '/activity/sessions': typeof ActivitySessionsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
   '/compatibility/watch': typeof CompatibilityWatchRoute
+  '/events/catalog': typeof EventsCatalogRoute
+  '/notifications/history': typeof NotificationsHistoryRoute
+  '/notifications/rules': typeof NotificationsRulesRoute
   '/privacy/sandbox': typeof PrivacySandboxRoute
   '/privacy/trace-policies': typeof PrivacyTracePoliciesRoute
   '/providers/accounts': typeof ProvidersAccountsRoute
@@ -365,6 +432,8 @@ export interface FileRoutesByTo {
   '/activity': typeof ActivityIndexRoute
   '/clients': typeof ClientsIndexRoute
   '/compatibility': typeof CompatibilityIndexRoute
+  '/events': typeof EventsIndexRoute
+  '/notifications': typeof NotificationsIndexRoute
   '/privacy': typeof PrivacyIndexRoute
   '/providers': typeof ProvidersIndexRoute
   '/quotas': typeof QuotasIndexRoute
@@ -373,8 +442,10 @@ export interface FileRoutesByTo {
   '/traces': typeof TracesIndexRoute
   '/usage': typeof UsageIndexRoute
   '/compatibility/work-items/$itemId': typeof CompatibilityWorkItemsItemIdRoute
+  '/events/destinations/$destId': typeof EventsDestinationsDestIdRoute
   '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
   '/compatibility/work-items': typeof CompatibilityWorkItemsIndexRoute
+  '/events/destinations': typeof EventsDestinationsIndexRoute
   '/routing/plans': typeof RoutingPlansIndexRoute
 }
 export interface FileRoutesById {
@@ -382,6 +453,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRouteRouteWithChildren
   '/compatibility': typeof CompatibilityRouteRouteWithChildren
+  '/events': typeof EventsRouteRouteWithChildren
+  '/notifications': typeof NotificationsRouteRouteWithChildren
   '/privacy': typeof PrivacyRouteRouteWithChildren
   '/providers': typeof ProvidersRouteRouteWithChildren
   '/quotas': typeof QuotasRouteRouteWithChildren
@@ -399,6 +472,9 @@ export interface FileRoutesById {
   '/activity/sessions': typeof ActivitySessionsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
   '/compatibility/watch': typeof CompatibilityWatchRoute
+  '/events/catalog': typeof EventsCatalogRoute
+  '/notifications/history': typeof NotificationsHistoryRoute
+  '/notifications/rules': typeof NotificationsRulesRoute
   '/privacy/sandbox': typeof PrivacySandboxRoute
   '/privacy/trace-policies': typeof PrivacyTracePoliciesRoute
   '/providers/accounts': typeof ProvidersAccountsRoute
@@ -414,6 +490,8 @@ export interface FileRoutesById {
   '/activity/': typeof ActivityIndexRoute
   '/clients/': typeof ClientsIndexRoute
   '/compatibility/': typeof CompatibilityIndexRoute
+  '/events/': typeof EventsIndexRoute
+  '/notifications/': typeof NotificationsIndexRoute
   '/privacy/': typeof PrivacyIndexRoute
   '/providers/': typeof ProvidersIndexRoute
   '/quotas/': typeof QuotasIndexRoute
@@ -422,8 +500,10 @@ export interface FileRoutesById {
   '/traces/': typeof TracesIndexRoute
   '/usage/': typeof UsageIndexRoute
   '/compatibility/work-items/$itemId': typeof CompatibilityWorkItemsItemIdRoute
+  '/events/destinations/$destId': typeof EventsDestinationsDestIdRoute
   '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
   '/compatibility/work-items/': typeof CompatibilityWorkItemsIndexRoute
+  '/events/destinations/': typeof EventsDestinationsIndexRoute
   '/routing/plans/': typeof RoutingPlansIndexRoute
 }
 export interface FileRouteTypes {
@@ -432,6 +512,8 @@ export interface FileRouteTypes {
     | '/'
     | '/activity'
     | '/compatibility'
+    | '/events'
+    | '/notifications'
     | '/privacy'
     | '/providers'
     | '/quotas'
@@ -449,6 +531,9 @@ export interface FileRouteTypes {
     | '/activity/sessions'
     | '/clients/$bindingId'
     | '/compatibility/watch'
+    | '/events/catalog'
+    | '/notifications/history'
+    | '/notifications/rules'
     | '/privacy/sandbox'
     | '/privacy/trace-policies'
     | '/providers/accounts'
@@ -464,6 +549,8 @@ export interface FileRouteTypes {
     | '/activity/'
     | '/clients/'
     | '/compatibility/'
+    | '/events/'
+    | '/notifications/'
     | '/privacy/'
     | '/providers/'
     | '/quotas/'
@@ -472,8 +559,10 @@ export interface FileRouteTypes {
     | '/traces/'
     | '/usage/'
     | '/compatibility/work-items/$itemId'
+    | '/events/destinations/$destId'
     | '/routing/plans/$planId'
     | '/compatibility/work-items/'
+    | '/events/destinations/'
     | '/routing/plans/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -488,6 +577,9 @@ export interface FileRouteTypes {
     | '/activity/sessions'
     | '/clients/$bindingId'
     | '/compatibility/watch'
+    | '/events/catalog'
+    | '/notifications/history'
+    | '/notifications/rules'
     | '/privacy/sandbox'
     | '/privacy/trace-policies'
     | '/providers/accounts'
@@ -503,6 +595,8 @@ export interface FileRouteTypes {
     | '/activity'
     | '/clients'
     | '/compatibility'
+    | '/events'
+    | '/notifications'
     | '/privacy'
     | '/providers'
     | '/quotas'
@@ -511,14 +605,18 @@ export interface FileRouteTypes {
     | '/traces'
     | '/usage'
     | '/compatibility/work-items/$itemId'
+    | '/events/destinations/$destId'
     | '/routing/plans/$planId'
     | '/compatibility/work-items'
+    | '/events/destinations'
     | '/routing/plans'
   id:
     | '__root__'
     | '/'
     | '/activity'
     | '/compatibility'
+    | '/events'
+    | '/notifications'
     | '/privacy'
     | '/providers'
     | '/quotas'
@@ -536,6 +634,9 @@ export interface FileRouteTypes {
     | '/activity/sessions'
     | '/clients/$bindingId'
     | '/compatibility/watch'
+    | '/events/catalog'
+    | '/notifications/history'
+    | '/notifications/rules'
     | '/privacy/sandbox'
     | '/privacy/trace-policies'
     | '/providers/accounts'
@@ -551,6 +652,8 @@ export interface FileRouteTypes {
     | '/activity/'
     | '/clients/'
     | '/compatibility/'
+    | '/events/'
+    | '/notifications/'
     | '/privacy/'
     | '/providers/'
     | '/quotas/'
@@ -559,8 +662,10 @@ export interface FileRouteTypes {
     | '/traces/'
     | '/usage/'
     | '/compatibility/work-items/$itemId'
+    | '/events/destinations/$destId'
     | '/routing/plans/$planId'
     | '/compatibility/work-items/'
+    | '/events/destinations/'
     | '/routing/plans/'
   fileRoutesById: FileRoutesById
 }
@@ -568,6 +673,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityRouteRoute: typeof ActivityRouteRouteWithChildren
   CompatibilityRouteRoute: typeof CompatibilityRouteRouteWithChildren
+  EventsRouteRoute: typeof EventsRouteRouteWithChildren
+  NotificationsRouteRoute: typeof NotificationsRouteRouteWithChildren
   PrivacyRouteRoute: typeof PrivacyRouteRouteWithChildren
   ProvidersRouteRoute: typeof ProvidersRouteRouteWithChildren
   QuotasRouteRoute: typeof QuotasRouteRouteWithChildren
@@ -622,11 +729,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompatibilityRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/events': {
+      id: '/events'
+      path: '/events'
+      fullPath: '/events'
+      preLoaderRoute: typeof EventsRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -747,6 +868,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/compatibility/watch'
       preLoaderRoute: typeof CompatibilityWatchRouteImport
       parentRoute: typeof CompatibilityRouteRoute
+    }
+    '/events/': {
+      id: '/events/'
+      path: '/'
+      fullPath: '/events/'
+      preLoaderRoute: typeof EventsIndexRouteImport
+      parentRoute: typeof EventsRouteRoute
+    }
+    '/events/catalog': {
+      id: '/events/catalog'
+      path: '/catalog'
+      fullPath: '/events/catalog'
+      preLoaderRoute: typeof EventsCatalogRouteImport
+      parentRoute: typeof EventsRouteRoute
+    }
+    '/notifications/': {
+      id: '/notifications/'
+      path: '/'
+      fullPath: '/notifications/'
+      preLoaderRoute: typeof NotificationsIndexRouteImport
+      parentRoute: typeof NotificationsRouteRoute
+    }
+    '/notifications/history': {
+      id: '/notifications/history'
+      path: '/history'
+      fullPath: '/notifications/history'
+      preLoaderRoute: typeof NotificationsHistoryRouteImport
+      parentRoute: typeof NotificationsRouteRoute
+    }
+    '/notifications/rules': {
+      id: '/notifications/rules'
+      path: '/rules'
+      fullPath: '/notifications/rules'
+      preLoaderRoute: typeof NotificationsRulesRouteImport
+      parentRoute: typeof NotificationsRouteRoute
     }
     '/privacy/': {
       id: '/privacy/'
@@ -895,6 +1051,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompatibilityWorkItemsItemIdRouteImport
       parentRoute: typeof CompatibilityRouteRoute
     }
+    '/events/destinations/': {
+      id: '/events/destinations/'
+      path: '/destinations'
+      fullPath: '/events/destinations/'
+      preLoaderRoute: typeof EventsDestinationsIndexRouteImport
+      parentRoute: typeof EventsRouteRoute
+    }
+    '/events/destinations/$destId': {
+      id: '/events/destinations/$destId'
+      path: '/destinations/$destId'
+      fullPath: '/events/destinations/$destId'
+      preLoaderRoute: typeof EventsDestinationsDestIdRouteImport
+      parentRoute: typeof EventsRouteRoute
+    }
     '/routing/plans/': {
       id: '/routing/plans/'
       path: '/plans'
@@ -944,6 +1114,39 @@ const CompatibilityRouteRouteChildren: CompatibilityRouteRouteChildren = {
 
 const CompatibilityRouteRouteWithChildren =
   CompatibilityRouteRoute._addFileChildren(CompatibilityRouteRouteChildren)
+
+interface EventsRouteRouteChildren {
+  EventsCatalogRoute: typeof EventsCatalogRoute
+  EventsIndexRoute: typeof EventsIndexRoute
+  EventsDestinationsDestIdRoute: typeof EventsDestinationsDestIdRoute
+  EventsDestinationsIndexRoute: typeof EventsDestinationsIndexRoute
+}
+
+const EventsRouteRouteChildren: EventsRouteRouteChildren = {
+  EventsCatalogRoute: EventsCatalogRoute,
+  EventsIndexRoute: EventsIndexRoute,
+  EventsDestinationsDestIdRoute: EventsDestinationsDestIdRoute,
+  EventsDestinationsIndexRoute: EventsDestinationsIndexRoute,
+}
+
+const EventsRouteRouteWithChildren = EventsRouteRoute._addFileChildren(
+  EventsRouteRouteChildren,
+)
+
+interface NotificationsRouteRouteChildren {
+  NotificationsHistoryRoute: typeof NotificationsHistoryRoute
+  NotificationsRulesRoute: typeof NotificationsRulesRoute
+  NotificationsIndexRoute: typeof NotificationsIndexRoute
+}
+
+const NotificationsRouteRouteChildren: NotificationsRouteRouteChildren = {
+  NotificationsHistoryRoute: NotificationsHistoryRoute,
+  NotificationsRulesRoute: NotificationsRulesRoute,
+  NotificationsIndexRoute: NotificationsIndexRoute,
+}
+
+const NotificationsRouteRouteWithChildren =
+  NotificationsRouteRoute._addFileChildren(NotificationsRouteRouteChildren)
 
 interface PrivacyRouteRouteChildren {
   PrivacySandboxRoute: typeof PrivacySandboxRoute
@@ -1061,6 +1264,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRouteRoute: ActivityRouteRouteWithChildren,
   CompatibilityRouteRoute: CompatibilityRouteRouteWithChildren,
+  EventsRouteRoute: EventsRouteRouteWithChildren,
+  NotificationsRouteRoute: NotificationsRouteRouteWithChildren,
   PrivacyRouteRoute: PrivacyRouteRouteWithChildren,
   ProvidersRouteRoute: ProvidersRouteRouteWithChildren,
   QuotasRouteRoute: QuotasRouteRouteWithChildren,

@@ -265,3 +265,30 @@ export type WorkItem = S['WorkItem']
 export type WorkUpdate = S['WorkUpdate']
 export type WorkStatus = WorkItem['status']
 export type PlanCompat = S['PlanCompat']
+
+// ---------- events and notifications ----------
+export type EventFilter = S['EventFilter']
+export type DestinationSpec = S['DestinationSpec']
+export type DestinationRes = S['ResourceDestinationSpec']
+export type ChannelSpec = S['ChannelSpec']
+export type ChannelRes = S['ResourceChannelSpec']
+export type NotificationRuleSpec = S['NotificationRuleSpec']
+export type NotificationRuleRes = S['ResourceNotificationRuleSpec']
+export type EventKindInfo = S['KindInfo']
+export type EventItem = S['EventDTO']
+export type Delivery = S['Delivery']
+export type NotificationItem = S['Notification']
+export type Severity = 'info' | 'warning' | 'critical'
+
+/** The event envelope carried by every event (EventDTO.envelope). */
+export interface EventEnvelope {
+  schema_version: number
+  id: string
+  type: string
+  name: string
+  occurred_at: string
+  severity: string
+  correlation_id?: string
+  subjects?: Record<string, string>
+  data?: Record<string, unknown>
+}

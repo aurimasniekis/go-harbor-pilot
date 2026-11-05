@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { apiGet } from './client'
-import type { Breaker, Degradation, ProtocolChange, WorkItem, WorkStatus, BridgeStatus, TraceContent, TraceHit, TraceMeta, BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummary, ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
+import type { Delivery, EventItem, EventKindInfo, NotificationItem, Breaker, Degradation, ProtocolChange, WorkItem, WorkStatus, BridgeStatus, TraceContent, TraceHit, TraceMeta, BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummary, ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
 
 export const qk = {
   session: ['session'] as const,
@@ -91,6 +91,9 @@ export type ResourcePlural =
   | 'budgets'
   | 'privacy-policies'
   | 'trace-policies'
+  | 'event-destinations'
+  | 'notification-channels'
+  | 'notification-rules'
 
 export const resourceKey = (plural: ResourcePlural) => ['resources', plural] as const
 
@@ -312,4 +315,38 @@ export const workItemQuery = (id: string) =>
   queryOptions({
     queryKey: ['protocol-watch', 'work-item', id],
     queryFn: ({ signal }) => apiGet<WorkItem>(`/protocol-watch/work-items/${encodeURIComponent(id)}`, undefined, signal),
+  })
+
+// ---------- events and notifications ----------
+export const eventCatalogQuery = queryOptions({
+  queryKey: ['events', 'catalog'],
+  queryFn: ({ signal }) => apiGet<{ items: EventKindInfo[] }>('/events/catalog', undefined, signal),
+  staleTime: 10 * 60_000,
+})
+
+export interface EventLogFilter {
+  type?: string
+  severity?: string
+  cursor?: string
+}
+
+export const eventsQuery = (f: EventLogFilter) =>
+  queryOptions({
+    queryKey: ['events', 'log', f],
+    queryFn: ({ signal }) => apiGet<Page<EventItem>>('/events', { limit: 100, ...f }, signal),
+    refetchInterval: f.cursor ? false : 15_000,
+  })
+
+export const deliveriesQuery = (destID: string, status?: string) =>
+  queryOptions({
+    queryKey: ['events', 'deliveries', destID, status ?? ''],
+    queryFn: ({ signal }) => apiGet<{ items: Delivery[] }>(`/event-destinations/${encodeURIComponent(destID)}/deliveries`, { status, limit: 200 }, signal),
+    refetchInterval: 15_000,
+  })
+
+export const notificationsQuery = (channelID?: string, status?: string) =>
+  queryOptions({
+    queryKey: ['notifications', 'history', channelID ?? '', status ?? ''],
+    queryFn: ({ signal }) => apiGet<{ items: NotificationItem[] }>('/notifications', { channel_id: channelID, status, limit: 200 }, signal),
+    refetchInterval: 15_000,
   })

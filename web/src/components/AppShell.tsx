@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useStore } from '@tanstack/react-store'
 import {
   Activity,
+  Bell,
   Building2,
   Coins,
   Gauge,
@@ -15,6 +16,7 @@ import {
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
+  Radio,
   Route as RouteIcon,
   ScrollText,
   Cable,
@@ -53,6 +55,8 @@ export const nav: NavItem[] = [
   { to: '/privacy', label: 'Privacy', icon: ShieldCheck, perm: 'config.read' },
   { to: '/traces', label: 'Traces', icon: ScrollText, perm: 'traces.metadata.read' },
   { to: '/compatibility', label: 'Compatibility', icon: Cable, perm: 'config.read' },
+  { to: '/events', label: 'Events', icon: Radio, perm: 'config.read' },
+  { to: '/notifications', label: 'Notifications', icon: Bell, perm: 'config.read' },
   { to: '/providers', label: 'Providers', icon: Server, perm: 'config.read' },
   { to: '/workspaces', label: 'Workspaces', icon: Building2, perm: 'config.read' },
   { to: '/settings', label: 'Settings', icon: Settings, perm: 'config.read' },
