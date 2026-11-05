@@ -142,6 +142,24 @@ func SeedConfig(ctx context.Context, svc *cp.Service, origin string) (Tokens, er
 		Enabled: true, ExternalRefs: map[string]string{"spaceman.space": "spc_synthetic"}}, nil)
 	bPrivate := s.create(cp.BindingDef, "private-notebook", cp.BindingSpec{DisplayName: "Private notebook", PlanID: private, ExpectedHarness: "generic", Enabled: true}, nil)
 	_ = alFast
+	// Quota monitors read the synthetic quota simulator. Two feed routing
+	// health of the team keys; the others show board states (exhausted
+	// weekly window, failing credential, prepaid balance, team budgets).
+	mon := func(name, adapter, scenario, account string) {
+		s.create(cp.QuotaMonitorDef, name, cp.QuotaMonitorSpec{Adapter: adapter, AccountID: account, Enabled: true, PollIntervalSecs: 300,
+			Options: map[string]any{"scenario": scenario}}, nil)
+	}
+	mon("team-1-subscription", "demo_claude", "claude-main", aAnt1)
+	mon("team-2-subscription", "demo_claude", "claude-work-2", aAnt2)
+	mon("weekly-exhausted", "demo_claude", "claude-work-3", "")
+	mon("expired-credential", "demo_claude", "claude-work-4", "")
+	mon("codex-team", "demo_codex", "codex-team", "")
+	mon("agents-budget", "demo_nexos", "nexos-prod-agents", aOAI)
+	mon("dev-balance", "demo_deepseek", "deepseek-dev", "")
+	s.create(cp.BudgetDef, "acme-monthly", cp.BudgetSpec{Scope: cp.BudgetWorkspace, ScopeID: ws, Period: "month", Limit: "50", Currency: "USD",
+		Enforcement: "warn", WarnAt: 0.8, Enabled: true}, nil)
+	s.create(cp.BudgetDef, "ci-daily", cp.BudgetSpec{Scope: cp.BudgetBinding, ScopeID: bCI, Period: "day", Limit: "2", Currency: "USD",
+		Enforcement: "block", WarnAt: 0.8, Enabled: true}, nil)
 	if s.err != nil {
 		return nil, s.err
 	}

@@ -27,6 +27,8 @@ type Reply struct {
 	InputTok   int64
 	OutputTok  int64
 	CacheRead  int64
+	// Headers are extra response headers (e.g. rate-limit headers).
+	Headers map[string]string
 }
 
 // Upstream is a scripted synthetic provider (an http.Handler).
@@ -116,6 +118,9 @@ func (u *Upstream) serve(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		}
+	}
+	for k, v := range rep.Headers {
+		w.Header().Set(k, v)
 	}
 	if rep.Status >= 400 {
 		if rep.RetryAfter > 0 {

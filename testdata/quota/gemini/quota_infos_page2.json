@@ -1,0 +1,15 @@
+{
+  "quotaInfos": [
+    {
+      "quotaId": "GenerateContentInputTokensPerProjectPerMinute",
+      "metric": "generativelanguage.googleapis.com/generate_content_input_token_count",
+      "service": "generativelanguage.googleapis.com",
+      "refreshInterval": "minute",
+      "quotaDisplayName": "Input tokens per minute",
+      "metricUnit": "1/min/{project}",
+      "dimensionsInfos": [
+        {"dimensions": {}, "details": {"value": "250000"}}
+      ]
+    }
+  ]
+}

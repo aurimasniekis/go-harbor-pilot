@@ -38,6 +38,15 @@ linters:
     rules:
       - path: _test\.go
         linters: [gosec, errcheck, bodyclose]
+      # Quota adapters: public endpoint/grant constants are not credentials;
+      # poll jitter does not need cryptographic randomness; indices are
+      # bounds-checked by the loop guards; numeric parsers return nil for
+      # unparseable provider values by design.
+      - path: internal/quota/
+        linters: [gosec]
+        text: "G101|G404|G602"
+      - path: internal/quota/providers/
+        linters: [nilerr]
 formatters:
   enable:
     - gofmt

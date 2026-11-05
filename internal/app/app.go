@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/accounting"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/accounting/usageapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/api"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth/authapi"
@@ -38,6 +39,9 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/netpolicy"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/observability"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/reqmeta"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/quota"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/polling"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/quotaapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/routing"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/routing/routingapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/store"
@@ -53,6 +57,11 @@ type Options struct {
 	Version string
 	Log     *slog.Logger
 	Env     func(string) string
+	// QuotaTransport overrides the quota adapters' outbound transport
+	// (tests point adapters at local fakes).
+	QuotaTransport http.RoundTripper
+	// QuotaScheduler tunes quota polling (tests).
+	QuotaScheduler polling.Options
 }
 
 // App is the running application.
@@ -71,6 +80,8 @@ type App struct {
 	Acct    *accounting.Service
 	Tel     *telemetry.Writer
 	Gateway *gateway.Gateway
+	Quota   *quota.Service
+	Budgets *accounting.Budgets
 	Started time.Time
 
 	unlock   func()
@@ -125,7 +136,12 @@ func New(ctx context.Context, o Options) (*App, error) {
 	}
 	a.CP.OnSwap(func(s *controlplane.Snapshot) { a.Metrics.ConfigRevision.Set(float64(s.ConfigRevision)) })
 	a.Metrics.ConfigRevision.Set(float64(a.CP.Snapshot().ConfigRevision))
+	a.Quota = quota.New(quota.Options{DB: a.DB, CP: a.CP, Keyring: a.Keyring, Clock: a.Clock, Log: a.Log, Version: o.Version,
+		Demo: c.Demo.Enabled, SecretRoots: c.Security.SecretRoots, Transport: o.QuotaTransport, Scheduler: o.QuotaScheduler})
 	a.Acct = accounting.New(a.DB, a.Clock, a.Log)
+	a.Budgets = &accounting.Budgets{Snapshot: a.CP.Snapshot}
+	a.Acct.BudgetCheck = a.Budgets.Check
+	a.Acct.OnBudgetExceeded = a.Budgets.Exceeded(a.DB.W)
 	if _, err := a.Acct.RecoverStartup(ctx); err != nil {
 		return fail(fmt.Errorf("accounting recovery: %w", err))
 	}
@@ -138,6 +154,9 @@ func New(ctx context.Context, o Options) (*App, error) {
 		HTTP: httpapi.New("harbor-pilot/" + o.Version), Bridges: map[string]executor.Executor{}, DB: a.DB, Clock: a.Clock, Log: a.Log,
 		Metrics: a.Metrics, Limits: gateway.DefaultLimits}
 	a.Gateway.AfterRequest = gateway.NewTransitions(a.DB.W).After
+	a.Gateway.HealthOf = a.Quota.Health
+	a.Gateway.ObserveResponse = a.Quota.ObserveResponse
+	a.AddBackground(a.Quota.Run)
 	a.AddBackground(a.Acct.Run)
 	a.AddBackground(a.Tel.Run)
 	a.AddRoutes(a.Gateway.Routes)
@@ -148,6 +167,9 @@ func New(ctx context.Context, o Options) (*App, error) {
 		toks, err := demo.SeedConfig(ctx, a.CP, base)
 		if err != nil {
 			return fail(fmt.Errorf("demo seed: %w", err))
+		}
+		if err := a.Quota.BackfillDemo(ctx, 7*24*time.Hour); err != nil {
+			return fail(fmt.Errorf("demo quota history: %w", err))
 		}
 		a.AddBackground(func(ctx context.Context) {
 			var n int
@@ -202,6 +224,17 @@ func (a *App) CoreAPI() []func(*api.API) {
 				}})
 		},
 		func(ap *api.API) {
+			quotaapi.Register(ap, quotaapi.Deps{Quota: func() *quota.Service { return a.Quota }, Budgets: a.budgets(),
+				DB: func() *store.DB { return a.DB }, CP: func() *controlplane.Service { return a.CP }, Clock: a.clock(),
+				Health: func(id string) routing.Health {
+					if a.Gateway == nil {
+						return routing.Health{Available: true}
+					}
+					return a.Gateway.AccountHealth(id)
+				}, Origin: func() string { return a.Cfg.PublicOrigin() }})
+			usageapi.Register(ap, usageapi.Deps{DB: func() *store.DB { return a.DB }, Snapshot: func() *controlplane.Snapshot { return a.CP.Snapshot() }, Clock: a.clock()})
+		},
+		func(ap *api.API) {
 			activityapi.Register(ap, func() *store.DB { return a.DB }, func() int64 {
 				if a.Tel == nil {
 					return 0
@@ -210,6 +243,20 @@ func (a *App) CoreAPI() []func(*api.API) {
 			})
 		},
 	}
+}
+
+func (a *App) budgets() *accounting.Budgets {
+	if a.Budgets != nil {
+		return a.Budgets
+	}
+	return &accounting.Budgets{Snapshot: func() *controlplane.Snapshot { return nil }}
+}
+
+func (a *App) clock() clock.Clock {
+	if a.Clock != nil {
+		return a.Clock
+	}
+	return clock.Real{}
 }
 
 // AddBackground registers a worker started by Run.

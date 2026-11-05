@@ -30,6 +30,7 @@ const (
 	Plan             = "pln"
 	PolicyVersion    = "pvr"
 	Budget           = "bdg"
+	QuotaMonitor     = "qmn"
 	PrivacyPolicy    = "pvp"
 	TracePolicy      = "trp"
 	Destination      = "dst"

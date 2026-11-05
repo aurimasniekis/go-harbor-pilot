@@ -1,0 +1,7 @@
+{
+  "items": [
+    {"uuid": "11111111-1111-4111-8111-111111111111", "name": "production-agents", "api_key": "team-****abcd", "key_owner": "Platform", "owner_uuid": "22222222-2222-4222-8222-222222222222", "type": "team", "status": "active", "last_used_at": "2026-10-17T11:58:00Z", "budget_used": 132.5, "budget_limit": 400},
+    {"uuid": "33333333-3333-4333-8333-333333333333", "name": "sandbox", "api_key": "user-****wxyz", "key_owner": "Researcher", "owner_uuid": "44444444-4444-4444-8444-444444444444", "type": "user", "status": "budget_exceeded", "budget_used": 60, "budget_limit": 60}
+  ],
+  "total": 2
+}

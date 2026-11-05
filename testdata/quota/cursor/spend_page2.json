@@ -1,0 +1,10 @@
+{
+  "teamMemberSpend": [
+    {"userId": "user_synthetic_gamma", "name": "Synthetic Gamma", "email": "gamma@example.invalid", "role": "member",
+     "spendCents": 999.99, "overallSpendCents": 999.99, "fastPremiumRequests": 3,
+     "hardLimitOverrideDollars": 25, "monthlyLimitDollars": 20, "effectivePerUserLimitDollars": 25}
+  ],
+  "subscriptionCycleStart": 1791158400000,
+  "totalMembers": 3,
+  "totalPages": 2
+}

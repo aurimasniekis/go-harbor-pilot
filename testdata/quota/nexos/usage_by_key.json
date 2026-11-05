@@ -1,0 +1,21 @@
+{
+  "from": "2026-10-16",
+  "to": "2026-10-17",
+  "granularity": "hour",
+  "group_by": "api_key",
+  "totals": {"requests": 30, "tokens_input": 3000, "tokens_output": 900, "tokens_cache_write": 0, "tokens_cache_write_1h": 0, "tokens_cache_read": 1000, "tokens_image_input": 0, "tokens_image_output": 0, "tokens_image_cache_read": 0, "tokens_total": 4900, "cost_total": 0.42},
+  "groups": [
+    {
+      "dimensions": {"api_key_id": "11111111-1111-4111-8111-111111111111", "api_key_name": "production-agents"},
+      "totals": {"requests": 25, "tokens_input": 2500, "tokens_output": 800, "tokens_cache_write": 0, "tokens_cache_write_1h": 0, "tokens_cache_read": 1000, "tokens_image_input": 0, "tokens_image_output": 0, "tokens_image_cache_read": 0, "tokens_total": 4300, "cost_total": 0.37},
+      "items": [
+        {"date": "2026-10-17T10:00:00Z", "requests": 25, "tokens_input": 2500, "tokens_output": 800, "tokens_cache_write": 0, "tokens_cache_write_1h": 0, "tokens_cache_read": 1000, "tokens_image_input": 0, "tokens_image_output": 0, "tokens_image_cache_read": 0, "tokens_total": 4300, "cost_total": 0.37}
+      ]
+    },
+    {
+      "dimensions": {"api_key_id": "__other__", "api_key_name": "Other"},
+      "totals": {"requests": 5, "tokens_input": 500, "tokens_output": 100, "tokens_cache_write": 0, "tokens_cache_write_1h": 0, "tokens_cache_read": 0, "tokens_image_input": 0, "tokens_image_output": 0, "tokens_image_cache_read": 0, "tokens_total": 600, "cost_total": 0.05},
+      "items": []
+    }
+  ]
+}

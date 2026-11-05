@@ -1,0 +1,13 @@
+{
+  "base_resp": {
+    "status_code": 0,
+    "status_msg": "success"
+  },
+  "model_remains": [
+    {
+      "model_name": "general",
+      "current_interval_status": 3,
+      "current_weekly_status": 3
+    }
+  ]
+}

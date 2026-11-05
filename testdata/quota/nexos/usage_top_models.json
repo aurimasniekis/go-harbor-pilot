@@ -1,0 +1,21 @@
+{
+  "from": "2026-10-16",
+  "to": "2026-10-17",
+  "granularity": "hour",
+  "totals": {"requests": 30, "tokens_input": 3000, "tokens_output": 900, "tokens_cache_write": 0, "tokens_cache_write_1h": 0, "tokens_cache_read": 1000, "tokens_image_input": 0, "tokens_image_output": 0, "tokens_image_cache_read": 0, "tokens_total": 4900, "cost_total": 0.42},
+  "items": [
+    {
+      "date": "2026-10-17T10:00:00Z",
+      "requests": 20, "tokens_input": 2000, "tokens_output": 600, "tokens_cache_write": 0, "tokens_cache_write_1h": 0, "tokens_cache_read": 500, "tokens_image_input": 0, "tokens_image_output": 0, "tokens_image_cache_read": 0, "tokens_total": 3100, "cost_total": 0.30,
+      "top_models": [
+        {"model": "synthetic-model-a", "requests": 15, "tokens_input": 1500, "tokens_output": 500, "tokens_cache_write": 0, "tokens_cache_write_1h": 0, "tokens_cache_read": 500, "tokens_image_input": 0, "tokens_image_output": 0, "tokens_image_cache_read": 0, "tokens_total": 2500, "cost_total": 0.25},
+        {"model": "__other__", "requests": 5, "tokens_input": 500, "tokens_output": 100, "tokens_cache_write": 0, "tokens_cache_write_1h": 0, "tokens_cache_read": 0, "tokens_image_input": 0, "tokens_image_output": 0, "tokens_image_cache_read": 0, "tokens_total": 600, "cost_total": 0.05}
+      ]
+    },
+    {
+      "date": "2026-10-17T11:00:00Z",
+      "requests": 10, "tokens_input": 1000, "tokens_output": 300, "tokens_cache_write": 0, "tokens_cache_write_1h": 0, "tokens_cache_read": 500, "tokens_image_input": 0, "tokens_image_output": 0, "tokens_image_cache_read": 0, "tokens_total": 1300, "cost_total": 0.12,
+      "top_models": []
+    }
+  ]
+}

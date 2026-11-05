@@ -59,4 +59,20 @@ Sealed reasoning state only crosses within the same family. Every other pair dow
 
 ## 5. Quota monitoring adapters
 
-The Quota Harbor adapters are inherited. Per-adapter tiers are listed in `docs/contracts/reference-quota-harbor.md`. Each adapter's status starts as `contract-tested (fixtures)`. None has been live-verified.
+The Quota Harbor adapters are inherited (`internal/quota/providers`). Per-adapter tiers are listed in `docs/contracts/reference-quota-harbor.md` and served by `GET /api/v1/quota/adapters`. None has been live-verified.
+
+| Adapter id | Tier | Status | Evidence |
+|---|---|---|---|
+| anthropic_admin | official | contract-tested (fixtures) | providers/anthropic tests |
+| claude_subscription | unofficial (opt-in) | contract-tested (fixtures); in-app login guards tested | providers/anthropic tests, TestQuotaLoginFlowGuards |
+| openai_admin | official | contract-tested (fixtures) | providers/openai tests |
+| codex_subscription | unofficial (opt-in) | contract-tested (fixtures) | providers/openai tests |
+| gemini_gcp | official | contract-tested (fixtures) | providers/gemini tests |
+| xai | official | contract-tested (fixtures) | providers/xai tests |
+| together, deepseek, moonshot, openrouter | official | contract-tested (fixtures) | providers/together, providers/balance tests |
+| cursor, github_copilot, nexos, zai_coding_plan, minimax_coding_plan | per adapter | contract-tested (fixtures) | provider package tests |
+| generic_http | official (operator mapping) | contract-tested (local fake) | TestQuotaMonitorDrivesRouting |
+| claude_code_statusline | client_reported (push only) | registered; ingestion endpoint not yet exposed | providers/clientquota |
+| demo_* | demo | synthetic only | demo mode |
+
+Response-header rate limits (`anthropic-ratelimit-*`, `x-ratelimit-*`) are parsed from gateway responses: contract-tested (TestParseHeaders, TestResponseHeadersFeedQuotaBoard).

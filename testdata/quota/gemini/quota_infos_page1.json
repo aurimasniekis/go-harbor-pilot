@@ -1,0 +1,41 @@
+{
+  "quotaInfos": [
+    {
+      "name": "projects/123456789/locations/global/services/generativelanguage.googleapis.com/quotaInfos/GenerateRequestsPerDayPerProjectPerModel",
+      "quotaId": "GenerateRequestsPerDayPerProjectPerModel",
+      "metric": "generativelanguage.googleapis.com/generate_requests_per_model_per_day",
+      "service": "generativelanguage.googleapis.com",
+      "isPrecise": true,
+      "refreshInterval": "day",
+      "containerType": "PROJECT",
+      "dimensions": ["model"],
+      "metricDisplayName": "Generate requests per model per day",
+      "quotaDisplayName": "Requests per day per model",
+      "metricUnit": "1/d/{project}/{model}",
+      "dimensionsInfos": [
+        {"dimensions": {"model": "gemini-2.5-pro"}, "details": {"value": "100"}, "applicableLocations": ["global"]},
+        {"dimensions": {"model": "gemini-2.5-flash"}, "details": {"value": "250"}, "applicableLocations": ["global"]},
+        {"dimensions": {}, "details": {"value": "-1"}, "applicableLocations": ["global"]}
+      ]
+    },
+    {
+      "name": "projects/123456789/locations/global/services/generativelanguage.googleapis.com/quotaInfos/GenerateContentRequestsPerMinutePerProjectPerModel",
+      "quotaId": "GenerateContentRequestsPerMinutePerProjectPerModel",
+      "metric": "generativelanguage.googleapis.com/generate_content_requests",
+      "service": "generativelanguage.googleapis.com",
+      "isPrecise": true,
+      "refreshInterval": "minute",
+      "containerType": "PROJECT",
+      "dimensions": ["model"],
+      "metricDisplayName": "Generate content requests",
+      "quotaDisplayName": "Requests per minute per model",
+      "metricUnit": "1/min/{project}/{model}",
+      "dimensionsInfos": [
+        {"dimensions": {"model": "gemini-2.5-pro"}, "details": {"value": "5"}},
+        {"dimensions": {"model": "gemini-2.5-flash"}, "details": {"value": "10"}},
+        {"dimensions": {"model": "gemini-legacy"}, "details": {"value": "0"}}
+      ]
+    }
+  ],
+  "nextPageToken": "page-2"
+}

@@ -9,8 +9,8 @@ Source of truth for sequencing. Status per phase is updated as work lands; requi
 | 2 | Authentication and authorization (passwords, sessions, CSRF, OIDC, RBAC, service principals, bootstrap/recovery) | done |
 | 3 | Control-plane domain (all managed objects, revisions, drift, snapshot compiler, import/export) | planned |
 | 4 | Canonical IR, protocol adapters, gateway vertical slice, HTTP/local executors, ledger, activity (scenarios A, B, E) | planned |
-| 5 | Routing engine, decision tables, simulator, publish workflow, failover (scenarios C, D) | in-progress (engine, APIs, scenarios C/D done; editor UI pending) |
-| 6 | Quotas, budgets, forecasting (migrated adapters, header-derived observations) | planned |
+| 5 | Routing engine, decision tables, simulator, publish workflow, failover (scenarios C, D) | done |
+| 6 | Quotas, budgets, forecasting (migrated adapters, header-derived observations) | in-progress (backend done; UI pending) |
 | 7 | CLI bridges (Claude Code, Codex) | planned |
 | 8 | Privacy masking and short-lived traces (scenarios F, G, J) | planned |
 | 9 | Compatibility breakers, passthrough, Protocol Watch (scenarios H, I) | planned |

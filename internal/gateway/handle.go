@@ -324,9 +324,10 @@ func (g *Gateway) dispatch(ctx context.Context, w http.ResponseWriter, rc *reqCt
 		if s := prov.Spec.RequestTimeoutSecs; s > 0 {
 			lease = time.Duration(s)*time.Second + 2*time.Minute
 		}
+		est := reserveEstimate(rc, &cand, acc.Spec.Billing)
 		rsv, err := g.Acct.Reserve(ctx, accounting.ReserveInput{RequestID: rc.id, AttemptID: attID, AccountID: acc.ID, BindingID: rc.binding.ID,
 			ProjectID: rc.project, WorkspaceID: rc.workspace, AccountMax: acc.Spec.MaxConcurrency, BindingMax: rc.binding.Spec.Limits.MaxConcurrency,
-			Lease: lease, Billing: acc.Spec.Billing})
+			Lease: lease, Billing: acc.Spec.Billing, EstimatedCost: est.Amount, Currency: est.Currency})
 		if err != nil {
 			var ce *accounting.CapacityError
 			if errors.As(err, &ce) {
@@ -426,6 +427,25 @@ type finalInfo struct {
 	toolCalls   int
 	losses      []ir.Loss
 	bytesOut    int64
+}
+
+// reserveEstimate prices the worst case of an attempt (input estimated at
+// four characters per token, output at the requested maximum) so budgets
+// can account for in-flight work. Unknown prices yield a zero estimate.
+func reserveEstimate(rc *reqCtx, cand *routing.Candidate, billing string) accounting.Cost {
+	m, _ := rc.snap.ModelOf(cand.ProviderID, cand.Model)
+	in := int64(inputChars(rc.ir)/4 + 1)
+	out := int64(4096)
+	if rc.ir.MaxOutputTokens != nil && *rc.ir.MaxOutputTokens > 0 {
+		out = int64(*rc.ir.MaxOutputTokens)
+	} else if m != nil && m.MaxOutputTokens > 0 {
+		out = int64(m.MaxOutputTokens)
+	}
+	c, ok := accounting.Estimate(m, billing, ir.Usage{InputTokens: &in, OutputTokens: &out})
+	if !ok {
+		return accounting.Cost{}
+	}
+	return *c
 }
 
 // inputChars measures text size (not content) for routing expressions.

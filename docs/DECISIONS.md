@@ -182,3 +182,10 @@ Delivery is at-least-once.
 - Bridge isolation must not rely on `--bare`. Per `claude --help` (2.1.318), `--bare` never reads OAuth or keychain credentials, so it cannot work with setup-tokens.
 - Isolation therefore comes from `--setting-sources` limited to project, `--strict-mcp-config`, `--tools ""`, a per-request working dir, and a per-account `CLAUDE_CONFIG_DIR`.
 - In `-p` mode Claude Code skips settings files that fail validation without reporting it, so the bridge runs a startup self-test (see `docs/contracts/harness-wire-facts.md`).
+
+## D-027: Quota monitors and budgets are managed resources
+
+- A `quota_monitor` resource binds an adapter, its options and write-only credentials, and optionally a provider account. When linked, fresh adapter observations feed that account's routing health: a global bucket at or below `exhausted_below` makes the account unavailable until its reset. Stale or unknown values never decide.
+- A `budget` resource limits spend for a scope (global, workspace, project, binding, account) per day, week or month in one currency. Only the cost categories it lists count; by default estimated and actual API charges, never subscription list-equivalent values.
+- Budgets are checked inside the reservation transaction, so concurrent requests cannot overshoot together. Threshold events are written to the outbox once per period.
+- OAuth tokens from in-app sign-in are sealed with the master key in `quota_oauth_tokens`; the file-based token store of the source project is not carried over.

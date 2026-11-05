@@ -19,6 +19,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/config"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/crypto"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/polling"
 )
 
 // Env is a running Harbor Pilot instance for tests.
@@ -47,6 +48,7 @@ func New(t testing.TB, opts ...Option) *Env {
 	cfg.Server.Listen = srv.Listener.Addr().String()
 	key := crypto.GenerateKEKString()
 	a, err := app.New(context.Background(), app.Options{Config: cfg, Version: "test", Log: slog.New(slog.DiscardHandler),
+		QuotaScheduler: polling.Options{Tick: 20 * time.Millisecond, ManualMinInterval: time.Millisecond, BackoffBase: time.Second},
 		Env: func(k string) string {
 			if k == "HP_MASTER_KEY" {
 				return key

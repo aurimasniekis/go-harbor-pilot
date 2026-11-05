@@ -1,0 +1,7 @@
+{
+  "object": "list",
+  "data": [
+    {"id": "synthetic-model-a", "object": "global_model", "created": 1760000000, "updated": 1760000000, "name": "Synthetic Model A", "owned_by": "example", "available": true, "region": "EU", "data_retention_period_days": null, "is_used_for_training": false, "retirement_date": null,
+     "pricing": {"input_cost_per_token": "0.000003", "output_cost_per_token": "0.000015", "cache_read_cost_per_token": "0.0000003"}}
+  ]
+}

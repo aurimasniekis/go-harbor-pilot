@@ -1,0 +1,12 @@
+{
+  "data": [
+    {"userId": 101, "day": "2026-10-16", "date": 1792108800000, "email": "alpha@example.invalid", "isActive": true,
+     "totalLinesAdded": 300, "composerRequests": 4, "chatRequests": 6, "agentRequests": 10,
+     "subscriptionIncludedReqs": 18, "usageBasedReqs": 2, "apiKeyReqs": 0, "mostUsedModel": "synthetic-model"},
+    {"userId": 102, "day": "2026-10-16", "date": 1792108800000, "email": "beta@example.invalid", "isActive": true,
+     "composerRequests": 1, "chatRequests": 1, "agentRequests": 3,
+     "subscriptionIncludedReqs": 5, "usageBasedReqs": 0, "apiKeyReqs": 0}
+  ],
+  "period": {"startDate": 1791590400000, "endDate": 1792236600000},
+  "pagination": {"page": 1, "pageSize": 100, "totalUsers": 3, "totalPages": 2, "hasNextPage": true, "hasPreviousPage": false}
+}

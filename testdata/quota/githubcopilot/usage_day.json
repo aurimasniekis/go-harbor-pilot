@@ -1,0 +1,12 @@
+{
+  "timePeriod": {"year": 2026, "month": 10, "day": 16},
+  "organization": "synthetic-org",
+  "usageItems": [
+    {"product": "Copilot", "sku": "Copilot Premium Request", "model": "synthetic-model-a", "unitType": "requests",
+     "pricePerUnit": 0.04, "grossQuantity": 120, "grossAmount": 4.8, "discountQuantity": 100, "discountAmount": 4.0,
+     "netQuantity": 20, "netAmount": 0.8},
+    {"product": "Copilot", "sku": "Copilot Premium Request", "model": "synthetic-model-b", "unitType": "requests",
+     "pricePerUnit": 0.04, "grossQuantity": 10.5, "grossAmount": 0.42, "discountQuantity": 10.5, "discountAmount": 0.42,
+     "netQuantity": 0, "netAmount": 0}
+  ]
+}

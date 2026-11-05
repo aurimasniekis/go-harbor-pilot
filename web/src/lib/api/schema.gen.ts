@@ -297,6 +297,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Budgets */
+        get: operations["list-budgets"];
+        put?: never;
+        /** Create a Budget */
+        post: operations["create-budget"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/budgets/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current period spend for every budget */
+        get: operations["budget-status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/budgets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Budget */
+        get: operations["get-budget"];
+        /** Replace a Budget */
+        put: operations["replace-budget"];
+        post?: never;
+        /** Delete a Budget */
+        delete: operations["delete-budget"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/budgets/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Budget */
+        get: operations["history-budget"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/client-bindings": {
         parameters: {
             query?: never;
@@ -735,6 +806,216 @@ export interface paths {
         get: operations["history-provider"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quota-monitors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Quota monitors */
+        get: operations["list-quota-monitors"];
+        put?: never;
+        /** Create a Quota monitor */
+        post: operations["create-quota_monitor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quota-monitors/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Quota monitor */
+        get: operations["get-quota_monitor"];
+        /** Replace a Quota monitor */
+        put: operations["replace-quota_monitor"];
+        post?: never;
+        /** Delete a Quota monitor */
+        delete: operations["delete-quota_monitor"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quota-monitors/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Quota monitor */
+        get: operations["history-quota_monitor"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quota/adapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List quota adapters */
+        get: operations["list-quota-adapters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quota/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Quota monitors, observed rate limits and account health */
+        get: operations["quota-board"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quota/buckets/{owner}/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Forecast a quota bucket
+         * @description Projects remaining capacity from recent burn. Forecasts are estimates with a stated confidence; unknown values are never assumed.
+         */
+        get: operations["quota-forecast"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quota/buckets/{owner}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Observation history of a quota bucket */
+        get: operations["quota-history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quota/logins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Monitors that use in-app sign-in */
+        get: operations["list-quota-logins"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quota/logins/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a stored sign-in token */
+        delete: operations["delete-quota-login"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quota/logins/{id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete provider sign-in */
+        post: operations["complete-quota-login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quota/logins/{id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start provider sign-in for a monitor */
+        post: operations["start-quota-login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quota/monitors/{id}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Poll a quota monitor now */
+        post: operations["refresh-quota-monitor"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1181,6 +1462,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/usage/external": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Usage and charges reported by provider APIs */
+        get: operations["external-usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/usage/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Provider-reported vs gateway-observed usage */
+        get: operations["usage-reconciliation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/usage/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Usage and cost over time */
+        get: operations["usage-series"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/usage/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Usage and cost by category */
+        get: operations["usage-summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -1369,6 +1718,27 @@ export interface components {
             purpose: "invite" | "reset";
             token: string;
         };
+        AccountHealthView: {
+            account_id: string;
+            available: boolean;
+            billing: string;
+            name: string;
+            reason: string;
+            /**
+             * Format: double
+             * @description Fraction of the tightest known window left; null when unknown.
+             */
+            remaining: number | null;
+            /** Format: date-time */
+            reset_at: string | null;
+            stale: boolean;
+            /** Format: date-time */
+            until: string | null;
+        };
+        AccountQuotaView: {
+            account_id: string;
+            buckets: components["schemas"]["BucketView"][];
+        };
         AccountSpec: {
             /** @description Restrict to these provider model ids; empty = all models of the provider. */
             allowed_models: string[];
@@ -1433,6 +1803,27 @@ export interface components {
              * @description Requests whose usage the upstream did not report.
              */
             unknown_usage: number;
+        };
+        AdapterView: {
+            adapter_version: string;
+            capabilities: {
+                [key: string]: components["schemas"]["CapabilityInfo"];
+            };
+            credential_types: string[];
+            /** Format: int64 */
+            default_poll_interval_secs: number;
+            display_name: string;
+            docs_urls: string[];
+            family: string;
+            id: string;
+            limitations: string[];
+            push_only: boolean;
+            requires_terms_ack: boolean;
+            /** @enum {string} */
+            tier: "official" | "unofficial" | "client_reported" | "demo";
+        };
+        AdaptersOutBody: {
+            items: components["schemas"]["AdapterView"][];
         };
         AliasSpec: {
             /** @description Target alias (chains are allowed; cycles are rejected). */
@@ -1553,6 +1944,113 @@ export interface components {
             /** @description Use harness session headers to group requests into sessions. */
             session_hints: boolean;
         };
+        BoardBody: {
+            account_health: components["schemas"]["AccountHealthView"][];
+            /** Format: int64 */
+            dropped_observations: number;
+            monitors: components["schemas"]["MonitorView"][];
+            /** @description Rate-limit state derived from gateway responses. */
+            observed_accounts: components["schemas"]["AccountQuotaView"][];
+        };
+        BucketView: {
+            currency?: string;
+            exhausted: boolean;
+            global: boolean;
+            key: string;
+            kind: string;
+            label: string;
+            /** Format: double */
+            limit: number | null;
+            limit_amount?: string;
+            model?: string;
+            /** Format: date-time */
+            observed_at: string;
+            official: boolean;
+            quality: string;
+            /** Format: double */
+            remaining: number | null;
+            remaining_amount?: string;
+            /** Format: double */
+            remaining_fraction: number | null;
+            /** Format: date-time */
+            reset_at: string | null;
+            reset_passed: boolean;
+            reset_semantics: string;
+            scope: string;
+            /** @enum {string} */
+            source: "adapter" | "response_headers";
+            /** Format: date-time */
+            source_time: string | null;
+            stale: boolean;
+            unit: string;
+            /** Format: double */
+            used: number | null;
+            used_amount?: string;
+            /** Format: int64 */
+            window_seconds?: number;
+        };
+        BudOutBody: {
+            items: components["schemas"]["BudgetUsage"][];
+        };
+        BudgetSpec: {
+            /** @description Cost categories that count. Default: estimated_api_charge and actual_api_charge. list_equivalent (subscription usage priced at list rates) counts only when listed. */
+            cost_kinds?: string[];
+            /** @description ISO currency; only costs in this currency count. */
+            currency: string;
+            enabled: boolean;
+            /**
+             * @description block rejects new attempts once the limit would be exceeded; warn only emits events.
+             * @enum {string}
+             */
+            enforcement?: "block" | "warn";
+            /** @description Decimal amount in currency. */
+            limit: string;
+            /** @enum {string} */
+            period: "day" | "week" | "month";
+            /** @enum {string} */
+            scope: "global" | "workspace" | "project" | "binding" | "account";
+            /** @description Id of the workspace, project, client binding or provider account. Empty for global. */
+            scope_id?: string;
+            /** @description IANA timezone for period boundaries. Empty = UTC. */
+            timezone?: string;
+            /**
+             * Format: double
+             * @description Fraction of the limit that emits a warning event. 0 = 0.8.
+             */
+            warn_at?: number;
+        };
+        BudgetUsage: {
+            budget_id: string;
+            by_kind_e10: {
+                [key: string]: number;
+            };
+            cost_kinds: string[];
+            currency: string;
+            enabled: boolean;
+            enforcement: string;
+            /** Format: double */
+            fraction: number;
+            /** Format: int64 */
+            limit_e10: number;
+            name: string;
+            period: string;
+            /** Format: date-time */
+            period_end: string;
+            /** Format: date-time */
+            period_start: string;
+            /** Format: int64 */
+            projected_spend_e10: number | null;
+            /** Format: int64 */
+            reserved_e10: number;
+            scope: string;
+            scope_id: string;
+            /** Format: int64 */
+            spent_e10: number;
+            /** @enum {string} */
+            state: "ok" | "warning" | "exceeded" | "disabled";
+            /** Format: double */
+            warn_at: number;
+        };
         Bundle: {
             api_version: string;
             /** Format: int64 */
@@ -1595,6 +2093,25 @@ export interface components {
             upstream_protocol: string;
             /** Format: int64 */
             weight: number;
+        };
+        CapabilityInfo: {
+            note?: string;
+            status: string;
+        };
+        CompleteInBody: {
+            /** @description The code (or redirected URL) shown after approval. */
+            code: string;
+            state: string;
+        };
+        CompleteOutBody: {
+            refresh: string;
+            status: string;
+        };
+        CostAmount: {
+            amount: string;
+            currency: string;
+            /** @enum {string} */
+            kind: "estimated_api_charge" | "actual_api_charge" | "list_equivalent" | "subscription_fee" | "allocation";
         };
         CostDTO: {
             /** @description Exact decimal. */
@@ -1740,6 +2257,17 @@ export interface components {
             /** @description Correlates with server logs. */
             request_id?: string;
         };
+        Event: {
+            /** Format: double */
+            after: number;
+            /** Format: double */
+            before: number;
+            kind: string;
+            /** Format: double */
+            restored: number | null;
+            /** Format: date-time */
+            t: string;
+        };
         Exclusion: {
             account: string;
             account_id: string;
@@ -1757,6 +2285,31 @@ export interface components {
         ExprOutBody: {
             error?: string;
             valid: boolean;
+        };
+        ExtOutBody: {
+            items: components["schemas"]["ExternalUsageRow"][];
+        };
+        ExternalUsageRow: {
+            /** @description Provider-reported charge (actual_api_charge). */
+            actual_cost: string | null;
+            breakdown: string;
+            currency: string;
+            /** @description JSON object of the breakdown's dimension values. */
+            dimensions: string;
+            estimated_cost: string | null;
+            /** Format: int64 */
+            input_tokens: number | null;
+            /** Format: date-time */
+            interval_end: string;
+            /** Format: date-time */
+            interval_start: string;
+            monitor_id: string;
+            /** Format: int64 */
+            output_tokens: number | null;
+            partial: boolean;
+            quality: string;
+            /** Format: int64 */
+            requests: number | null;
         };
         FallbackPolicy: {
             /** @description Allow falling back from free/subscription/local candidates to metered_api candidates. */
@@ -1798,6 +2351,9 @@ export interface components {
             reset_in_minutes?: number;
             stale?: boolean;
         };
+        HistOutBody: {
+            points: components["schemas"]["HistoryPoint"][];
+        };
         HistoryEntry: {
             actor_id: string;
             /** Format: date-time */
@@ -1812,6 +2368,18 @@ export interface components {
         };
         HistoryList: {
             items: components["schemas"]["HistoryEntry"][];
+        };
+        HistoryPoint: {
+            /** Format: double */
+            limit: number | null;
+            /** Format: double */
+            remaining: number | null;
+            /** Format: date-time */
+            reset_at: string | null;
+            /** Format: date-time */
+            t: string;
+            /** Format: double */
+            used: number | null;
         };
         IdentityDTO: {
             issuer: string;
@@ -1847,6 +2415,12 @@ export interface components {
             config_revision: number;
             dry_run: boolean;
             warnings: string[];
+        };
+        Interval: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string | null;
         };
         IssueAPITokenRequest: {
             name: string;
@@ -1901,9 +2475,24 @@ export interface components {
         LinkOutBody: {
             auth_url: string;
         };
+        ListOutBody: {
+            items: components["schemas"]["LoginView"][];
+        };
         LoginInBody: {
             email: string;
             password: string;
+        };
+        LoginView: {
+            adapter: string;
+            /** Format: date-time */
+            expires_at: string | null;
+            instructions: string;
+            monitor_id: string;
+            name: string;
+            /** Format: date-time */
+            obtained_at: string | null;
+            signed_in: boolean;
+            tier: string;
         };
         MetaDTO: {
             api_version: string;
@@ -1945,6 +2534,20 @@ export interface components {
             max_output_tokens: number;
             /** @description List prices for estimates; omit when unknown. */
             pricing?: components["schemas"]["ModelPricing"];
+        };
+        MonitorView: {
+            account_id: string;
+            adapter: string;
+            adapter_name: string;
+            buckets: components["schemas"]["BucketView"][];
+            enabled: boolean;
+            /** @enum {string} */
+            health: "healthy" | "degraded" | "auth_failed" | "stale" | "error" | "disabled" | "pending" | "unsupported";
+            id: string;
+            masked_identifier: string | null;
+            name: string;
+            poll: components["schemas"]["PollView"];
+            tier: string;
         };
         OIDCLoginOption: {
             display_name: string;
@@ -2047,6 +2650,11 @@ export interface components {
             /** @description Present when more items are available. */
             next_cursor?: string;
         };
+        PageResourceBudgetSpec: {
+            items: components["schemas"]["ResourceBudgetSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
         PageResourceEntitlementSpec: {
             items: components["schemas"]["ResourceEntitlementSpec"][];
             /** @description Present when more items are available. */
@@ -2069,6 +2677,11 @@ export interface components {
         };
         PageResourceProviderSpec: {
             items: components["schemas"]["ResourceProviderSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageResourceQuotaMonitorSpec: {
+            items: components["schemas"]["ResourceQuotaMonitorSpec"][];
             /** @description Present when more items are available. */
             next_cursor?: string;
         };
@@ -2125,6 +2738,34 @@ export interface components {
         PlanSpec: {
             description: string;
             display_name: string;
+        };
+        Point: {
+            /** Format: double */
+            high: number;
+            /** Format: double */
+            low: number;
+            /** Format: double */
+            remaining: number;
+            /** Format: date-time */
+            t: string;
+        };
+        PollView: {
+            /** @enum {string} */
+            auth_state: "unknown" | "ok" | "failed" | "permission_denied";
+            /** Format: int64 */
+            consecutive_failures: number;
+            /** Format: date-time */
+            cooldown_until: string | null;
+            error_kind: string;
+            error_message: string;
+            /** Format: date-time */
+            last_attempt_at: string | null;
+            /** Format: date-time */
+            last_success_at: string | null;
+            /** Format: int64 */
+            latency_ms: number | null;
+            /** Format: date-time */
+            next_attempt_at: string | null;
         };
         PoolMember: {
             account_id: string;
@@ -2193,6 +2834,83 @@ export interface components {
             stream_idle_timeout_seconds: number;
             /** @enum {string} */
             type: "anthropic" | "openai" | "gemini" | "openai_compatible" | "ollama" | "claude_code" | "codex";
+        };
+        QuotaMonitorSpec: {
+            access_token_ref?: string;
+            /** @description Provider account whose routing health this monitor feeds. Empty = monitor only. */
+            account_id?: string;
+            /** @description Required for unofficial adapters, which use undocumented endpoints that may break or conflict with provider terms. */
+            acknowledge_terms_risk?: boolean;
+            /** @description Quota adapter id; see GET /api/v1/quota/adapters. */
+            adapter: string;
+            api_key_ref?: string;
+            enabled: boolean;
+            /**
+             * Format: double
+             * @description Remaining fraction at or below which the linked account is treated as exhausted. 0 = only when fully used.
+             */
+            exhausted_below?: number;
+            management_key_ref?: string;
+            /** @description Adapter-specific, non-secret options. */
+            options?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Format: int64
+             * @description 0 = the adapter's recommended interval.
+             */
+            poll_interval_secs?: number;
+            service_account_ref?: string;
+            /** @description Monitors drawing on the same provider quota share an id so capacity is not double counted. */
+            shared_scope_id?: string;
+            /**
+             * Format: int64
+             * @description Observations older than this are stale. 0 = three poll intervals.
+             */
+            stale_after_secs?: number;
+        };
+        Rate: {
+            confidence: string;
+            /** Format: double */
+            per_hour: number;
+            source: string;
+            unit: string;
+        };
+        RecOutBody: {
+            items: components["schemas"]["ReconciliationRow"][];
+        };
+        ReconciliationRow: {
+            account_id: string;
+            currency: string;
+            /** Format: date-time */
+            day: string;
+            /** Format: int64 */
+            gateway_attempts: number;
+            /** @description estimated_api_charge from configured list prices. */
+            gateway_estimated_cost: string | null;
+            /** Format: int64 */
+            gateway_input_tokens: number;
+            /** Format: int64 */
+            gateway_output_tokens: number;
+            monitor_id: string;
+            partial: boolean;
+            /** @description actual_api_charge reported by the provider. */
+            provider_actual_cost: string | null;
+            /** Format: int64 */
+            provider_input_tokens: number | null;
+            /** Format: int64 */
+            provider_output_tokens: number | null;
+            /** Format: int64 */
+            provider_requests: number | null;
+            /**
+             * Format: int64
+             * @description Provider input tokens not seen by the gateway (null when the provider does not report tokens).
+             */
+            unattributed_input_tokens: number | null;
+        };
+        RefreshOutBody: {
+            /** @enum {string} */
+            status: "queued" | "already_queued" | "in_flight" | "rate_limited" | "unknown";
         };
         ReplayInBody: {
             /** @enum {string} */
@@ -2408,6 +3126,39 @@ export interface components {
             updated_at: string;
             updated_by: string;
         };
+        ResourceBudgetSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["BudgetSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
         ResourceEntitlementSpec: {
             /** Format: int64 */
             config_revision: number;
@@ -2573,6 +3324,39 @@ export interface components {
             updated_at: string;
             updated_by: string;
         };
+        ResourceQuotaMonitorSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["QuotaMonitorSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
         ResourceWorkspaceSpec: {
             /** Format: int64 */
             config_revision: number;
@@ -2605,6 +3389,30 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
             updated_by: string;
+        };
+        Result: {
+            caveats: string[];
+            confidence: string;
+            downtime: components["schemas"]["Interval"][];
+            events: components["schemas"]["Event"][];
+            /** Format: date-time */
+            exhaustion_at: string | null;
+            exhausts_before_reset: boolean;
+            /** Format: double */
+            limit: number | null;
+            method: string;
+            /** Format: date-time */
+            next_reset_at: string | null;
+            points: components["schemas"]["Point"][];
+            rate: components["schemas"]["Rate"];
+            /** Format: double */
+            restored_amount: number | null;
+            stale: boolean;
+            /** Format: date-time */
+            start: string;
+            /** Format: double */
+            start_value: number;
+            unavailable_reason: string | null;
         };
         RevisionDTO: {
             actor_id: string;
@@ -2645,6 +3453,14 @@ export interface components {
         };
         SecurityAlertList: {
             items: components["schemas"]["SecurityAlertDTO"][];
+        };
+        SerBody: {
+            /** Format: date-time */
+            from: string;
+            points: components["schemas"]["UsagePoint"][];
+            step: string;
+            /** Format: date-time */
+            to: string;
         };
         ServicePrincipalDTO: {
             /** Format: date-time */
@@ -2738,6 +3554,15 @@ export interface components {
             name: string;
             permissions: string[];
         };
+        StartInBody: {
+            /** @description Same-origin URL for providers that redirect back (key exchange). */
+            callback_url?: string;
+        };
+        StartOutBody: {
+            authorize_url: string;
+            instructions: string;
+            state: string;
+        };
         StatusDTO: {
             data_dir: string;
             /** @description Fingerprint of the active master key (not secret). */
@@ -2748,6 +3573,17 @@ export interface components {
             secure_cookies: boolean;
             /** Format: int64 */
             traces_schema_version: number;
+        };
+        SubscriptionFee: {
+            account_id: string;
+            currency: string;
+            entitlement_id: string;
+            /** @description SubscriptionFee per period. */
+            fee: string;
+            period: string;
+            plan_name: string;
+            /** @description Share of the fee that falls in the range. */
+            prorated: string;
         };
         TestOutBody: {
             claims: {
@@ -2784,6 +3620,53 @@ export interface components {
         UnlinkInBody: {
             issuer: string;
             subject: string;
+        };
+        UsageGroup: {
+            allocated: components["schemas"]["CostAmount"][];
+            /** Format: int64 */
+            attempts: number;
+            billing?: string;
+            costs: components["schemas"]["CostAmount"][];
+            key: string;
+            label: string;
+            tokens: components["schemas"]["UsageTokens"];
+        };
+        UsagePoint: {
+            /** Format: int64 */
+            attempts: number;
+            costs: components["schemas"]["CostAmount"][];
+            /** Format: date-time */
+            t: string;
+            tokens: components["schemas"]["UsageTokens"];
+        };
+        UsageSummary: {
+            categories: string[];
+            /** Format: date-time */
+            from: string;
+            group_by: string;
+            groups: components["schemas"]["UsageGroup"][];
+            subscription_fees: components["schemas"]["SubscriptionFee"][];
+            /** Format: date-time */
+            to: string;
+            /** @description Per category and currency; categories are never summed together. */
+            totals: components["schemas"]["CostAmount"][];
+        };
+        UsageTokens: {
+            /** Format: int64 */
+            cache_read: number;
+            /** Format: int64 */
+            cache_write: number;
+            /** Format: int64 */
+            input: number;
+            /** Format: int64 */
+            output: number;
+            /** Format: int64 */
+            reasoning: number;
+            /**
+             * Format: int64
+             * @description Attempts whose usage was not reported (counted, never assumed zero).
+             */
+            unknown_usage_attempts: number;
         };
         UserDTO: {
             /** Format: date-time */
@@ -2903,6 +3786,14 @@ export interface components {
             };
             spec: components["schemas"]["BindingSpec"];
         };
+        WriteBodyBudgetSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["BudgetSpec"];
+        };
         WriteBodyEntitlementSpec: {
             name: string;
             /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
@@ -2942,6 +3833,14 @@ export interface components {
                 [key: string]: string | null;
             };
             spec: components["schemas"]["ProviderSpec"];
+        };
+        WriteBodyQuotaMonitorSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["QuotaMonitorSpec"];
         };
         WriteBodyWorkspaceSpec: {
             name: string;
@@ -3661,6 +4560,246 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionDTO"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-budgets": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourceBudgetSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-budget": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyBudgetSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceBudgetSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "budget-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceBudgetSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-budget": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyBudgetSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceBudgetSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-budget": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-budget": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
                 };
             };
             /** @description Error */
@@ -5202,6 +6341,502 @@ export interface operations {
             };
         };
     };
+    "list-quota-monitors": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourceQuotaMonitorSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-quota_monitor": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyQuotaMonitorSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceQuotaMonitorSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-quota_monitor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceQuotaMonitorSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-quota_monitor": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyQuotaMonitorSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceQuotaMonitorSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-quota_monitor": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-quota_monitor": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-quota-adapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdaptersOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "quota-board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "quota-forecast": {
+        parameters: {
+            query: {
+                bucket: string;
+            };
+            header?: never;
+            path: {
+                owner: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Result"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "quota-history": {
+        parameters: {
+            query: {
+                bucket: string;
+                hours?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Quota monitor id, or provider account id for response-derived buckets. */
+                owner: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-quota-logins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-quota-login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "complete-quota-login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompleteOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "start-quota-login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "refresh-quota-monitor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefreshOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-routing-plans": {
         parameters: {
             query?: {
@@ -6522,6 +8157,141 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusDTO"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "external-usage": {
+        parameters: {
+            query?: {
+                monitor_id?: string;
+                /** @description total, model, api_key, … Rows of different breakdowns describe the same usage. */
+                breakdown?: string;
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "usage-reconciliation": {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "usage-series": {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                step?: "hour" | "day" | "";
+                filter?: "account" | "provider" | "model" | "binding" | "project" | "workspace" | "billing" | "";
+                value?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SerBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "usage-summary": {
+        parameters: {
+            query?: {
+                /** @description RFC 3339; default 30 days before to. */
+                from?: string;
+                /** @description RFC 3339; default now. */
+                to?: string;
+                group_by?: "account" | "provider" | "model" | "binding" | "project" | "workspace" | "billing" | "";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageSummary"];
                 };
             };
             /** @description Error */

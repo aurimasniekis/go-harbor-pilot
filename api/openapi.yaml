@@ -62,6 +62,61 @@ components:
         - purpose
         - password
       type: object
+    AccountHealthView:
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+        available:
+          type: boolean
+        billing:
+          type: string
+        name:
+          type: string
+        reason:
+          type: string
+        remaining:
+          description: Fraction of the tightest known window left; null when unknown.
+          format: double
+          type:
+            - number
+            - "null"
+        reset_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        stale:
+          type: boolean
+        until:
+          format: date-time
+          type:
+            - string
+            - "null"
+      required:
+        - account_id
+        - name
+        - billing
+        - available
+        - reason
+        - until
+        - remaining
+        - reset_at
+        - stale
+      type: object
+    AccountQuotaView:
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+        buckets:
+          items:
+            $ref: "#/components/schemas/BucketView"
+          type: array
+      required:
+        - account_id
+        - buckets
+      type: object
     AccountSpec:
       additionalProperties: false
       properties:
@@ -180,6 +235,71 @@ components:
         - fallbacks
         - unknown_usage
         - telemetry_dropped
+      type: object
+    AdapterView:
+      additionalProperties: false
+      properties:
+        adapter_version:
+          type: string
+        capabilities:
+          additionalProperties:
+            $ref: "#/components/schemas/CapabilityInfo"
+          type: object
+        credential_types:
+          items:
+            type: string
+          type: array
+        default_poll_interval_secs:
+          format: int64
+          type: integer
+        display_name:
+          type: string
+        docs_urls:
+          items:
+            type: string
+          type: array
+        family:
+          type: string
+        id:
+          type: string
+        limitations:
+          items:
+            type: string
+          type: array
+        push_only:
+          type: boolean
+        requires_terms_ack:
+          type: boolean
+        tier:
+          enum:
+            - official
+            - unofficial
+            - client_reported
+            - demo
+          type: string
+      required:
+        - id
+        - display_name
+        - family
+        - adapter_version
+        - tier
+        - credential_types
+        - capabilities
+        - limitations
+        - docs_urls
+        - default_poll_interval_secs
+        - push_only
+        - requires_terms_ack
+      type: object
+    AdaptersOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/AdapterView"
+          type: array
+      required:
+        - items
       type: object
     AliasSpec:
       additionalProperties: false
@@ -452,6 +572,278 @@ components:
         - project_hints
         - intent_hints
       type: object
+    BoardBody:
+      additionalProperties: false
+      properties:
+        account_health:
+          items:
+            $ref: "#/components/schemas/AccountHealthView"
+          type: array
+        dropped_observations:
+          format: int64
+          type: integer
+        monitors:
+          items:
+            $ref: "#/components/schemas/MonitorView"
+          type: array
+        observed_accounts:
+          description: Rate-limit state derived from gateway responses.
+          items:
+            $ref: "#/components/schemas/AccountQuotaView"
+          type: array
+      required:
+        - monitors
+        - observed_accounts
+        - account_health
+        - dropped_observations
+      type: object
+    BucketView:
+      additionalProperties: false
+      properties:
+        currency:
+          type: string
+        exhausted:
+          type: boolean
+        global:
+          type: boolean
+        key:
+          type: string
+        kind:
+          type: string
+        label:
+          type: string
+        limit:
+          format: double
+          type:
+            - number
+            - "null"
+        limit_amount:
+          type: string
+        model:
+          type: string
+        observed_at:
+          format: date-time
+          type: string
+        official:
+          type: boolean
+        quality:
+          type: string
+        remaining:
+          format: double
+          type:
+            - number
+            - "null"
+        remaining_amount:
+          type: string
+        remaining_fraction:
+          format: double
+          type:
+            - number
+            - "null"
+        reset_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        reset_passed:
+          type: boolean
+        reset_semantics:
+          type: string
+        scope:
+          type: string
+        source:
+          enum:
+            - adapter
+            - response_headers
+          type: string
+        source_time:
+          format: date-time
+          type:
+            - string
+            - "null"
+        stale:
+          type: boolean
+        unit:
+          type: string
+        used:
+          format: double
+          type:
+            - number
+            - "null"
+        used_amount:
+          type: string
+        window_seconds:
+          format: int64
+          type: integer
+      required:
+        - key
+        - label
+        - scope
+        - kind
+        - unit
+        - reset_semantics
+        - global
+        - official
+        - source
+        - limit
+        - used
+        - remaining
+        - remaining_fraction
+        - reset_at
+        - source_time
+        - observed_at
+        - quality
+        - stale
+        - exhausted
+        - reset_passed
+      type: object
+    BudOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/BudgetUsage"
+          type: array
+      required:
+        - items
+      type: object
+    BudgetSpec:
+      additionalProperties: false
+      properties:
+        cost_kinds:
+          description: "Cost categories that count. Default: estimated_api_charge and actual_api_charge. list_equivalent (subscription usage priced at list rates) counts only when listed."
+          items:
+            type: string
+          type: array
+        currency:
+          description: ISO currency; only costs in this currency count.
+          type: string
+        enabled:
+          type: boolean
+        enforcement:
+          description: block rejects new attempts once the limit would be exceeded; warn only emits events.
+          enum:
+            - block
+            - warn
+          type: string
+        limit:
+          description: Decimal amount in currency.
+          type: string
+        period:
+          enum:
+            - day
+            - week
+            - month
+          type: string
+        scope:
+          enum:
+            - global
+            - workspace
+            - project
+            - binding
+            - account
+          type: string
+        scope_id:
+          description: Id of the workspace, project, client binding or provider account. Empty for global.
+          type: string
+        timezone:
+          description: IANA timezone for period boundaries. Empty = UTC.
+          type: string
+        warn_at:
+          description: Fraction of the limit that emits a warning event. 0 = 0.8.
+          format: double
+          maximum: 1
+          minimum: 0
+          type: number
+      required:
+        - scope
+        - period
+        - limit
+        - currency
+        - enabled
+      type: object
+    BudgetUsage:
+      additionalProperties: false
+      properties:
+        budget_id:
+          type: string
+        by_kind_e10:
+          additionalProperties:
+            format: int64
+            type: integer
+          type: object
+        cost_kinds:
+          items:
+            type: string
+          type: array
+        currency:
+          type: string
+        enabled:
+          type: boolean
+        enforcement:
+          type: string
+        fraction:
+          format: double
+          type: number
+        limit_e10:
+          format: int64
+          type: integer
+        name:
+          type: string
+        period:
+          type: string
+        period_end:
+          format: date-time
+          type: string
+        period_start:
+          format: date-time
+          type: string
+        projected_spend_e10:
+          format: int64
+          type:
+            - integer
+            - "null"
+        reserved_e10:
+          format: int64
+          type: integer
+        scope:
+          type: string
+        scope_id:
+          type: string
+        spent_e10:
+          format: int64
+          type: integer
+        state:
+          enum:
+            - ok
+            - warning
+            - exceeded
+            - disabled
+          type: string
+        warn_at:
+          format: double
+          type: number
+      required:
+        - budget_id
+        - name
+        - scope
+        - scope_id
+        - period
+        - period_start
+        - period_end
+        - currency
+        - cost_kinds
+        - enforcement
+        - enabled
+        - limit_e10
+        - spent_e10
+        - reserved_e10
+        - by_kind_e10
+        - fraction
+        - warn_at
+        - projected_spend_e10
+        - state
+      type: object
     Bundle:
       additionalProperties: false
       properties:
@@ -559,6 +951,61 @@ components:
         - weight
         - score
         - reasons
+      type: object
+    CapabilityInfo:
+      additionalProperties: false
+      properties:
+        note:
+          type: string
+        status:
+          type: string
+      required:
+        - status
+      type: object
+    CompleteInBody:
+      additionalProperties: false
+      properties:
+        code:
+          description: The code (or redirected URL) shown after approval.
+          maxLength: 4096
+          type: string
+        state:
+          maxLength: 512
+          type: string
+      required:
+        - state
+        - code
+      type: object
+    CompleteOutBody:
+      additionalProperties: false
+      properties:
+        refresh:
+          type: string
+        status:
+          type: string
+      required:
+        - status
+        - refresh
+      type: object
+    CostAmount:
+      additionalProperties: false
+      properties:
+        amount:
+          type: string
+        currency:
+          type: string
+        kind:
+          enum:
+            - estimated_api_charge
+            - actual_api_charge
+            - list_equivalent
+            - subscription_fee
+            - allocation
+          type: string
+      required:
+        - kind
+        - currency
+        - amount
       type: object
     CostDTO:
       additionalProperties: false
@@ -926,6 +1373,32 @@ components:
         - code
         - message
       type: object
+    Event:
+      additionalProperties: false
+      properties:
+        after:
+          format: double
+          type: number
+        before:
+          format: double
+          type: number
+        kind:
+          type: string
+        restored:
+          format: double
+          type:
+            - number
+            - "null"
+        t:
+          format: date-time
+          type: string
+      required:
+        - t
+        - kind
+        - before
+        - after
+        - restored
+      type: object
     Exclusion:
       additionalProperties: false
       properties:
@@ -977,6 +1450,77 @@ components:
           type: boolean
       required:
         - valid
+      type: object
+    ExtOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ExternalUsageRow"
+          type: array
+      required:
+        - items
+      type: object
+    ExternalUsageRow:
+      additionalProperties: false
+      properties:
+        actual_cost:
+          description: Provider-reported charge (actual_api_charge).
+          type:
+            - string
+            - "null"
+        breakdown:
+          type: string
+        currency:
+          type: string
+        dimensions:
+          description: JSON object of the breakdown's dimension values.
+          type: string
+        estimated_cost:
+          type:
+            - string
+            - "null"
+        input_tokens:
+          format: int64
+          type:
+            - integer
+            - "null"
+        interval_end:
+          format: date-time
+          type: string
+        interval_start:
+          format: date-time
+          type: string
+        monitor_id:
+          type: string
+        output_tokens:
+          format: int64
+          type:
+            - integer
+            - "null"
+        partial:
+          type: boolean
+        quality:
+          type: string
+        requests:
+          format: int64
+          type:
+            - integer
+            - "null"
+      required:
+        - monitor_id
+        - breakdown
+        - dimensions
+        - interval_start
+        - interval_end
+        - requests
+        - input_tokens
+        - output_tokens
+        - actual_cost
+        - estimated_cost
+        - currency
+        - partial
+        - quality
       type: object
     FallbackPolicy:
       additionalProperties: false
@@ -1083,6 +1627,16 @@ components:
       required:
         - available
       type: object
+    HistOutBody:
+      additionalProperties: false
+      properties:
+        points:
+          items:
+            $ref: "#/components/schemas/HistoryPoint"
+          type: array
+      required:
+        - points
+      type: object
     HistoryEntry:
       additionalProperties: false
       properties:
@@ -1119,6 +1673,39 @@ components:
           type: array
       required:
         - items
+      type: object
+    HistoryPoint:
+      additionalProperties: false
+      properties:
+        limit:
+          format: double
+          type:
+            - number
+            - "null"
+        remaining:
+          format: double
+          type:
+            - number
+            - "null"
+        reset_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        t:
+          format: date-time
+          type: string
+        used:
+          format: double
+          type:
+            - number
+            - "null"
+      required:
+        - t
+        - limit
+        - used
+        - remaining
+        - reset_at
       type: object
     IdentityDTO:
       additionalProperties: false
@@ -1209,6 +1796,21 @@ components:
         - actions
         - warnings
         - config_revision
+      type: object
+    Interval:
+      additionalProperties: false
+      properties:
+        from:
+          format: date-time
+          type: string
+        to:
+          format: date-time
+          type:
+            - string
+            - "null"
+      required:
+        - from
+        - to
       type: object
     IssueAPITokenRequest:
       additionalProperties: false
@@ -1327,6 +1929,16 @@ components:
       required:
         - auth_url
       type: object
+    ListOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/LoginView"
+          type: array
+      required:
+        - items
+      type: object
     LoginInBody:
       additionalProperties: false
       properties:
@@ -1339,6 +1951,41 @@ components:
       required:
         - email
         - password
+      type: object
+    LoginView:
+      additionalProperties: false
+      properties:
+        adapter:
+          type: string
+        expires_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        instructions:
+          type: string
+        monitor_id:
+          type: string
+        name:
+          type: string
+        obtained_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        signed_in:
+          type: boolean
+        tier:
+          type: string
+      required:
+        - monitor_id
+        - name
+        - adapter
+        - tier
+        - signed_in
+        - expires_at
+        - obtained_at
+        - instructions
       type: object
     MetaDTO:
       additionalProperties: false
@@ -1440,6 +2087,57 @@ components:
         - context_window
         - max_output_tokens
         - capabilities
+      type: object
+    MonitorView:
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+        adapter:
+          type: string
+        adapter_name:
+          type: string
+        buckets:
+          items:
+            $ref: "#/components/schemas/BucketView"
+          type: array
+        enabled:
+          type: boolean
+        health:
+          enum:
+            - healthy
+            - degraded
+            - auth_failed
+            - stale
+            - error
+            - disabled
+            - pending
+            - unsupported
+          type: string
+        id:
+          type: string
+        masked_identifier:
+          type:
+            - string
+            - "null"
+        name:
+          type: string
+        poll:
+          $ref: "#/components/schemas/PollView"
+        tier:
+          type: string
+      required:
+        - id
+        - name
+        - adapter
+        - adapter_name
+        - tier
+        - account_id
+        - enabled
+        - health
+        - masked_identifier
+        - poll
+        - buckets
       type: object
     OIDCLoginOption:
       additionalProperties: false
@@ -1727,6 +2425,19 @@ components:
       required:
         - items
       type: object
+    PageResourceBudgetSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourceBudgetSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
     PageResourceEntitlementSpec:
       additionalProperties: false
       properties:
@@ -1785,6 +2496,19 @@ components:
         items:
           items:
             $ref: "#/components/schemas/ResourceProviderSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageResourceQuotaMonitorSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourceQuotaMonitorSpec"
           type: array
         next_cursor:
           description: Present when more items are available.
@@ -1943,6 +2667,80 @@ components:
         - display_name
         - description
       type: object
+    Point:
+      additionalProperties: false
+      properties:
+        high:
+          format: double
+          type: number
+        low:
+          format: double
+          type: number
+        remaining:
+          format: double
+          type: number
+        t:
+          format: date-time
+          type: string
+      required:
+        - t
+        - remaining
+        - low
+        - high
+      type: object
+    PollView:
+      additionalProperties: false
+      properties:
+        auth_state:
+          enum:
+            - unknown
+            - ok
+            - failed
+            - permission_denied
+          type: string
+        consecutive_failures:
+          format: int64
+          type: integer
+        cooldown_until:
+          format: date-time
+          type:
+            - string
+            - "null"
+        error_kind:
+          type: string
+        error_message:
+          type: string
+        last_attempt_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        last_success_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        latency_ms:
+          format: int64
+          type:
+            - integer
+            - "null"
+        next_attempt_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+      required:
+        - last_attempt_at
+        - last_success_at
+        - next_attempt_at
+        - consecutive_failures
+        - auth_state
+        - cooldown_until
+        - error_kind
+        - error_message
+        - latency_ms
+      type: object
     PoolMember:
       additionalProperties: false
       properties:
@@ -2085,6 +2883,169 @@ components:
         - request_timeout_seconds
         - stream_idle_timeout_seconds
         - models
+      type: object
+    QuotaMonitorSpec:
+      additionalProperties: false
+      properties:
+        access_token_ref:
+          type: string
+        account_id:
+          description: Provider account whose routing health this monitor feeds. Empty = monitor only.
+          type: string
+        acknowledge_terms_risk:
+          description: Required for unofficial adapters, which use undocumented endpoints that may break or conflict with provider terms.
+          type: boolean
+        adapter:
+          description: Quota adapter id; see GET /api/v1/quota/adapters.
+          type: string
+        api_key_ref:
+          type: string
+        enabled:
+          type: boolean
+        exhausted_below:
+          description: Remaining fraction at or below which the linked account is treated as exhausted. 0 = only when fully used.
+          format: double
+          maximum: 1
+          minimum: 0
+          type: number
+        management_key_ref:
+          type: string
+        options:
+          additionalProperties: {}
+          description: Adapter-specific, non-secret options.
+          type: object
+        poll_interval_secs:
+          description: 0 = the adapter's recommended interval.
+          format: int64
+          maximum: 86400
+          minimum: 0
+          type: integer
+        service_account_ref:
+          type: string
+        shared_scope_id:
+          description: Monitors drawing on the same provider quota share an id so capacity is not double counted.
+          type: string
+        stale_after_secs:
+          description: Observations older than this are stale. 0 = three poll intervals.
+          format: int64
+          maximum: 604800
+          minimum: 0
+          type: integer
+      required:
+        - adapter
+        - enabled
+      type: object
+    Rate:
+      additionalProperties: false
+      properties:
+        confidence:
+          type: string
+        per_hour:
+          format: double
+          type: number
+        source:
+          type: string
+        unit:
+          type: string
+      required:
+        - per_hour
+        - unit
+        - source
+        - confidence
+      type: object
+    RecOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ReconciliationRow"
+          type: array
+      required:
+        - items
+      type: object
+    ReconciliationRow:
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+        currency:
+          type: string
+        day:
+          format: date-time
+          type: string
+        gateway_attempts:
+          format: int64
+          type: integer
+        gateway_estimated_cost:
+          description: estimated_api_charge from configured list prices.
+          type:
+            - string
+            - "null"
+        gateway_input_tokens:
+          format: int64
+          type: integer
+        gateway_output_tokens:
+          format: int64
+          type: integer
+        monitor_id:
+          type: string
+        partial:
+          type: boolean
+        provider_actual_cost:
+          description: actual_api_charge reported by the provider.
+          type:
+            - string
+            - "null"
+        provider_input_tokens:
+          format: int64
+          type:
+            - integer
+            - "null"
+        provider_output_tokens:
+          format: int64
+          type:
+            - integer
+            - "null"
+        provider_requests:
+          format: int64
+          type:
+            - integer
+            - "null"
+        unattributed_input_tokens:
+          description: Provider input tokens not seen by the gateway (null when the provider does not report tokens).
+          format: int64
+          type:
+            - integer
+            - "null"
+      required:
+        - monitor_id
+        - account_id
+        - day
+        - provider_input_tokens
+        - provider_output_tokens
+        - provider_requests
+        - provider_actual_cost
+        - gateway_input_tokens
+        - gateway_output_tokens
+        - gateway_attempts
+        - gateway_estimated_cost
+        - currency
+        - unattributed_input_tokens
+        - partial
+      type: object
+    RefreshOutBody:
+      additionalProperties: false
+      properties:
+        status:
+          enum:
+            - queued
+            - already_queued
+            - in_flight
+            - rate_limited
+            - unknown
+          type: string
+      required:
+        - status
       type: object
     ReplayInBody:
       additionalProperties: false
@@ -2588,6 +3549,73 @@ components:
         - updated_by
         - config_revision
       type: object
+    ResourceBudgetSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/BudgetSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
     ResourceEntitlementSpec:
       additionalProperties: false
       properties:
@@ -2923,6 +3951,73 @@ components:
         - updated_by
         - config_revision
       type: object
+    ResourceQuotaMonitorSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/QuotaMonitorSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
     ResourceWorkspaceSpec:
       additionalProperties: false
       properties:
@@ -2989,6 +4084,83 @@ components:
         - created_by
         - updated_by
         - config_revision
+      type: object
+    Result:
+      additionalProperties: false
+      properties:
+        caveats:
+          items:
+            type: string
+          type: array
+        confidence:
+          type: string
+        downtime:
+          items:
+            $ref: "#/components/schemas/Interval"
+          type: array
+        events:
+          items:
+            $ref: "#/components/schemas/Event"
+          type: array
+        exhaustion_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        exhausts_before_reset:
+          type: boolean
+        limit:
+          format: double
+          type:
+            - number
+            - "null"
+        method:
+          type: string
+        next_reset_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        points:
+          items:
+            $ref: "#/components/schemas/Point"
+          type: array
+        rate:
+          $ref: "#/components/schemas/Rate"
+        restored_amount:
+          format: double
+          type:
+            - number
+            - "null"
+        stale:
+          type: boolean
+        start:
+          format: date-time
+          type: string
+        start_value:
+          format: double
+          type: number
+        unavailable_reason:
+          type:
+            - string
+            - "null"
+      required:
+        - start
+        - start_value
+        - limit
+        - points
+        - events
+        - exhaustion_at
+        - next_reset_at
+        - restored_amount
+        - exhausts_before_reset
+        - downtime
+        - rate
+        - method
+        - confidence
+        - stale
+        - caveats
+        - unavailable_reason
       type: object
     RevisionDTO:
       additionalProperties: false
@@ -3088,6 +4260,27 @@ components:
           type: array
       required:
         - items
+      type: object
+    SerBody:
+      additionalProperties: false
+      properties:
+        from:
+          format: date-time
+          type: string
+        points:
+          items:
+            $ref: "#/components/schemas/UsagePoint"
+          type: array
+        step:
+          type: string
+        to:
+          format: date-time
+          type: string
+      required:
+        - from
+        - to
+        - step
+        - points
       type: object
     ServicePrincipalDTO:
       additionalProperties: false
@@ -3301,6 +4494,28 @@ components:
         - name
         - permissions
       type: object
+    StartInBody:
+      additionalProperties: false
+      properties:
+        callback_url:
+          description: Same-origin URL for providers that redirect back (key exchange).
+          maxLength: 2048
+          type: string
+      type: object
+    StartOutBody:
+      additionalProperties: false
+      properties:
+        authorize_url:
+          type: string
+        instructions:
+          type: string
+        state:
+          type: string
+      required:
+        - authorize_url
+        - state
+        - instructions
+      type: object
     StatusDTO:
       additionalProperties: false
       properties:
@@ -3324,6 +4539,34 @@ components:
         - master_key_id
         - data_dir
         - secure_cookies
+      type: object
+    SubscriptionFee:
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+        currency:
+          type: string
+        entitlement_id:
+          type: string
+        fee:
+          description: SubscriptionFee per period.
+          type: string
+        period:
+          type: string
+        plan_name:
+          type: string
+        prorated:
+          description: Share of the fee that falls in the range.
+          type: string
+      required:
+        - entitlement_id
+        - account_id
+        - plan_name
+        - period
+        - fee
+        - prorated
+        - currency
       type: object
     TestOutBody:
       additionalProperties: false
@@ -3416,6 +4659,124 @@ components:
       required:
         - issuer
         - subject
+      type: object
+    UsageGroup:
+      additionalProperties: false
+      properties:
+        allocated:
+          items:
+            $ref: "#/components/schemas/CostAmount"
+          type: array
+        attempts:
+          format: int64
+          type: integer
+        billing:
+          type: string
+        costs:
+          items:
+            $ref: "#/components/schemas/CostAmount"
+          type: array
+        key:
+          type: string
+        label:
+          type: string
+        tokens:
+          $ref: "#/components/schemas/UsageTokens"
+      required:
+        - key
+        - label
+        - attempts
+        - tokens
+        - costs
+        - allocated
+      type: object
+    UsagePoint:
+      additionalProperties: false
+      properties:
+        attempts:
+          format: int64
+          type: integer
+        costs:
+          items:
+            $ref: "#/components/schemas/CostAmount"
+          type: array
+        t:
+          format: date-time
+          type: string
+        tokens:
+          $ref: "#/components/schemas/UsageTokens"
+      required:
+        - t
+        - attempts
+        - tokens
+        - costs
+      type: object
+    UsageSummary:
+      additionalProperties: false
+      properties:
+        categories:
+          items:
+            type: string
+          type: array
+        from:
+          format: date-time
+          type: string
+        group_by:
+          type: string
+        groups:
+          items:
+            $ref: "#/components/schemas/UsageGroup"
+          type: array
+        subscription_fees:
+          items:
+            $ref: "#/components/schemas/SubscriptionFee"
+          type: array
+        to:
+          format: date-time
+          type: string
+        totals:
+          description: Per category and currency; categories are never summed together.
+          items:
+            $ref: "#/components/schemas/CostAmount"
+          type: array
+      required:
+        - from
+        - to
+        - group_by
+        - groups
+        - totals
+        - subscription_fees
+        - categories
+      type: object
+    UsageTokens:
+      additionalProperties: false
+      properties:
+        cache_read:
+          format: int64
+          type: integer
+        cache_write:
+          format: int64
+          type: integer
+        input:
+          format: int64
+          type: integer
+        output:
+          format: int64
+          type: integer
+        reasoning:
+          format: int64
+          type: integer
+        unknown_usage_attempts:
+          description: Attempts whose usage was not reported (counted, never assumed zero).
+          format: int64
+          type: integer
+      required:
+        - input
+        - output
+        - cache_read
+        - cache_write
+        - reasoning
+        - unknown_usage_attempts
       type: object
     UserDTO:
       additionalProperties: false
@@ -3722,6 +5083,26 @@ components:
         - name
         - spec
       type: object
+    WriteBodyBudgetSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/BudgetSpec"
+      required:
+        - name
+        - spec
+      type: object
     WriteBodyEntitlementSpec:
       additionalProperties: false
       properties:
@@ -3818,6 +5199,26 @@ components:
           type: object
         spec:
           $ref: "#/components/schemas/ProviderSpec"
+      required:
+        - name
+        - spec
+      type: object
+    WriteBodyQuotaMonitorSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/QuotaMonitorSpec"
       required:
         - name
         - spec
@@ -4667,6 +6068,271 @@ paths:
       tags:
         - Session
       x-permission: public
+  /budgets:
+    get:
+      operationId: list-budgets
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourceBudgetSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Budgets
+      tags:
+        - Budgets
+      x-permission: config.read
+    post:
+      operationId: create-budget
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyBudgetSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceBudgetSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Budget
+      tags:
+        - Budgets
+      x-permission: config.write
+  /budgets/status:
+    get:
+      operationId: budget-status
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Current period spend for every budget
+      tags:
+        - Budget
+      x-permission: usage.read
+  /budgets/{id}:
+    delete:
+      operationId: delete-budget
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Budget
+      tags:
+        - Budgets
+      x-permission: config.write
+    get:
+      operationId: get-budget
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceBudgetSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Budget
+      tags:
+        - Budgets
+      x-permission: config.read
+    put:
+      operationId: replace-budget
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyBudgetSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceBudgetSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Budget
+      tags:
+        - Budgets
+      x-permission: config.write
+  /budgets/{id}/history:
+    get:
+      operationId: history-budget
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Budget
+      tags:
+        - Budgets
+      x-permission: config.read
   /client-bindings:
     get:
       operationId: list-client-bindings
@@ -6395,6 +8061,501 @@ paths:
       tags:
         - Providers
       x-permission: config.read
+  /quota-monitors:
+    get:
+      operationId: list-quota-monitors
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourceQuotaMonitorSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Quota monitors
+      tags:
+        - Quota monitors
+      x-permission: config.read
+    post:
+      operationId: create-quota_monitor
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyQuotaMonitorSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceQuotaMonitorSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Quota monitor
+      tags:
+        - Quota monitors
+      x-permission: secrets.write
+  /quota-monitors/{id}:
+    delete:
+      operationId: delete-quota_monitor
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Quota monitor
+      tags:
+        - Quota monitors
+      x-permission: config.write
+    get:
+      operationId: get-quota_monitor
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceQuotaMonitorSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Quota monitor
+      tags:
+        - Quota monitors
+      x-permission: config.read
+    put:
+      operationId: replace-quota_monitor
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyQuotaMonitorSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceQuotaMonitorSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Quota monitor
+      tags:
+        - Quota monitors
+      x-permission: secrets.write
+  /quota-monitors/{id}/history:
+    get:
+      operationId: history-quota_monitor
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Quota monitor
+      tags:
+        - Quota monitors
+      x-permission: config.read
+  /quota/adapters:
+    get:
+      operationId: list-quota-adapters
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdaptersOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List quota adapters
+      tags:
+        - Quota
+      x-permission: config.read
+  /quota/board:
+    get:
+      operationId: quota-board
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Quota monitors, observed rate limits and account health
+      tags:
+        - Quota
+      x-permission: usage.read
+  /quota/buckets/{owner}/forecast:
+    get:
+      description: Projects remaining capacity from recent burn. Forecasts are estimates with a stated confidence; unknown values are never assumed.
+      operationId: quota-forecast
+      parameters:
+        - in: path
+          name: owner
+          required: true
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: bucket
+          required: true
+          schema:
+            maxLength: 200
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Forecast a quota bucket
+      tags:
+        - Quota
+      x-permission: usage.read
+  /quota/buckets/{owner}/history:
+    get:
+      operationId: quota-history
+      parameters:
+        - description: Quota monitor id, or provider account id for response-derived buckets.
+          in: path
+          name: owner
+          required: true
+          schema:
+            description: Quota monitor id, or provider account id for response-derived buckets.
+            type: string
+        - explode: false
+          in: query
+          name: bucket
+          required: true
+          schema:
+            maxLength: 200
+            type: string
+        - explode: false
+          in: query
+          name: hours
+          schema:
+            default: 168
+            format: int64
+            maximum: 2160
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Observation history of a quota bucket
+      tags:
+        - Quota
+      x-permission: usage.read
+  /quota/logins:
+    get:
+      operationId: list-quota-logins
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Monitors that use in-app sign-in
+      tags:
+        - Quota
+      x-permission: config.read
+  /quota/logins/{id}:
+    delete:
+      operationId: delete-quota-login
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Remove a stored sign-in token
+      tags:
+        - Quota
+      x-permission: secrets.write
+  /quota/logins/{id}/complete:
+    post:
+      operationId: complete-quota-login
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompleteOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Complete provider sign-in
+      tags:
+        - Quota
+      x-permission: secrets.write
+  /quota/logins/{id}/start:
+    post:
+      operationId: start-quota-login
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Start provider sign-in for a monitor
+      tags:
+        - Quota
+      x-permission: secrets.write
+  /quota/monitors/{id}/refresh:
+    post:
+      operationId: refresh-quota-monitor
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Poll a quota monitor now
+      tags:
+        - Quota
+      x-permission: config.write
   /routing-plans:
     get:
       operationId: list-routing-plans
@@ -7756,6 +9917,189 @@ paths:
       tags:
         - System
       x-permission: system.manage
+  /usage/external:
+    get:
+      operationId: external-usage
+      parameters:
+        - explode: false
+          in: query
+          name: monitor_id
+          schema:
+            maxLength: 64
+            type: string
+        - description: total, model, api_key, … Rows of different breakdowns describe the same usage.
+          explode: false
+          in: query
+          name: breakdown
+          schema:
+            description: total, model, api_key, … Rows of different breakdowns describe the same usage.
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: days
+          schema:
+            default: 7
+            format: int64
+            maximum: 400
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Usage and charges reported by provider APIs
+      tags:
+        - Usage
+      x-permission: usage.read
+  /usage/reconciliation:
+    get:
+      operationId: usage-reconciliation
+      parameters:
+        - explode: false
+          in: query
+          name: days
+          schema:
+            default: 14
+            format: int64
+            maximum: 90
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Provider-reported vs gateway-observed usage
+      tags:
+        - Usage
+      x-permission: usage.read
+  /usage/series:
+    get:
+      operationId: usage-series
+      parameters:
+        - explode: false
+          in: query
+          name: from
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: to
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: step
+          schema:
+            enum:
+              - hour
+              - day
+              - ""
+            type: string
+        - explode: false
+          in: query
+          name: filter
+          schema:
+            enum:
+              - account
+              - provider
+              - model
+              - binding
+              - project
+              - workspace
+              - billing
+              - ""
+            type: string
+        - explode: false
+          in: query
+          name: value
+          schema:
+            maxLength: 200
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SerBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Usage and cost over time
+      tags:
+        - Usage
+      x-permission: usage.read
+  /usage/summary:
+    get:
+      operationId: usage-summary
+      parameters:
+        - description: RFC 3339; default 30 days before to.
+          explode: false
+          in: query
+          name: from
+          schema:
+            description: RFC 3339; default 30 days before to.
+            type: string
+        - description: RFC 3339; default now.
+          explode: false
+          in: query
+          name: to
+          schema:
+            description: RFC 3339; default now.
+            type: string
+        - explode: false
+          in: query
+          name: group_by
+          schema:
+            enum:
+              - account
+              - provider
+              - model
+              - binding
+              - project
+              - workspace
+              - billing
+              - ""
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageSummary"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Usage and cost by category
+      tags:
+        - Usage
+      x-permission: usage.read
   /users:
     get:
       operationId: list-users

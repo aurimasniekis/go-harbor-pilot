@@ -20,7 +20,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R2.2 | Harness integrations and protocol translation | 4, 12 | protocol, harness | in-progress | protocol adapters contract-tested; harness tooling Phase 12 |
 | R2.3 | API, subscription (CLI bridge) and local executors | 4, 7 | executor | in-progress | HTTP API + local executors; CLI bridges Phase 7 |
 | R2.4 | Explainable Expr routing plans and decision tables | 5 | routing | in-progress | routing/engine.go (rules, decision tables, score), routingapi; TestEngineRules; editor UI pending |
-| R2.5 | Quota monitoring, account switching, budgets, attribution | 5–6 | quota, accounting | planned | |
+| R2.5 | Quota monitoring, account switching, budgets, attribution | 5–6 | quota, accounting | contract-tested | quota monitors feed routing health (TestQuotaMonitorDrivesRouting), account switching (scenario C), budgets enforced in reservations (TestBudgetBlocksMeteredSpend), ledger attribution by workspace/project/binding |
 | R2.6 | Consumer-neutral identity via tokens and base URLs | 3–4 | controlplane, gateway | implemented | gateway auth by hpk_ token + base URL; acceptance A |
 | R2.7 | Activity statistics (models, intents, tools, sessions, attempts) | 4, 11 | telemetry | in-progress | requests/attempts/sessions/tool observation + activityapi; intents & rollups Phase 11 |
 | R2.8 | Optional short-lived traces | 8 | traces | planned | |
@@ -78,10 +78,10 @@ This matrix maps every requirement in the product brief to the phase, package an
 ## §7 Providers, quotas, accounting
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R7.1 | Migrate Quota Harbor integrations, forecasting, alerts, provenance, staleness, reconciliation | 6 | planned | |
-| R7.2 | Integration classification (official, partial, unofficial opt-in, unsupported) | 6 | planned | |
-| R7.3 | Multiple windows, resets, freshness, unknown vs zero, concurrency, auth health, cooldowns, affinity, external usage | 6 | planned | |
-| R7.4 | The seven separated money/usage categories | 6 | planned | |
+| R7.1 | Migrate Quota Harbor integrations, forecasting, alerts, provenance, staleness, reconciliation | 6 | contract-tested | internal/quota/{providers,polling,analytics,forecasting,oauthflow} ported with fixture tests (testdata/quota); provenance/quality per observation; staleness; external usage + /usage/reconciliation; alerting arrives with notifications (Phase 10) |
+| R7.2 | Integration classification (official, partial, unofficial opt-in, unsupported) | 6 | implemented | adapter tiers official/unofficial/client_reported/demo; unofficial requires acknowledge_terms_risk (TestUnofficialAdapterNeedsAcknowledgement); capability matrix per adapter (GET /quota/adapters) |
+| R7.3 | Multiple windows, resets, freshness, unknown vs zero, concurrency, auth health, cooldowns, affinity, external usage | 6 | contract-tested | multiple buckets per monitor with window/reset semantics; freshness and stale flags; nil remaining stays unknown (TestBoardHealth, TestParseHeaders); local concurrency via reservations; monitor auth health; gateway cooldowns merged with quota health; affinity (routing); provider-reported external usage |
+| R7.4 | The seven separated money/usage categories | 6 | contract-tested | usageapi categories: gateway_observed, estimated_api_charge, actual_api_charge, list_equivalent, subscription_fee, allocation, plus provider-reported quota on the board; never summed across categories (TestBudgetBlocksMeteredSpend usage summary) |
 | R7.5 | Hierarchy: workspace → run → session → request → attempts | 4, 11 | in-progress | ledger carries workspace/project/run/session/request/attempt |
 | R7.6 | Immutable, idempotent ledger with corrections; fixed-precision money | 4 | implemented | accounting ledger (append-only, idempotency_key, provenance, money.Amount) |
 | R7.7 | Atomic reservations; abandoned and crash recovery | 4 | contract-tested | accounting.Reserve (IMMEDIATE tx), reaper, RecoverStartup; scenario E |
@@ -95,7 +95,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R8.3 | Bounded Expr: typed, no side effects | 5 | contract-tested | expr-lang typed env (expr.Env, AsBool/AsFloat64, MaxNodes, no now()/side-effect builtins); TestCompileErrors |
 | R8.4 | Nine evaluation stages; hard restrictions cannot be overridden by scores | 5 | in-progress | request stage (block/require/set_intent) → hard restrictions → health → candidate rules (exclude/boost) → score; exclusions never re-admitted (TestEngineRules); remaining stages tracked with quota/privacy/degradation phases |
 | R8.5 | Rule builder, decision tables, Expr editor, variable reference | 5 | in-progress | variable reference API (GET /routing/variables), expression validation API; rule builder/table/Expr editor UI pending |
-| R8.6 | Unknown, stale and missing semantics; immutable snapshots | 5 | in-progress | known() guard, unknown values error instead of matching (TestEngineRules), immutable snapshot; stale/fresh_within semantics land with quota freshness (Phase 6) |
+| R8.6 | Unknown, stale and missing semantics; immutable snapshots | 5 | in-progress | known() guard, unknown values error instead of matching (TestEngineRules), immutable snapshot; quota freshness exposed as candidate.health.stale (TestBoardHealth) |
 | R8.7 | Draft, validate, publish, rollback; simulator; fixtures; replay distinct from simulation | 5 | contract-tested | draft/validate/publish/rollback (TestPlanVersionsPublishRollback); simulate and replay APIs labelled mode=simulation/replay, no upstream calls (TestSimulationAndReplay); UI pending |
 | R8.8 | Cycle and ambiguity prevention; read-only decision graph | 3, 5 | in-progress | alias cycle/depth detection, duplicate mapping rejection (snapshot.go); decision graph UI pending |
 

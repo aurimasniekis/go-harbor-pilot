@@ -26,6 +26,10 @@ This file is kept current alongside the implementation. Each entry is one of:
 - **No TOTP/WebAuthn MFA (design, for now).** Local accounts use password plus throttling. Organizations that need MFA should use OIDC SSO with an identity provider that enforces it. The brief does not require MFA.
 - **Plain-HTTP deployments (design).** When `public_url` is `http`, session cookies drop the `__Host-` prefix and `Secure` flag. This is for local development and demo use only, and the server logs a warning.
 
+- **Quota adapter extras not imported (design, for now).** Adapters can report model prices and API-key inventories. Harbor Pilot keeps provider model pricing in provider resources and does not import adapter price lists or key inventories; usage aggregates and quota buckets are imported.
+- **Response-derived rate limits are short-lived (design).** Header observations are fresh for two minutes, are not kept as history, and are dropped (and counted on the quota board) when the writer queue is full. They inform `candidate.health.remaining` but never mark an account exhausted; a 429 cooldown does that.
+- **Budgets count settled ledger costs plus in-flight estimates (design).** The in-flight estimate prices input at four characters per token and output at the requested maximum. A budget can therefore block slightly early, never late, within one writer transaction.
+
 ## Pending
 
 Pending items are tracked per requirement in TRACEABILITY.md (status `planned` or `in-progress`).

@@ -1,0 +1,11 @@
+{
+  "data": [
+    {"starting_at": "2026-10-17T10:00:00Z", "ending_at": "2026-10-17T11:00:00Z", "results": [
+      {"uncached_input_tokens": 1000, "cache_read_input_tokens": 4000, "cache_creation": {"ephemeral_5m_input_tokens": 200, "ephemeral_1h_input_tokens": 0}, "output_tokens": 500, "server_tool_use": {"web_search_requests": 0}, "api_key_id": "apikey_01SYNTHA", "workspace_id": null, "model": "claude-synthetic-a", "service_tier": null, "context_window": null},
+      {"uncached_input_tokens": 300, "cache_read_input_tokens": 0, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 0}, "output_tokens": 100, "server_tool_use": {"web_search_requests": 0}, "api_key_id": "apikey_01SYNTHB", "workspace_id": null, "model": "claude-synthetic-a", "service_tier": null, "context_window": null},
+      {"uncached_input_tokens": 50, "cache_read_input_tokens": 0, "cache_creation": null, "output_tokens": 20, "server_tool_use": null, "api_key_id": null, "workspace_id": null, "model": "claude-synthetic-b", "service_tier": null, "context_window": null}
+    ]}
+  ],
+  "has_more": false,
+  "next_page": null
+}

@@ -67,6 +67,9 @@ type Gateway struct {
 	// Observe receives unknown upstream events and translation losses for
 	// Protocol Watch (must not block).
 	Observe func(o Observation)
+	// ObserveResponse receives upstream response headers for quota
+	// observations (must not block).
+	ObserveResponse func(accountID, providerType, model string, h http.Header)
 	// AfterRequest runs after the response has been written (events).
 	AfterRequest func(ctx context.Context, r *Outcome)
 
@@ -185,17 +188,20 @@ func (g *Gateway) cooldown(accountID string, until time.Time) {
 }
 
 func (g *Gateway) health(accountID string) routing.Health {
+	h := routing.Health{Available: true}
+	if g.HealthOf != nil {
+		h = g.HealthOf(accountID)
+	}
 	if v, ok := g.cooldowns.Load(accountID); ok {
 		until := v.(time.Time)
 		if g.Clock.Now().Before(until) {
-			return routing.Health{Available: false, Reason: "cooling down after upstream rate limit or auth failure", Until: &until}
+			// Keep the quota view (remaining, reset) alongside the cooldown.
+			h.Available, h.Reason, h.Until = false, "cooling down after upstream rate limit or auth failure", &until
+			return h
 		}
 		g.cooldowns.Delete(accountID)
 	}
-	if g.HealthOf != nil {
-		return g.HealthOf(accountID)
-	}
-	return routing.Health{Available: true}
+	return h
 }
 
 // upstreamFor returns the upstream protocol for a provider type, including

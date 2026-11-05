@@ -78,6 +78,13 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 	target := executor.Target{Provider: prov, Account: acc, Model: cand.Model, ModelSpec: cand.ModelSpec}
 	ereq := executor.Request{IR: rc.ir, Inbound: rc.inbound, RawBody: rc.raw, RequestID: rc.id, ClientHeader: rc.header}
 	res, aerr := g.executorFor(prov.Spec.Type).Execute(ctx, target, secret, ereq, rc.ir.Stream)
+	if g.ObserveResponse != nil {
+		if aerr != nil {
+			g.ObserveResponse(acc.ID, prov.Spec.Type, cand.Model, aerr.Header)
+		} else {
+			g.ObserveResponse(acc.ID, prov.Spec.Type, cand.Model, res.Header)
+		}
+	}
 	if aerr != nil {
 		return fail(aerr)
 	}

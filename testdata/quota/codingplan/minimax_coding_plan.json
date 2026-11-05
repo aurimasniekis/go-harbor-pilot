@@ -1,0 +1,33 @@
+{
+  "base_resp": {
+    "status_code": 0,
+    "status_msg": "success"
+  },
+  "model_remains": [
+    {
+      "model_name": "MiniMax-M2",
+      "start_time": 1792234800000,
+      "end_time": 1792252800000,
+      "remains_time": 14400000,
+      "current_interval_total_count": 1500,
+      "current_interval_usage_count": 1200,
+      "current_interval_remaining_percent": 80,
+      "current_interval_status": 1,
+      "current_weekly_total_count": 15000,
+      "current_weekly_usage_count": 9000,
+      "weekly_start_time": 1792152000000,
+      "weekly_end_time": 1792756800000,
+      "weekly_remains_time": 518400000,
+      "current_weekly_remaining_percent": 60,
+      "current_weekly_status": 1
+    },
+    {
+      "model_name": "MiniMax-VL",
+      "start_time": 1792234800000,
+      "end_time": 1792252800000,
+      "current_interval_total_count": 100,
+      "current_interval_usage_count": 0,
+      "current_interval_status": 2
+    }
+  ]
+}

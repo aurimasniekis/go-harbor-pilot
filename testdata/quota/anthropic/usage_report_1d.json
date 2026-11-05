@@ -1,0 +1,9 @@
+{
+  "data": [
+    {"starting_at": "2026-10-17T00:00:00Z", "ending_at": "2026-10-18T00:00:00Z", "results": [
+      {"uncached_input_tokens": 1350, "cache_read_input_tokens": 4000, "cache_creation": {"ephemeral_5m_input_tokens": 200, "ephemeral_1h_input_tokens": 0}, "output_tokens": 620, "api_key_id": "apikey_01SYNTHA", "workspace_id": null, "model": "claude-synthetic-a", "service_tier": null}
+    ]}
+  ],
+  "has_more": true,
+  "next_page": "page_2"
+}

@@ -1,0 +1,11 @@
+{
+  "data": [
+    {"starting_at": "2026-10-17T00:00:00Z", "ending_at": "2026-10-18T00:00:00Z", "results": [
+      {"currency": "USD", "amount": "123.45", "workspace_id": null, "description": "Synthetic A input", "cost_type": "tokens", "model": "claude-synthetic-a", "token_type": "uncached_input_tokens"},
+      {"currency": "USD", "amount": "0.55", "workspace_id": null, "description": "Synthetic A output", "cost_type": "tokens", "model": "claude-synthetic-a", "token_type": "output_tokens"},
+      {"currency": "USD", "amount": "1000", "workspace_id": null, "description": "Web search", "cost_type": "web_search", "model": null, "token_type": null}
+    ]}
+  ],
+  "has_more": false,
+  "next_page": null
+}

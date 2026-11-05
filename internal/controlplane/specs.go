@@ -23,6 +23,8 @@ const (
 	KindAlias         = "model_alias"
 	KindPlan          = "routing_plan"
 	KindClientBinding = "client_binding"
+	KindQuotaMonitor  = "quota_monitor"
+	KindBudget        = "budget"
 )
 
 var refKeyRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
@@ -520,7 +522,7 @@ var (
 )
 
 // Registry lists every kind in dependency order (export/import order).
-var Registry = []Kind{WorkspaceDef, ProjectDef, ProviderDef, AccountDef, EntitlementDef, PoolDef, AliasDef, PlanDef, BindingDef}
+var Registry = []Kind{WorkspaceDef, ProjectDef, ProviderDef, AccountDef, EntitlementDef, QuotaMonitorDef, PoolDef, AliasDef, PlanDef, BindingDef, BudgetDef}
 
 // KindByName returns a registered kind.
 func KindByName(name string) (Kind, bool) {

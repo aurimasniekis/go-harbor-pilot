@@ -50,6 +50,9 @@ type Service struct {
 	// BudgetCheck, when set, is evaluated inside the reservation transaction
 	// (installed by the budgets module).
 	BudgetCheck func(ctx context.Context, tx *sql.Tx, in ReserveInput, now time.Time) error
+	// OnBudgetExceeded records a blocked reservation after its transaction
+	// rolled back (one event per budget period).
+	OnBudgetExceeded func(ctx context.Context, be *BudgetExceeded, now time.Time)
 }
 
 // New creates the service.
@@ -119,12 +122,16 @@ func (s *Service) Reserve(ctx context.Context, in ReserveInput) (*Reservation, e
 				return err
 			}
 		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO reservations(id, request_id, attempt_id, account_id, binding_id, status, est_cost_e10, currency, created_at, lease_until)
-			VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)`, r.ID, in.RequestID, nullStr(in.AttemptID), in.AccountID, in.BindingID,
+		_, err := tx.ExecContext(ctx, `INSERT INTO reservations(id, request_id, attempt_id, account_id, binding_id, project_id, workspace_id, status, est_cost_e10, currency, created_at, lease_until)
+			VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)`, r.ID, in.RequestID, nullStr(in.AttemptID), in.AccountID, in.BindingID, nullStr(in.ProjectID), nullStr(in.WorkspaceID),
 			int64(in.EstimatedCost), nullStr(in.Currency), now.UnixMilli(), r.LeaseUntil.UnixMilli())
 		return err
 	})
 	if err != nil {
+		var be *BudgetExceeded
+		if errors.As(err, &be) && s.OnBudgetExceeded != nil {
+			s.OnBudgetExceeded(context.WithoutCancel(ctx), be, now)
+		}
 		return nil, err
 	}
 	return r, nil
