@@ -51,6 +51,7 @@ import { Route as ProvidersSubscriptionsRouteImport } from './routes/providers/s
 import { Route as QuotasIndexRouteImport } from './routes/quotas/index'
 import { Route as QuotasMonitorsRouteImport } from './routes/quotas/monitors'
 import { Route as RoutingIndexRouteImport } from './routes/routing/index'
+import { Route as RoutingPoolsRouteImport } from './routes/routing/pools'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsAuditRouteImport } from './routes/settings/audit'
 import { Route as SettingsAuthRouteImport } from './routes/settings/auth'
@@ -278,6 +279,11 @@ const RoutingIndexRoute = RoutingIndexRouteImport.update({
   path: '/',
   getParentRoute: () => RoutingRouteRoute,
 } as any)
+const RoutingPoolsRoute = RoutingPoolsRouteImport.update({
+  id: '/pools',
+  path: '/pools',
+  getParentRoute: () => RoutingRouteRoute,
+} as any)
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -397,6 +403,7 @@ export interface FileRoutesByFullPath {
   '/providers/pools': typeof ProvidersPoolsRoute
   '/providers/subscriptions': typeof ProvidersSubscriptionsRoute
   '/quotas/monitors': typeof QuotasMonitorsRoute
+  '/routing/pools': typeof RoutingPoolsRoute
   '/settings/audit': typeof SettingsAuditRoute
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
@@ -446,6 +453,7 @@ export interface FileRoutesByTo {
   '/providers/pools': typeof ProvidersPoolsRoute
   '/providers/subscriptions': typeof ProvidersSubscriptionsRoute
   '/quotas/monitors': typeof QuotasMonitorsRoute
+  '/routing/pools': typeof RoutingPoolsRoute
   '/settings/audit': typeof SettingsAuditRoute
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
@@ -507,6 +515,7 @@ export interface FileRoutesById {
   '/providers/pools': typeof ProvidersPoolsRoute
   '/providers/subscriptions': typeof ProvidersSubscriptionsRoute
   '/quotas/monitors': typeof QuotasMonitorsRoute
+  '/routing/pools': typeof RoutingPoolsRoute
   '/settings/audit': typeof SettingsAuditRoute
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
@@ -569,6 +578,7 @@ export interface FileRouteTypes {
     | '/providers/pools'
     | '/providers/subscriptions'
     | '/quotas/monitors'
+    | '/routing/pools'
     | '/settings/audit'
     | '/settings/auth'
     | '/settings/service-principals'
@@ -618,6 +628,7 @@ export interface FileRouteTypes {
     | '/providers/pools'
     | '/providers/subscriptions'
     | '/quotas/monitors'
+    | '/routing/pools'
     | '/settings/audit'
     | '/settings/auth'
     | '/settings/service-principals'
@@ -678,6 +689,7 @@ export interface FileRouteTypes {
     | '/providers/pools'
     | '/providers/subscriptions'
     | '/quotas/monitors'
+    | '/routing/pools'
     | '/settings/audit'
     | '/settings/auth'
     | '/settings/service-principals'
@@ -1025,6 +1037,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RoutingIndexRouteImport
       parentRoute: typeof RoutingRouteRoute
     }
+    '/routing/pools': {
+      id: '/routing/pools'
+      path: '/pools'
+      fullPath: '/routing/pools'
+      preLoaderRoute: typeof RoutingPoolsRouteImport
+      parentRoute: typeof RoutingRouteRoute
+    }
     '/settings/': {
       id: '/settings/'
       path: '/'
@@ -1257,12 +1276,14 @@ const QuotasRouteRouteWithChildren = QuotasRouteRoute._addFileChildren(
 )
 
 interface RoutingRouteRouteChildren {
+  RoutingPoolsRoute: typeof RoutingPoolsRoute
   RoutingIndexRoute: typeof RoutingIndexRoute
   RoutingPlansPlanIdRoute: typeof RoutingPlansPlanIdRoute
   RoutingPlansIndexRoute: typeof RoutingPlansIndexRoute
 }
 
 const RoutingRouteRouteChildren: RoutingRouteRouteChildren = {
+  RoutingPoolsRoute: RoutingPoolsRoute,
   RoutingIndexRoute: RoutingIndexRoute,
   RoutingPlansPlanIdRoute: RoutingPlansPlanIdRoute,
   RoutingPlansIndexRoute: RoutingPlansIndexRoute,

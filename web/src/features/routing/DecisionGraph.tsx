@@ -144,7 +144,7 @@ export function DecisionGraph({ doc, lanes }: { doc: PlanDocument; lanes: Lane[]
       </div>
       <p className="secondary" style={{ margin: 0 }}>
         Members marked in red are removed by this plan's hard restrictions or configuration before ranking. Live account health is applied per request;
-        use the simulator or the <Link to="/providers/pools" style={{ textDecoration: 'underline' }}>pools page</Link> to check it.
+        use the simulator or the <Link to="/routing/pools" style={{ textDecoration: 'underline' }}>fallback groups</Link> to check it.
       </p>
     </div>
   )

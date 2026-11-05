@@ -12,39 +12,40 @@ async function dialog(page: Page) {
 
 test('configure a provider through to an issued client credential', async ({ page }) => {
   test.setTimeout(120_000)
-  page.on('dialog', (d) => void d.accept())
   const suffix = Date.now().toString(36)
   await signIn(page)
 
   // Provider with one model.
   await page.goto('/providers')
-  await page.getByRole('button', { name: 'Add provider' }).click()
+  await page.getByRole('button', { name: 'Connect a provider' }).click()
   let d = await dialog(page)
+  await d.getByRole('radio', { name: /^OpenAI API/ }).click()
   await d.getByLabel('Name', { exact: true }).fill(`openai-${suffix}`)
-  await choose(d, 'Type', 'openai')
+  await d.getByRole('button', { name: /Models and prices/ }).click()
   await d.getByRole('button', { name: 'Add model' }).click()
   await d.getByLabel('Model id').fill('gpt-5')
   await d.getByLabel('tools', { exact: true }).check()
-  await d.getByRole('button', { name: 'Save provider' }).click()
+  await d.getByRole('button', { name: 'Connect provider' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect(page.getByText(`openai-${suffix}`)).toBeVisible()
+  await expect(page.getByRole('heading', { name: `openai-${suffix}` })).toBeVisible()
 
-  // Account with a stored secret.
-  await page.goto('/providers/accounts')
-  await page.getByRole('button', { name: 'Add account' }).click()
+  // Account with a stored secret, added from its provider.
+  await page.getByRole('button', { name: `Actions for openai-${suffix}` }).click()
+  await page.getByRole('menuitem', { name: 'Add account' }).click()
   d = await dialog(page)
   await d.getByLabel('Name', { exact: true }).fill(`openai-main-${suffix}`)
-  await choose(d, 'Provider', { label: `openai-${suffix} (openai)` })
   await d.getByLabel('Credential', { exact: true }).fill(SECRET)
   await d.getByRole('button', { name: 'Save account' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   const row = page.getByRole('row', { name: new RegExp(`openai-main-${suffix}`) })
-  await expect(row.getByText('stored')).toBeVisible()
+  await row.click()
+  await expect(page.getByRole('dialog', { name: new RegExp(`openai-main-${suffix}`) }).getByText('Saved (encrypted)')).toBeVisible()
+  await page.keyboard.press('Escape')
   expect(await page.content()).not.toContain(SECRET)
 
-  // Pool.
-  await page.goto('/providers/pools')
-  await page.getByRole('button', { name: 'Add pool' }).click()
+  // Fallback group.
+  await page.goto('/routing/pools')
+  await page.getByRole('button', { name: 'Add fallback group' }).click()
   d = await dialog(page)
   await d.getByLabel('Name', { exact: true }).fill(`gpt-${suffix}`)
   await d.getByRole('button', { name: 'Add member' }).click()

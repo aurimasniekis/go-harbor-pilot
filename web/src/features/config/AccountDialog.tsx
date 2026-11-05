@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui'
-import { Checkbox, Dialog, MutationError, SelectField, TextField, formStyles as f } from '@/components/form'
+import { Advanced, Checkbox, Dialog, MutationError, SelectField, TextField, formStyles as f } from '@/components/form'
+import { SegmentedControl, Stack, Switch, Text } from '@mantine/core'
 import { KeyValueEditor } from '@/components/KeyValueEditor'
 import { TerraformEditWarning } from '@/components/ResourceBadges'
 import { resourceListQuery } from '@/lib/api/queries'
@@ -13,12 +14,12 @@ import c from './config.module.css'
 type CredMode = 'stored' | 'reference' | 'none'
 
 /** Create or edit a provider account. Credentials are write-only. */
-export function AccountDialog({ account, onClose }: { account: AccountRes | null; onClose: () => void }) {
+export function AccountDialog({ account, onClose, providerID: presetProvider }: { account: AccountRes | null; onClose: () => void; providerID?: string }) {
   const providers = useQuery(resourceListQuery<ProviderRes>('providers'))
   const init = account?.spec
   const cred = account?.secrets?.credential
   const [name, setName] = useState(account?.name ?? '')
-  const [providerID, setProviderID] = useState(init?.provider_id ?? '')
+  const [providerID, setProviderID] = useState(init?.provider_id ?? presetProvider ?? '')
   const [displayName, setDisplayName] = useState(init?.display_name ?? '')
   const [billing, setBilling] = useState<AccountSpec['billing']>(init?.billing ?? 'metered_api')
   const [mode, setMode] = useState<CredMode>(init?.credential_ref ? 'reference' : cred?.source === 'stored' ? 'stored' : account ? 'none' : 'stored')
@@ -56,53 +57,58 @@ export function AccountDialog({ account, onClose }: { account: AccountRes | null
   }
 
   return (
-    <Dialog open wide title={account ? `Edit account ${account.name}` : 'Add provider account'} onClose={onClose}>
+    <Dialog open title={account ? `Edit account ${account.name}` : 'Add account'} onClose={onClose}>
       <TerraformEditWarning r={account} />
-      <div className={f.grid}>
-        <TextField label="Name" value={name} onChange={setName} disabled={!!account} required />
-        <SelectField label="Provider" value={providerID} onChange={(v) => { setProviderID(v); setAllowed([]) }}
-          options={[{ value: '', label: providers.isLoading ? 'Loading…' : 'Select a provider' }, ...items.map((p) => ({ value: p.id, label: `${p.name} (${p.spec.type})` }))]} />
-        <TextField label="Display name" value={displayName} onChange={setDisplayName} maxLength={120} />
-        <SelectField label="Billing" value={billing} onChange={setBilling} options={billingClasses.map((b) => ({ value: b.value, label: b.label }))}
-          hint="Paid fallback rules use this classification." />
-      </div>
-      <fieldset className={c.checks} style={{ flexDirection: 'column' }}>
-        <legend className={c.legend}>Credential (write-only)</legend>
-        <div className={c.inline} role="radiogroup" aria-label="Credential source">
-          {(['stored', 'reference', 'none'] as const).map((m) => (
-            <label key={m} className={f.check}>
-              <input type="radio" name="cred-mode" checked={mode === m} onChange={() => setMode(m)} />
-              {m === 'stored' ? 'Stored secret (encrypted)' : m === 'reference' ? 'Secret reference (env/file)' : 'No credential'}
-            </label>
-          ))}
-        </div>
+      <SelectField label="Provider" value={providerID} onChange={(v) => { setProviderID(v); setAllowed([]) }} disabled={!!account}
+        options={[{ value: '', label: providers.isLoading ? 'Loading…' : 'Select a provider' }, ...items.map((p) => ({ value: p.id, label: p.spec.display_name || p.name }))]} />
+      <TextField label="Name" value={name} onChange={setName} disabled={!!account} required placeholder="e.g. team-key-1" hint={account ? undefined : 'Lowercase; cannot be changed later.'} />
+      <Stack gap={6}>
+        <Text size="sm" fw={500}>
+          Credential
+        </Text>
+        <SegmentedControl
+          aria-label="Credential source"
+          size="sm"
+          value={mode}
+          onChange={(v) => setMode(v as CredMode)}
+          data={[
+            { value: 'stored', label: 'Paste it' },
+            { value: 'reference', label: 'From env or file' },
+            { value: 'none', label: 'None' },
+          ]}
+        />
         {mode === 'stored' && (
           <>
             <TextField label="Credential" type="password" value={secret} onChange={(v) => { setSecret(v); setClear(false) }} autoComplete="off"
-              hint={cred?.source === 'stored' ? `A credential is stored (fingerprint ${cred.fingerprint ?? '—'}). Leave empty to keep it.` : 'API key or setup token. Never shown again after saving.'} />
-            {cred?.source === 'stored' && <Checkbox label="Clear the stored credential" checked={clear} onChange={(v) => { setClear(v); if (v) setSecret('') }} />}
+              hint={cred?.source === 'stored' ? `One is saved (${cred.fingerprint ?? 'set'}). Leave empty to keep it.` : 'API key or setup token. Stored encrypted and never shown again.'} />
+            {cred?.source === 'stored' && <Checkbox label="Remove the saved credential" checked={clear} onChange={(v) => { setClear(v); if (v) setSecret('') }} />}
           </>
         )}
         {mode === 'reference' && (
           <TextField label="Credential reference" value={ref} onChange={setRef} placeholder="env:ANTHROPIC_API_KEY or file:/run/secrets/key"
-            hint="Resolved at request time; the value is never stored." />
+            hint="Read at request time; the value is never stored." />
         )}
-      </fieldset>
-      {models.length > 0 && (
-        <fieldset className={c.checks}>
-          <legend className={c.legend}>Allowed models (none checked = all)</legend>
-          {models.map((m) => (
-            <Checkbox key={m.id} label={<span className="mono">{m.id}</span>} checked={allowed.includes(m.id)} onChange={(on) => setAllowed(toggle(allowed, m.id, on))} />
-          ))}
-        </fieldset>
-      )}
-      <div className={f.grid}>
-        <TextField label="Max concurrency (0 = unlimited)" type="number" value={maxConc} onChange={setMaxConc} />
-        <TextField label="Requests per minute (0 = unlimited)" type="number" value={rpm} onChange={setRpm} />
-      </div>
-      <KeyValueEditor label="Labels" value={labels} onChange={(v, ok) => { setLabels(v); setLabelsValid(ok) }}
-        hint="Available to routing expressions as account.labels. One key=value per line." />
-      <Checkbox label="Enabled" checked={enabled} onChange={setEnabled} />
+      </Stack>
+      <SelectField label="How it is paid" value={billing} onChange={setBilling} options={billingClasses.map((b) => ({ value: b.value, label: b.label }))}
+        hint="Routing uses this to decide when a paid fallback is allowed." />
+      <Advanced>
+        <TextField label="Display name" value={displayName} onChange={setDisplayName} maxLength={120} placeholder="Optional" />
+        {models.length > 0 && (
+          <fieldset className={c.checks}>
+            <legend className={c.legend}>Models this account may use (none checked means all)</legend>
+            {models.map((m) => (
+              <Checkbox key={m.id} label={<span className="mono">{m.id}</span>} checked={allowed.includes(m.id)} onChange={(on) => setAllowed(toggle(allowed, m.id, on))} />
+            ))}
+          </fieldset>
+        )}
+        <div className={f.grid}>
+          <TextField label="Requests at once" type="number" suffix="max" placeholder="Unlimited" value={maxConc === '0' ? '' : maxConc} onChange={setMaxConc} />
+          <TextField label="Requests per minute" type="number" suffix="/min" placeholder="Unlimited" value={rpm === '0' ? '' : rpm} onChange={setRpm} />
+        </div>
+        <KeyValueEditor label="Labels" value={labels} onChange={(v, ok) => { setLabels(v); setLabelsValid(ok) }}
+          hint="Available to routing rules as account.labels. One key=value per line." />
+        <Switch label="Account on" description="Off accounts are never routed to." checked={enabled} onChange={(e) => setEnabled(e.currentTarget.checked)} />
+      </Advanced>
       <MutationError error={save.error} />
       <div className={f.actions}>
         <Button onClick={onClose}>Cancel</Button>

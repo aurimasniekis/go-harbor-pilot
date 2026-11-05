@@ -26,7 +26,7 @@ const usedUp = (b: BucketView) => b.exhausted && !b.reset_passed
 
 type LimitStatus = 'available' | 'limit' | 'paused' | 'unavailable' | 'unknown'
 
-interface Row {
+export interface Row {
   key: string
   name: string
   /** Muted second line (billing, adapter). */
@@ -50,7 +50,7 @@ function tightestOf(buckets: BucketView[]): Row['tightest'] {
   return best
 }
 
-function trackingOf(monitors: MonitorView[]): Row['tracking'] {
+export function trackingOf(monitors: MonitorView[]): Row['tracking'] {
   if (monitors.length === 0) return { state: 'none', checked: null }
   const failed = monitors.find((m) => m.health === 'auth_failed' || m.health === 'error')
   const checked = monitors.map((m) => m.poll.last_success_at).filter(Boolean).sort().pop() ?? null
@@ -62,7 +62,7 @@ function trackingOf(monitors: MonitorView[]): Row['tracking'] {
   return { state: 'ok', checked }
 }
 
-function rowsFrom(health: AccountHealthView[], monitors: MonitorView[], observed: { account_id: string; buckets: BucketView[] }[]): Row[] {
+export function rowsFrom(health: AccountHealthView[], monitors: MonitorView[], observed: { account_id: string; buckets: BucketView[] }[]): Row[] {
   const rows: Row[] = health.map((h) => {
     const mons = monitors.filter((m) => m.account_id === h.account_id && m.enabled)
     const obs = observed.find((o) => o.account_id === h.account_id)?.buckets ?? []
@@ -132,7 +132,7 @@ export function leftColor(left: number): string {
   return 'green'
 }
 
-function LimitStatusBadge({ row, detail }: { row: Row; detail?: boolean }) {
+export function LimitStatusBadge({ row, detail }: { row: Row; detail?: boolean }) {
   const m = statusMeta[row.status]
   const badge = (
     <Badge tone={m.tone} icon={m.icon} title={row.statusDetail}>
@@ -151,7 +151,7 @@ function LimitStatusBadge({ row, detail }: { row: Row; detail?: boolean }) {
 }
 
 /** Tracking (credential and polling) status, deliberately quiet unless broken. */
-function TrackingLine({ t }: { t: Row['tracking'] }) {
+export function TrackingLine({ t }: { t: Row['tracking'] }) {
   if (t.state === 'none') return <Text size="xs" c="dimmed">Not tracked</Text>
   if (t.state === 'failed') {
     return (
@@ -172,7 +172,7 @@ function TrackingLine({ t }: { t: Row['tracking'] }) {
   )
 }
 
-function WindowCell({ t }: { t: Row['tightest'] }) {
+export function WindowCell({ t }: { t: Row['tightest'] }) {
   if (!t) return <Text size="xs" c="dimmed">No quota data</Text>
   return (
     <Stack gap={4} miw={160}>
@@ -348,9 +348,63 @@ function Budgets({ onAdd }: { onAdd: () => void }) {
 
 /* ---------- account drawer ---------- */
 
+/** Quota windows of one account (or unlinked tracker), with forecasts. */
+export function AccountQuota({ row }: { row: Row }) {
+  const [detail, setDetail] = useState<{ owner: string; ownerName: string; b: BucketView } | null>(null)
+  return (
+    <Stack gap="lg">
+      {row.statusDetail && <Text size="sm">{row.statusDetail}</Text>}
+      {row.monitors.map((m) => (
+        <Stack key={m.id} gap="sm">
+          <Group justify="space-between" gap="xs">
+            <Text size="sm" fw={600}>
+              {m.adapter_name || m.adapter}
+            </Text>
+            <TrackingLine t={trackingOf([m])} />
+          </Group>
+          <Fields
+            items={[
+              ['Tracker', <span className="mono">{m.name}</span>],
+              ['Signed in as', m.masked_identifier ? <span className="mono">{m.masked_identifier}</span> : '—'],
+              ['Next check', m.poll.next_attempt_at ? fmtRelative(m.poll.next_attempt_at) : '—'],
+            ]}
+          />
+          {m.poll.error_kind && (
+            <Banner tone="error" icon={ShieldAlert}>
+              {m.poll.error_message || m.poll.error_kind.replaceAll('_', ' ')}
+            </Banner>
+          )}
+          {m.buckets.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No windows reported yet.
+            </Text>
+          ) : (
+            m.buckets.map((b) => <BucketRow key={b.key} b={b} onDetails={() => setDetail({ owner: m.id, ownerName: m.name, b })} />)
+          )}
+        </Stack>
+      ))}
+      {row.observed.length > 0 && (
+        <Stack gap="sm">
+          <Text size="sm" fw={600}>
+            Rate limits seen in responses
+          </Text>
+          {row.observed.map((b) => (
+            <BucketRow key={b.key} b={b} />
+          ))}
+        </Stack>
+      )}
+      {row.monitors.length === 0 && row.observed.length === 0 && (
+        <Text size="sm" c="dimmed">
+          No quota is tracked for this account. Add quota tracking under Limits to see its windows here.
+        </Text>
+      )}
+      {detail && <BucketDialog owner={detail.owner} ownerName={detail.ownerName} bucket={detail.b} onClose={() => setDetail(null)} />}
+    </Stack>
+  )
+}
+
 function AccountDrawer({ row, onClose }: { row: Row | null; onClose: () => void }) {
   const compact = useCompact()
-  const [detail, setDetail] = useState<{ owner: string; ownerName: string; b: BucketView } | null>(null)
   return (
     <Drawer
       opened={!!row}
@@ -365,56 +419,7 @@ function AccountDrawer({ row, onClose }: { row: Row | null; onClose: () => void 
       )}
       closeButtonProps={{ 'aria-label': 'Close' }}
     >
-      {row && (
-        <Stack gap="lg">
-          {row.statusDetail && <Text size="sm">{row.statusDetail}</Text>}
-          {row.monitors.map((m) => (
-            <Stack key={m.id} gap="sm">
-              <Group justify="space-between" gap="xs">
-                <Text size="sm" fw={600}>
-                  {m.adapter_name || m.adapter}
-                </Text>
-                <TrackingLine t={trackingOf([m])} />
-              </Group>
-              <Fields
-                items={[
-                  ['Tracker', <span className="mono">{m.name}</span>],
-                  ['Signed in as', m.masked_identifier ? <span className="mono">{m.masked_identifier}</span> : '—'],
-                  ['Next check', m.poll.next_attempt_at ? fmtRelative(m.poll.next_attempt_at) : '—'],
-                ]}
-              />
-              {m.poll.error_kind && (
-                <Banner tone="error" icon={ShieldAlert}>
-                  {m.poll.error_message || m.poll.error_kind.replaceAll('_', ' ')}
-                </Banner>
-              )}
-              {m.buckets.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  No windows reported yet.
-                </Text>
-              ) : (
-                m.buckets.map((b) => <BucketRow key={b.key} b={b} onDetails={() => setDetail({ owner: m.id, ownerName: m.name, b })} />)
-              )}
-            </Stack>
-          ))}
-          {row.observed.length > 0 && (
-            <Stack gap="sm">
-              <Text size="sm" fw={600}>
-                Rate limits seen in responses
-              </Text>
-              {row.observed.map((b) => (
-                <BucketRow key={b.key} b={b} />
-              ))}
-            </Stack>
-          )}
-          {row.monitors.length === 0 && row.observed.length === 0 && (
-            <Text size="sm" c="dimmed">
-              No quota is tracked for this account. Add quota tracking to see its windows here.
-            </Text>
-          )}
-        </Stack>
-      )}
-      {detail && <BucketDialog owner={detail.owner} ownerName={detail.ownerName} bucket={detail.b} onClose={() => setDetail(null)} />}
+      {row && <AccountQuota row={row} />}
     </Drawer>
   )
 }

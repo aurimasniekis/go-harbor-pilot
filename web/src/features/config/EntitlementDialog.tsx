@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
-import { Banner, Button } from '@/components/ui'
+import { Button } from '@/components/ui'
 import { Dialog, MutationError, SelectField, TextField, formStyles as f } from '@/components/form'
 import { TerraformEditWarning } from '@/components/ResourceBadges'
 import { resourceListQuery } from '@/lib/api/queries'
@@ -13,11 +13,11 @@ import c from './config.module.css'
 const units: WindowSpec['unit'][] = ['percent', 'tokens', 'requests', 'credits', 'unknown']
 
 /** Create or edit a subscription entitlement (what a subscription includes and costs). */
-export function EntitlementDialog({ ent, onClose }: { ent: EntitlementRes | null; onClose: () => void }) {
+export function EntitlementDialog({ ent, onClose, accountID: presetAccount }: { ent: EntitlementRes | null; onClose: () => void; accountID?: string }) {
   const accounts = useQuery(resourceListQuery<AccountRes>('provider-accounts'))
   const init = ent?.spec
   const [name, setName] = useState(ent?.name ?? '')
-  const [accountID, setAccountID] = useState(init?.account_id ?? '')
+  const [accountID, setAccountID] = useState(init?.account_id ?? presetAccount ?? '')
   const [planName, setPlanName] = useState(init?.plan_name ?? '')
   const [fee, setFee] = useState(init?.fee ?? '')
   const [currency, setCurrency] = useState(init?.currency ?? 'USD')
@@ -35,7 +35,6 @@ export function EntitlementDialog({ ent, onClose }: { ent: EntitlementRes | null
   return (
     <Dialog open wide title={ent ? `Edit subscription ${ent.name}` : 'Add subscription'} onClose={onClose}>
       <TerraformEditWarning r={ent} />
-      <Banner tone="info">Subscription fees are not API invoices; they are tracked separately from metered charges.</Banner>
       <div className={f.grid}>
         <TextField label="Name" value={name} onChange={setName} disabled={!!ent} required />
         <SelectField label="Account" value={accountID} onChange={setAccountID}
