@@ -124,6 +124,9 @@ type Principal struct {
 	AuthMethod  string // password | oidc | breakglass | api_token | system
 	SessionID   string // web session display id, empty for tokens
 	CSRFChecked bool   // true when a cookie-authenticated mutation passed CSRF/origin checks
+	// CSRFOrigin is the request's Origin when it did not match the public
+	// origin (empty when the origin was fine or absent).
+	CSRFOrigin string
 	Limited     bool   // session restricted (e.g. setup or recovery flow)
 	// AuthAt is when the session's user last proved their identity
 	// (sign-in or re-authentication); zero for tokens.

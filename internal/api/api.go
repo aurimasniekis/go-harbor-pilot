@@ -117,7 +117,11 @@ func guard[O any](ctx context.Context, op Op, mutating bool, h func() (*O, error
 				return nil, Forbidden("this session is limited to completing setup or recovery")
 			}
 			if mutating && p.AuthMethod != "api_token" && p.Kind != auth.KindSystem && !p.CSRFChecked {
-				return nil, Forbidden("missing or invalid CSRF token")
+				if p.CSRFOrigin != "" {
+					return nil, Errorf(http.StatusForbidden, "origin_mismatch",
+						"this page is open at "+p.CSRFOrigin+", but the server only accepts changes from its public URL; open Harbor Pilot there or set public_url")
+				}
+				return nil, Errorf(http.StatusForbidden, "csrf_invalid", "your session changed since this page loaded; reload the page and try again")
 			}
 			if !p.Can(op.Permission) {
 				return nil, Forbidden("permission " + string(op.Permission) + " required")

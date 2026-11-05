@@ -65,23 +65,49 @@ export async function apiGet<T>(path: string, query?: Query, signal?: AbortSigna
   return (await res.json()) as T
 }
 
+/** Re-reads the session's CSRF token (after a sign-in in another tab). */
+async function refreshCsrfToken(): Promise<boolean> {
+  try {
+    const res = await fetch(buildUrl('/session'), { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    if (!res.ok) return false
+    const s = (await res.json()) as { csrf_token?: string }
+    if (!s.csrf_token || s.csrf_token === csrfToken) return false
+    csrfToken = s.csrf_token
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function apiSend<T>(
   method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,
   opts?: { ifMatch?: number },
 ): Promise<T> {
-  const headers: Record<string, string> = { Accept: 'application/json' }
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
-  if (csrfToken) headers['X-CSRF-Token'] = csrfToken
-  if (opts?.ifMatch !== undefined) headers['If-Match'] = `"r${opts.ifMatch}"`
-  const res = await fetch(buildUrl(path), {
-    method,
-    credentials: 'same-origin',
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-  if (!res.ok) throw await parseError(res)
+  const send = () => {
+    const headers: Record<string, string> = { Accept: 'application/json' }
+    if (body !== undefined) headers['Content-Type'] = 'application/json'
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+    if (opts?.ifMatch !== undefined) headers['If-Match'] = `"r${opts.ifMatch}"`
+    return fetch(buildUrl(path), {
+      method,
+      credentials: 'same-origin',
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+  }
+  let res = await send()
+  if (!res.ok) {
+    let err = await parseError(res)
+    // The session changed under this tab (signed in elsewhere, server
+    // reset): pick up the current token and try once more.
+    if (err.code === 'csrf_invalid' && (await refreshCsrfToken())) {
+      res = await send()
+      if (!res.ok) err = await parseError(res)
+    }
+    if (!res.ok) throw err
+  }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
 }

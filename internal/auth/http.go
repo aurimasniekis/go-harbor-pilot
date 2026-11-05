@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -50,7 +52,11 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			return
 		}
 		if isUnsafe(r.Method) {
-			p.CSRFChecked = s.sameOrigin(r) && s.CheckCSRF(info, r.Header.Get("X-CSRF-Token"))
+			originOK := s.sameOrigin(r)
+			p.CSRFChecked = originOK && s.CheckCSRF(info, r.Header.Get("X-CSRF-Token"))
+			if !originOK {
+				p.CSRFOrigin = r.Header.Get("Origin")
+			}
 		}
 		ctx = context.WithValue(WithPrincipal(ctx, p), sessionCtxKey{}, info)
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -65,9 +71,30 @@ func isUnsafe(m string) bool {
 // absent) Sec-Fetch-Site: same-origin.
 func (s *Service) sameOrigin(r *http.Request) bool {
 	if o := r.Header.Get("Origin"); o != "" {
-		return strings.EqualFold(o, s.o.PublicOrigin)
+		return strings.EqualFold(o, s.o.PublicOrigin) || loopbackAlias(o, s.o.PublicOrigin)
 	}
 	return r.Header.Get("Sec-Fetch-Site") == "same-origin"
+}
+
+// loopbackAlias reports whether two origins are the same loopback server
+// under different names (localhost, 127.0.0.1, [::1]) with the same scheme
+// and port. Only loopback public origins qualify, so a deployed server
+// still requires its exact public origin.
+func loopbackAlias(a, b string) bool {
+	ua, err1 := url.Parse(a)
+	ub, err2 := url.Parse(b)
+	if err1 != nil || err2 != nil || ua.Scheme != ub.Scheme || ua.Port() != ub.Port() {
+		return false
+	}
+	return isLoopbackHost(ua.Hostname()) && isLoopbackHost(ub.Hostname())
+}
+
+func isLoopbackHost(h string) bool {
+	if strings.EqualFold(h, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
 }
 
 // SessionCookie builds the session cookie.
