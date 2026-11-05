@@ -116,6 +116,71 @@ components:
         - enabled
         - labels
       type: object
+    ActivitySummary:
+      additionalProperties: false
+      properties:
+        avg_ttft_ms:
+          format: double
+          type:
+            - number
+            - "null"
+        by_harness:
+          additionalProperties:
+            format: int64
+            type: integer
+          type: object
+        by_model:
+          additionalProperties:
+            format: int64
+            type: integer
+          type: object
+        by_status:
+          additionalProperties:
+            format: int64
+            type: integer
+          type: object
+        costs:
+          description: Totals per currency and cost kind (never summed across kinds).
+          items:
+            $ref: "#/components/schemas/CostDTO"
+          type: array
+        fallbacks:
+          description: Requests that needed more than one attempt.
+          format: int64
+          type: integer
+        from:
+          format: date-time
+          type: string
+        requests:
+          format: int64
+          type: integer
+        telemetry_dropped:
+          description: Records dropped under back-pressure since start (coverage gap).
+          format: int64
+          type: integer
+        to:
+          format: date-time
+          type: string
+        tokens:
+          $ref: "#/components/schemas/Tokens"
+        unknown_usage:
+          description: Requests whose usage the upstream did not report.
+          format: int64
+          type: integer
+      required:
+        - from
+        - to
+        - requests
+        - by_status
+        - by_harness
+        - by_model
+        - tokens
+        - costs
+        - avg_ttft_ms
+        - fallbacks
+        - unknown_usage
+        - telemetry_dropped
+      type: object
     AliasSpec:
       additionalProperties: false
       properties:
@@ -138,6 +203,82 @@ components:
         - pool_id
         - alias_id
         - required_capabilities
+      type: object
+    AttemptDTO:
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+        duration_ms:
+          format: int64
+          type:
+            - integer
+            - "null"
+        error_kind:
+          type: string
+        error_message:
+          type: string
+        executed:
+          description: The upstream may have processed this attempt (never replayed).
+          type: boolean
+        failover_reason:
+          type: string
+        finished_at:
+          format: date-time
+          type: string
+        http_status:
+          format: int64
+          type: integer
+        id:
+          type: string
+        mode:
+          type: string
+        model:
+          type: string
+        "n":
+          format: int64
+          type: integer
+        provider_id:
+          type: string
+        retry_after_s:
+          format: int64
+          type: integer
+        started_at:
+          format: date-time
+          type: string
+        status:
+          type: string
+        tokens:
+          $ref: "#/components/schemas/Tokens"
+        ttft_ms:
+          format: int64
+          type:
+            - integer
+            - "null"
+        unknown_events:
+          items:
+            type: string
+          type: array
+        upstream_protocol:
+          type: string
+      required:
+        - id
+        - "n"
+        - started_at
+        - account_id
+        - provider_id
+        - model
+        - upstream_protocol
+        - mode
+        - status
+        - error_kind
+        - error_message
+        - executed
+        - ttft_ms
+        - duration_ms
+        - failover_reason
+        - tokens
+        - unknown_events
       type: object
     AuditEntryDTO:
       additionalProperties: false
@@ -370,6 +511,29 @@ components:
         - kind
         - name
         - spec
+      type: object
+    CostDTO:
+      additionalProperties: false
+      properties:
+        amount:
+          description: Exact decimal.
+          type: string
+        currency:
+          type: string
+        kind:
+          description: list_equivalent is not an invoice.
+          enum:
+            - estimated_api_charge
+            - list_equivalent
+            - actual_api_charge
+            - none
+          type: string
+        price_version:
+          type: string
+      required:
+        - amount
+        - currency
+        - kind
       type: object
     CreateUserInBody:
       additionalProperties: false
@@ -886,6 +1050,43 @@ components:
         - token
         - base_urls
       type: object
+    LedgerDTO:
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+        at:
+          format: date-time
+          type: string
+        attempt_id:
+          type: string
+        billing:
+          type: string
+        cost:
+          $ref: "#/components/schemas/CostDTO"
+        id:
+          type: string
+        kind:
+          type: string
+        model:
+          type: string
+        provenance: {}
+        tokens:
+          $ref: "#/components/schemas/Tokens"
+        usage_source:
+          type: string
+      required:
+        - id
+        - at
+        - kind
+        - attempt_id
+        - account_id
+        - model
+        - billing
+        - tokens
+        - usage_source
+        - provenance
+      type: object
     LinkOutBody:
       additionalProperties: false
       properties:
@@ -1110,6 +1311,38 @@ components:
       required:
         - items
       type: object
+    ObservedSession:
+      additionalProperties: false
+      properties:
+        binding_id:
+          type: string
+        confidence:
+          type: string
+        first_seen:
+          format: date-time
+          type: string
+        harness:
+          type: string
+        id:
+          type: string
+        last_seen:
+          format: date-time
+          type: string
+        requests:
+          format: int64
+          type: integer
+        source:
+          type: string
+      required:
+        - id
+        - binding_id
+        - source
+        - confidence
+        - harness
+        - first_seen
+        - last_seen
+        - requests
+      type: object
     OidcBody:
       additionalProperties: false
       properties:
@@ -1190,6 +1423,32 @@ components:
         items:
           items:
             $ref: "#/components/schemas/AuditEntryDTO"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageObservedSession:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ObservedSession"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageRequestSummary:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/RequestSummary"
           type: array
         next_cursor:
           description: Present when more items are available.
@@ -1594,6 +1853,263 @@ components:
         - request_timeout_seconds
         - stream_idle_timeout_seconds
         - models
+      type: object
+    RequestDetail:
+      additionalProperties: false
+      properties:
+        alias_id:
+          type: string
+        attempt_list:
+          items:
+            $ref: "#/components/schemas/AttemptDTO"
+          type: array
+        attempts:
+          format: int64
+          type: integer
+        binding_id:
+          type: string
+        bytes_out:
+          format: int64
+          type: integer
+        claims:
+          additionalProperties:
+            type: string
+          description: Untrusted client hints, recorded with provenance.
+          type: object
+        cost:
+          $ref: "#/components/schemas/CostDTO"
+        created_at:
+          format: date-time
+          type: string
+        credential_id:
+          type: string
+        decision: {}
+        duration_ms:
+          format: int64
+          type:
+            - integer
+            - "null"
+        error_kind:
+          type: string
+        error_message:
+          type: string
+        final_account_id:
+          type: string
+        final_model:
+          type: string
+        final_provider_id:
+          type: string
+        finished_at:
+          format: date-time
+          type: string
+        harness:
+          type: string
+        harness_confidence:
+          type: string
+        harness_version:
+          type: string
+        id:
+          type: string
+        inbound_protocol:
+          type: string
+        ledger:
+          items:
+            $ref: "#/components/schemas/LedgerDTO"
+          type: array
+        losses: {}
+        mode:
+          type: string
+        plan_id:
+          type: string
+        plan_version:
+          format: int64
+          type:
+            - integer
+            - "null"
+        project_id:
+          type: string
+        requested_model:
+          type: string
+        required_capabilities:
+          items:
+            type: string
+          type: array
+        resolution:
+          type: string
+        session_confidence:
+          type: string
+        session_id:
+          type: string
+        status:
+          type: string
+        stop_reason:
+          type: string
+        stream:
+          type: boolean
+        tokens:
+          $ref: "#/components/schemas/Tokens"
+        tool_calls:
+          format: int64
+          type: integer
+        tool_names:
+          items:
+            type: string
+          type: array
+        tool_result_errors:
+          format: int64
+          type: integer
+        tool_results_seen:
+          format: int64
+          type: integer
+        tools_offered:
+          format: int64
+          type: integer
+        trusted_refs:
+          additionalProperties:
+            type: string
+          type: object
+        ttft_ms:
+          format: int64
+          type:
+            - integer
+            - "null"
+        usage_source:
+          type: string
+        workspace_id:
+          type: string
+      required:
+        - credential_id
+        - workspace_id
+        - trusted_refs
+        - claims
+        - session_confidence
+        - harness_confidence
+        - harness_version
+        - resolution
+        - plan_id
+        - plan_version
+        - required_capabilities
+        - error_message
+        - tools_offered
+        - tool_results_seen
+        - tool_result_errors
+        - tool_names
+        - losses
+        - decision
+        - bytes_out
+        - attempt_list
+        - ledger
+        - id
+        - created_at
+        - binding_id
+        - project_id
+        - session_id
+        - harness
+        - inbound_protocol
+        - stream
+        - requested_model
+        - alias_id
+        - status
+        - error_kind
+        - stop_reason
+        - ttft_ms
+        - duration_ms
+        - attempts
+        - final_account_id
+        - final_provider_id
+        - final_model
+        - mode
+        - tokens
+        - usage_source
+        - tool_calls
+      type: object
+    RequestSummary:
+      additionalProperties: false
+      properties:
+        alias_id:
+          type: string
+        attempts:
+          format: int64
+          type: integer
+        binding_id:
+          type: string
+        cost:
+          $ref: "#/components/schemas/CostDTO"
+        created_at:
+          format: date-time
+          type: string
+        duration_ms:
+          format: int64
+          type:
+            - integer
+            - "null"
+        error_kind:
+          type: string
+        final_account_id:
+          type: string
+        final_model:
+          type: string
+        final_provider_id:
+          type: string
+        finished_at:
+          format: date-time
+          type: string
+        harness:
+          type: string
+        id:
+          type: string
+        inbound_protocol:
+          type: string
+        mode:
+          type: string
+        project_id:
+          type: string
+        requested_model:
+          type: string
+        session_id:
+          type: string
+        status:
+          type: string
+        stop_reason:
+          type: string
+        stream:
+          type: boolean
+        tokens:
+          $ref: "#/components/schemas/Tokens"
+        tool_calls:
+          format: int64
+          type: integer
+        ttft_ms:
+          format: int64
+          type:
+            - integer
+            - "null"
+        usage_source:
+          type: string
+      required:
+        - id
+        - created_at
+        - binding_id
+        - project_id
+        - session_id
+        - harness
+        - inbound_protocol
+        - stream
+        - requested_model
+        - alias_id
+        - status
+        - error_kind
+        - stop_reason
+        - ttft_ms
+        - duration_ms
+        - attempts
+        - final_account_id
+        - final_provider_id
+        - final_model
+        - mode
+        - tokens
+        - usage_source
+        - tool_calls
       type: object
     ResetOutBody:
       additionalProperties: false
@@ -2480,6 +2996,41 @@ components:
       required:
         - token
       type: object
+    Tokens:
+      additionalProperties: false
+      properties:
+        cache_read:
+          format: int64
+          type:
+            - integer
+            - "null"
+        cache_write:
+          format: int64
+          type:
+            - integer
+            - "null"
+        input:
+          format: int64
+          type:
+            - integer
+            - "null"
+        output:
+          format: int64
+          type:
+            - integer
+            - "null"
+        reasoning:
+          format: int64
+          type:
+            - integer
+            - "null"
+      required:
+        - input
+        - output
+        - cache_read
+        - cache_write
+        - reasoning
+      type: object
     UnlinkInBody:
       additionalProperties: false
       properties:
@@ -2908,6 +3459,195 @@ info:
   version: dev
 openapi: 3.1.0
 paths:
+  /activity/requests:
+    get:
+      operationId: list-requests
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: binding_id
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: project_id
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: session_id
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: account_id
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: status
+          schema:
+            enum:
+              - in_progress
+              - ok
+              - error
+              - blocked
+              - canceled
+              - ""
+            type: string
+        - explode: false
+          in: query
+          name: model
+          schema:
+            maxLength: 200
+            type: string
+        - explode: false
+          in: query
+          name: harness
+          schema:
+            maxLength: 32
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageRequestSummary"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List gateway requests (newest first)
+      tags:
+        - Activity
+      x-permission: activity.read
+  /activity/requests/{id}:
+    get:
+      operationId: get-request
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestDetail"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Request detail with routing explanation, attempts and accounting
+      tags:
+        - Activity
+      x-permission: activity.read
+  /activity/sessions:
+    get:
+      operationId: list-sessions
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: binding_id
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageObservedSession"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List observed sessions (most recent first)
+      tags:
+        - Activity
+      x-permission: activity.read
+  /activity/summary:
+    get:
+      operationId: get-activity-summary
+      parameters:
+        - explode: false
+          in: query
+          name: hours
+          schema:
+            default: 24
+            format: int64
+            maximum: 720
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivitySummary"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Aggregate recent activity
+      tags:
+        - Activity
+      x-permission: activity.read
   /audit:
     get:
       operationId: list-audit-log

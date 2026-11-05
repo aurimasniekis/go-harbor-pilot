@@ -16,13 +16,13 @@ This matrix maps every requirement in the product brief to the phase, package an
 ## §2 Non-negotiable goals
 | ID | Requirement | Phase | Package(s) | Status | Evidence |
 |---|---|---|---|---|---|
-| R2.1 | Multi-provider, multi-account gateway | 4–5 | gateway, executor, routing | planned | |
-| R2.2 | Harness integrations and protocol translation | 4, 12 | protocol, harness | planned | |
-| R2.3 | API, subscription (CLI bridge) and local executors | 4, 7 | executor | planned | |
+| R2.1 | Multi-provider, multi-account gateway | 4–5 | gateway, executor, routing | implemented | gateway, routing, executor/httpapi; acceptance A/B/E |
+| R2.2 | Harness integrations and protocol translation | 4, 12 | protocol, harness | in-progress | protocol adapters contract-tested; harness tooling Phase 12 |
+| R2.3 | API, subscription (CLI bridge) and local executors | 4, 7 | executor | in-progress | HTTP API + local executors; CLI bridges Phase 7 |
 | R2.4 | Explainable Expr routing plans and decision tables | 5 | routing | planned | |
 | R2.5 | Quota monitoring, account switching, budgets, attribution | 5–6 | quota, accounting | planned | |
-| R2.6 | Consumer-neutral identity via tokens and base URLs | 3–4 | controlplane, gateway | planned | |
-| R2.7 | Activity statistics (models, intents, tools, sessions, attempts) | 4, 11 | telemetry | planned | |
+| R2.6 | Consumer-neutral identity via tokens and base URLs | 3–4 | controlplane, gateway | implemented | gateway auth by hpk_ token + base URL; acceptance A |
+| R2.7 | Activity statistics (models, intents, tools, sessions, attempts) | 4, 11 | telemetry | in-progress | requests/attempts/sessions/tool observation + activityapi; intents & rollups Phase 11 |
 | R2.8 | Optional short-lived traces | 8 | traces | planned | |
 | R2.9 | Secret masking and privacy controls | 8 | privacy | planned | |
 | R2.10 | Authorized native passthrough during protocol drift | 9 | compat, gateway | planned | |
@@ -48,30 +48,30 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R4.2 | SQLite WAL, single instance, documented capacity | 1, 15 | planned | |
 | R4.3 | Quota Harbor UI stack, pnpm, lint/test/E2E conventions | 0 | implemented | web/ (pinned stack), make check, web/e2e |
 | R4.4 | Container and native deployment | 13 | planned | |
-| R4.5 | Deterministic, isolated demo mode | 4+ | planned | |
-| R4.6 | Execution, control, telemetry, events and notifications kept separate; bounded queues | 4, 10 | planned | |
+| R4.5 | Deterministic, isolated demo mode | 4+ | implemented | demo seed + synthetic upstreams + real-path traffic (internal/demo) |
+| R4.6 | Execution, control, telemetry, events and notifications kept separate; bounded queues | 4, 10 | implemented | bounded telemetry queue with drop counters; outbox-only events (D-020) |
 
 ## §5 Domain model and identity
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
 | R5.1 | All domain concepts listed in the brief | 3 | in-progress | controlplane/specs.go (workspace, project, provider, account, entitlement, pool, alias, plan, binding, credential); policy/trace/event/notification kinds land with their phases |
 | R5.2 | Client binding composition | 3 | implemented | BindingSpec (owner, plan, projects, harness, limits, trust, refs); controlplane tests |
-| R5.3 | Token-plus-base-URL onboarding with no custom headers | 4 | planned | scenario A |
+| R5.3 | Token-plus-base-URL onboarding with no custom headers | 4 | implemented | acceptance A |
 | R5.4 | Token scopes, expiry, revocation, ownership, last-used, nonreversible storage, shown once, never forwarded upstream | 3–4 | implemented | controlplane/credentials.go (scopes, expiry, revocation, verifier, last-used, children); TestGatewayCredentials |
-| R5.5 | Base URLs select namespaces but do not authenticate | 4 | planned | |
-| R5.6 | Trusted versus untrusted metadata; harness detection treated as telemetry | 4 | planned | |
+| R5.5 | Base URLs select namespaces but do not authenticate | 4 | implemented | namespaced bases /anthropic,/openai,/gemini; token required |
+| R5.6 | Trusted versus untrusted metadata; harness detection treated as telemetry | 4 | implemented | claims vs trusted_refs; DetectHarness confidence; gateway/handle.go |
 | R5.7 | Optional external refs (SpaceMan, CI, repo) | 3, 11 | in-progress | project/binding external_refs; credential bound_refs (trusted, mint-time) |
-| R5.8 | Session uncertainty recorded; no merging by token | 4, 11 | planned | |
+| R5.8 | Session uncertainty recorded; no merging by token | 4, 11 | implemented | sessions only from bound refs or trusted hints; acceptance A asserts no merge |
 
 ## §6 Harness, protocol and provider layers
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R6.1 | Three distinct adapter layers | 4 | planned | |
+| R6.1 | Three distinct adapter layers | 4 | implemented | internal/protocol (wire), internal/executor (provider), harness detection (telemetry) |
 | R6.2 | Setup guides and reversible config tooling (preview, backup, atomic write, conflict, uninstall) | 12 | planned | |
-| R6.3 | Typed canonical IR with capability negotiation and extensions | 4 | planned | |
-| R6.4 | Coverage of instructions, multimodal, tools, streaming args, structured output, reasoning, opaque state, cache, usage, finish/errors/cancel/rate-limit | 4 | planned | |
-| R6.5 | No invented reasoning; opaque state never turned into text | 4 | planned | |
-| R6.6 | Explicit-policy rejection or downgrade; unknown extensions preserved | 4, 9 | planned | |
+| R6.3 | Typed canonical IR with capability negotiation and extensions | 4 | implemented | internal/ir + capability Requirements |
+| R6.4 | Coverage of instructions, multimodal, tools, streaming args, structured output, reasoning, opaque state, cache, usage, finish/errors/cancel/rate-limit | 4 | contract-tested | protocol_test.go (tools, streaming args, reasoning, sealed, usage, errors, cancellation via ctx) |
+| R6.5 | No invented reasoning; opaque state never turned into text | 4 | contract-tested | TestAnthropicToChatTranslation/TestResponsesNativeAndForeign assert no leak of sealed state |
+| R6.6 | Explicit-policy rejection or downgrade; unknown extensions preserved | 4, 9 | implemented | ir.Loss severities; executor rejects LossReject unless AllowLosses |
 | R6.7 | Capability-qualified compatibility matrix | 4+ | in-progress | COMPATIBILITY.md |
 | R6.8 | Bridge isolation: no shared credential rewrite | 7 | planned | |
 
@@ -82,10 +82,10 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R7.2 | Integration classification (official, partial, unofficial opt-in, unsupported) | 6 | planned | |
 | R7.3 | Multiple windows, resets, freshness, unknown vs zero, concurrency, auth health, cooldowns, affinity, external usage | 6 | planned | |
 | R7.4 | The seven separated money/usage categories | 6 | planned | |
-| R7.5 | Hierarchy: workspace → run → session → request → attempts | 4, 11 | planned | |
-| R7.6 | Immutable, idempotent ledger with corrections; fixed-precision money | 4 | planned | |
-| R7.7 | Atomic reservations; abandoned and crash recovery | 4 | planned | scenario E |
-| R7.8 | Policy-controlled failover order; no ambiguous replay; no splicing; no unapproved paid fallback | 5 | planned | scenarios C, D |
+| R7.5 | Hierarchy: workspace → run → session → request → attempts | 4, 11 | in-progress | ledger carries workspace/project/run/session/request/attempt |
+| R7.6 | Immutable, idempotent ledger with corrections; fixed-precision money | 4 | implemented | accounting ledger (append-only, idempotency_key, provenance, money.Amount) |
+| R7.7 | Atomic reservations; abandoned and crash recovery | 4 | contract-tested | accounting.Reserve (IMMEDIATE tx), reaper, RecoverStartup; scenario E |
+| R7.8 | Policy-controlled failover order; no ambiguous replay; no splicing; no unapproved paid fallback | 5 | in-progress | pre-first-byte failover, Transition steps, no ambiguous replay, paid fallback filter; scenarios C/D Phase 5 |
 
 ## §8 Routing
 | ID | Requirement | Phase | Status | Evidence |
@@ -102,9 +102,9 @@ This matrix maps every requirement in the product brief to the phase, package an
 ## §9 Activity and intents
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R9.1 | Requested, alias, capability, recommendation, actual, rules: each recorded separately | 4–5 | planned | |
+| R9.1 | Requested, alias, capability, recommendation, actual, rules: each recorded separately | 4–5 | implemented | requests table: requested/alias/resolution/plan/caps/actual + decision JSON |
 | R9.2 | Intent sources with classifier controls | 11 | planned | |
-| R9.3 | Honest tool observation (offered, generated, results seen, provider-executed) | 4 | planned | |
+| R9.3 | Honest tool observation (offered, generated, results seen, provider-executed) | 4 | implemented | tools offered/calls generated/results seen/errors (ObserveTools) |
 | R9.4 | History dedupe; unique vs uncertain occurrences | 11 | planned | |
 | R9.5 | Statistics across all listed dimensions | 11 | planned | |
 | R9.6 | OpenSearch-ready logs; no high-cardinality metric labels | 1, 11 | in-progress | platform/observability (redacting JSON logs, low-cardinality metrics) |
@@ -194,7 +194,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
 | R18.1 | All twelve screen groups listed in the brief | 2–11 | planned | |
-| R18.2 | "Why this route?" screen | 4, 11 | planned | |
+| R18.2 | "Why this route?" screen | 4, 11 | in-progress | GET /activity/requests/{id} carries decision, attempts, ledger; UI next |
 | R18.3 | Loading, empty, error, stale, partial, expired and denied states; keyboard access; responsive | all | in-progress | states/ErrorBoundary, a11y + responsive e2e for current screens |
 | R18.4 | Deterministic synthetic demo exercising real paths | 4+ | planned | |
 

@@ -4,6 +4,74 @@
  */
 
 export interface paths {
+    "/activity/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List gateway requests (newest first) */
+        get: operations["list-requests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity/requests/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Request detail with routing explanation, attempts and accounting */
+        get: operations["get-request"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List observed sessions (most recent first) */
+        get: operations["list-sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Aggregate recent activity */
+        get: operations["get-activity-summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/audit": {
         parameters: {
             query?: never;
@@ -1261,6 +1329,43 @@ export interface components {
              */
             requests_per_minute: number;
         };
+        ActivitySummary: {
+            /** Format: double */
+            avg_ttft_ms: number | null;
+            by_harness: {
+                [key: string]: number;
+            };
+            by_model: {
+                [key: string]: number;
+            };
+            by_status: {
+                [key: string]: number;
+            };
+            /** @description Totals per currency and cost kind (never summed across kinds). */
+            costs: components["schemas"]["CostDTO"][];
+            /**
+             * Format: int64
+             * @description Requests that needed more than one attempt.
+             */
+            fallbacks: number;
+            /** Format: date-time */
+            from: string;
+            /** Format: int64 */
+            requests: number;
+            /**
+             * Format: int64
+             * @description Records dropped under back-pressure since start (coverage gap).
+             */
+            telemetry_dropped: number;
+            /** Format: date-time */
+            to: string;
+            tokens: components["schemas"]["Tokens"];
+            /**
+             * Format: int64
+             * @description Requests whose usage the upstream did not report.
+             */
+            unknown_usage: number;
+        };
         AliasSpec: {
             /** @description Target alias (chains are allowed; cycles are rejected). */
             alias_id: string;
@@ -1269,6 +1374,36 @@ export interface components {
             pool_id: string;
             /** @description Capabilities every candidate must have in addition to what a request demands. */
             required_capabilities: string[];
+        };
+        AttemptDTO: {
+            account_id: string;
+            /** Format: int64 */
+            duration_ms: number | null;
+            error_kind: string;
+            error_message: string;
+            /** @description The upstream may have processed this attempt (never replayed). */
+            executed: boolean;
+            failover_reason: string;
+            /** Format: date-time */
+            finished_at?: string;
+            /** Format: int64 */
+            http_status?: number;
+            id: string;
+            mode: string;
+            model: string;
+            /** Format: int64 */
+            n: number;
+            provider_id: string;
+            /** Format: int64 */
+            retry_after_s?: number;
+            /** Format: date-time */
+            started_at: string;
+            status: string;
+            tokens: components["schemas"]["Tokens"];
+            /** Format: int64 */
+            ttft_ms: number | null;
+            unknown_events: string[];
+            upstream_protocol: string;
         };
         AuditEntryDTO: {
             action: string;
@@ -1374,6 +1509,17 @@ export interface components {
                 [key: string]: components["schemas"]["SecretInfo"];
             };
             spec: unknown;
+        };
+        CostDTO: {
+            /** @description Exact decimal. */
+            amount: string;
+            currency: string;
+            /**
+             * @description list_equivalent is not an invoice.
+             * @enum {string}
+             */
+            kind: "estimated_api_charge" | "list_equivalent" | "actual_api_charge" | "none";
+            price_version?: string;
         };
         CreateUserInBody: {
             display_name?: string;
@@ -1588,6 +1734,20 @@ export interface components {
             /** @description The bearer token (hpk_…). Returned exactly once. */
             token: string;
         };
+        LedgerDTO: {
+            account_id: string;
+            /** Format: date-time */
+            at: string;
+            attempt_id: string;
+            billing: string;
+            cost?: components["schemas"]["CostDTO"];
+            id: string;
+            kind: string;
+            model: string;
+            provenance: unknown;
+            tokens: components["schemas"]["Tokens"];
+            usage_source: string;
+        };
         LinkOutBody: {
             auth_url: string;
         };
@@ -1671,6 +1831,19 @@ export interface components {
         OIDCProviderList: {
             items: components["schemas"]["OIDCProviderDTO"][];
         };
+        ObservedSession: {
+            binding_id: string;
+            confidence: string;
+            /** Format: date-time */
+            first_seen: string;
+            harness: string;
+            id: string;
+            /** Format: date-time */
+            last_seen: string;
+            /** Format: int64 */
+            requests: number;
+            source: string;
+        };
         OidcBody: {
             allow_private_network?: boolean;
             allowed_algs?: string[];
@@ -1696,6 +1869,16 @@ export interface components {
         };
         PageAuditEntryDTO: {
             items: components["schemas"]["AuditEntryDTO"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageObservedSession: {
+            items: components["schemas"]["ObservedSession"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageRequestSummary: {
+            items: components["schemas"]["RequestSummary"][];
             /** @description Present when more items are available. */
             next_cursor?: string;
         };
@@ -1860,6 +2043,103 @@ export interface components {
             stream_idle_timeout_seconds: number;
             /** @enum {string} */
             type: "anthropic" | "openai" | "gemini" | "openai_compatible" | "ollama" | "claude_code" | "codex";
+        };
+        RequestDetail: {
+            alias_id: string;
+            attempt_list: components["schemas"]["AttemptDTO"][];
+            /** Format: int64 */
+            attempts: number;
+            binding_id: string;
+            /** Format: int64 */
+            bytes_out: number;
+            /** @description Untrusted client hints, recorded with provenance. */
+            claims: {
+                [key: string]: string;
+            };
+            cost?: components["schemas"]["CostDTO"];
+            /** Format: date-time */
+            created_at: string;
+            credential_id: string;
+            decision: unknown;
+            /** Format: int64 */
+            duration_ms: number | null;
+            error_kind: string;
+            error_message: string;
+            final_account_id: string;
+            final_model: string;
+            final_provider_id: string;
+            /** Format: date-time */
+            finished_at?: string;
+            harness: string;
+            harness_confidence: string;
+            harness_version: string;
+            id: string;
+            inbound_protocol: string;
+            ledger: components["schemas"]["LedgerDTO"][];
+            losses: unknown;
+            mode: string;
+            plan_id: string;
+            /** Format: int64 */
+            plan_version: number | null;
+            project_id: string;
+            requested_model: string;
+            required_capabilities: string[];
+            resolution: string;
+            session_confidence: string;
+            session_id: string;
+            status: string;
+            stop_reason: string;
+            stream: boolean;
+            tokens: components["schemas"]["Tokens"];
+            /** Format: int64 */
+            tool_calls: number;
+            tool_names: string[];
+            /** Format: int64 */
+            tool_result_errors: number;
+            /** Format: int64 */
+            tool_results_seen: number;
+            /** Format: int64 */
+            tools_offered: number;
+            trusted_refs: {
+                [key: string]: string;
+            };
+            /** Format: int64 */
+            ttft_ms: number | null;
+            usage_source: string;
+            workspace_id: string;
+        };
+        RequestSummary: {
+            alias_id: string;
+            /** Format: int64 */
+            attempts: number;
+            binding_id: string;
+            cost?: components["schemas"]["CostDTO"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            duration_ms: number | null;
+            error_kind: string;
+            final_account_id: string;
+            final_model: string;
+            final_provider_id: string;
+            /** Format: date-time */
+            finished_at?: string;
+            harness: string;
+            id: string;
+            inbound_protocol: string;
+            mode: string;
+            project_id: string;
+            requested_model: string;
+            session_id: string;
+            status: string;
+            stop_reason: string;
+            stream: boolean;
+            tokens: components["schemas"]["Tokens"];
+            /** Format: int64 */
+            tool_calls: number;
+            /** Format: int64 */
+            ttft_ms: number | null;
+            usage_source: string;
         };
         ResetOutBody: {
             /** Format: date-time */
@@ -2271,6 +2551,18 @@ export interface components {
         TokenInBody: {
             token: string;
         };
+        Tokens: {
+            /** Format: int64 */
+            cache_read: number | null;
+            /** Format: int64 */
+            cache_write: number | null;
+            /** Format: int64 */
+            input: number | null;
+            /** Format: int64 */
+            output: number | null;
+            /** Format: int64 */
+            reasoning: number | null;
+        };
         UnlinkInBody: {
             issuer: string;
             subject: string;
@@ -2441,6 +2733,144 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "list-requests": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+                binding_id?: string;
+                project_id?: string;
+                session_id?: string;
+                account_id?: string;
+                status?: "in_progress" | "ok" | "error" | "blocked" | "canceled" | "";
+                model?: string;
+                harness?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageRequestSummary"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequestDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-sessions": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+                binding_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageObservedSession"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-activity-summary": {
+        parameters: {
+            query?: {
+                hours?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivitySummary"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-audit-log": {
         parameters: {
             query?: {

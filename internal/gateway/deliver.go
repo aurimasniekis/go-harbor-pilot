@@ -19,6 +19,7 @@ import (
 // attempt runs one candidate. It returns delivered=true once a response
 // (success or in-band failure after output began) has been written.
 func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx, cand *routing.Candidate, attID string, n int, step, rsvID string) (bool, *executor.AttemptError) {
+	rc.started++
 	snap := rc.snap
 	acc := snap.Accounts[cand.AccountID]
 	prov := snap.Providers[cand.ProviderID]

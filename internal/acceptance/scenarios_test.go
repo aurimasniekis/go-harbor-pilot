@@ -272,3 +272,31 @@ func TestScenarioE_ConcurrentReservations(t *testing.T) {
 		t.Fatalf("committed %d != ok %d", committed, ok)
 	}
 }
+
+func TestAttemptCountAndFailoverRecorded(t *testing.T) {
+	e := apptest.New(t)
+	up := apptest.NewUpstream(t, "anthropic")
+	prov := e.Provider("anthropic", "anthropic", up.Srv.URL, apptest.Model{ID: "m", MaxOutput: 1024})
+	a1 := e.Account("a1", prov, apptest.AccountOpts{})
+	a2 := e.Account("a2", prov, apptest.AccountOpts{})
+	alias := e.Alias("coding/default", e.Pool("p", "ordered", apptest.Member{Account: a1, Model: "m"}, apptest.Member{Account: a2, Model: "m", Priority: 1}))
+	tok := e.Token(e.Binding("b", e.Plan("default", apptest.PlanOpts{DefaultAlias: alias}), apptest.BindingOpts{}))
+	up.Push(apptest.Reply{Status: 429, RetryAfter: 5})
+	r := e.Gateway("POST", "/v1/messages", tok, map[string]any{"model": "x", "max_tokens": 8, "messages": []any{map[string]any{"role": "user", "content": "x"}}})
+	if b := apptest.ReadAll(r); r.StatusCode != 200 {
+		t.Fatalf("%d %s", r.StatusCode, b)
+	}
+	e.Flush()
+	if n := e.QueryInt(`SELECT attempt_count FROM requests`); n != 2 {
+		t.Fatalf("attempt_count %d", n)
+	}
+	if n := e.QueryInt(`SELECT count(*) FROM attempts WHERE status = 'error' AND error_kind = 'rate_limited' AND executed = 0 AND retry_after_s = 5`); n != 1 {
+		t.Fatal("failed attempt not recorded")
+	}
+	if n := e.QueryInt(`SELECT count(*) FROM attempts WHERE status = 'ok' AND failover_reason = 'alternate_account'`); n != 1 {
+		t.Fatal("failover attempt not recorded")
+	}
+	if n := e.QueryInt(`SELECT count(*) FROM reservations WHERE status = 'released'`); n != 1 {
+		t.Fatal("unexecuted attempt's reservation must be released")
+	}
+}

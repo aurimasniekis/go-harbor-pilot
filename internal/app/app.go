@@ -39,6 +39,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/reqmeta"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/store"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/telemetry"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/telemetry/activityapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/web"
 	"github.com/aurimasniekis/go-harbor-pilot/migrations"
 )
@@ -136,6 +137,23 @@ func New(ctx context.Context, o Options) (*App, error) {
 	a.AddBackground(a.Acct.Run)
 	a.AddBackground(a.Tel.Run)
 	a.AddRoutes(a.Gateway.Routes)
+	if c.Demo.Enabled {
+		ups := demo.NewUpstreams()
+		a.AddRoutes(ups.Routes)
+		base := "http://" + c.Server.Listen
+		toks, err := demo.SeedConfig(ctx, a.CP, base)
+		if err != nil {
+			return fail(fmt.Errorf("demo seed: %w", err))
+		}
+		a.AddBackground(func(ctx context.Context) {
+			var n int
+			_ = a.DB.R.QueryRowContext(ctx, `SELECT count(*) FROM requests`).Scan(&n)
+			if n > 0 || !demo.WaitReady(ctx, base) {
+				return
+			}
+			demo.Traffic(ctx, base, toks, ups, a.Log)
+		})
+	}
 	if c.Server.MetricsTokenFile != "" {
 		b, err := os.ReadFile(c.Server.MetricsTokenFile)
 		if err != nil {
@@ -163,6 +181,14 @@ func (a *App) CoreAPI() []func(*api.API) {
 		a.registerSystem,
 		func(ap *api.API) {
 			cpapi.Register(ap, func() *controlplane.Service { return a.CP }, func() string { return a.Cfg.PublicOrigin() })
+		},
+		func(ap *api.API) {
+			activityapi.Register(ap, func() *store.DB { return a.DB }, func() int64 {
+				if a.Tel == nil {
+					return 0
+				}
+				return a.Tel.Dropped()
+			})
 		},
 	}
 }

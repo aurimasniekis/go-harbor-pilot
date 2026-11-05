@@ -6,11 +6,11 @@ Statuses are `implemented`, `contract-tested`, `live-verified (date, version, sc
 
 | Inbound protocol | Endpoint(s) | Non-stream | Stream | Tools | Parallel tools | Tool-arg streaming | Structured output | Reasoning config | Images | Status | Evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Anthropic Messages | `POST /v1/messages`, `/anthropic/v1/messages`, `/v1/messages/count_tokens` | planned | planned | planned | planned | planned | n/a | planned | planned | planned | |
-| OpenAI Chat Completions | `POST /v1/chat/completions`, `/openai/v1/chat/completions` | planned | planned | planned | planned | planned | planned | planned | planned | planned | |
-| OpenAI Responses | `POST /v1/responses`, `/openai/v1/responses` | planned | planned | planned | planned | planned | planned | planned | planned | planned | |
-| Gemini generateContent | `POST /v1beta/models/{model}:generateContent`, `:streamGenerateContent` | planned | planned | planned | planned | n/a | planned | planned | planned | planned | |
-| Model listing | `GET /v1/models`, `/v1beta/models` | planned | | | | | | | | planned | |
+| Anthropic Messages | `POST /v1/messages`, `/anthropic/v1/messages`, `/v1/messages/count_tokens` (estimate) | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | reject→other upstreams | contract-tested | implemented | contract-tested | protocol_test.go, acceptance A/B |
+| OpenAI Chat Completions | `POST /v1/chat/completions`, `/openai/v1/chat/completions` | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | implemented | implemented | implemented | contract-tested | protocol_test.go, acceptance B |
+| OpenAI Responses | `POST /v1/responses`, `/openai/v1/responses` | contract-tested | contract-tested | contract-tested | implemented | contract-tested | implemented | implemented | implemented | contract-tested | protocol_test.go, acceptance B |
+| Gemini generateContent | `POST /v1beta/models/{model}:generateContent`, `:streamGenerateContent` | implemented | contract-tested | contract-tested | implemented | n/a (calls arrive whole) | implemented | implemented | implemented | contract-tested | protocol_test.go, acceptance B |
+| Model listing | `GET /v1/models`, `/v1beta/models` | contract-tested | | | | | | | | contract-tested | acceptance A |
 
 ## 2. Translation pairs (inbound → upstream)
 
@@ -29,16 +29,16 @@ Sealed reasoning state only crosses within the same family. Every other pair dow
 
 | Inbound \ Upstream | Anthropic | OpenAI Chat | OpenAI Responses | Gemini | OpenAI-compatible | Ollama | Claude Code bridge | Codex bridge |
 |---|---|---|---|---|---|---|---|---|
-| Anthropic Messages | planned | planned | planned | planned | planned | planned | planned | planned |
-| OpenAI Chat | planned | planned | planned | planned | planned | planned | planned | planned |
-| OpenAI Responses | planned | planned | planned | planned | planned | planned | planned | planned |
-| Gemini | planned | planned | planned | planned | planned | planned | planned | planned |
+| Anthropic Messages | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | planned (Phase 7) | planned (Phase 7) |
+| OpenAI Chat | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | planned (Phase 7) | planned (Phase 7) |
+| OpenAI Responses | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | planned (Phase 7) | planned (Phase 7) |
+| Gemini | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | planned (Phase 7) | planned (Phase 7) |
 
 ## 3. Harnesses
 
 | Harness | Version tested | Speaks | Configuration | Setup tooling | Status | Evidence |
 |---|---|---|---|---|---|---|
-| Claude Code | 2.1.318 (installed locally) | Anthropic Messages | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, model env vars | planned | planned | |
+| Claude Code | 2.1.318 (installed locally) | Anthropic Messages | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, model env vars | planned (Phase 12) | contract-tested (request shape); live: pending | acceptance A |
 | Codex | not installed | OpenAI Responses | `config.toml` `[model_providers.<id>]` | planned | blocked (binary) | |
 | OpenCode | not installed | OpenAI-compatible / Anthropic | `opencode.json` provider options | planned | blocked (binary) | |
 | Pi | not installed | OpenAI-compatible / Anthropic | `models.json` | planned | blocked (binary) | |
@@ -48,11 +48,11 @@ Sealed reasoning state only crosses within the same family. Every other pair dow
 
 | Executor | Kind | Auth | Quota source | Classification | Status | Evidence |
 |---|---|---|---|---|---|---|
-| Anthropic API | HTTP | API key | response headers, Admin API | official | planned | |
-| OpenAI API (Chat, Responses) | HTTP | API key | response headers, Admin API | official | planned | |
-| Gemini API | HTTP | API key | Cloud Quotas (monitor) | official | planned | |
-| OpenAI-compatible (OpenRouter, DeepSeek, xAI, Together, Moonshot, …) | HTTP | API key | balance endpoints | official | planned | |
-| Ollama / vLLM / llama.cpp / LM Studio | local HTTP | none or key | n/a | official (local) | planned | |
+| Anthropic API | HTTP | API key | response headers, Admin API | official | contract-tested (synthetic upstream); live: blocked (credentials) | acceptance A/B/E |
+| OpenAI API (Chat, Responses) | HTTP | API key | response headers, Admin API | official | contract-tested; live: blocked | acceptance B |
+| Gemini API | HTTP | API key | Cloud Quotas (monitor) | official | implemented (adapter contract-tested); live: blocked | protocol_test.go |
+| OpenAI-compatible (OpenRouter, DeepSeek, xAI, Together, Moonshot, …) | HTTP | API key | balance endpoints | partial (per server) | contract-tested; live: blocked | acceptance B |
+| Ollama / vLLM / llama.cpp / LM Studio | local HTTP (OpenAI-compatible endpoint) | none or key | n/a | local | contract-tested (synthetic); live: not run | demo traffic |
 | Claude Code bridge | CLI | `CLAUDE_CODE_OAUTH_TOKEN` (setup-token) per account | stream-json rate-limit events | official binary, subscription | planned | |
 | Codex bridge | CLI | per-account `CODEX_HOME` login | CLI-reported | official binary, subscription | planned | |
 | Direct subscription token replay / client impersonation | — | — | — | unsupported (D-001) | unsupported | DECISIONS D-001 |

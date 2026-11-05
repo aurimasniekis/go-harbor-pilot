@@ -70,6 +70,7 @@ type reqCtx struct {
 	claims    map[string]string
 	rec       telemetry.RequestRecord
 	outcome   Outcome
+	started   int // upstream attempts started
 }
 
 func (g *Gateway) handler(p ir.Protocol) http.HandlerFunc {
@@ -368,12 +369,7 @@ func (g *Gateway) finish(ctx context.Context, rc *reqCtx, status string, e *ir.E
 	rc.rec.FinishedAt = &now
 	d := now.Sub(rc.start).Milliseconds()
 	rc.rec.DurationMs = &d
-	rc.rec.AttemptCount = 0
-	for _, a := range rc.outcome.Attempts {
-		if a.ID != "" {
-			rc.rec.AttemptCount++
-		}
-	}
+	rc.rec.AttemptCount = rc.started
 	if e != nil {
 		rc.rec.ErrorKind, rc.rec.ErrorMessage = string(e.Kind), truncate(e.Message, 500)
 		rc.outcome.Error = e
