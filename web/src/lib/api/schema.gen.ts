@@ -3668,7 +3668,7 @@ export interface components {
             alias_id: string;
             /** @description Requested model name or glob (e.g. claude-sonnet-*). */
             match: string;
-            note: string;
+            note?: string;
         };
         ModelPricing: {
             cache_read_per_mtok?: string;

@@ -341,6 +341,7 @@ func CompileEngine(raw json.RawMessage) (*Compiled, []FieldError) {
 }
 
 func init() {
+	cp.PlanProbe = ProbePlan
 	cp.PlanCompiler = func(s *cp.Snapshot, p *cp.PlanView) (any, error) {
 		c, errs := CompileEngine(p.Published.Document.Engine)
 		if len(errs) > 0 {
@@ -474,6 +475,9 @@ func (c *Compiled) evaluate(stage string, env *Env, traces *[]Trace, cand *Candi
 func describe(e effect) string {
 	switch e.action {
 	case "block":
+		if e.reason == "" {
+			return "block"
+		}
 		return "block: " + e.reason
 	case "require":
 		return "require " + e.capability

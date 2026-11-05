@@ -29,7 +29,7 @@ const PlanSchemaVersion = 1
 type ModelMapping struct {
 	Match   string `json:"match" doc:"Requested model name or glob (e.g. claude-sonnet-*)."`
 	AliasID string `json:"alias_id"`
-	Note    string `json:"note" maxLength:"200"`
+	Note    string `json:"note" required:"false" maxLength:"200"`
 }
 
 // PlanRestrictions are hard constraints; scores can never override them.
@@ -420,6 +420,11 @@ type ValidationReport struct {
 	ConfigRevision int64 `json:"config_revision"`
 }
 
+// PlanProbe is installed by the routing engine: it runs sample requests
+// through a version and returns warnings when its rules would refuse all or
+// most of them.
+var PlanProbe func(s *Snapshot, p *PlanView, now time.Time) []FieldError
+
 // ValidateVersion validates a version against the current snapshot
 // (including engine compilation) and stores the report.
 func (s *Service) ValidateVersion(ctx context.Context, planID, versionID string) (*ValidationReport, error) {
@@ -438,13 +443,17 @@ func (s *Service) ValidateVersion(ctx context.Context, planID, versionID string)
 		}
 		trial := *plan
 		trial.Published = &VersionView{ID: v.ID, Version: v.Version, Document: v.Document}
-		if _, err := PlanCompiler(snap, &trial); err != nil {
+		compiled, err := PlanCompiler(snap, &trial)
+		if err != nil {
 			var ve *ValidationError
 			if errors.As(err, &ve) {
 				rep.Errors = append(rep.Errors, ve.Errors...)
 			} else {
 				rep.Errors = append(rep.Errors, FieldError{Location: "body.document.engine", Message: err.Error()})
 			}
+		} else if PlanProbe != nil {
+			trial.Published.Compiled = compiled
+			rep.Warnings = append(rep.Warnings, PlanProbe(snap, &trial, s.o.Clock.Now())...)
 		}
 	}
 	rep.Warnings = append(rep.Warnings, documentWarnings(snap, &v.Document)...)

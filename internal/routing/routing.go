@@ -170,7 +170,7 @@ func Decide(in Input) (*Decision, error) {
 				d.Required = required
 				msg := e.reason
 				if msg == "" {
-					msg = "blocked by " + e.source
+					msg = "blocked by " + HumanSource(e.source)
 				}
 				return d, &Error{Kind: ir.ErrPolicy, Message: msg, Decision: d}
 			case "require":

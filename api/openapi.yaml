@@ -3006,7 +3006,6 @@ components:
       required:
         - match
         - alias_id
-        - note
       type: object
     ModelPricing:
       additionalProperties: false
