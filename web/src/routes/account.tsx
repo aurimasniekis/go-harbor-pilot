@@ -3,7 +3,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { KeyRound, Link2, LogOut } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
-import { Badge, Banner, Button, KeyValues, Panel, TableScroll } from '@/components/ui'
+import { Badge, Banner, Button, KeyValues, Panel } from '@/components/ui'
+import { DataTable } from '@/ui/kit'
 import { MutationError, TextField } from '@/components/form'
 import { TableSkeleton, QueryError } from '@/components/states'
 import { apiSend } from '@/lib/api/client'
@@ -13,6 +14,16 @@ import { fmtDateTime, fmtRelative } from '@/lib/format'
 export const Route = createFileRoute('/account')({
   component: Account,
 })
+
+const methodName: Record<string, string> = { password: 'Password', oidc: 'Single sign-on', breakglass: 'Recovery link' }
+
+/** "Chrome on macOS" from a user agent string. */
+export function uaSummary(ua: string | undefined | null): string {
+  if (!ua) return 'Unknown device'
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /curl\//.test(ua) ? 'curl' : 'Browser'
+  const os = /Mac OS X|Macintosh/.test(ua) ? 'macOS' : /Windows/.test(ua) ? 'Windows' : /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Linux/.test(ua) ? 'Linux' : ''
+  return os ? `${browser} on ${os}` : browser
+}
 
 function Account() {
   const session = useQuery(sessionQuery)
@@ -49,7 +60,7 @@ function Account() {
 
   return (
     <>
-      <PageHeader title="My account" subtitle="Your profile, password, linked sign-in identities and active sessions." />
+      <PageHeader title="My account" />
       {session.data?.auth_method === 'breakglass' && (
         <Banner tone="warning">You signed in with a break-glass recovery link. Set a new password and review the audit log.</Banner>
       )}
@@ -59,10 +70,9 @@ function Account() {
             <KeyValues
               items={[
                 ['Email', user.email],
-                ['Name', user.display_name],
-                ['Role', <Badge>{session.data?.role}</Badge>],
-                ['Role source', user.role_source === 'local' ? 'Assigned in Harbor Pilot' : 'Single sign-on groups'],
-                ['Explicit grants', user.grants.length ? user.grants.join(', ') : 'None'],
+                ['Name', user.display_name || '—'],
+                ['Role', `${(session.data?.role ?? '').charAt(0).toUpperCase()}${(session.data?.role ?? '').slice(1)}${user.role_source === 'local' ? '' : ' (from single sign-on)'}`],
+                ...(user.grants.length ? ([['Can also', user.grants.join(', ')]] as [string, string][]) : []),
                 ['Last sign-in', fmtDateTime(user.last_login_at)],
               ]}
             />
@@ -105,42 +115,38 @@ function Account() {
         ) : !sessions.data ? (
           <TableSkeleton rows={2} />
         ) : (
-          <TableScroll label="Active sessions">
-            <table className="data-table" style={{ width: '100%' }}>
-              <thead>
-                <tr>
-                  <th>Method</th>
-                  <th>Started</th>
-                  <th>Last seen</th>
-                  <th>Expires</th>
-                  <th>Client</th>
-                  <th aria-label="Actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {(sessions.data.items ?? []).map((s) => (
-                  <tr key={s.id}>
-                    <td>
-                      {s.auth_method} {s.current && <Badge tone="accent">this session</Badge>}
-                    </td>
-                    <td>{fmtDateTime(s.created_at)}</td>
-                    <td>{fmtRelative(s.last_seen_at)}</td>
-                    <td>{fmtDateTime(s.expires_at)}</td>
-                    <td className="muted" style={{ maxWidth: 320, overflowWrap: 'anywhere' }}>
-                      {s.ip} {s.user_agent}
-                    </td>
-                    <td>
-                      {!s.current && (
-                        <Button size="small" variant="ghost" icon={LogOut} onClick={() => revoke.mutate(s.id)}>
-                          Revoke
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
+          <DataTable
+            label="Active sessions"
+            rows={sessions.data.items ?? []}
+            rowKey={(x) => x.id}
+            columns={[
+              {
+                id: 'device',
+                header: 'Device',
+                mobile: 'title',
+                cell: (x) => (
+                  <span>
+                    {uaSummary(x.user_agent)} <span className="muted">· {x.ip}</span> {x.current && <Badge tone="accent">This device</Badge>}
+                  </span>
+                ),
+              },
+              { id: 'method', header: 'Signed in with', mobile: 'meta', cell: (x) => methodName[x.auth_method] ?? x.auth_method },
+              { id: 'seen', header: 'Last active', mobile: 'meta', cell: (x) => fmtRelative(x.last_seen_at) },
+              { id: 'expires', header: 'Expires', mobile: 'meta', cell: (x) => fmtDateTime(x.expires_at) },
+              {
+                id: 'revoke',
+                header: <span className="visually-hidden">Actions</span>,
+                align: 'right',
+                mobile: 'aside',
+                cell: (x) =>
+                  !x.current && (
+                    <Button size="small" variant="ghost" icon={LogOut} onClick={() => revoke.mutate(x.id)}>
+                      Sign out
+                    </Button>
+                  ),
+              },
+            ]}
+          />
         )}
       </Panel>
     </>

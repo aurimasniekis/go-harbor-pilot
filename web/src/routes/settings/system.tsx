@@ -3,6 +3,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Archive, Plus } from 'lucide-react'
 import { Badge, Banner, Button, EmptyState, KeyValues, Panel, Skeleton, TableScroll } from '@/components/ui'
+import { Accordion, Stack, Text } from '@mantine/core'
+import { CopyText } from '@/ui/kit'
 import { Checkbox, Dialog, MutationError, formStyles as f } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { apiSend } from '@/lib/api/client'
@@ -33,7 +35,13 @@ function SystemSettings() {
   const status = useQuery(systemStatusQuery)
   return (
     <>
-      <Panel title="Instance" subtitle="Version, storage and key state.">
+      {status.data && !status.data.secure_cookies && (
+        <Banner tone="warning">
+          Sign-in uses plain HTTP, so session cookies are not protected. Set <code>public_url</code> to an https address.
+        </Banner>
+      )}
+      <Backups />
+      <Panel title="This instance">
         {status.isError ? (
           <QueryError error={status.error} retry={() => void status.refetch()} />
         ) : !status.data || !meta.data ? (
@@ -41,23 +49,18 @@ function SystemSettings() {
         ) : (
           <KeyValues
             items={[
-              ['Version', <span className="mono">{meta.data.version}</span>],
-              ['Public URL', <span className="mono">{meta.data.public_url || '—'}</span>],
+              ['Version', <CopyText value={meta.data.version} />],
+              ['Public URL', <CopyText value={meta.data.public_url || '—'} />],
               ['Started', <span title={fmtDateTime(meta.data.started_at, { seconds: true })}>{fmtRelative(meta.data.started_at)}</span>],
-              ['Data directory', <span className="mono">{status.data.data_dir}</span>],
-              ['Schema version', <span className="num">{status.data.schema_version}</span>],
-              ['Traces schema version', <span className="num">{status.data.traces_schema_version}</span>],
-              ['Master key id', <span className="mono">{status.data.master_key_id}</span>],
-              [
-                'Session cookies',
-                status.data.secure_cookies ? <Badge tone="success">Secure</Badge> : <Badge tone="warning">Not secure (plain http public URL)</Badge>,
-              ],
+              ['Data directory', <CopyText value={status.data.data_dir} maw={360} />],
+              ['Database versions', <span className="num">{status.data.schema_version} · content {status.data.traces_schema_version}</span>],
+              ['Master key', <CopyText value={status.data.master_key_id} />],
+              ['Session cookies', status.data.secure_cookies ? 'Secure (https)' : <Badge tone="warning">Not secure (plain http)</Badge>],
             ]}
           />
         )}
       </Panel>
       <BridgesPanel />
-      <Backups />
     </>
   )
 }
@@ -71,7 +74,7 @@ function Backups() {
   return (
     <Panel
       title="Backups"
-      subtitle="Online backups are consistent SQLite snapshots with a checksum manifest, written to the data directory. Copy them off the host for safekeeping."
+      subtitle="Consistent snapshots with checksums, taken while Harbor Pilot runs and written to the data directory. Copy them off the server; keep the master key separately."
       actions={
         <Button variant="primary" icon={Plus} onClick={() => setOpen(true)}>
           Take backup
@@ -95,13 +98,20 @@ function Backups() {
       ) : (
         <BackupTable items={items} />
       )}
-      <h3 style={{ fontSize: 'var(--text-sm)', margin: '16px 0 6px' }}>Restoring</h3>
-      <p className="secondary" style={{ marginBottom: 8 }}>
-        Restore runs on the server while Harbor Pilot is stopped. It verifies checksums and SQLite integrity, checks that the configured master
-        key can open the backup’s secrets, and moves the current files aside (<code>*.pre-restore-&lt;time&gt;</code>) before installing the
-        backup. There is no restore button here on purpose.
-      </p>
-      <CodeBlock code={'harbor-pilot backup verify DIR\nharbor-pilot restore --from DIR --yes'} label="Restore commands" />
+      <Accordion variant="separated" radius="md">
+        <Accordion.Item value="restore">
+          <Accordion.Control>How to restore</Accordion.Control>
+          <Accordion.Panel>
+            <Stack gap="sm">
+              <Text size="sm">
+                Restore runs on the server while Harbor Pilot is stopped. It checks the backup, checks that the configured master key can open its secrets,
+                and keeps the current files aside (<code>*.pre-restore-&lt;time&gt;</code>) before installing it. There is no restore button here on purpose.
+              </Text>
+              <CodeBlock code={'harbor-pilot backup verify DIR\nharbor-pilot restore --from DIR --yes'} label="Restore commands" />
+            </Stack>
+          </Accordion.Panel>
+        </Accordion.Item>
+      </Accordion>
       <CreateBackupDialog
         open={open}
         onClose={() => setOpen(false)}

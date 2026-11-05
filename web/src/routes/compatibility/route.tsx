@@ -1,27 +1,28 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router'
-import { PageHeader } from '@/components/PageHeader'
-import { SubNav } from '@/components/SubNav'
+import { createFileRoute, Outlet, useRouterState } from '@tanstack/react-router'
+import { Stack } from '@mantine/core'
+import { SettingsHeader } from '@/features/settings/SettingsHeader'
+import { LinkTabs } from '@/ui/kit'
 
 export const Route = createFileRoute('/compatibility')({
-  component: CompatibilityLayout,
+  component: DiagnosticsLayout,
 })
 
-function CompatibilityLayout() {
+/** Diagnostics under Settings: protocol issues and protocol changes. */
+function DiagnosticsLayout() {
+  const detail = useRouterState({ select: (r) => /^\/compatibility\/work-items\/[^/]+/.test(r.location.pathname) })
+  if (detail) return <Outlet />
   return (
-    <>
-      <PageHeader
-        title="Compatibility"
-        subtitle="Circuit breakers for provider protocol paths, the degradation plans apply while they are open, and the changes Protocol Watch has observed."
-      />
-      <SubNav
-        label="Compatibility sections"
+    <Stack gap="lg">
+      <SettingsHeader />
+      <LinkTabs
+        label="Diagnostics sections"
         items={[
-          { to: '/compatibility', label: 'Breakers', exact: true },
-          { to: '/compatibility/watch', label: 'Protocol Watch' },
-          { to: '/compatibility/work-items', label: 'Work items' },
+          { to: '/compatibility', label: 'Protocol issues', exact: true },
+          { to: '/compatibility/watch', label: 'Protocol changes' },
+          { to: '/compatibility/work-items', label: 'Follow-ups' },
         ]}
       />
       <Outlet />
-    </>
+    </Stack>
   )
 }

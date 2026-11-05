@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FlaskConical, Pencil, Plus, Save, Trash2 } from 'lucide-react'
 import { z } from 'zod'
 import { Badge, Banner, Button, EmptyState, KeyValues, Panel, Skeleton, TableScroll } from '@/components/ui'
+import { Group, Stack, Switch, Text } from '@mantine/core'
 import { Checkbox, Dialog, MutationError, SelectField, TextField, formStyles as f, ConfirmButton } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { apiGet, apiSend } from '@/lib/api/client'
@@ -65,18 +66,23 @@ function SessionPolicy() {
     mutationFn: () => apiSend('PUT', '/auth/settings', { password_login: pw, idle_timeout_seconds: Number(idle) * 60, absolute_timeout_seconds: Number(abs) * 3600 }, { ifMatch: s.data?.revision }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.authSettings }),
   })
+  const dirty = !!s.data && (pw !== s.data.password_login || Number(idle) * 60 !== s.data.idle_timeout_seconds || Number(abs) * 3600 !== s.data.absolute_timeout_seconds)
   return (
-    <Panel title="Sign-in and sessions" subtitle="Break-glass recovery always works, even when password sign-in is disabled.">
+    <Panel title="Sign-in and sessions">
       {s.isError ? <QueryError error={s.error} /> : !s.data ? <Skeleton height={80} /> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Checkbox label="Allow email and password sign-in" checked={pw} onChange={setPw} />
+        <Stack gap="md">
+          <Switch label="Password sign-in" description="People can sign in with email and password. Break-glass recovery always works, even when this is off."
+            checked={pw} onChange={(e) => setPw(e.currentTarget.checked)} />
           <div className={f.grid}>
-            <TextField label="Idle timeout (minutes)" type="number" value={idle} onChange={setIdle} hint="5 minutes to 24 hours." />
-            <TextField label="Absolute session lifetime (hours)" type="number" value={abs} onChange={setAbs} hint="Up to 30 days." />
+            <TextField label="Sign out after idle" type="number" suffix="min" value={idle} onChange={setIdle} hint="5 minutes to 24 hours." />
+            <TextField label="Longest session" type="number" suffix="hours" value={abs} onChange={setAbs} hint="Up to 30 days." />
           </div>
           <MutationError error={save.error} />
-          <div><Button icon={Save} busy={save.isPending} onClick={() => save.mutate()}>Save</Button></div>
-        </div>
+          <Group gap="sm">
+            <Button variant="primary" icon={Save} busy={save.isPending} disabled={!dirty} onClick={() => save.mutate()}>Save</Button>
+            {save.isSuccess && !dirty && <Text size="sm" c="dimmed" role="status">Saved.</Text>}
+          </Group>
+        </Stack>
       )}
     </Panel>
   )
@@ -94,7 +100,7 @@ function Providers() {
   return (
     <Panel
       title="Single sign-on (OIDC)"
-      subtitle="Authorization code flow with PKCE (S256), nonce and issuer/audience validation. Identities are keyed on issuer and subject, never on email alone."
+      subtitle="Let people sign in with your identity provider (OIDC: authorization code with PKCE, nonce and issuer and audience checks). Accounts are matched on issuer and subject, never on email alone."
       actions={<Button variant="primary" icon={Plus} onClick={() => setEditing('new')}>Add provider</Button>}
     >
       <MutationError error={del.error ?? test.error} />

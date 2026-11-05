@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bot, KeyRound, Pencil, Plus, Trash2, XCircle } from 'lucide-react'
-import { Badge, Button, EmptyState, Panel, TableScroll } from '@/components/ui'
+import { Bot, KeyRound, Plus, Trash2, XCircle } from 'lucide-react'
+import { Badge, Button, TableScroll } from '@/components/ui'
+import { Group, Stack, Text, Tooltip } from '@mantine/core'
+import { type Column, DataTable, Empty, Section } from '@/ui/kit'
 import { Checkbox, Dialog, MutationError, SecretOnce, TextField, formStyles as f, ConfirmButton } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { apiSend } from '@/lib/api/client'
@@ -31,57 +33,81 @@ function Principals() {
     mutationFn: (id: string) => apiSend<void>('DELETE', `/service-principals/${id}`),
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.principals }),
   })
+  const permLevel = (perms: string[]) => {
+    const has = (l: string) => permissionGroups.find((g) => g.label === l)?.perms.some((p) => perms.includes(p))
+    const parts = [has('Administer') ? 'Administer' : has('Manage') ? 'Manage' : 'Read']
+    if (has('Trace content (audited)')) parts.push('captured content')
+    return parts.join(' + ')
+  }
+  const cols: Column<ServicePrincipal>[] = [
+    {
+      id: 'name',
+      header: 'Automation account',
+      mobile: 'title',
+      cell: (sp) => (
+        <Stack gap={0} miw={0}>
+          <Group gap={6} wrap="nowrap">
+            <Text size="sm" fw={500} truncate>
+              {sp.name}
+            </Text>
+            {sp.disabled && <Badge tone="error">Disabled</Badge>}
+            {sp.managed_by === 'terraform' && <Badge tone="purple" title="Managed by Terraform">Terraform</Badge>}
+          </Group>
+          {sp.description && (
+            <Text size="xs" c="dimmed" truncate>
+              {sp.description}
+            </Text>
+          )}
+        </Stack>
+      ),
+    },
+    {
+      id: 'perms',
+      header: 'Can',
+      mobile: 'meta',
+      cell: (sp) => (
+        <Tooltip label={sp.permissions.join(', ')}>
+          <Text size="sm" span>
+            {permLevel(sp.permissions)} <Text span size="xs" c="dimmed">({sp.permissions.length})</Text>
+          </Text>
+        </Tooltip>
+      ),
+    },
+    { id: 'created', header: 'Created', mobile: 'meta', cell: (sp) => fmtDateTime(sp.created_at) },
+    {
+      id: 'actions',
+      header: <span className="visually-hidden">Actions</span>,
+      align: 'right',
+      mobile: 'aside',
+      cell: (sp) => (
+        <Group gap={4} wrap="nowrap" justify="flex-end" onClick={(e) => e.stopPropagation()}>
+          <Button size="small" variant="ghost" icon={KeyRound} onClick={() => setTokensFor(sp)}>
+            Tokens
+          </Button>
+          <ConfirmButton size="small" icon={Trash2} label={`Delete ${sp.name}`} title={`Delete ${sp.name}?`}
+            message="All of its API tokens are revoked immediately." confirmLabel="Delete" onConfirm={() => del.mutate(sp.id)} />
+        </Group>
+      ),
+    },
+  ]
   return (
-    <Panel
-      title="Service principals"
-      subtitle="Automation identities for Terraform, CI and integrations. They authenticate with hpa_ API tokens and never use browser sessions."
-      actions={<Button variant="primary" icon={Plus} onClick={() => setEditing('new')}>New service principal</Button>}
+    <Section
+      title="API tokens"
+      info="Automation accounts for Terraform, CI and scripts. Each has only the permissions it needs and signs in with API tokens, never a browser session."
+      actions={<Button variant="primary" icon={Plus} onClick={() => setEditing('new')}>New automation account</Button>}
     >
       <MutationError error={del.error} />
       {list.isError ? (
         <QueryError error={list.error} retry={() => void list.refetch()} />
       ) : !list.data ? (
         <TableSkeleton />
-      ) : (list.data.items ?? []).length === 0 ? (
-        <EmptyState icon={Bot} title="No service principals">Create one for Terraform or CI with only the permissions it needs.</EmptyState>
       ) : (
-        <TableScroll label="Service principals">
-          <table className="data-table" style={{ width: '100%' }}>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Permissions</th>
-                <th>Managed by</th>
-                <th>Created</th>
-                <th aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {(list.data.items ?? []).map((sp) => (
-                <tr key={sp.id}>
-                  <td>
-                    <div className="mono">{sp.name}</div>
-                    <div className="muted">{sp.description}</div>
-                    {sp.disabled && <Badge tone="error">disabled</Badge>}
-                  </td>
-                  <td style={{ maxWidth: 420 }}>{sp.permissions.map((p) => <Badge key={p}>{p}</Badge>)}</td>
-                  <td><Badge tone={sp.managed_by === 'terraform' ? 'purple' : 'neutral'}>{sp.managed_by}</Badge></td>
-                  <td>{fmtDateTime(sp.created_at)}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    <Button size="small" variant="ghost" icon={KeyRound} onClick={() => setTokensFor(sp)}>Tokens</Button>
-                    <Button size="small" variant="ghost" icon={Pencil} aria-label={`Edit ${sp.name}`} onClick={() => setEditing(sp)} />
-                    <ConfirmButton size="small" icon={Trash2} label={`Delete ${sp.name}`} title={`Delete ${sp.name}?`}
-                      message="All of its API tokens are revoked immediately." confirmLabel="Delete" onConfirm={() => del.mutate(sp.id)} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableScroll>
+        <DataTable label="Automation accounts" rows={list.data.items ?? []} columns={cols} rowKey={(sp) => sp.id} onRow={(sp) => setEditing(sp)}
+          empty={<Empty icon={<Bot size={22} />} title="No automation accounts">Create one for Terraform or CI with only the permissions it needs.</Empty>} />
       )}
       {editing && <EditPrincipal sp={editing === 'new' ? null : editing} onClose={() => { setEditing(null); void qc.invalidateQueries({ queryKey: qk.principals }) }} />}
       {tokensFor && <Tokens sp={tokensFor} onClose={() => setTokensFor(null)} />}
-    </Panel>
+    </Section>
   )
 }
 

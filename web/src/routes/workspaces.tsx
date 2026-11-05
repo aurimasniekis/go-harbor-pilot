@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui'
 import { Dialog, MutationError, SelectField, TextField, formStyles as f } from '@/components/form'
 import { KeyValueEditor } from '@/components/KeyValueEditor'
 import { TerraformEditWarning } from '@/components/ResourceBadges'
-import { ResourceList } from '@/features/config/ResourceList'
+import { NameCell, ResourceList } from '@/features/config/ResourceList'
+import { Group, Pill, Stack } from '@mantine/core'
+import { SettingsHeader } from '@/features/settings/SettingsHeader'
 import { resourceListQuery } from '@/lib/api/queries'
 import { byId, useSaveResource } from '@/lib/api/resources'
 import type { ProjectRes, ProjectSpec, WorkspaceRes, WorkspaceSpec } from '@/lib/api/types'
@@ -69,17 +70,16 @@ function ProjectDialog({ project, onClose }: { project: ProjectRes | null; onClo
 function Workspaces() {
   const ws = byId(useQuery(resourceListQuery<WorkspaceRes>('workspaces')).data?.items)
   return (
-    <>
-      <PageHeader title="Workspaces" subtitle="Workspaces group projects; projects are the attribution unit for budgets and usage." />
+    <Stack gap="lg">
+      <SettingsHeader />
       <ResourceList<WorkspaceRes>
         plural="workspaces"
         title="Workspaces"
+        subtitle="Workspaces group projects; projects are what usage and budgets are attributed to."
         noun="workspace"
         empty="Create a workspace to group projects."
-        columns={[
-          { header: 'Display name', cell: (r) => r.spec.display_name || <span className="muted">—</span> },
-          { header: 'Description', cell: (r) => r.spec.description || <span className="muted">—</span> },
-        ]}
+        nameCell={(r) => <NameCell name={r.name} display={r.spec.display_name} />}
+        columns={[{ header: 'Description', mobile: 'meta', cell: (r) => r.spec.description || <span className="muted">—</span> }]}
         dialog={(r, close) => <WorkspaceDialog ws={r} onClose={close} />}
       />
       <ResourceList<ProjectRes>
@@ -87,16 +87,25 @@ function Workspaces() {
         title="Projects"
         noun="project"
         empty="Create a project inside a workspace."
+        nameCell={(r) => <NameCell name={r.name} display={r.spec.display_name} />}
         columns={[
-          { header: 'Workspace', cell: (r) => <span className="mono">{ws[r.spec.workspace_id]?.name ?? r.spec.workspace_id}</span> },
-          { header: 'Display name', cell: (r) => r.spec.display_name || <span className="muted">—</span> },
+          { header: 'Workspace', mobile: 'meta', cell: (r) => ws[r.spec.workspace_id]?.spec.display_name || ws[r.spec.workspace_id]?.name || r.spec.workspace_id },
           {
-            header: 'External refs',
-            cell: (r) => Object.entries(r.spec.external_refs).map(([k, v]) => <div key={k} className="mono">{k}={v}</div>),
+            header: 'References',
+            mobile: 'line',
+            cell: (r) => (
+              <Group gap={4} wrap="wrap">
+                {Object.entries(r.spec.external_refs).map(([k, v]) => (
+                  <Pill key={k} size="sm">
+                    {k}: {v}
+                  </Pill>
+                ))}
+              </Group>
+            ),
           },
         ]}
         dialog={(r, close) => <ProjectDialog project={r} onClose={close} />}
       />
-    </>
+    </Stack>
   )
 }

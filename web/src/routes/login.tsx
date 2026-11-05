@@ -1,9 +1,10 @@
+import { Button as MButton, Group, Paper, Stack, Title } from '@mantine/core'
 import { type FormEvent, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { KeyRound, LogIn, ShipWheel } from 'lucide-react'
 import { z } from 'zod'
-import { Banner, Button, uiStyles } from '@/components/ui'
+import { Banner, Button } from '@/components/ui'
 import { TextField, formStyles as f } from '@/components/form'
 import { useLogin } from '@/lib/session'
 import { metaQuery, sessionQuery } from '@/lib/api/queries'
@@ -25,15 +26,17 @@ export function safeNext(next: string | undefined): string {
 export function AuthCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <main id="main" className={f.authPage}>
-      <section className={`${uiStyles.panel} ${f.authCard}`} aria-labelledby="auth-title">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <ShipWheel size={22} color="var(--accent)" aria-hidden="true" />
-          <h1 id="auth-title" style={{ fontSize: 'var(--text-lg)' }}>
-            {title}
-          </h1>
-        </div>
-        {children}
-      </section>
+      <Paper component="section" withBorder radius="lg" p="xl" w="min(420px, 100%)" aria-labelledby="auth-title">
+        <Stack gap="md">
+          <Group gap={10} wrap="nowrap">
+            <ShipWheel size={22} color="var(--accent)" aria-hidden="true" />
+            <Title order={1} id="auth-title" fz="lg">
+              {title}
+            </Title>
+          </Group>
+          {children}
+        </Stack>
+      </Paper>
     </main>
   )
 }
@@ -85,13 +88,16 @@ function Login() {
         </Banner>
       )}
       {providers.map((p) => (
-        <a
+        <MButton
           key={p.slug}
-          className={uiStyles.button}
+          component="a"
+          variant="default"
+          fullWidth
+          leftSection={<KeyRound size={14} aria-hidden="true" />}
           href={`${API}/auth/oidc/${encodeURIComponent(p.slug)}/start?return_to=${encodeURIComponent(safeNext(next))}`}
         >
-          <KeyRound size={14} aria-hidden="true" /> Continue with {p.display_name}
-        </a>
+          Continue with {p.display_name}
+        </MButton>
       ))}
       {providers.length > 0 && session.data?.password_login && <div className={f.divider}>or</div>}
       {session.data?.password_login !== false && (
