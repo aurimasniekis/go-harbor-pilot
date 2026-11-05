@@ -61,11 +61,11 @@ test('plan compatibility section validates passthrough losses', async ({ page })
 
   // The server refuses passthrough without the required losses.
   await d.getByRole('button', { name: 'Save draft' }).click()
-  await expect(d.getByRole('alert').filter({ hasText: /allowed_losses: native passthrough always loses detailed_usage and tool_statistics/ }).first()).toBeVisible()
+  await expect(d.getByRole('alert').filter({ hasText: /native passthrough always loses detailed_usage and tool_statistics/i }).first()).toBeVisible()
 
   await d.getByLabel('Detailed usage').check()
   await d.getByLabel('Tool statistics').check()
-  await expect(d.getByText(/Native passthrough always loses/)).toHaveCount(0)
+  await expect(d.getByText(/Native passthrough always loses Detailed usage/)).toHaveCount(0)
   await choose(d, 'Unknown usage', 'estimate')
   await d.getByRole('button', { name: 'Save draft' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)

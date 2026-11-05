@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Field, formStyles as f } from './form'
+import { type ReactNode, useEffect, useState } from 'react'
+import { ListField, TextAreaField } from './form'
 
 /** Parses "key=value" lines; blank lines and lines without '=' are reported. */
 export function parseKeyValues(text: string): { value: Record<string, string>; error?: string } {
@@ -22,58 +22,73 @@ export function formatKeyValues(m: Record<string, string> | undefined | null): s
     .join('\n')
 }
 
-/** Textarea of key=value lines bound to a string map. */
-export function KeyValueEditor({ label, hint, value, onChange, placeholder }: {
-  label: string
-  hint?: string
+/**
+ * Local text for an editor bound to an outside value. The draft follows the
+ * value whenever the value changes from outside (Discard, a reload, another
+ * save), so the screen never shows text that is not what will be saved.
+ */
+export function useBoundDraft<V>(value: V, format: (v: V) => string, parse: (t: string) => V): [string, (t: string) => void] {
+  const formatted = format(value)
+  const [text, setText] = useState(formatted)
+  useEffect(() => {
+    // Keep what the user typed when it means the same value (spacing,
+    // order); otherwise show the outside value.
+    setText((t) => (format(parse(t)) === formatted ? t : formatted))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formatted])
+  return [text, setText]
+}
+
+/** Text area of key=value lines bound to a string map. */
+export function KeyValueEditor({ label, hint, value, onChange, placeholder, error }: {
+  label: ReactNode
+  hint?: ReactNode
   value: Record<string, string>
   onChange: (v: Record<string, string>, valid: boolean) => void
   placeholder?: string
+  error?: string
 }) {
-  const [text, setText] = useState(() => formatKeyValues(value))
+  const [text, setText] = useBoundDraft(value, formatKeyValues, (t) => parseKeyValues(t).value)
   const parsed = parseKeyValues(text)
   return (
-    <Field label={label} hint={hint ?? 'One key=value per line.'} error={parsed.error}>
-      {(p) => (
-        <textarea
-          {...p}
-          className={f.textarea}
-          value={text}
-          placeholder={placeholder}
-          onChange={(e) => {
-            setText(e.target.value)
-            const r = parseKeyValues(e.target.value)
-            onChange(r.value, !r.error)
-          }}
-        />
-      )}
-    </Field>
+    <TextAreaField
+      label={label}
+      hint={hint ?? 'One key=value per line.'}
+      error={error ?? parsed.error}
+      value={text}
+      placeholder={placeholder}
+      mono
+      minRows={2}
+      onChange={(t) => {
+        setText(t)
+        const r = parseKeyValues(t)
+        onChange(r.value, !r.error)
+      }}
+    />
   )
 }
 
-/** Textarea of one item per line bound to a string list. */
-export function LinesEditor({ label, hint, value, onChange, placeholder }: {
-  label: string
-  hint?: string
+/** A list of short values (one item each) as chips. */
+export function LinesEditor({ label, hint, value, onChange, placeholder, suggestions, validate, error }: {
+  label: ReactNode
+  hint?: ReactNode
   value: string[]
   onChange: (v: string[]) => void
   placeholder?: string
+  suggestions?: string[]
+  validate?: (item: string) => string | undefined
+  error?: string
 }) {
-  const [text, setText] = useState(() => value.join('\n'))
   return (
-    <Field label={label} hint={hint ?? 'One per line.'}>
-      {(p) => (
-        <textarea
-          {...p}
-          className={f.textarea}
-          value={text}
-          placeholder={placeholder}
-          onChange={(e) => {
-            setText(e.target.value)
-            onChange(e.target.value.split('\n').map((l) => l.trim()).filter(Boolean))
-          }}
-        />
-      )}
-    </Field>
+    <ListField
+      label={label}
+      hint={hint ?? 'Press Enter or type a comma after each item.'}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      suggestions={suggestions}
+      validate={validate}
+      error={error}
+    />
   )
 }

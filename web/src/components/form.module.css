@@ -8,9 +8,9 @@
 }
 
 .label {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  font-weight: 550;
+  font-size: var(--mantine-font-size-sm);
+  color: var(--text);
+  font-weight: 600;
 }
 
 .actions {
@@ -18,6 +18,42 @@
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/*
+ * Inside a dialog or drawer the action row is pinned to the bottom of the
+ * scrolling content, so Save and Cancel are always visible.
+ */
+.overlayContent {
+  display: flex;
+  flex-direction: column;
+}
+
+.overlayContent .dialogBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.overlayContent .dialogBody > :global(.mantine-Stack-root) {
+  flex: 1;
+}
+
+.overlayContent .actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: auto;
+  margin-inline: calc(var(--mb-padding, var(--mantine-spacing-md)) * -1);
+  margin-bottom: calc(var(--mb-padding, var(--mantine-spacing-md)) * -1);
+  padding: 12px var(--mb-padding, var(--mantine-spacing-md));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.errorList {
+  margin: 0;
+  padding-left: 18px;
 }
 
 .dialogTitle {
@@ -63,6 +99,7 @@
 .textarea {
   display: block;
   width: 100%;
+  min-height: 84px;
 }
 
 .authPage {

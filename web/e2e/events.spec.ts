@@ -123,7 +123,7 @@ test('slack channel, test send, rule and history', async ({ page }) => {
   allowConsoleError(page, /422/)
   await d.getByLabel('Body template').fill('{{.Data.label')
   await d.getByRole('button', { name: 'Save rule' }).click()
-  await expect(d.getByText(/^invalid template/)).toBeVisible()
+  await expect(d.getByText(/^invalid template/i)).toBeVisible()
   await d.getByLabel('Body template').fill('{{.Data.label | upper}} is {{.Severity}}')
   await d.getByRole('button', { name: 'Save rule' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)

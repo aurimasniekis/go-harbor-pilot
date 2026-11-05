@@ -21,3 +21,8 @@ if (!('ResizeObserver' in window)) {
     disconnect() {}
   }
 }
+
+// Autosizing text areas listen for font loading; jsdom has no FontFaceSet.
+if (!('fonts' in document)) {
+  ;(document as unknown as { fonts: unknown }).fonts = { addEventListener() {}, removeEventListener() {}, ready: Promise.resolve() }
+}
