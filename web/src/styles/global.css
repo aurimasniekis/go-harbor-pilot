@@ -82,6 +82,58 @@ body {
   font-size: var(--text-base);
 }
 
+/* Native text areas outside Mantine (render-prop Field children and the
+   code editors) look and size like Mantine inputs in both schemes, on
+   their own line under the label. */
+textarea:not([class*='mantine-']) {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 84px;
+  margin-top: 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-default);
+  color: var(--mantine-color-text);
+  font-family: var(--font-mono);
+  font-size: var(--mantine-font-size-sm);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+textarea:not([class*='mantine-'])::placeholder {
+  color: var(--mantine-color-placeholder);
+}
+
+textarea:not([class*='mantine-']):focus {
+  outline: none;
+  border-color: var(--mantine-primary-color-filled);
+}
+
+/* Native single-line inputs outside Mantine match Mantine inputs too. */
+input:not([class*='mantine-']):is([type='text'], [type='search'], [type='url'], [type='email'], [type='number'], [type='password'],
+    [type='datetime-local'], [type='date'], [type='time'], :not([type])) {
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-default);
+  color: var(--mantine-color-text);
+  font-size: var(--mantine-font-size-sm);
+  color-scheme: inherit;
+}
+
+input:not([class*='mantine-'])::placeholder {
+  color: var(--mantine-color-placeholder);
+}
+
+input:not([class*='mantine-']):focus-visible {
+  outline: none;
+  border-color: var(--mantine-primary-color-filled);
+}
+
 /* Native selects outside Mantine: draw the chevron inset from the border
    instead of the platform arrow. The element selector outranks the single
    class of CSS-module inputs that set the background shorthand. */
