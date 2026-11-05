@@ -181,14 +181,14 @@ This matrix maps every requirement in the product brief to the phase, package an
 ## §17 Terraform
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R17.1 | Plugin Framework provider in its own module | 14 | planned | |
-| R17.2 | Provider configuration (URL, auth, TLS, timeouts); no secrets in logs | 14 | planned | |
-| R17.3 | All resource kinds listed in the brief, plus data sources | 14 | planned | |
-| R17.4 | CRUD, import, drift, not-found, conflict, state upgrade, references, acceptance tests | 14 | planned | scenario L |
-| R17.5 | Secret handling: references, write-only, ephemeral, opt-in token in state | 14 | planned | |
-| R17.6 | Convergence: empty plan after apply | 14 | planned | |
-| R17.7 | Seven examples | 14 | planned | |
-| R17.8 | Release builds; no Registry claim | 14 | planned | |
+| R17.1 | Plugin Framework provider in its own module | 14 | implemented | ../terraform-provider-harbor-pilot (module github.com/aurimasniekis/terraform-provider-harbor-pilot); talks only to /api/v1 through a thin client, no app internals |
+| R17.2 | Provider configuration (URL, auth, TLS, timeouts); no secrets in logs | 14 | contract-tested | url/token/token_file (HP_SERVER, HP_API_TOKEN, HP_API_TOKEN_FILE), ca_cert_file, insecure_skip_verify, timeout; bodies never logged; error envelope drops echoed values (internal/client tests); the app also stopped echoing values (TestValidationErrorsDoNotEchoValues) |
+| R17.3 | All resource kinds listed in the brief, plus data sources | 14 | contract-tested | generic resources and data sources for all 16 control-plane kinds; typed routing plan versions, gateway credentials, service principals and tokens, auth settings, OIDC providers; quota_adapters and event_catalog data sources |
+| R17.4 | CRUD, import, drift, not-found, conflict, state upgrade, references, acceptance tests | 14 | contract-tested | acceptance suite against a real harbor-pilot serve (Terraform 1.17.1; 1.10.5 for version gates): create, update, import by id and name, out-of-band drift and delete, 412 conflict, destroy with referrer retry; state upgrade policy documented, no upgraders needed yet (schema version 0) |
+| R17.5 | Secret handling: references, write-only, ephemeral, opt-in token in state | 14 | contract-tested | *_ref fields in specs; secrets_wo + secrets_wo_version (Terraform >= 1.11); ephemeral harborpilot_gateway_token (>= 1.10, revoked on close); store_token_in_state opt-in; tests assert no secret or token in state |
+| R17.6 | Convergence: empty plan after apply | 14 | contract-tested | server-canonical spec kept in private state; empty second plan asserted for every kind and every example |
+| R17.7 | Seven examples | 14 | contract-tested | ../terraform-provider-harbor-pilot/examples/scenarios (7), each applied unchanged in scenario L |
+| R17.8 | Release builds; no Registry claim | 14 | implemented | goreleaser with GPG signing and registry manifest, CI matrix 1.10/1.11/1.14/1.17; not published (blocked: owner, Registry and GPG key) |
 
 ## §18 UI
 | ID | Requirement | Phase | Status | Evidence |
@@ -212,7 +212,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | I | Protocol Watch dedupes a sanitized change | 9 | contract-tested | internal/acceptance/compat_test.go TestScenarioH_DriftActivatesApprovedPassthrough (Protocol Watch assertions) |
 | J | Required privacy blocks raw fallback | 8 | contract-tested | internal/acceptance/compat_test.go TestScenarioJ_RequiredPrivacyBlocksRawFallback |
 | K | Pulse or notification outage does not block requests | 10 | contract-tested | internal/acceptance/events_test.go TestScenarioK_DeliveryOutagesDoNotBlockGateway |
-| L | Terraform lifecycle | 14 | planned | TF acceptance |
+| L | Terraform lifecycle | 14 | contract-tested | ../terraform-provider-harbor-pilot TestAccScenarioL: all seven examples applied, empty second plan, destroyed (2026-11-05, Terraform 1.17.1) |
 | M | Restart and restore integrity | 13 | contract-tested | internal/acceptance/ops_test.go TestScenarioM_RestartAndRestorePreserveIntegrity (restart, startup reservation recovery, wrong-key refusal, restore to backup point, no duplicate ledger keys, tamper detection) |
 | N | SpaceMan and standalone client isolated | 11 | contract-tested | internal/acceptance/spaceman_test.go TestScenarioN_SpaceManAndStandaloneClientCoexist |
 

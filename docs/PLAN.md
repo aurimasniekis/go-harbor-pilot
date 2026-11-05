@@ -18,8 +18,8 @@ Source of truth for sequencing. Status per phase is updated as work lands; requi
 | 11 | Intents, statistics, SpaceMan integration, Why-this-route (scenario N) | in-progress (backend done; UI pending) |
 | 12 | Harness setup tooling and operational CLI | in-progress (CLI and harness tooling done; setup-guide UI pending) |
 | 13 | Operations: backup/restore, Quota Harbor migration, release automation (scenario M) | done (release workflow runs once the repository is pushed) |
-| 14 | Terraform provider (scenario L) | planned |
-| 15 | Hardening: load tests, E2E, a11y, security review, final report | planned |
+| 14 | Terraform provider (scenario L) | done (Registry publication blocked on the owner) |
+| 15 | Hardening: load tests, E2E, a11y, security review, final report | planned (UI rebuild on Mantine in progress, D-034) |
 
 ## Working rules
 
