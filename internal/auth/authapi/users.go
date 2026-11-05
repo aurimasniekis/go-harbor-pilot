@@ -273,12 +273,23 @@ func (h *Handlers) registerUsers(a *api.API) {
 			}
 			if u.HasPassword {
 				if err := h.Auth.CheckPassword(ctx, u.ID, in.Body.CurrentPassword); err != nil {
-					return nil, api.Errorf(http.StatusUnauthorized, "invalid_credentials", "current password is incorrect")
+					return nil, api.Errorf(http.StatusUnauthorized, "invalid_credentials", "current password is incorrect").
+						WithDetails(map[string]any{"fields": []api.FieldError{{Location: "body.current_password", Message: "Current password is incorrect."}}})
+				}
+				if in.Body.NewPassword == in.Body.CurrentPassword {
+					return nil, api.Invalid("the new password is the same as the current one",
+						api.FieldError{Location: "body.new_password", Message: "Choose a password different from the current one."})
 				}
 			} else if !p.RecentlyAuthenticated(h.Auth.Now()) {
 				// A first password adds a sign-in path; require proof from the
 				// identity provider, not just a (possibly hijacked) session.
 				return nil, reauthRequired()
+			}
+			if _, err := auth.NormalizePassword(in.Body.NewPassword); err != nil {
+				return nil, api.Invalid(err.Error(), api.FieldError{Location: "body.new_password", Message: err.Error()})
+			}
+			if why := auth.WeakPasswordReason(in.Body.NewPassword); why != "" {
+				return nil, api.Invalid("the new password is too easy to guess", api.FieldError{Location: "body.new_password", Message: why})
 			}
 			return nil, h.tx(ctx, func(tx *sql.Tx) error {
 				if err := h.Auth.SetPassword(ctx, tx, p.ID, in.Body.NewPassword, p.SessionID); err != nil {

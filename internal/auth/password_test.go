@@ -58,3 +58,24 @@ func TestRehashDetection(t *testing.T) {
 		t.Fatal("absurd params accepted")
 	}
 }
+
+func TestWeakPasswordReason(t *testing.T) {
+	tests := []struct {
+		name string
+		pw   string
+		weak bool
+	}{
+		{name: "one character repeated", pw: "aaaaaaaaaaaa", weak: true},
+		{name: "two characters", pw: "abababababab", weak: true},
+		{name: "four characters", pw: "abcdabcdabcd", weak: true},
+		{name: "varied", pw: "correct-horse-battery"},
+		{name: "five distinct characters", pw: "abcdeabcdeab"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := WeakPasswordReason(tt.pw) != ""; got != tt.weak {
+				t.Fatalf("weak = %v, want %v", got, tt.weak)
+			}
+		})
+	}
+}

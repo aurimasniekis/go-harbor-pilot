@@ -61,6 +61,21 @@ func NormalizePassword(pw string) (string, error) {
 	return n, nil
 }
 
+// WeakPasswordReason explains why a new password is too easy to guess, or
+// returns "" when it is acceptable. It is applied when a user chooses a new
+// password, never when checking an existing one.
+func WeakPasswordReason(pw string) string {
+	n := norm.NFKC.String(pw)
+	distinct := map[rune]bool{}
+	for _, r := range n {
+		distinct[r] = true
+	}
+	if len(distinct) < 5 {
+		return "use more different characters; a long run of the same few characters is easy to guess"
+	}
+	return ""
+}
+
 // HashPassword returns a PHC-format argon2id hash.
 func HashPassword(pw string) (string, error) {
 	n, err := NormalizePassword(pw)
