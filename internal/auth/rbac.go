@@ -127,7 +127,7 @@ type Principal struct {
 	// CSRFOrigin is the request's Origin when it did not match the public
 	// origin (empty when the origin was fine or absent).
 	CSRFOrigin string
-	Limited     bool   // session restricted (e.g. setup or recovery flow)
+	Limited    bool // session restricted (e.g. setup or recovery flow)
 	// AuthAt is when the session's user last proved their identity
 	// (sign-in or re-authentication); zero for tokens.
 	AuthAt time.Time
