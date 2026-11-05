@@ -26,5 +26,5 @@ make e2e          # Playwright against the demo binary
 - **Data formats.** Timestamps are unix milliseconds in UTC. Money is `money.Amount` (1e-10 units) plus a currency.
 - **IDs.** Prefixed ULIDs from `internal/platform/ids`, for example `prv_`, `acc_`, `pln_`, `req_`.
 - **API.** Huma operations must declare an `x-permission`, return the error envelope `{"error":{"code","message","request_id","details?"}}`, use cursor pagination, and set an `ETag` header carrying the object revision.
-- **UI.** Keep the existing stack: CSS Modules plus `web/src/styles/tokens.css`, TanStack, ECharts, lucide-react. Don't add component or CSS libraries.
+- **UI.** Mantine 9 for components and layout (D-034), themed from `web/src/styles/tokens.css`. Also TanStack Router, Query and Table, ECharts and lucide-react, plus CSS Modules for page-specific styles. Don't add other component or CSS libraries. Lists must work at 390px wide without horizontal scrolling.
 - **Commits.** Conventional Commits.

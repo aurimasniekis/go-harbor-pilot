@@ -123,7 +123,7 @@ Trace content lives in its own SQLite file, for three reasons:
 
 Delivery is at-least-once.
 
-## D-022: UI stack preserved
+## D-022: UI stack preserved (superseded by D-034)
 
 - **Stack:** React 19.3.1, TanStack Router/Query/Table/Virtual, CSS Modules with `tokens.css`, ECharts 5.6, lucide-react, zod, Vite 7, Vitest and Playwright with axe, all pinned exactly as in Quota Harbor.
 - **What changes:** branding only (name, logo, storage key).
@@ -229,3 +229,16 @@ The structural baseline is seeded from this build's own protocol encoders, then 
 - Destinations deliver in event order and stop a round at the first failure. Notifications are independent per channel.
 - Webhook signatures follow `t=<unix>,v1=<hex>`. During rotation both the current and the previous secret sign, so receivers can switch without downtime.
 - Notification failures never create domain events, and rules cannot subscribe to `notification.*` or `event.*`, so a failing channel cannot cause a notification storm.
+
+## D-034: UI rebuilt on Mantine
+
+- **Why:** the owner reviewed the first UI on 2026-11-05 and judged its layout and UX unusable: nested cards, explanatory copy instead of hierarchy, ungrouped navigation, tables that overflow on phones. The owner asked for an established component framework.
+- **Stack:** Mantine 9 (`@mantine/core`, `hooks`, `dates`, `spotlight`, `notifications`), pinned exactly. TanStack Router, Query and Table, ECharts, lucide-react, zod, Vitest and Playwright with axe stay. The dark and light palettes in `tokens.css` become the Mantine theme, so colors are unchanged.
+- **Design rules:**
+  - One container level.
+  - Headline figures before detail.
+  - Help text in tooltips and docs, not on the page.
+  - Grouped navigation with a command palette.
+  - Mobile-first lists that turn into cards on narrow screens.
+- **Rollout:** shell, Overview, Activity and Usage first for review, then the remaining screens.
+
