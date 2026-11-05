@@ -61,3 +61,36 @@ export function forecastHeadline(f: Forecast): string {
   if (f.exhaustion_at) return f.exhausts_before_reset ? 'Estimated to run out before the next reset' : 'Estimated to run out'
   return 'Not expected to run out within the forecast horizon'
 }
+
+/** "% per hour", "tokens per hour": a burn-rate unit in words. */
+export function rateUnit(unit: string): string {
+  if (unit === 'percent' || unit === 'pp' || unit === '%') return '% per hour'
+  return `${unitLabel[unit] ?? unit} per hour`.trim()
+}
+
+/**
+ * The forecast in one plain sentence, e.g. "At the current pace this window
+ * runs out in 3h, 2h before it resets." or "... resets in 2h with 40% left."
+ */
+export function forecastSentence(f: Forecast, unit: string, rel: (iso: string) => string): string {
+  if (f.unavailable_reason) return `No forecast yet: ${f.unavailable_reason}.`
+  const left = unit === 'percent' ? `${fmtNumber(f.start_value, 0)}% left` : `${fmtNumber(f.start_value, 0)} ${unitLabel[unit] ?? unit} left`
+  if (f.exhaustion_at) {
+    return f.exhausts_before_reset && f.next_reset_at
+      ? `At the current pace this window runs out ${rel(f.exhaustion_at)}, before it resets ${rel(f.next_reset_at)}.`
+      : `At the current pace this window runs out ${rel(f.exhaustion_at)}.`
+  }
+  return f.next_reset_at
+    ? `At the current pace this window still has room when it resets ${rel(f.next_reset_at)} (${left} now).`
+    : `At the current pace this window does not run out within the forecast horizon (${left} now).`
+}
+
+const methodName: Record<string, string> = {
+  event_simulation: 'Simulated from recent consumption events',
+  linear: 'Straight-line trend of recent readings',
+  ewma: 'Weighted average of recent readings',
+}
+
+export function methodText(m: string): string {
+  return methodName[m] ?? m.replaceAll('_', ' ')
+}

@@ -1,22 +1,24 @@
-import { type ReactNode, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Drawer, Group, Progress, Stack, Text, Tooltip } from '@mantine/core'
-import { AlertTriangle, CheckCircle2, Clock3, KeyRound, OctagonAlert, PauseCircle, Plus, RefreshCw, ShieldAlert } from 'lucide-react'
-import { Badge, Banner, Button } from '@/components/ui'
-import { ConfirmDialog, MutationError } from '@/components/form'
+import { Group, Progress, Stack, Text, Tooltip } from '@mantine/core'
+import { AlertTriangle, CheckCircle2, CircleHelp, Clock3, KeyRound, OctagonAlert, PauseCircle, Pencil, Plus, RefreshCw, ShieldAlert } from 'lucide-react'
+import { Badge, Banner, Button, QuotaBar } from '@/components/ui'
+import { ConfirmDialog, FormDrawer, MutationError } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { apiSend } from '@/lib/api/client'
 import { budgetStatusQuery, quotaBoardQuery, resourceListQuery } from '@/lib/api/queries'
 import { byId, useDeleteResource } from '@/lib/api/resources'
-import type { AccountHealthView, AccountRes, BindingRes, BucketView, BudgetRes, BudgetUsage, MonitorView, ProjectRes, WorkspaceRes } from '@/lib/api/types'
-import { fmtDuration, fmtRelative, fmtTime, serverNow } from '@/lib/format'
+import type { AccountHealthView, AccountRes, BindingRes, BucketView, BudgetRes, BudgetUsage, MonitorView, ProjectRes, QuotaMonitorRes, WorkspaceRes } from '@/lib/api/types'
+import { fmtDateTime, fmtDuration, fmtRelative, fmtTime, serverNow } from '@/lib/format'
+import { MonitorDialog } from '@/features/quota/MonitorDialog'
 import { useCan } from '@/lib/session'
 import { BudgetDialog } from '@/features/budgets/BudgetDialog'
 import { BucketRow } from '@/features/quota/BucketRow'
 import { BucketDialog } from '@/features/quota/BucketDialog'
 import { e10 } from '@/features/quota/quota'
 import { RowMenu } from '@/features/config/ResourceList'
-import { type Column, DataTable, Empty, Fields, Section, Stat, StatGrid, useCompact } from '@/ui/kit'
+import { type Column, DataTable, Empty, Fields, Section, Stat, StatGrid } from '@/ui/kit'
 import { money } from '@/ui/fmt'
 
 /* ---------- derived state ---------- */
@@ -24,7 +26,7 @@ import { money } from '@/ui/fmt'
 /** A window is used up only while its reported reset is still ahead. */
 const usedUp = (b: BucketView) => b.exhausted && !b.reset_passed
 
-type LimitStatus = 'available' | 'limit' | 'paused' | 'unavailable' | 'unknown'
+type LimitStatus = 'available' | 'limit' | 'paused' | 'unavailable' | 'unknown' | 'untracked'
 
 export interface Row {
   key: string
@@ -79,6 +81,12 @@ export function rowsFrom(health: AccountHealthView[], monitors: MonitorView[], o
     } else if (!h.available) {
       statusDetail = h.reason || undefined
     }
+    const tracking = trackingOf(mons)
+    // Never claim "Available" from data that is failing or out of date.
+    if (status === 'available' && (tracking.state === 'failed' || tracking.state === 'stale')) {
+      status = 'untracked'
+      statusDetail = tracking.state === 'failed' ? `Quota tracking failed: ${tracking.detail}` : 'Quota data is out of date'
+    }
     return {
       key: h.account_id,
       name: h.name,
@@ -87,22 +95,30 @@ export function rowsFrom(health: AccountHealthView[], monitors: MonitorView[], o
       status,
       statusDetail,
       tightest: tightestOf(buckets) ?? (h.remaining !== null && h.remaining !== undefined ? { label: 'Tightest window', left: h.remaining, reset: h.reset_at, stale: h.stale } : undefined),
-      tracking: trackingOf(mons),
+      tracking,
       monitors: mons,
       observed: obs,
     }
   })
   for (const m of monitors.filter((x) => !x.account_id && x.enabled)) {
     const exhausted = m.buckets.find(usedUp)
+    const tracking = trackingOf([m])
+    const failing = tracking.state === 'failed' || tracking.state === 'stale'
     rows.push({
       key: m.id,
       name: m.name,
       sub: m.adapter_name || m.adapter,
       linked: false,
-      status: exhausted ? 'limit' : m.buckets.length ? 'available' : 'unknown',
-      statusDetail: exhausted ? `${exhausted.label} used up` : undefined,
+      status: exhausted ? 'limit' : failing ? 'untracked' : m.buckets.length ? 'available' : 'unknown',
+      statusDetail: exhausted
+        ? `${exhausted.label} used up`
+        : failing
+          ? tracking.state === 'failed'
+            ? `Quota tracking failed: ${tracking.detail}`
+            : 'Quota data is out of date'
+          : undefined,
       tightest: tightestOf(m.buckets),
-      tracking: trackingOf([m]),
+      tracking,
       monitors: [m],
       observed: [],
     })
@@ -118,12 +134,26 @@ const statusMeta: Record<LimitStatus, { label: string; tone: 'success' | 'error'
   paused: { label: 'Paused', tone: 'warning', icon: PauseCircle },
   unavailable: { label: 'Unavailable', tone: 'error', icon: AlertTriangle },
   unknown: { label: 'No data yet', tone: 'neutral', icon: Clock3 },
+  untracked: { label: 'Unknown', tone: 'warning', icon: CircleHelp },
 }
 
 export function resetsIn(iso: string | null | undefined): string {
   if (!iso) return ''
   const left = new Date(iso).getTime() - serverNow()
   return left > 0 ? `resets in ${fmtDuration(left)}` : 'reset due'
+}
+
+/** Reset time for a "Resets" column: "in 3d 19h", absolute time on hover. */
+export function ResetCell({ iso }: { iso: string | null | undefined }) {
+  if (!iso) return <Text size="xs" c="dimmed">—</Text>
+  const left = new Date(iso).getTime() - serverNow()
+  return (
+    <Tooltip label={fmtDateTime(iso)}>
+      <Text size="xs" c="dimmed" span>
+        {left > 0 ? `in ${fmtDuration(left)}` : 'Due now'}
+      </Text>
+    </Tooltip>
+  )
 }
 
 export function leftColor(left: number): string {
@@ -139,7 +169,7 @@ export function LimitStatusBadge({ row, detail }: { row: Row; detail?: boolean }
       {m.label}
     </Badge>
   )
-  if (!detail || row.status !== 'paused' || !row.statusDetail) return badge
+  if (!detail || (row.status !== 'paused' && row.status !== 'untracked') || !row.statusDetail) return badge
   return (
     <Stack gap={2} align="flex-start">
       {badge}
@@ -175,18 +205,9 @@ export function TrackingLine({ t }: { t: Row['tracking'] }) {
 export function WindowCell({ t }: { t: Row['tightest'] }) {
   if (!t) return <Text size="xs" c="dimmed">No quota data</Text>
   return (
-    <Stack gap={4} miw={160}>
-      <Group justify="space-between" gap="xs" wrap="nowrap">
-        <Text size="xs" truncate>
-          {t.label}
-        </Text>
-        <Text size="xs" c="dimmed" className="num" style={{ whiteSpace: 'nowrap' }}>
-          {t.left <= 0 ? 'Used up' : `${Math.round(t.left * 100)}% left`}
-          {t.stale ? ' · stale' : ''}
-        </Text>
-      </Group>
-      <Progress value={Math.max(1, t.left * 100)} color={leftColor(t.left)} size={6} radius="xl" aria-label={`${t.label} remaining`} />
-    </Stack>
+    <div style={{ minWidth: 160 }}>
+      <QuotaBar label={t.label} srLabel={`${t.label} remaining`} percent={t.left * 100} stale={t.stale} />
+    </div>
   )
 }
 
@@ -220,7 +241,7 @@ function BudgetBar({ u }: { u: BudgetUsage }) {
           <Progress.Section value={Math.max(pct, 1)} color={color} aria-hidden="true" />
         </Progress.Root>
       </div>
-      <Tooltip label={`Warning at ${Math.round(u.warn_at * 100)}%`}>
+      <Tooltip label={`Warns at ${Math.round(u.warn_at * 100)}% of the limit`}>
         <span style={{ position: 'absolute', top: -3, left: `${Math.min(100, u.warn_at * 100)}%`, width: 2, height: 12, background: 'var(--text-muted)' }} />
       </Tooltip>
     </div>
@@ -267,9 +288,9 @@ function Budgets({ onAdd }: { onAdd: () => void }) {
                 {money(e10(u.spent_e10) ?? 0, u.currency)} of {money(e10(u.limit_e10) ?? 0, u.currency)}
               </Text>
               {projected && (
-                <Tooltip label={`Projected for the period at the current rate`}>
+                <Tooltip label="Where spend ends this period at the current rate">
                   <Text size="xs" c="dimmed" className="num">
-                    → {money(projected, u.currency)}
+                    Forecast {money(projected, u.currency)}
                   </Text>
                 </Tooltip>
               )}
@@ -283,6 +304,7 @@ function Budgets({ onAdd }: { onAdd: () => void }) {
       id: 'state',
       header: 'Status',
       mobile: 'aside',
+      width: 130,
       cell: (u) =>
         u.state === 'exceeded' ? (
           <Badge tone="error" icon={OctagonAlert}>{u.enforcement === 'block' ? 'Blocking' : 'Over budget'}</Badge>
@@ -291,12 +313,21 @@ function Budgets({ onAdd }: { onAdd: () => void }) {
         ) : u.state === 'disabled' ? (
           <Badge>Off</Badge>
         ) : (
-          <Text size="xs" c="dimmed">
-            {u.enforcement === 'block' ? 'Blocks at limit' : 'Warns only'}
-          </Text>
+          <Badge tone="success" icon={CheckCircle2}>On track</Badge>
         ),
     },
-    { id: 'reset', header: 'Resets', mobile: 'meta', cell: (u) => <Text size="xs" c="dimmed">{resetsIn(u.period_end)}</Text> },
+    {
+      id: 'mode',
+      header: 'When reached',
+      mobile: 'meta',
+      width: 130,
+      cell: (u) => (
+        <Text size="xs" c="dimmed">
+          {u.enforcement === 'block' ? 'Blocks requests' : 'Warns only'}
+        </Text>
+      ),
+    },
+    { id: 'reset', header: 'Resets', mobile: 'meta', width: 110, cell: (u) => <ResetCell iso={u.period_end} /> },
     {
       id: 'actions',
       header: <span className="visually-hidden">Actions</span>,
@@ -404,23 +435,59 @@ export function AccountQuota({ row }: { row: Row }) {
 }
 
 function AccountDrawer({ row, onClose }: { row: Row | null; onClose: () => void }) {
-  const compact = useCompact()
+  const canWrite = useCan('config.write')
+  const monitors = useQuery({ ...resourceListQuery<QuotaMonitorRes>('quota-monitors'), enabled: !!row && canWrite })
+  const qc = useQueryClient()
+  const [editing, setEditing] = useState<QuotaMonitorRes | null>(null)
+  const ids = row?.monitors.map((m) => m.id) ?? []
+  const check = useMutation({
+    mutationFn: () => Promise.allSettled(ids.map((id) => apiSend('POST', `/quota/monitors/${encodeURIComponent(id)}/refresh`))),
+    onSuccess: () => setTimeout(() => void qc.invalidateQueries({ queryKey: ['quota', 'board'] }), 1500),
+  })
+  const tracker = row && row.monitors.length > 0 ? (monitors.data?.items ?? []).find((m) => m.id === row.monitors[0]!.id) : undefined
+  const failing = row?.tracking.state === 'failed'
   return (
-    <Drawer
-      opened={!!row}
-      onClose={onClose}
-      position={compact ? 'bottom' : 'right'}
-      size={compact ? '100%' : 560}
-      title={row && (
-        <Group gap="sm">
-          <Text fw={600}>{row.name}</Text>
-          <LimitStatusBadge row={row} />
-        </Group>
-      )}
-      closeButtonProps={{ 'aria-label': 'Close' }}
-    >
-      {row && <AccountQuota row={row} />}
-    </Drawer>
+    <>
+      <FormDrawer
+        open={!!row}
+        onClose={() => {
+          check.reset()
+          onClose()
+        }}
+        size="lg"
+        dirty={false}
+        title={
+          row && (
+            <Group gap="sm">
+              <span>{row.name}</span>
+              <LimitStatusBadge row={row} />
+            </Group>
+          )
+        }
+        footer={
+          row && canWrite && row.monitors.length > 0 ? (
+            <>
+              {check.isSuccess && (
+                <Text size="xs" c="dimmed" mr="auto">
+                  Checking {ids.length === 1 ? 'the tracker' : `${ids.length} trackers`}…
+                </Text>
+              )}
+              <Button icon={RefreshCw} busy={check.isPending} onClick={() => check.mutate()}>
+                Check now
+              </Button>
+              {tracker && (
+                <Button variant={failing ? 'primary' : 'default'} icon={failing ? KeyRound : Pencil} onClick={() => setEditing(tracker)}>
+                  {failing ? 'Fix sign-in' : 'Edit tracker'}
+                </Button>
+              )}
+            </>
+          ) : undefined
+        }
+      >
+        {row && <AccountQuota row={row} />}
+      </FormDrawer>
+      {editing && <MonitorDialog monitor={editing} onClose={() => setEditing(null)} />}
+    </>
   )
 }
 
@@ -430,31 +497,60 @@ function useRefreshAll(ids: string[]) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async () => {
-      await Promise.all(ids.map((id) => apiSend('POST', `/quota/monitors/${encodeURIComponent(id)}/refresh`)))
+      const res = await Promise.allSettled(ids.map((id) => apiSend('POST', `/quota/monitors/${encodeURIComponent(id)}/refresh`)))
+      return { total: res.length, failed: res.filter((r) => r.status === 'rejected').length }
     },
     onSuccess: () => setTimeout(() => void qc.invalidateQueries({ queryKey: ['quota', 'board'] }), 1500),
   })
 }
 
+/** "Checking 7 trackers · 1 could not start", shown after Refresh all. */
+export function refreshSummary(r: { total: number; failed: number }): string {
+  const n = r.total === 1 ? '1 tracker' : `${r.total} trackers`
+  return r.failed ? `Checking ${n} · ${r.failed} could not start` : `Checking ${n}; results appear in a few seconds`
+}
+
 function answer(rows: Row[]): ReactNode {
   const reached = rows.filter((r) => r.status === 'limit')
   const tight = rows.filter((r) => r.tightest && r.status !== 'limit').sort((a, b) => a.tightest!.left - b.tightest!.left)[0]
-  const parts: string[] = []
-  if (reached.length) parts.push(`${reached.map((r) => r.name).join(', ')} ${reached.length === 1 ? 'has' : 'have'} reached a limit.`)
-  else parts.push('No account has reached a limit.')
-  if (tight?.tightest) {
-    parts.push(
-      `Closest: ${tight.name} ${tight.tightest.label}, ${Math.round(tight.tightest.left * 100)}% left${tight.tightest.reset ? `, ${resetsIn(tight.tightest.reset)}` : ''}.`,
-    )
-  }
-  return parts.join(' ')
+  return (
+    <Stack gap={4}>
+      <Group gap={6} wrap="nowrap">
+        {reached.length ? <OctagonAlert size={16} color="var(--error)" aria-hidden /> : <CheckCircle2 size={16} color="var(--success)" aria-hidden />}
+        <Text size="sm">
+          {reached.length ? `Limit reached: ${reached.map((r) => r.name).join(', ')}` : 'No account has reached a limit'}
+        </Text>
+      </Group>
+      {tight?.tightest && (
+        <Group gap={6} wrap="nowrap">
+          <Clock3 size={16} color="var(--text-muted)" aria-hidden />
+          <Text size="sm" c="dimmed">
+            Closest: {tight.name} · {tight.tightest.label} · {Math.round(tight.tightest.left * 100)}% left
+            {tight.tightest.reset ? ` · ${resetsIn(tight.tightest.reset)}` : ''}
+          </Text>
+        </Group>
+      )}
+    </Stack>
+  )
 }
 
 export function LimitsOverview({ addBudget = false }: { addBudget?: boolean }) {
   const board = useQuery(quotaBoardQuery)
   const budgets = useQuery(budgetStatusQuery)
   const canWrite = useCan('config.write')
+  const navigate = useNavigate()
+  const location = useLocation()
   const [adding, setAdding] = useState(addBudget)
+  useEffect(() => setAdding(addBudget), [addBudget])
+  const closeAdd = () => {
+    setAdding(false)
+    // Drop ?add=budget so reload and back do not reopen the dialog.
+    if (addBudget) void navigate({ to: '/quotas', search: {}, replace: true })
+  }
+  // Scroll to #budgets once the sections have rendered (palette and Home links).
+  useEffect(() => {
+    if (location.hash === 'budgets' && board.data && budgets.data) document.getElementById('budgets')?.scrollIntoView({ block: 'start' })
+  }, [location.hash, board.data, budgets.data])
   const [open, setOpen] = useState<Row | null>(null)
   const rows = useMemo(
     () => (board.data ? rowsFrom(board.data.account_health, board.data.monitors, board.data.observed_accounts) : []),
@@ -488,21 +584,16 @@ export function LimitsOverview({ addBudget = false }: { addBudget?: boolean }) {
         </Stack>
       ),
     },
-    { id: 'status', header: 'Status', mobile: 'aside', cell: (r) => <LimitStatusBadge row={r} detail /> },
+    { id: 'status', header: 'Status', mobile: 'aside', width: 170, cell: (r) => <LimitStatusBadge row={r} detail /> },
     { id: 'window', header: 'Tightest window', mobile: 'line', width: '30%', cell: (r) => <WindowCell t={r.tightest} /> },
-    {
-      id: 'reset',
-      header: 'Resets',
-      mobile: 'meta',
-      cell: (r) => <Text size="xs" c="dimmed">{r.tightest?.reset ? resetsIn(r.tightest.reset) : '—'}</Text>,
-    },
-    { id: 'tracking', header: 'Quota tracking', mobile: 'meta', cell: (r) => <TrackingLine t={r.tracking} /> },
+    { id: 'reset', header: 'Resets', mobile: 'meta', width: 110, cell: (r) => <ResetCell iso={r.tightest?.reset} /> },
+    { id: 'tracking', header: 'Quota tracking', mobile: 'meta', width: 170, cell: (r) => <TrackingLine t={r.tracking} /> },
   ]
 
   return (
     <Stack gap="xl">
-      <Group justify="space-between" gap="sm" wrap="wrap">
-        <Text size="md">{answer(rows)}</Text>
+      <Group justify="space-between" gap="sm" wrap="wrap" align="flex-start">
+        {answer(rows)}
         <Group gap="xs">
           {canWrite && board.data.monitors.length > 0 && (
             <Button icon={RefreshCw} busy={refresh.isPending} onClick={() => refresh.mutate()}>
@@ -516,6 +607,11 @@ export function LimitsOverview({ addBudget = false }: { addBudget?: boolean }) {
           )}
         </Group>
       </Group>
+      {refresh.data && (
+        <Text size="xs" c="dimmed" role="status">
+          {refreshSummary(refresh.data)}
+        </Text>
+      )}
       <MutationError error={refresh.error} />
       {board.data.dropped_observations > 0 && (
         <Banner tone="warning" icon={AlertTriangle}>
@@ -535,15 +631,15 @@ export function LimitsOverview({ addBudget = false }: { addBudget?: boolean }) {
         />
       </StatGrid>
       <Section title="Accounts" info="What routing sees for each provider account: its status and the window with the least room left. Open an account for every window and its forecast.">
-        <DataTable label="Account list" rows={linked} columns={cols} rowKey={(r) => r.key} onRow={setOpen} empty={<Empty title="No provider accounts yet" />} />
+        <DataTable fixed label="Account list" rows={linked} columns={cols} rowKey={(r) => r.key} onRow={setOpen} empty={<Empty title="No provider accounts yet" />} />
       </Section>
       {unlinked.length > 0 && (
         <Section title="Not linked to an account" info="Quota trackers that are watched but do not affect routing.">
-          <DataTable label="Unlinked tracker list" rows={unlinked} columns={cols.map((c) => (c.id === 'name' ? { ...c, header: 'Tracker' } : c))} rowKey={(r) => r.key} onRow={setOpen} />
+          <DataTable fixed label="Unlinked tracker list" rows={unlinked} columns={cols.map((c) => (c.id === 'name' ? { ...c, header: 'Tracker' } : c))} rowKey={(r) => r.key} onRow={setOpen} />
         </Section>
       )}
       <Budgets onAdd={() => setAdding(true)} />
-      {adding && <BudgetDialog budget={null} onClose={() => setAdding(false)} />}
+      {adding && <BudgetDialog budget={null} onClose={closeAdd} />}
       <AccountDrawer row={open} onClose={() => setOpen(null)} />
     </Stack>
   )

@@ -14,7 +14,7 @@ export function BucketRow({ b, onDetails }: { b: BucketView; onDetails?: () => v
         label={
           <span>
             {b.label}
-            {b.model && <span className="muted"> · {b.model}</span>}
+            {b.model && !b.label.toLowerCase().includes(b.model.toLowerCase()) && <span className="muted"> · {b.model}</span>}
           </span>
         }
         srLabel={`${b.label} remaining`}
@@ -22,8 +22,9 @@ export function BucketRow({ b, onDetails }: { b: BucketView; onDetails?: () => v
         stale={b.stale}
       />
       <div className={q.bucketMeta}>
-        <span>{bucketValueText(b)}</span>
-        {window && <span>· {window}</span>}
+        {/* The bar already shows the percentage; repeat only real amounts. */}
+        {b.unit !== 'percent' && <span>{bucketValueText(b)}</span>}
+        {window && <span>{b.unit !== 'percent' ? '· ' : ''}{window}</span>}
         {b.reset_at && !b.reset_passed && <span>· resets {fmtRelative(b.reset_at)}</span>}
         {b.exhausted && <Badge tone="error" icon={OctagonAlert}>Exhausted</Badge>}
         {b.stale && <Badge tone="warning" icon={Clock3} title={`Observed ${fmtDateTime(b.observed_at)}`}>Stale</Badge>}

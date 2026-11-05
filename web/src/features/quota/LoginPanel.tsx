@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, LogIn, LogOut } from 'lucide-react'
 import { Badge, Banner, Button, Panel, TableScroll, TierBadge } from '@/components/ui'
-import { Dialog, Field, MutationError, formStyles as f, ConfirmButton } from '@/components/form'
+import { ConfirmButton, Dialog, DialogActions, MutationError, TextAreaField } from '@/components/form'
 import { QueryError } from '@/components/states'
 import { apiSend } from '@/lib/api/client'
 import { quotaLoginsQuery } from '@/lib/api/queries'
@@ -57,21 +57,26 @@ function SignInDialog({ login, onClose }: { login: QuotaLogin; onClose: () => vo
           <a href={start.data.authorize_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <ExternalLink size={14} aria-hidden="true" /> Open the provider sign-in page
           </a>
-          <Field label="Code or redirected URL" hint="Paste what the provider shows after you approve access. It is exchanged once and never displayed again.">
-            {(p) => <textarea {...p} className={f.textarea} rows={3} spellCheck={false} autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />}
-          </Field>
+          <TextAreaField
+            label="Code or redirected URL"
+            hint="Paste what the provider shows after you approve access. It is exchanged once and never displayed again."
+            mono
+            minRows={3}
+            value={code}
+            onChange={setCode}
+          />
         </>
       )}
       <MutationError error={complete.error} />
-      {complete.data && <Banner tone="info" role="status">Signed in. Poll: {complete.data.refresh.replaceAll('_', ' ')}.</Banner>}
-      <div className={f.actions}>
+      {complete.data && <Banner tone="success" role="status">Signed in. Poll: {complete.data.refresh.replaceAll('_', ' ')}.</Banner>}
+      <DialogActions>
         <Button onClick={onClose}>{complete.data ? 'Close' : 'Cancel'}</Button>
         {!complete.data && (
           <Button variant="primary" busy={complete.isPending} disabled={!start.data || !code.trim()} onClick={() => complete.mutate({ state: start.data!.state, code: code.trim() })}>
             Complete sign-in
           </Button>
         )}
-      </div>
+      </DialogActions>
     </Dialog>
   )
 }

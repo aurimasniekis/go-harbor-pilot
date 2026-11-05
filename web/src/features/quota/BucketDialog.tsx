@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Text } from '@mantine/core'
 import { Badge, Banner, KeyValues, Skeleton, Tabs } from '@/components/ui'
-import { Dialog } from '@/components/form'
+import { Advanced, Dialog } from '@/components/form'
 import { EChart, type EChartsOption, chartTheme } from '@/components/EChart'
 import { QueryError } from '@/components/states'
 import { quotaForecastQuery, quotaHistoryQuery } from '@/lib/api/queries'
 import type { BucketView, Forecast, HistoryPoint } from '@/lib/api/types'
-import { fmtDateTime, fmtNumber, fmtRate, fmtRelative } from '@/lib/format'
+import { fmtDateTime, fmtNumber, fmtRelative } from '@/lib/format'
+import { useCompact } from '@/ui/kit'
 import { BucketRow } from './BucketRow'
-import { confidenceTone, forecastHeadline, historyValue } from './quota'
+import { confidenceTone, forecastSentence, historyValue, methodText, rateUnit } from './quota'
 import q from './quota.module.css'
 
 const ranges = [
@@ -17,7 +19,7 @@ const ranges = [
   { value: '720', label: '30 days' },
 ] as const
 
-function chartOption(hist: HistoryPoint[], fc: Forecast | undefined, unit: string): EChartsOption {
+function chartOption(hist: HistoryPoint[], fc: Forecast | undefined, unit: string, compact: boolean): EChartsOption {
   const t = chartTheme()
   const observed = hist.map((p) => [p.t, historyValue(p)])
   const pts = fc && !fc.unavailable_reason ? fc.points : []
@@ -29,18 +31,26 @@ function chartOption(hist: HistoryPoint[], fc: Forecast | undefined, unit: strin
   if (fc?.next_reset_at) marks.push({ xAxis: fc.next_reset_at, name: 'Next reset' })
   return {
     textStyle: { fontFamily: t.sans, color: t.secondary },
-    grid: { left: 56, right: 24, top: 36, bottom: 40 },
-    legend: { top: 0, textStyle: { color: t.secondary }, data: ['Observed', 'Forecast (estimate)', 'Scenario band'] },
+    grid: { left: 56, right: 24, top: compact ? 16 : 40, bottom: compact ? 64 : 32 },
+    legend: { ...(compact ? { bottom: 0 } : { top: 0 }), textStyle: { color: t.secondary }, data: ['Observed', 'Forecast range'] },
     tooltip: { trigger: 'axis', backgroundColor: t.raised, borderColor: t.border, textStyle: { color: t.text } },
-    xAxis: { type: 'time', axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.muted }, splitLine: { show: false } },
-    yAxis: { type: 'value', name: unit, nameTextStyle: { color: t.muted }, min: 0, axisLabel: { color: t.muted }, splitLine: { lineStyle: { color: t.border } } },
+    xAxis: { type: 'time', axisLine: { lineStyle: { color: t.border } }, axisLabel: { color: t.muted, hideOverlap: true }, splitLine: { show: false } },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      axisLabel: { color: t.muted, formatter: (v: number) => (unit === '%' ? `${v}%` : fmtNumber(v)) },
+      splitLine: { lineStyle: { color: t.border } },
+    },
     series: [
       { name: 'Observed', type: 'line', showSymbol: false, data: observed, connectNulls: false, lineStyle: { color: t.info, width: 2 }, itemStyle: { color: t.info } },
       { name: 'Scenario low', type: 'line', stack: 'band', showSymbol: false, data: low, lineStyle: { opacity: 0 }, tooltip: { show: false } },
-      { name: 'Scenario band', type: 'line', stack: 'band', showSymbol: false, data: band, lineStyle: { opacity: 0 }, areaStyle: { color: t.warning, opacity: 0.15 }, itemStyle: { color: t.warning } },
+      { name: 'Forecast range', type: 'line', stack: 'band', showSymbol: false, data: band, lineStyle: { opacity: 0 }, areaStyle: { color: t.warning, opacity: 0.22 }, itemStyle: { color: t.warning } },
       {
-        name: 'Forecast (estimate)', type: 'line', showSymbol: false, data: mid, lineStyle: { color: t.warning, type: 'dashed', width: 2 }, itemStyle: { color: t.warning },
-        markLine: marks.length ? { symbol: 'none', label: { color: t.secondary, formatter: '{b}' }, lineStyle: { color: t.muted, type: 'dotted' }, data: marks } : undefined,
+        name: 'Forecast', type: 'line', showSymbol: false, data: mid, smooth: true, lineStyle: { color: t.warning, width: 1, opacity: 0.7 }, itemStyle: { color: t.warning },
+        tooltip: { show: true },
+        markLine: marks.length
+          ? { symbol: 'none', label: { color: t.secondary, formatter: '{b}', position: 'insideEndTop' }, lineStyle: { color: t.muted, type: 'dotted' }, data: marks }
+          : undefined,
       },
     ],
   }
@@ -52,10 +62,16 @@ export function BucketDialog({ owner, ownerName, bucket, onClose }: { owner: str
   const hist = useQuery(quotaHistoryQuery(owner, bucket.key, Number(hours)))
   const fc = useQuery(quotaForecastQuery(owner, bucket.key))
   const unit = bucket.unit === 'percent' ? '%' : bucket.unit
-  const option = useMemo(() => chartOption(hist.data?.points ?? [], fc.data, unit), [hist.data, fc.data, unit])
+  const compact = useCompact()
+  const option = useMemo(() => chartOption(hist.data?.points ?? [], fc.data, unit, compact), [hist.data, fc.data, unit, compact])
   const f = fc.data
   return (
-    <Dialog open wide title={`${ownerName} · ${bucket.label}`} onClose={onClose}>
+    <Dialog open wide title={`${ownerName} · ${bucket.label}`} onClose={onClose} dirty={false}>
+      {f && (
+        <Banner tone={f.unavailable_reason ? 'info' : f.exhaustion_at ? 'warning' : 'success'}>
+          {forecastSentence(f, bucket.unit, fmtRelative)}
+        </Banner>
+      )}
       <BucketRow b={bucket} />
       <Tabs label="History range" variant="segmented" value={hours} onChange={setHours} items={ranges.map((r) => ({ value: r.value, label: r.label }))} />
       {hist.isError ? (
@@ -68,32 +84,36 @@ export function BucketDialog({ owner, ownerName, bucket, onClose }: { owner: str
         <EChart option={option} height={300} ariaLabel={`Remaining ${bucket.label} over time with forecast`} />
       )}
       <section aria-label="Forecast" className={q.stack}>
-        <h3 style={{ fontSize: 'var(--text-md)', margin: 0 }}>
-          Forecast <Badge tone="info">Estimate</Badge>
-        </h3>
         {fc.isError ? (
           <QueryError error={fc.error} retry={() => void fc.refetch()} />
         ) : !f ? (
           <Skeleton height={80} />
         ) : (
           <>
-            <Banner tone={f.unavailable_reason ? 'info' : f.exhaustion_at ? 'warning' : 'info'}>
-              {forecastHeadline(f)}. Forecasts extrapolate recent consumption; they are not provider guarantees.
-            </Banner>
             {!f.unavailable_reason && (
               <KeyValues
                 items={[
-                  ['Confidence', <Badge tone={confidenceTone(f.confidence)}>{f.confidence}</Badge>],
-                  ['Method', f.method],
-                  ['Burn rate', f.rate ? <span>{fmtRate(f.rate.per_hour, `${f.rate.unit}/h`, 2)} <span className="muted">({f.rate.source})</span></span> : <span className="muted">Unknown</span>],
-                  ['Starting value', <span className="num">{fmtNumber(f.start_value, 1)}</span>],
-                  ['Estimated exhaustion', f.exhaustion_at ? `${fmtDateTime(f.exhaustion_at)} (${fmtRelative(f.exhaustion_at)})` : <span className="muted">not within horizon</span>],
-                  ['Next reset', f.next_reset_at ? `${fmtDateTime(f.next_reset_at)} (${fmtRelative(f.next_reset_at)})` : <span className="muted">Unknown</span>],
-                  ['Restored at reset', f.restored_amount !== null ? <span className="num">{fmtNumber(f.restored_amount, 1)}</span> : <span className="muted">Unknown</span>],
-                  ['Based on stale data', f.stale ? <Badge tone="warning">yes</Badge> : 'no'],
+                  ['Uses about', f.rate ? `${fmtNumber(Math.abs(f.rate.per_hour), Math.abs(f.rate.per_hour) < 10 ? 1 : 0)} ${rateUnit(bucket.unit)}` : <span className="muted">Unknown</span>],
+                  ['Runs out', f.exhaustion_at ? `${fmtRelative(f.exhaustion_at)} (${fmtDateTime(f.exhaustion_at)})` : <span className="muted">Not within the forecast horizon</span>],
+                  ['Resets', f.next_reset_at ? `${fmtRelative(f.next_reset_at)} (${fmtDateTime(f.next_reset_at)})` : <span className="muted">Unknown</span>],
+                  ['How sure', <Badge tone={confidenceTone(f.confidence)}>{f.confidence.charAt(0).toUpperCase() + f.confidence.slice(1)}</Badge>],
+                  ...(f.stale ? ([['Data', <Badge tone="warning">Out of date</Badge>]] as [React.ReactNode, React.ReactNode][]) : []),
                 ]}
               />
             )}
+            <Advanced label="How we estimate">
+              <Text size="sm">{methodText(f.method)}.</Text>
+              {f.rate && (
+                <Text size="xs" c="dimmed">
+                  Rate from {f.rate.source.replaceAll('_', ' ')}. Starting value {fmtNumber(f.start_value, 1)}
+                  {bucket.unit === 'percent' ? '%' : ` ${bucket.unit}`}
+                  {f.restored_amount !== null ? `; ${fmtNumber(f.restored_amount, 1)} restored at reset` : ''}.
+                </Text>
+              )}
+              <Text size="xs" c="dimmed">
+                Forecasts extrapolate recent consumption; they are estimates, not provider guarantees.
+              </Text>
+            </Advanced>
             {f.downtime.length > 0 && (
               <div>
                 <div className="muted" style={{ fontSize: 'var(--text-sm)' }}>Predicted unavailable windows</div>

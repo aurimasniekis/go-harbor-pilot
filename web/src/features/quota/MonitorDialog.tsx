@@ -1,13 +1,28 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Select, SimpleGrid, Text, Tooltip } from '@mantine/core'
 import { AlertTriangle } from 'lucide-react'
 import { Badge, Banner, Button, TierBadge } from '@/components/ui'
-import { Advanced, Checkbox, Dialog, Field, MutationError, SelectField, TextField, formStyles as f } from '@/components/form'
+import {
+  Advanced,
+  Checkbox,
+  Dialog,
+  DialogActions,
+  MutationError,
+  NameField,
+  nameError,
+  NumberField,
+  SecretRefField,
+  SelectField,
+  TextAreaField,
+  TextField,
+  checkSecretRef,
+  useFieldErrors,
+} from '@/components/form'
 import { TerraformEditWarning } from '@/components/ResourceBadges'
 import { quotaAdaptersQuery, resourceListQuery } from '@/lib/api/queries'
 import { useSaveResource } from '@/lib/api/resources'
 import type { AccountRes, QuotaAdapter, QuotaMonitorRes, QuotaMonitorSpec, Tier } from '@/lib/api/types'
-import { toInt } from '@/features/config/constants'
 import c from '@/features/config/config.module.css'
 import q from './quota.module.css'
 
@@ -34,30 +49,69 @@ export function parseOptions(text: string): { value?: Record<string, unknown>; e
   }
 }
 
+/** Groups of adapters by how they read the provider. */
+const tierGroup: Record<string, string> = {
+  official: 'Official APIs',
+  partial: 'Official APIs',
+  local: 'Official APIs',
+  unofficial: 'Unofficial (undocumented endpoints)',
+  client_reported: 'Reported by the tool',
+  demo: 'Demo',
+}
+
+/** Adapter options grouped by tier and sorted by name. */
+export function adapterOptions(list: QuotaAdapter[]): { group: string; items: { value: string; label: string }[] }[] {
+  const order = ['Official APIs', 'Reported by the tool', 'Unofficial (undocumented endpoints)', 'Demo']
+  const groups = new Map<string, { value: string; label: string }[]>()
+  for (const a of [...list].sort((x, y) => x.display_name.localeCompare(y.display_name))) {
+    const g = tierGroup[a.tier] ?? 'Other'
+    groups.set(g, [...(groups.get(g) ?? []), { value: a.id, label: a.display_name }])
+  }
+  return [...groups.entries()].sort(([a], [b]) => order.indexOf(a) - order.indexOf(b)).map(([group, items]) => ({ group, items }))
+}
+
+const capPhrase: Record<string, string> = {
+  quota_remaining: 'remaining quota',
+  quota_used: 'quota used',
+  quota_limit: 'quota limits',
+  model_specific_quota: 'per-model quotas',
+  fixed_reset_timestamp: 'exact reset times',
+  rolling_window: 'rolling windows',
+  balance: 'account balance',
+  spend: 'spend',
+  usage: 'usage',
+  account_identity: 'which account it signed in as',
+}
+
+/** One sentence for what an adapter reports: "Reports remaining quota, per-model quotas and exact reset times." */
+export function capabilitySentence(a: QuotaAdapter): string {
+  const caps = Object.entries(a.capabilities).filter(([, v]) => v.status !== 'unsupported')
+  if (caps.length === 0) return 'Reports what the provider exposes.'
+  const words = caps.map(([k, v]) => `${capPhrase[k] ?? k.replaceAll('_', ' ')}${v.status === 'partial' ? ' (partly)' : ''}`)
+  const list = words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}` : words[0]
+  return `Reports ${list}.`
+}
+
 function AdapterInfo({ a }: { a: QuotaAdapter }) {
   const caps = Object.entries(a.capabilities).filter(([, v]) => v.status !== 'unsupported')
   return (
     <div className={c.row}>
       <div className={q.badges}>
         <strong>{a.display_name}</strong>
-        <TierBadge tier={a.tier as Tier} />
+        {a.tier !== 'official' && <TierBadge tier={a.tier as Tier} />}
         {a.push_only && <Badge tone="info">Push only</Badge>}
-        <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>default poll every {Math.round(a.default_poll_interval_secs / 60)} min</span>
       </div>
-      <div className={q.small}>
-        <span className="muted">Credentials: </span>
-        {a.credential_types.join('; ') || 'none'}
-      </div>
-      {caps.length > 0 && (
-        <div className={q.badges} aria-label="Capabilities">
-          {caps.map(([k, v]) => (
-            <Badge key={k} tone={v.status === 'supported' ? 'success' : 'warning'} title={v.note || undefined}>
-              {k.replaceAll('_', ' ')}
-              {v.status === 'partial' ? ' (partial)' : ''}
-            </Badge>
-          ))}
-        </div>
-      )}
+      <Tooltip
+        multiline
+        w={320}
+        label={caps.map(([k, v]) => `${k.replaceAll('_', ' ')}${v.status === 'partial' ? ' (partial)' : ''}${v.note ? `: ${v.note}` : ''}`).join(' · ')}
+        disabled={caps.length === 0}
+      >
+        <Text size="sm">{capabilitySentence(a)}</Text>
+      </Tooltip>
+      <Text size="xs" c="dimmed">
+        Checks every {Math.round(a.default_poll_interval_secs / 60)} min by default · Needs {a.credential_types.join(' or ') || 'no credential'}
+      </Text>
       {a.limitations.length > 0 && (
         <ul className={q.list}>
           {a.limitations.map((l) => (
@@ -79,9 +133,9 @@ export function MonitorDialog({ monitor, onClose }: { monitor: QuotaMonitorRes |
   const [accountID, setAccountID] = useState(init?.account_id ?? '')
   const [enabled, setEnabled] = useState(init?.enabled ?? true)
   // Shown in minutes; empty means the provider's default.
-  const [pollInterval, setPollInterval] = useState(init?.poll_interval_secs ? String(Math.round(init.poll_interval_secs / 60)) : '')
-  const [below, setBelow] = useState(String(Math.round((init?.exhausted_below ?? 0) * 100)))
-  const [staleAfter, setStaleAfter] = useState(init?.stale_after_secs ? String(Math.round(init.stale_after_secs / 60)) : '')
+  const [pollInterval, setPollInterval] = useState<number | null>(init?.poll_interval_secs ? Math.round(init.poll_interval_secs / 60) : null)
+  const [below, setBelow] = useState<number | null>(Math.round((init?.exhausted_below ?? 0) * 100))
+  const [staleAfter, setStaleAfter] = useState<number | null>(init?.stale_after_secs ? Math.round(init.stale_after_secs / 60) : null)
   const [scope, setScope] = useState(init?.shared_scope_id ?? '')
   const [ack, setAck] = useState(init?.acknowledge_terms_risk ?? false)
   const [optText, setOptText] = useState(init?.options && Object.keys(init.options).length ? JSON.stringify(init.options, null, 2) : '')
@@ -97,6 +151,14 @@ export function MonitorDialog({ monitor, onClose }: { monitor: QuotaMonitorRes |
     service_account_ref: init?.service_account_ref ?? '',
   })
   const save = useSaveResource<QuotaMonitorSpec>('quota-monitors')
+  const errs = useFieldErrors(save.error)
+  // A stale server error goes away as soon as the user changes something.
+  const edit =
+    <T,>(f: (v: T) => void) =>
+    (v: T) => {
+      if (save.error) save.reset()
+      f(v)
+    }
   const list = adapters.data?.items ?? []
   const selected = list.find((a) => a.id === adapter)
   const opts = parseOptions(optText)
@@ -108,9 +170,9 @@ export function MonitorDialog({ monitor, onClose }: { monitor: QuotaMonitorRes |
       account_id: accountID,
       options: opts.value ?? {},
       enabled,
-      poll_interval_secs: toInt(pollInterval) * 60,
-      exhausted_below: Math.min(100, Math.max(0, toInt(below))) / 100,
-      stale_after_secs: toInt(staleAfter) * 60,
+      poll_interval_secs: (pollInterval ?? 0) * 60,
+      exhausted_below: (below ?? 0) / 100,
+      stale_after_secs: (staleAfter ?? 0) * 60,
       shared_scope_id: scope.trim(),
       acknowledge_terms_risk: needsAck ? ack : false,
       api_key_ref: '',
@@ -137,7 +199,7 @@ export function MonitorDialog({ monitor, onClose }: { monitor: QuotaMonitorRes |
         <SelectField<Mode>
           label={sf.label}
           value={m}
-          onChange={(v) => setModes({ ...modes, [sf.name]: v })}
+          onChange={edit((v: Mode) => setModes({ ...modes, [sf.name]: v }))}
           options={[
             ...(info?.source === 'stored' ? [{ value: 'keep' as Mode, label: `Keep the saved one (${info.fingerprint ?? 'set'})` }] : []),
             { value: 'stored', label: info?.source === 'stored' ? 'Replace it' : 'Paste it (stored encrypted)' },
@@ -146,61 +208,87 @@ export function MonitorDialog({ monitor, onClose }: { monitor: QuotaMonitorRes |
           ]}
         />
         {m === 'stored' && (
-          <TextField label={`${sf.label} value`} type="password" autoComplete="off" value={values[sf.name]} onChange={(v) => setValues({ ...values, [sf.name]: v })}
+          <TextField label={`${sf.label} value`} type="password" autoComplete="off" value={values[sf.name]} onChange={edit((v: string) => setValues({ ...values, [sf.name]: v }))}
             hint="Never shown again after saving." />
         )}
         {m === 'reference' && (
-          <TextField label={`${sf.label} reference`} value={refs[sf.ref]} onChange={(v) => setRefs({ ...refs, [sf.ref]: v })} placeholder="env:NAME or file:/run/secrets/key" />
+          <SecretRefField
+            label={`${sf.label} reference`}
+            value={refs[sf.ref]}
+            onChange={edit((v: string) => setRefs({ ...refs, [sf.ref]: v }))}
+            example={sf.name.toUpperCase()}
+            error={errs[sf.ref]}
+          />
         )}
       </div>
     )
   }
+  const refProblem = secretFields.some((sf) => modes[sf.name] === 'reference' && !!checkSecretRef(refs[sf.ref].trim()))
   const primary = secretFields.filter((sf) => sf.name === 'api_key' || modes[sf.name] !== 'none')
   const others = secretFields.filter((sf) => !primary.includes(sf))
   return (
     <Dialog open wide title={monitor ? `Edit quota tracker ${monitor.name}` : 'Track a provider quota'} onClose={onClose}>
       <TerraformEditWarning r={monitor} />
-      <div className={f.grid}>
-        <SelectField label="Adapter" value={adapter} onChange={setAdapter} placeholder="Choose the provider API"
-          options={[{ value: '', label: adapters.isLoading ? 'Loading…' : 'Choose the provider API' }, ...list.map((a) => ({ value: a.id, label: a.display_name }))]} />
-        <TextField label="Name" value={name} onChange={setName} disabled={!!monitor} required placeholder="e.g. claude-team" hint={monitor ? undefined : 'Lowercase; cannot be changed later.'} />
-        <SelectField label="Routes for" value={accountID} onChange={setAccountID}
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+        <Select
+          label="Provider API"
+          placeholder={adapters.isLoading ? 'Loading…' : 'Choose what to track'}
+          data={adapterOptions(list)}
+          value={adapter || null}
+          onChange={(v) => edit(setAdapter)(v ?? '')}
+          searchable
+          required
+          error={errs.adapter}
+          comboboxProps={{ withinPortal: true }}
+        />
+        <NameField label="Name" value={name} onChange={edit(setName)} locked={!!monitor} error={errs.name} />
+        <SelectField label="Routes for" value={accountID} onChange={edit(setAccountID)}
           hint="When a limit is reached, routing skips this account until the window resets."
           options={[{ value: '', label: 'No account (watch only)' }, ...accountItems.map((a) => ({ value: a.id, label: a.name }))]} />
-      </div>
+      </SimpleGrid>
       {selected && <AdapterInfo a={selected} />}
       {needsAck && (
         <Banner tone="warning" icon={AlertTriangle}>
           <strong>Unofficial adapter.</strong> It reads undocumented provider endpoints that may change or break without notice, and using
           subscription credentials this way may conflict with the provider&apos;s terms.
           <div style={{ marginTop: 8 }}>
-            <Checkbox label="I understand and accept these risks for this monitor" checked={ack} onChange={setAck} />
+            <Checkbox label="I understand and accept these risks for this tracker" checked={ack} onChange={edit(setAck)} />
           </div>
         </Banner>
       )}
       {primary.map(credential)}
       <Advanced>
-        <div className={f.grid}>
-          <TextField label="Check every" type="number" suffix="min" value={pollInterval} onChange={setPollInterval} placeholder="Provider default" />
-          <TextField label="Mark out of date after" type="number" suffix="min" value={staleAfter} onChange={setStaleAfter} placeholder="3 checks" />
-          <TextField label="Treat as used up at" type="number" suffix="% left" value={below} onChange={setBelow} hint="0 means only when fully used." />
-          <TextField label="Shared scope" value={scope} onChange={setScope} placeholder="Optional" hint="Trackers reading the same provider quota share one id so it is not counted twice." />
-        </div>
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+          <NumberField label="Check every" unit="min" min={1} max={1440} value={pollInterval} onChange={edit(setPollInterval)} placeholder="Provider default" w="100%" error={errs.poll_interval_secs} />
+          <NumberField label="Mark out of date after" unit="min" min={1} max={10080} value={staleAfter} onChange={edit(setStaleAfter)} placeholder="3 checks" w="100%" error={errs.stale_after_secs} />
+          <NumberField label="Treat as used up at" unit="% left" min={0} max={100} value={below} onChange={edit(setBelow)} hint="0 means only when fully used." w="100%" error={errs.exhausted_below} />
+          <TextField label="Shared scope" value={scope} onChange={edit(setScope)} placeholder="Optional" hint="Trackers reading the same provider quota share one id so it is not counted twice." error={errs.shared_scope_id} />
+        </SimpleGrid>
         {others.map(credential)}
-        <Field label="Adapter options (JSON object)" error={opts.error} hint="Non-secret settings such as base URL, organization id or token_source. See the adapter documentation.">
-          {(p) => (
-            <textarea {...p} className={f.textarea} rows={6} spellCheck={false} value={optText} onChange={(e) => setOptText(e.target.value)} placeholder='{"token_source": "env"}' style={{ fontFamily: 'var(--font-mono)' }} />
-          )}
-        </Field>
-        <Checkbox label="Tracking on" checked={enabled} onChange={setEnabled} />
+        <TextAreaField
+          label="Adapter options (JSON object)"
+          mono
+          minRows={4}
+          value={optText}
+          onChange={edit(setOptText)}
+          placeholder='{"token_source": "env"}'
+          error={opts.error ?? errs.options}
+          hint="Non-secret settings such as base URL, organization id or token_source. See the adapter documentation."
+        />
+        <Checkbox label="Tracking on" checked={enabled} onChange={edit(setEnabled)} />
       </Advanced>
       <MutationError error={save.error} />
-      <div className={f.actions}>
+      <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" busy={save.isPending} disabled={!name || !adapter || !!opts.error || (needsAck && !ack)} onClick={submit}>
+        <Button
+          variant="primary"
+          busy={save.isPending}
+          disabled={!name || !!nameError(name) || !adapter || !!opts.error || (needsAck && !ack) || refProblem}
+          onClick={submit}
+        >
           {monitor ? 'Save changes' : 'Start tracking'}
         </Button>
-      </div>
+      </DialogActions>
     </Dialog>
   )
 }

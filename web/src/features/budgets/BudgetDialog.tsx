@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Select, SimpleGrid } from '@mantine/core'
 import { Button } from '@/components/ui'
-import { Advanced, Checkbox, Dialog, MutationError, SelectField, TextField, formStyles as f } from '@/components/form'
+import { Advanced, Checkbox, Dialog, DialogActions, MutationError, NameField, nameError, NumberField, SelectField, useFieldErrors } from '@/components/form'
 import { TerraformEditWarning } from '@/components/ResourceBadges'
 import { resourceListQuery, type ResourcePlural } from '@/lib/api/queries'
 import { useSaveResource } from '@/lib/api/resources'
@@ -24,6 +25,27 @@ export const costKinds = [
   { value: 'list_equivalent', label: 'Subscription usage at list prices', hint: 'Not money spent; count it only to cap how much of a subscription is used.' },
 ] as const
 
+/** Currencies offered for budgets (prices on providers use these). */
+export const CURRENCIES = ['USD', 'EUR', 'GBP'] as const
+
+/** IANA time zones for period boundaries (UTC first). */
+export function timeZones(): string[] {
+  let zones: string[] = []
+  try {
+    zones = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.('timeZone') ?? []
+  } catch {
+    zones = []
+  }
+  return ['UTC', ...zones.filter((z) => z !== 'UTC')]
+}
+
+/** Problems with a budget limit, or undefined when it is a positive amount. */
+export function limitError(limit: number | null): string | undefined {
+  if (limit === null) return undefined
+  if (!(limit > 0)) return 'Enter an amount greater than 0.'
+  return undefined
+}
+
 /** Create or edit a spend budget. */
 export function BudgetDialog({ budget, onClose }: { budget: BudgetRes | null; onClose: () => void }) {
   const init = budget?.spec
@@ -31,78 +53,148 @@ export function BudgetDialog({ budget, onClose }: { budget: BudgetRes | null; on
   const [scope, setScope] = useState<Scope>(init?.scope ?? 'workspace')
   const [scopeID, setScopeID] = useState(init?.scope_id ?? '')
   const [period, setPeriod] = useState<BudgetSpec['period']>(init?.period ?? 'month')
-  const [limit, setLimit] = useState(init?.limit ?? '')
+  const [limit, setLimit] = useState<number | null>(init?.limit ? Number(init.limit) : null)
   const [currency, setCurrency] = useState(init?.currency ?? 'USD')
   const [kinds, setKinds] = useState<string[]>(init?.cost_kinds ?? ['actual_api_charge', 'estimated_api_charge'])
   const [enforcement, setEnforcement] = useState<NonNullable<BudgetSpec['enforcement']>>(init?.enforcement ?? 'block')
-  const [warnAt, setWarnAt] = useState(String(Math.round((init?.warn_at ?? 0.8) * 100)))
+  const [warnAt, setWarnAt] = useState<number | null>(Math.round((init?.warn_at ?? 0.8) * 100))
   const [tz, setTz] = useState(init?.timezone ?? '')
   const [enabled, setEnabled] = useState(init?.enabled ?? true)
   const target = scope === 'global' ? undefined : scopeKinds[scope]
   const options = useQuery({ ...resourceListQuery<ResourceMeta>(target?.plural ?? 'workspaces'), enabled: !!target })
   const save = useSaveResource<BudgetSpec>('budgets')
-  const warnNum = Number(warnAt)
-  const warnValid = Number.isFinite(warnNum) && warnNum > 0 && warnNum <= 100
+  const errs = useFieldErrors(save.error)
+  const zones = useMemo(() => timeZones(), [])
+  // A stale server error goes away as soon as the user changes something.
+  const edit =
+    <T,>(f: (v: T) => void) =>
+    (v: T) => {
+      if (save.error) save.reset()
+      f(v)
+    }
+  const warnValid = warnAt !== null && warnAt >= 1 && warnAt <= 100
+  const currencies = CURRENCIES.includes(currency as (typeof CURRENCIES)[number]) ? [...CURRENCIES] : [...CURRENCIES, currency]
 
   const submit = () => {
     const spec: BudgetSpec = {
       scope,
       scope_id: scope === 'global' ? '' : scopeID,
       period,
-      limit: limit.trim(),
+      limit: String(limit ?? ''),
       currency,
       cost_kinds: kinds,
       enforcement,
-      warn_at: warnNum / 100,
-      timezone: tz.trim(),
+      warn_at: (warnAt ?? 80) / 100,
+      timezone: tz === 'UTC' ? '' : tz,
       enabled,
     }
     save.mutate({ existing: budget ?? undefined, body: { name, spec } }, { onSuccess: onClose })
   }
+  const ready = !!name && !nameError(name) && limit !== null && !limitError(limit) && (scope === 'global' || !!scopeID) && kinds.length > 0 && warnValid
   return (
     <Dialog open wide title={budget ? `Edit budget ${budget.name}` : 'Add budget'} onClose={onClose}>
       <TerraformEditWarning r={budget} />
-      <div className={f.grid}>
-        <TextField label="Name" value={name} onChange={setName} disabled={!!budget} required placeholder="e.g. team-monthly" />
-        <TextField label="Limit" value={limit} onChange={setLimit} placeholder="50.00" required suffix={currency} />
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+        <NameField label="Name" value={name} onChange={edit(setName)} locked={!!budget} error={errs.name} autoFocus={!budget} />
+        <NumberField
+          label="Limit"
+          value={limit}
+          onChange={edit(setLimit)}
+          integer={false}
+          min={0}
+          unit={currency}
+          placeholder="50.00"
+          required
+          w="100%"
+          error={limitError(limit) ?? errs.limit}
+        />
         <SelectField<Scope>
-          label="Scope"
+          label="Applies to"
           value={scope}
-          onChange={(v) => {
+          onChange={edit((v: Scope) => {
             setScope(v)
             setScopeID('')
-          }}
+          })}
           options={[{ value: 'global', label: 'Everything' }, ...Object.entries(scopeKinds).map(([k, v]) => ({ value: k as Scope, label: v.label }))]}
         />
         {target && (
-          <SelectField label={target.label} value={scopeID} onChange={setScopeID}
-            options={[{ value: '', label: options.isLoading ? 'Loading…' : `Select a ${target.label.toLowerCase()}` }, ...(options.data?.items ?? []).map((o) => ({ value: o.id, label: o.name }))]} />
+          <SelectField
+            label={target.label}
+            value={scopeID}
+            onChange={edit(setScopeID)}
+            placeholder={options.isLoading ? 'Loading…' : `Choose a ${target.label.toLowerCase()}`}
+            error={errs.scope_id}
+            options={(options.data?.items ?? []).map((o) => ({ value: o.id, label: o.name }))}
+          />
         )}
-        <SelectField label="Period" value={period} onChange={setPeriod} options={[{ value: 'day', label: 'Day' }, { value: 'week', label: 'Week (Monday start)' }, { value: 'month', label: 'Month' }]} />
-        <SelectField label="Enforcement" value={enforcement} onChange={setEnforcement}
-          options={[{ value: 'block', label: 'Block new requests at the limit' }, { value: 'warn', label: 'Warn only' }]} />
-      </div>
+        <SelectField
+          label="Period"
+          value={period}
+          onChange={edit(setPeriod)}
+          options={[
+            { value: 'day', label: 'Day' },
+            { value: 'week', label: 'Week (Monday start)' },
+            { value: 'month', label: 'Month' },
+          ]}
+        />
+        <SelectField
+          label="When the limit is reached"
+          value={enforcement}
+          onChange={edit(setEnforcement)}
+          options={[
+            { value: 'block', label: 'Block new requests' },
+            { value: 'warn', label: 'Warn only' },
+          ]}
+        />
+      </SimpleGrid>
       <Advanced>
-        <div className={f.grid}>
-          <TextField label="Warn at" type="number" suffix="%" value={warnAt} onChange={setWarnAt} error={warnValid ? undefined : 'Between 1 and 100.'} />
-          <TextField label="Currency" value={currency} onChange={(v) => setCurrency(v.toUpperCase())} maxLength={3} hint="Only costs in this currency count." />
-          <TextField label="Timezone" value={tz} onChange={setTz} placeholder="UTC" hint="Period boundaries use this IANA timezone, e.g. Europe/Vilnius." />
-        </div>
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+          <NumberField
+            label="Warn at"
+            unit="%"
+            min={1}
+            max={100}
+            value={warnAt}
+            onChange={edit(setWarnAt)}
+            w="100%"
+            error={warnValid ? undefined : 'Between 1 and 100.'}
+          />
+          <Select
+            label="Currency"
+            description="Only costs in this currency count."
+            data={currencies}
+            value={currency}
+            allowDeselect={false}
+            onChange={(v) => v && edit(setCurrency)(v)}
+            comboboxProps={{ withinPortal: true }}
+          />
+          <Select
+            label="Time zone"
+            description="Where each period starts."
+            data={zones}
+            value={tz || 'UTC'}
+            searchable
+            allowDeselect={false}
+            onChange={(v) => v && edit(setTz)(v)}
+            error={errs.timezone}
+            comboboxProps={{ withinPortal: true }}
+          />
+        </SimpleGrid>
         <fieldset className={c.checks} style={{ flexDirection: 'column' }}>
           <legend className={c.legend}>What counts</legend>
           {costKinds.map((k) => (
-            <Checkbox key={k.value} label={k.label} description={k.hint} checked={kinds.includes(k.value)} onChange={(on) => setKinds(toggle(kinds, k.value, on))} />
+            <Checkbox key={k.value} label={k.label} description={k.hint} checked={kinds.includes(k.value)} onChange={(on) => edit(setKinds)(toggle(kinds, k.value, on))} />
           ))}
         </fieldset>
-        <Checkbox label="Budget on" checked={enabled} onChange={setEnabled} />
+        <Checkbox label="Budget on" checked={enabled} onChange={edit(setEnabled)} />
       </Advanced>
       <MutationError error={save.error} />
-      <div className={f.actions}>
+      <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" busy={save.isPending} disabled={!name || !limit || (scope !== 'global' && !scopeID) || kinds.length === 0 || !warnValid || currency.length !== 3} onClick={submit}>
+        <Button variant="primary" busy={save.isPending} disabled={!ready} onClick={submit}>
           Save budget
         </Button>
-      </div>
+      </DialogActions>
     </Dialog>
   )
 }
