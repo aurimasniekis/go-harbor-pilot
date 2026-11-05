@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -284,7 +285,11 @@ func (h *Handlers) registerOIDC(a *api.API) {
 		func(ctx context.Context, in *idPath) (*linkOut, error) {
 			st, err := h.Auth.StartOIDC(ctx, in.ID, auth.OIDCPurposeTest, "", "/settings/auth")
 			if err != nil {
-				return nil, api.Invalid(userMessage(err))
+				issuer := ""
+				if p, perr := h.Auth.GetOIDCProvider(ctx, in.ID); perr == nil {
+					issuer = p.Issuer
+				}
+				return nil, api.Invalid(testMessage(err, issuer))
 			}
 			out := &linkOut{SetCookie: []http.Cookie{h.flowCookie(st.BrowserCookie, st.ExpiresAt)}}
 			out.Body.AuthURL = st.AuthURL
@@ -342,6 +347,20 @@ func (h *Handlers) flowCookie(v string, exp time.Time) http.Cookie {
 	return http.Cookie{ //nolint:gosec // Secure is set whenever the public URL is https
 		Name: h.Auth.FlowCookieName(), Value: v, Path: "/", HttpOnly: true, Secure: h.Auth.SecureCookies(),
 		SameSite: http.SameSiteLaxMode, MaxAge: max(int(time.Until(exp)/time.Second), 1)}
+}
+
+// testMessage explains a failed test sign-in in plain words. Discovery
+// failures (wrong issuer, unreachable host, an HTML page instead of JSON)
+// name the document that could not be read instead of the decoder error.
+func testMessage(err error, issuer string) string {
+	if strings.Contains(err.Error(), "oidc discovery") {
+		doc := "the provider's discovery document"
+		if issuer != "" {
+			doc = strings.TrimRight(issuer, "/") + "/.well-known/openid-configuration"
+		}
+		return "Couldn't read " + doc + ". Check the issuer URL, and that this server can reach it."
+	}
+	return userMessage(err)
 }
 
 func userMessage(err error) string {

@@ -376,9 +376,76 @@ func mapErr(err error) error {
 	}
 	msg := err.Error()
 	if strings.Contains(msg, "invalid") || strings.Contains(msg, "must") || strings.Contains(msg, "required") || strings.Contains(msg, "only") {
+		if fields := validationFields(msg); len(fields) > 0 {
+			return api.Invalid("validation failed", fields...)
+		}
 		return api.Invalid(msg)
 	}
 	return err
+}
+
+// fieldPrefixes map the start of a validation message to the request field
+// it is about, so clients can show it next to that field.
+var fieldPrefixes = []struct{ prefix, location string }{
+	{"slug", "body.slug"},
+	{"display_name", "body.display_name"},
+	{"issuer", "body.issuer"},
+	{"client_id", "body.client_id"},
+	{"client_secret_ref", "body.client_secret_ref"},
+	{"secret reference", "body.client_secret_ref"},
+	{"scopes", "body.scopes"},
+	{"invalid role mapping", "body.role_mappings"},
+	{"invalid default_role", "body.default_role"},
+	{"just-in-time provisioning", "body.allowed_domains"},
+	{"provisioning", "body.provisioning"},
+	{"unsupported signing algorithm", "body.allowed_algs"},
+}
+
+// validationFields splits a joined validation error (one problem per line)
+// into field errors. Lines that name no known field keep the request body
+// as their location; nil means the message names no field at all.
+func validationFields(msg string) []api.FieldError {
+	var out []api.FieldError
+	matched := false
+	for _, line := range strings.Split(msg, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		loc := "body"
+		for _, f := range fieldPrefixes {
+			if strings.HasPrefix(line, f.prefix) {
+				loc, matched = f.location, true
+				break
+			}
+		}
+		out = append(out, api.FieldError{Location: loc, Message: fieldMessage(line)})
+	}
+	if !matched {
+		return nil
+	}
+	return out
+}
+
+// fieldMessage rewrites the server's terse rule into a sentence for a form.
+func fieldMessage(line string) string {
+	switch {
+	case strings.HasPrefix(line, "slug must"):
+		return "Use lowercase letters, digits, dots, dashes or underscores."
+	case strings.HasPrefix(line, "issuer must"):
+		return "Enter the provider's https URL, for example https://id.example.com (plain http only for issuers on a private network)."
+	case strings.HasPrefix(line, "display_name is required"):
+		return "Enter a name people will see on the sign-in page."
+	case strings.HasPrefix(line, "client_id is required"):
+		return "Enter the client ID the provider gave you."
+	case strings.HasPrefix(line, "scopes must include openid"):
+		return "Include the openid scope."
+	case strings.HasPrefix(line, "invalid role mapping"):
+		return "Each mapping needs a group and one of the roles viewer, operator or admin (" + strings.TrimPrefix(line, "invalid role mapping ") + ")."
+	case strings.HasPrefix(line, "just-in-time provisioning"):
+		return "Just-in-time sign-up needs allowed email domains or group mappings, so not everyone at the provider gets in."
+	}
+	return line
 }
 
 func (h *Handlers) tx(ctx context.Context, fn func(tx *sql.Tx) error) error {
