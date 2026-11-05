@@ -165,3 +165,22 @@
   text-decoration: none;
   display: inline-block;
 }
+
+.mapTable td,
+.mapTable th {
+  vertical-align: top;
+}
+
+.mapActions {
+  white-space: nowrap;
+  width: 1%;
+}
+
+.hiddenAction {
+  visibility: hidden;
+}
+
+.noteInput {
+  flex: 1 1 260px;
+  margin-right: auto;
+}

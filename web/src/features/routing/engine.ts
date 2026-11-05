@@ -1,8 +1,8 @@
 import type { EngineSpec, HitPolicy, RuleAction, RuleSpec, RuleStage, TableRow, TableSpec } from '@/lib/api/types'
 
 export const stages: { value: RuleStage; label: string }[] = [
-  { value: 'request', label: 'Request (before candidates)' },
-  { value: 'candidate', label: 'Candidate (per pool member)' },
+  { value: 'request', label: 'Before choosing an account' },
+  { value: 'candidate', label: 'For each account in the fallback group' },
 ]
 
 export const actionsByStage: Record<RuleStage, { value: RuleAction; label: string }[]> = {
@@ -18,9 +18,9 @@ export const actionsByStage: Record<RuleStage, { value: RuleAction; label: strin
 }
 
 export const hitPolicies: { value: HitPolicy; label: string; help: string }[] = [
-  { value: 'first', label: 'First', help: 'The first matching row applies.' },
-  { value: 'unique', label: 'Unique', help: 'At most one row may match; more than one is a configuration error and nothing applies.' },
-  { value: 'collect', label: 'Collect', help: 'Every matching row applies, in order.' },
+  { value: 'first', label: 'First matching row wins', help: 'The first matching row applies.' },
+  { value: 'unique', label: 'Only one row may match', help: 'At most one row may match; more than one is a configuration error and nothing applies.' },
+  { value: 'collect', label: 'Every matching row applies', help: 'Every matching row applies, in order.' },
 ]
 
 export function emptyEngine(): EngineSpec {
@@ -87,17 +87,31 @@ export function serializeEngine(e: EngineSpec): EngineSpec | undefined {
   }
 }
 
+/**
+ * A new rule starts turned off with no condition, so adding one never
+ * changes traffic until it is configured and switched on.
+ */
 export function newRule(existing: RuleSpec[]): RuleSpec {
-  return { name: uniqueName('rule', existing.map((r) => r.name)), stage: 'request', when: '', action: 'block', reason: '', enabled: true }
+  return { name: uniqueName('rule', existing.map((r) => r.name)), stage: 'request', when: '', action: 'block', reason: '', enabled: false }
 }
 
+/** A new decision table starts turned off and without rows (it never applies). */
 export function newTable(existing: string[]): TableSpec {
-  return { name: uniqueName('table', existing), stage: 'request', hit_policy: 'first', inputs: ['request.harness'],
-    rows: [{ conditions: ['-'], action: 'block', reason: '' }], enabled: true }
+  return { name: uniqueName('table', existing), stage: 'request', hit_policy: 'first', inputs: ['request.harness'], rows: [], enabled: false }
+}
+
+/** True when a table row has no condition (every cell is empty or "-"). */
+export function rowMatchesAll(row: TableRow): boolean {
+  return row.conditions.every((c) => c.trim() === '' || c.trim() === '-')
+}
+
+/** True when an enabled rule or row would block every request. */
+export function blocksEverything(x: { stage: RuleStage; action: RuleAction; enabled?: boolean }, matchesAll: boolean): boolean {
+  return x.enabled !== false && x.stage === 'request' && x.action === 'block' && matchesAll
 }
 
 function uniqueName(prefix: string, taken: string[]): string {
-  for (let i = taken.length + 1; ; i++) {
+  for (let i = taken.filter((n) => n.startsWith(`${prefix}-`)).length + 1; ; i++) {
     const n = `${prefix}-${i}`
     if (!taken.includes(n)) return n
   }
@@ -125,8 +139,15 @@ export function structuralProblems(e: EngineSpec): string[] {
     if (a.action === 'require' && !a.capability) out.push(`${what}: choose the capability to require.`)
     if (a.action === 'set_intent' && !(a.intent ?? '').trim()) out.push(`${what}: enter the intent to set.`)
   }
-  e.rules.forEach((r, i) => checkAction(`Rule ${r.name || i + 1}`, r))
+  e.rules.forEach((r, i) => {
+    checkAction(`Rule ${r.name || i + 1}`, r)
+    if (r.enabled && r.stage === 'request' && r.action === 'block' && r.when.trim() === 'true') out.push(`Rule ${r.name || i + 1} blocks every request.`)
+  })
   e.tables.forEach((t, i) => {
+    if (t.enabled && t.stage === 'request')
+      t.rows.forEach((r, j) => {
+        if (r.action === 'block' && rowMatchesAll(r)) out.push(`Table ${t.name || i + 1}, row ${j + 1} has no condition, so it blocks every request.`)
+      })
     if (t.inputs.length === 0) out.push(`Table ${t.name || i + 1} needs at least one input column.`)
     t.rows.forEach((r, j) => checkAction(`Table ${t.name || i + 1}, row ${j + 1}`, r))
     if (t.hit_policy !== 'collect') {

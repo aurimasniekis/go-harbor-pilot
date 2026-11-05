@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ActionIcon, Group, Menu, Stack, Switch, Text } from '@mantine/core'
+import { ActionIcon, Group, Menu, Stack, Switch, Text, Tooltip } from '@mantine/core'
 import { AlertTriangle, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button, EmptyState } from '@/components/ui'
 import { ConfirmDialog, MutationError } from '@/components/form'
@@ -40,7 +40,14 @@ export function NameCell({ name, display, extra }: { name: string; display?: str
 }
 
 /** Row actions in a "⋯" menu so they stay reachable on phones. */
-export function RowMenu({ name, onEdit, onDelete, extra }: { name: string; onEdit?: () => void; onDelete?: () => void; extra?: ReactNode }) {
+export function RowMenu({ name, onEdit, onDelete, extra, deleteDisabledReason }: {
+  name: string
+  onEdit?: () => void
+  onDelete?: () => void
+  extra?: ReactNode
+  /** When set, Delete is shown disabled with this explanation. */
+  deleteDisabledReason?: string
+}) {
   if (!onEdit && !onDelete && !extra) return null
   return (
     <Menu position="bottom-end" withinPortal>
@@ -57,9 +64,13 @@ export function RowMenu({ name, onEdit, onDelete, extra }: { name: string; onEdi
         )}
         {extra}
         {onDelete && (
-          <Menu.Item color="red" leftSection={<Trash2 size={14} />} onClick={onDelete} aria-label={`Delete ${name}`}>
-            Delete
-          </Menu.Item>
+          <Tooltip label={deleteDisabledReason} disabled={!deleteDisabledReason} withinPortal position="left">
+            <div>
+              <Menu.Item color="red" leftSection={<Trash2 size={14} />} onClick={onDelete} aria-label={`Delete ${name}`} disabled={!!deleteDisabledReason}>
+                Delete
+              </Menu.Item>
+            </div>
+          </Tooltip>
         )}
       </Menu.Dropdown>
     </Menu>
@@ -67,7 +78,9 @@ export function RowMenu({ name, onEdit, onDelete, extra }: { name: string; onEdi
 }
 
 /** Generic list of a managed resource kind with create, edit and delete. */
-export function ResourceList<T extends ResourceMeta>({ plural, title, subtitle, noun, columns, dialog, empty, writePerm = 'config.write', nameCell, extra, onRow }: {
+export function ResourceList<T extends ResourceMeta>({
+  plural, title, subtitle, noun, columns, dialog, empty, writePerm = 'config.write', nameCell, extra, onRow, usedBy, explain, hideTitle,
+}: {
   plural: ResourcePlural
   title: string
   subtitle?: ReactNode
@@ -80,6 +93,12 @@ export function ResourceList<T extends ResourceMeta>({ plural, title, subtitle, 
   extra?: ReactNode
   /** Row click; defaults to editing when the user can write. */
   onRow?: (r: T) => void
+  /** What still uses an item ("plan Team default"); Delete is disabled while non-empty and a "Used by" column is shown. */
+  usedBy?: (r: T) => string[]
+  /** A one-line explanation shown as visible text (instead of the title's info tip). */
+  explain?: ReactNode
+  /** Leave out the visible title when the surrounding tab already names the list. */
+  hideTitle?: boolean
 }) {
   const list = useQuery(resourceListQuery<T>(plural))
   const canWrite = useCan(writePerm)
@@ -102,6 +121,17 @@ export function ResourceList<T extends ResourceMeta>({ plural, title, subtitle, 
       ),
     },
     ...columns.map((c) => ({ id: c.header, header: c.header, cell: c.cell, mobile: c.mobile, align: c.align })),
+    ...(usedBy
+      ? [{
+          id: 'used-by',
+          header: 'Used by',
+          mobile: 'meta' as const,
+          cell: (r: T) => {
+            const u = usedBy(r)
+            return u.length === 0 ? <span className="muted">Nothing</span> : <span title={u.join(', ')}>{u.length <= 2 ? u.join(', ') : `${u.slice(0, 2).join(', ')} +${u.length - 2}`}</span>
+          },
+        }]
+      : []),
     {
       id: 'actions',
       header: <span className="visually-hidden">Actions</span>,
@@ -113,17 +143,15 @@ export function ResourceList<T extends ResourceMeta>({ plural, title, subtitle, 
           name={r.name}
           onEdit={canWrite ? () => setEditing(r) : undefined}
           onDelete={canDelete ? () => setDeleting(r) : undefined}
+          deleteDisabledReason={usedBy && usedBy(r).length > 0 ? `Used by ${usedBy(r).join(', ')}. Change those first.` : undefined}
         />
       ),
     },
   ]
 
-  return (
-    <Section
-      title={title}
-      info={subtitle}
-      actions={canWrite && <Button variant="primary" icon={Plus} onClick={() => setEditing('new')}>Add {noun}</Button>}
-    >
+  const addButton = canWrite && <Button variant="primary" icon={Plus} onClick={() => setEditing('new')}>Add {noun}</Button>
+  const body = (
+    <>
       {extra}
       <MutationError error={del.error} />
       {list.isError ? (
@@ -147,7 +175,7 @@ export function ResourceList<T extends ResourceMeta>({ plural, title, subtitle, 
       <ConfirmDialog
         open={!!deleting}
         title={`Delete ${noun} ${deleting?.name ?? ''}?`}
-        message="This cannot be undone."
+        message={`The ${noun} is removed. If something still uses it, nothing is deleted and you'll see what to change first.`}
         confirmLabel="Delete"
         onCancel={() => setDeleting(null)}
         onConfirm={() => {
@@ -155,6 +183,31 @@ export function ResourceList<T extends ResourceMeta>({ plural, title, subtitle, 
           setDeleting(null)
         }}
       />
+    </>
+  )
+  if (hideTitle) {
+    return (
+      <section aria-label={title}>
+        <Stack gap="md">
+          <Group justify="space-between" align="center" gap="sm" wrap="wrap">
+            <Text size="sm" c="dimmed" maw={760}>
+              {explain ?? subtitle}
+            </Text>
+            {addButton}
+          </Group>
+          {body}
+        </Stack>
+      </section>
+    )
+  }
+  return (
+    <Section title={title} info={explain ? undefined : subtitle} actions={addButton}>
+      {explain && (
+        <Text size="sm" c="dimmed">
+          {explain}
+        </Text>
+      )}
+      {body}
     </Section>
   )
 }

@@ -5,6 +5,7 @@ import { AliasDialog } from '@/features/config/AliasDialog'
 import { effectiveQuery, resourceListQuery } from '@/lib/api/queries'
 import { byId } from '@/lib/api/resources'
 import type { AliasRes, PoolRes } from '@/lib/api/types'
+import { aliasUsers, usePlanDocuments } from '@/features/routing/usage'
 
 export const Route = createFileRoute('/routing/')({
   component: Aliases,
@@ -17,12 +18,15 @@ function Aliases() {
   const pool = byId(pools.data?.items)
   const alias = byId(aliases.data?.items)
   const resolved = byId(eff.data?.aliases)
+  const users = aliasUsers(usePlanDocuments(), aliases.data?.items ?? [])
   return (
     <ResourceList<AliasRes>
       plural="model-aliases"
       title="Model names"
-      subtitle="Names your tools ask for, like coding/default. Each points at a fallback group (or another model name), and plans map other requested models onto them."
+      hideTitle
+      explain="Names your tools ask for, like coding/default. Each points at a fallback group (or another model name); plans map other requested models onto them."
       noun="model name"
+      usedBy={(r) => users[r.id] ?? []}
       empty="Create a model name such as coding/default that points at a fallback group."
       columns={[
         {
@@ -36,7 +40,7 @@ function Aliases() {
             const n = pl.spec.members.length
             return (
               <>
-                Fallback group {pl.name} <span className="muted">({n} {n === 1 ? 'account' : 'accounts'})</span>
+                Fallback group {pl.spec.display_name || pl.name} <span className="muted">({n} {n === 1 ? 'account' : 'accounts'})</span>
               </>
             )
           },

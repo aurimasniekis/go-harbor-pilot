@@ -1,9 +1,48 @@
+import { Paper, Stack, Text } from '@mantine/core'
 import { Badge, TableScroll, type Tone } from '@/components/ui'
 import { BillingBadge } from '@/components/ResourceBadges'
 import { ProtocolBadge } from '@/features/activity/bits'
+import { useCompact } from '@/ui/kit'
 import type { Decision, DecisionCandidate, DecisionExclusion, RuleTrace } from '@/lib/api/types'
 
 const stageTone: Record<string, Tone> = { restriction: 'neutral', capability: 'info', health: 'warning', policy: 'error', rule: 'purple' }
+const stageWords: Record<string, string> = {
+  restriction: 'Hard restriction',
+  capability: 'Missing capability',
+  health: 'Account health',
+  policy: 'Rule',
+  rule: 'Rule',
+  request: 'Before choosing an account',
+  candidate: 'For each account',
+}
+
+/** "Team key 1 (Anthropic)". */
+export function candidateName(c: { provider?: string; account?: string; account_id?: string }): string {
+  const acc = c.account || c.account_id || ''
+  return c.provider ? `${acc} (${c.provider})` : acc
+}
+
+/** How the requested model was resolved, in words. */
+export function resolutionWords(res: string | undefined): string {
+  if (!res) return ''
+  if (res === 'alias_name') return 'exact model name'
+  if (res === 'default_alias') return 'anything else'
+  if (res.startsWith('mapping:')) return `matched ${res.slice('mapping:'.length)}`
+  return res.replaceAll('_', ' ')
+}
+
+/** Why a request was refused, in words. */
+export const errorKindWords: Record<string, string> = {
+  policy_blocked: 'Blocked by a rule',
+  not_found: 'No route for this model',
+  permission: 'Not allowed for this client',
+  quota_exhausted: 'No account has quota left',
+  rate_limited: 'Every account is rate limited',
+  budget_exceeded: 'Budget used up',
+  unsupported: 'No account supports this request',
+  invalid_request: 'Invalid request',
+  internal: 'Configuration problem',
+}
 
 function fmtScore(v: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(2)
@@ -11,20 +50,41 @@ function fmtScore(v: number): string {
 
 /** Eligible candidates in the order they would be tried. */
 export function CandidateTable({ candidates, label = 'Candidates', showScore }: { candidates: DecisionCandidate[]; label?: string; showScore?: boolean }) {
-  if (candidates.length === 0) return <p className="secondary">No eligible candidates were found.</p>
-  const scored = showScore ?? candidates.some((c) => c.score !== 0)
+  const compact = useCompact()
+  if (candidates.length === 0) return <p className="secondary">No account could serve this request.</p>
+  // Score and reasons only matter when something set them.
+  const scored = (showScore ?? true) && candidates.some((c) => c.score !== 0)
+  const reasoned = candidates.some((c) => (c.reasons ?? []).length > 0)
+  if (compact) {
+    return (
+      <Stack gap={6} aria-label={label}>
+        {candidates.map((c, i) => (
+          <Paper key={c.account_id + c.model} withBorder p="xs" radius="sm">
+            <Text size="sm" fw={600}>
+              {i + 1}. {candidateName(c)}
+            </Text>
+            <Text size="xs" c="dimmed">
+              {c.model} · {c.native ? 'direct' : 'translated'}
+              {c.health?.Available === false ? ' · unavailable' : ''}
+              {scored ? ` · score ${fmtScore(c.score)}` : ''}
+            </Text>
+          </Paper>
+        ))}
+      </Stack>
+    )
+  }
   return (
     <TableScroll label={label}>
       <table className="data-table" style={{ width: '100%' }}>
         <thead>
           <tr>
             <th>#</th>
-            <th>Provider / account</th>
+            <th>Account</th>
             <th>Model</th>
             <th>Billing</th>
-            <th>Upstream</th>
+            <th>Sent as</th>
             {scored && <th className="num">Score</th>}
-            <th>Reasons</th>
+            {reasoned && <th>Reasons</th>}
             <th>Health</th>
           </tr>
         </thead>
@@ -32,28 +92,28 @@ export function CandidateTable({ candidates, label = 'Candidates', showScore }: 
           {candidates.map((c, i) => (
             <tr key={c.account_id + c.model}>
               <td className="num">{i + 1}</td>
-              <td>
-                {c.provider} / {c.account}
-              </td>
+              <td>{candidateName(c)}</td>
               <td className="mono">{c.model}</td>
               <td>
                 <BillingBadge value={c.billing} />
               </td>
               <td>
-                <ProtocolBadge p={c.upstream_protocol} /> {c.native ? <Badge tone="success">native</Badge> : <Badge tone="info">translated</Badge>}
+                <ProtocolBadge p={c.upstream_protocol} /> {c.native ? <Badge tone="success">direct</Badge> : <Badge tone="info">translated</Badge>}
               </td>
               {scored && <td className="num">{fmtScore(c.score)}</td>}
-              <td>
-                {(c.reasons ?? []).length ? (
-                  (c.reasons ?? []).map((x) => (
-                    <div key={x} className="secondary">
-                      {x}
-                    </div>
-                  ))
-                ) : (
-                  <span className="muted">—</span>
-                )}
-              </td>
+              {reasoned && (
+                <td>
+                  {(c.reasons ?? []).length ? (
+                    (c.reasons ?? []).map((x) => (
+                      <div key={x} className="secondary">
+                        {x}
+                      </div>
+                    ))
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
+                </td>
+              )}
               <td>
                 {c.health ? (
                   <span>
@@ -74,7 +134,24 @@ export function CandidateTable({ candidates, label = 'Candidates', showScore }: 
 
 /** Pool members removed before ranking, with the stage and reason. */
 export function ExclusionTable({ excluded, label = 'Excluded candidates' }: { excluded: DecisionExclusion[]; label?: string }) {
-  if (excluded.length === 0) return <p className="secondary">No pool member was excluded.</p>
+  const compact = useCompact()
+  if (excluded.length === 0) return <p className="secondary">No account in the fallback group was skipped.</p>
+  if (compact) {
+    return (
+      <Stack gap={6} aria-label={label}>
+        {excluded.map((x, i) => (
+          <Paper key={i} withBorder p="xs" radius="sm">
+            <Text size="sm" fw={600}>
+              {x.account || x.account_id} · {x.model}
+            </Text>
+            <Text size="xs" c="dimmed">
+              {stageWords[x.stage] ?? x.stage}: {x.detail || x.reason.replaceAll('_', ' ')}
+            </Text>
+          </Paper>
+        ))}
+      </Stack>
+    )
+  }
   return (
     <TableScroll label={label}>
       <table className="data-table" style={{ width: '100%' }}>
@@ -82,8 +159,7 @@ export function ExclusionTable({ excluded, label = 'Excluded candidates' }: { ex
           <tr>
             <th>Account</th>
             <th>Model</th>
-            <th>Stage</th>
-            <th>Reason</th>
+            <th>Skipped because</th>
             <th>Detail</th>
           </tr>
         </thead>
@@ -93,9 +169,8 @@ export function ExclusionTable({ excluded, label = 'Excluded candidates' }: { ex
               <td>{x.account || <span className="mono">{x.account_id}</span>}</td>
               <td className="mono">{x.model}</td>
               <td>
-                <Badge tone={stageTone[x.stage] ?? 'neutral'}>{x.stage}</Badge>
+                <Badge tone={stageTone[x.stage] ?? 'neutral'}>{stageWords[x.stage] ?? x.stage}</Badge> {x.reason.replaceAll('_', ' ')}
               </td>
-              <td className="mono">{x.reason}</td>
               <td>{x.detail || <span className="muted">—</span>}</td>
             </tr>
           ))}
@@ -113,9 +188,9 @@ export function RuleTraceTable({ traces, accountName, label = 'Rule evaluations'
       <table className="data-table" style={{ width: '100%' }}>
         <thead>
           <tr>
-            <th>Rule / table</th>
-            <th>Stage</th>
-            <th>Candidate</th>
+            <th>Rule or table</th>
+            <th>When</th>
+            <th>Account</th>
             <th>Result</th>
             <th>Effect</th>
           </tr>
@@ -127,7 +202,7 @@ export function RuleTraceTable({ traces, accountName, label = 'Rule evaluations'
                 <span className="mono">{t.name}</span> {t.kind === 'table' && <Badge>table{t.row !== undefined ? ` row ${t.row + 1}` : ''}</Badge>}
               </td>
               <td>
-                <Badge tone={t.stage === 'request' ? 'info' : 'purple'}>{t.stage}</Badge>
+                <Badge tone={t.stage === 'request' ? 'info' : 'purple'}>{stageWords[t.stage] ?? t.stage}</Badge>
               </td>
               <td>
                 {t.account_id ? (
@@ -150,7 +225,7 @@ export function RuleTraceTable({ traces, accountName, label = 'Rule evaluations'
                   <Badge>no match</Badge>
                 )}
               </td>
-              <td>{t.error ? <span className="secondary mono">{t.error}</span> : t.effect || <span className="muted">—</span>}</td>
+              <td>{t.error ? <span className="secondary mono">{t.error}</span> : t.effect ? t.effect.replace(/: ?$/, '') : <span className="muted">—</span>}</td>
             </tr>
           ))}
         </tbody>
@@ -159,28 +234,28 @@ export function RuleTraceTable({ traces, accountName, label = 'Rule evaluations'
   )
 }
 
-/** Compact summary line for a decision (alias → pool, intent). */
+/** One line: requested model → model name (how it matched) → fallback group. */
 export function DecisionSummary({ d }: { d: Decision }) {
   return (
     <p className="secondary" style={{ margin: 0 }}>
       {d.requested_model && (
         <>
-          Requested <span className="mono">{d.requested_model}</span>
+          Asked for <span className="mono">{d.requested_model}</span>
         </>
       )}
       {d.alias && (
         <>
           {' '}
-          → alias <span className="mono">{d.alias}</span>
+          → model name <span className="mono">{d.alias}</span>
+          {d.resolution && <> ({resolutionWords(d.resolution)})</>}
         </>
       )}
       {d.pool && (
         <>
           {' '}
-          → pool <span className="mono">{d.pool}</span> ({d.strategy || 'ordered'})
+          → fallback group <span className="mono">{d.pool}</span>
         </>
       )}
-      {d.resolution && <> · {d.resolution}</>}
       {d.intent && (
         <>
           {' '}
@@ -188,7 +263,7 @@ export function DecisionSummary({ d }: { d: Decision }) {
           {d.intent_source ? ` (${d.intent_source})` : ''}
         </>
       )}
-      {(d.required_capabilities?.length ?? 0) > 0 && <> · requires {d.required_capabilities!.join(', ')}</>}
+      {(d.required_capabilities?.length ?? 0) > 0 && <> · needs {d.required_capabilities!.join(', ')}</>}
     </p>
   )
 }

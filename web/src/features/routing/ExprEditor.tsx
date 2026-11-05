@@ -47,6 +47,8 @@ export function useExprValidation(code: string, kind: ExprKind, scope: ExprScope
     retry: false,
   })
   const pending = code.trim() !== debounced || q.isFetching
+  // An empty decision-table cell matches anything, like "-".
+  if (code.trim() === '' && opts?.any) return { state: 'ok' as const, message: 'Matches any value.' }
   if (code.trim() === '') return { state: opts?.optional ? ('empty' as const) : ('error' as const), message: opts?.optional ? undefined : 'Required.' }
   if (opts?.any && code.trim() === '-') return { state: 'ok' as const, message: 'Matches any value.' }
   const local = scopeProblem(code, scope)

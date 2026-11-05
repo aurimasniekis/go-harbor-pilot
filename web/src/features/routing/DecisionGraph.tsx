@@ -2,11 +2,29 @@ import { ArrowRight, ChevronRight } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui'
 import { BillingBadge } from '@/components/ResourceBadges'
-import { fallbackSteps } from '@/features/config/constants'
 import type { PlanDocument } from '@/lib/api/types'
 import { parseEngine } from './engine'
 import type { Lane } from './graph'
 import r from './routing.module.css'
+import { orderedMembers } from './flow'
+import { accountLabel } from './names'
+import { plural } from '@/ui/glossary'
+
+const strategyWords: Record<string, string> = {
+  ordered: 'tried in order',
+  weighted: 'spread by weight',
+  reset_soonest: 'quota that resets soonest first',
+  least_used: 'least used first',
+  round_robin: 'take turns',
+}
+
+const stepWords: Record<string, string> = {
+  retry: 'Retry the same account',
+  alternate_account: 'Another account, same model',
+  alternate_model: 'Another model in the group',
+  alternate_provider: 'Another provider',
+  wait: 'Wait for capacity',
+}
 
 function Edge() {
   return (
@@ -27,7 +45,7 @@ function LaneView({ lane }: { lane: Lane }) {
       </div>
       <Edge />
       <div className={lane.chain.length ? r.node : r.nodeMuted}>
-        <span className={r.nodeKind}>Alias</span>
+        <span className={r.nodeKind}>Model name</span>
         {lane.chain.length === 0 ? (
           <span>{lane.problem ?? 'none'}</span>
         ) : (
@@ -60,22 +78,22 @@ function LaneView({ lane }: { lane: Lane }) {
       <div className={r.members}>
         {lane.pool ? (
           <div className={r.node}>
-            <span className={r.nodeKind}>Pool</span>
+            <span className={r.nodeKind}>Fallback group</span>
             <span>
-              <span className="mono">{lane.pool.name}</span> · {lane.pool.spec.strategy || 'ordered'}
-              {lane.pool.spec.affinity === 'session' && ' · session affinity'}
+              {lane.pool.spec.display_name || lane.pool.name} · {strategyWords[lane.pool.spec.strategy || 'ordered'] ?? lane.pool.spec.strategy}
+              {lane.pool.spec.affinity === 'session' && ' · keeps a conversation on one account'}
             </span>
           </div>
         ) : (
           <div className={r.nodeMuted}>
-            <span className={r.nodeKind}>Pool</span>
+            <span className={r.nodeKind}>Fallback group</span>
             <span>{lane.problem ?? 'unresolved'}</span>
           </div>
         )}
-        {lane.members.map((m) => (
+        {orderedMembers(lane).map((m, i) => (
           <div key={m.accountId + m.model} className={r.member} style={m.blocked.length ? { opacity: 0.65 } : undefined}>
             <span>
-              <span className="secondary">P{m.priority}</span> {m.provider?.name ?? '?'} / {m.account?.name ?? <span className="mono">{m.accountId}</span>}{' '}
+              <span className="secondary">{i + 1}.</span> {accountLabel(m.account, m.provider ? { [m.provider.id]: m.provider } : {}, m.accountId)}{' '}
               · <span className="mono">{m.model}</span>
             </span>
             <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
@@ -88,7 +106,7 @@ function LaneView({ lane }: { lane: Lane }) {
             </span>
           </div>
         ))}
-        {lane.pool && lane.members.length === 0 && <span className="secondary">The pool has no members.</span>}
+        {lane.pool && lane.members.length === 0 && <span className="secondary">The fallback group has no accounts.</span>}
       </div>
     </li>
   )
@@ -106,7 +124,7 @@ export function DecisionGraph({ doc, lanes }: { doc: PlanDocument; lanes: Lane[]
   return (
     <div className={r.graph}>
       {lanes.length === 0 ? (
-        <p className="secondary">This version maps no models and has no default alias, so every request is rejected.</p>
+        <p className="secondary">This version maps no models and has nothing for other models, so every request is rejected.</p>
       ) : (
         <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} aria-label="Routes">
           {lanes.map((l) => (
@@ -115,16 +133,16 @@ export function DecisionGraph({ doc, lanes }: { doc: PlanDocument; lanes: Lane[]
         </ol>
       )}
       <div className={r.fallback} aria-label="Evaluation stages">
-        <span className={r.nodeKind}>Stages</span>
-        <Badge tone="info">{reqRules} request rule{reqRules === 1 ? '' : 's'}</Badge>
+        <span className={r.nodeKind}>Order</span>
+        <Badge tone="info">{plural(reqRules, 'rule')} before choosing an account</Badge>
         <ChevronRight size={14} aria-hidden="true" />
         <Badge>hard restrictions</Badge>
         <ChevronRight size={14} aria-hidden="true" />
         <Badge>health</Badge>
         <ChevronRight size={14} aria-hidden="true" />
-        <Badge tone="purple">{candRules} candidate rule{candRules === 1 ? '' : 's'}</Badge>
+        <Badge tone="purple">{plural(candRules, 'rule')} for each account</Badge>
         <ChevronRight size={14} aria-hidden="true" />
-        <Badge>{engine.score.trim() ? 'score expression' : 'pool order'}</Badge>
+        <Badge>{engine.score.trim() ? 'score expression' : 'fallback group order'}</Badge>
       </div>
       <div className={r.fallback} aria-label="Fallback steps">
         <span className={r.nodeKind}>Fallback</span>
@@ -132,7 +150,7 @@ export function DecisionGraph({ doc, lanes }: { doc: PlanDocument; lanes: Lane[]
         {fb.steps.map((s, i) => (
           <span key={`${s}-${i}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             {i > 0 && <ChevronRight size={14} aria-hidden="true" />}
-            <Badge tone={s === 'stop' ? 'neutral' : 'accent'}>{fallbackSteps.find((x) => x.value === s)?.label ?? s}</Badge>
+            <Badge tone={s === 'stop' ? 'neutral' : 'accent'}>{s === 'stop' ? 'Stop' : (stepWords[s] ?? s)}</Badge>
           </span>
         ))}
         <span className="secondary">· at most {fb.max_attempts} attempts</span>
@@ -142,10 +160,12 @@ export function DecisionGraph({ doc, lanes }: { doc: PlanDocument; lanes: Lane[]
           <Badge tone="success" title="A metered API account may not follow a non-metered first choice.">no paid fallback</Badge>
         )}
       </div>
-      <p className="secondary" style={{ margin: 0 }}>
-        Members marked in red are removed by this plan's hard restrictions or configuration before ranking. Live account health is applied per request;
-        use the simulator or the <Link to="/routing/pools" style={{ textDecoration: 'underline' }}>fallback groups</Link> to check it.
-      </p>
+      {lanes.some((l) => l.members.some((m) => m.blocked.length > 0)) && (
+        <p className="secondary" style={{ margin: 0 }}>
+          Accounts marked in red are ruled out by this plan's hard restrictions or configuration. Live account health is applied per request; use Test a request
+          or the <Link to="/routing/pools" style={{ textDecoration: 'underline' }}>fallback groups</Link> to check it.
+        </p>
+      )}
     </div>
   )
 }

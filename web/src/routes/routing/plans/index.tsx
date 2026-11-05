@@ -8,7 +8,7 @@ import { effectiveQuery, planVersionsQuery, resourceListQuery } from '@/lib/api/
 import { byId } from '@/lib/api/resources'
 import type { AccountRes, AliasRes, PlanRes, PoolRes, ProviderRes } from '@/lib/api/types'
 import { planLanes } from '@/features/routing/graph'
-import { planSummary } from '@/features/routing/flow'
+import { engineHazards, planSummary } from '@/features/routing/flow'
 
 export const Route = createFileRoute('/routing/plans/')({
   component: Plans,
@@ -38,6 +38,21 @@ function Summary({ planId, maps }: { planId: string; maps: ReturnType<typeof use
   )
 }
 
+/** Live version, pending draft and a warning when live blocks everything. */
+function VersionCell({ planId }: { planId: string }) {
+  const v = useQuery(planVersionsQuery(planId))
+  const items = v.data?.items ?? []
+  const live = items.find((x) => x.status === 'published')
+  const draft = items.find((x) => x.status === 'draft')
+  return (
+    <Group gap={4} wrap="wrap">
+      {live ? <Badge tone="success">Live v{live.version}</Badge> : <Badge tone="warning">Not live</Badge>}
+      {draft && <Badge tone="info">Draft v{draft.version} pending</Badge>}
+      {live && engineHazards(live.document).length > 0 && <Badge tone="error">Blocks every request</Badge>}
+    </Group>
+  )
+}
+
 function Plans() {
   const navigate = useNavigate()
   const eff = useQuery(effectiveQuery)
@@ -47,26 +62,16 @@ function Plans() {
     <ResourceList<PlanRes>
       plural="routing-plans"
       title="Routing plans"
-      subtitle="A plan decides which account and model serve each request. Changes are drafted, then published; drafts never affect traffic."
+      hideTitle
+      explain="A plan decides which account and model serve each request. Changes are drafted, then published; drafts never affect traffic."
       noun="plan"
+      usedBy={(r) => ((plans[r.id]?.bindings ?? 0) > 0 ? [`${plans[r.id]?.bindings} ${(plans[r.id]?.bindings ?? 0) === 1 ? 'client' : 'clients'}`] : [])}
       empty="Create a plan, then draft and publish its first version."
       nameCell={(r) => <NameCell name={r.name} display={r.spec.display_name} />}
       onRow={(r) => void navigate({ to: '/routing/plans/$planId', params: { planId: r.id } })}
       columns={[
         { header: 'What it does', mobile: 'line', cell: (r) => <Summary planId={r.id} maps={maps} /> },
-        {
-          header: 'Version',
-          mobile: 'meta',
-          cell: (r) => {
-            const p = plans[r.id]
-            return (
-              <Group gap={4} wrap="nowrap">
-                {p?.published_version ? <Badge tone="success">Live v{p.published_version}</Badge> : <Badge tone="warning">Not live</Badge>}
-              </Group>
-            )
-          },
-        },
-        { header: 'Used by', mobile: 'meta', cell: (r) => `${plans[r.id]?.bindings ?? 0} ${(plans[r.id]?.bindings ?? 0) === 1 ? 'client' : 'clients'}` },
+        { header: 'Version', mobile: 'meta', cell: (r) => <VersionCell planId={r.id} /> },
       ]}
       dialog={(r, close) => (
         <PlanDialog

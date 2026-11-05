@@ -5,7 +5,7 @@ import { Checkbox, SelectField, TextField } from '@/components/form'
 import type { EngineSpec, FieldErrorDTO, RuleAction, RuleSpec, RuleStage, TableRow, TableSpec } from '@/lib/api/types'
 import { capabilities } from '@/features/config/constants'
 import { ExprEditor, ExprStatus, VariableReference, useExprValidation, type ExprScope } from './ExprEditor'
-import { actionsByStage, describeLocation, hitPolicies, move, newRule, newTable, stages, structuralProblems } from './engine'
+import { actionsByStage, blocksEverything, describeLocation, hitPolicies, move, newRule, newTable, rowMatchesAll, stages, structuralProblems } from './engine'
 import r from './routing.module.css'
 
 type ActionFields = Pick<RuleSpec, 'action' | 'capability' | 'intent' | 'boost' | 'reason'>
@@ -89,24 +89,26 @@ function RuleCard({ rule, index, count, errors, engine, onChange, onMove, onRemo
         <div className={r.cardTitle}>
           <span className="num secondary">{index + 1}.</span>
           <strong className="mono">{label}</strong>
-          <Badge tone={rule.stage === 'request' ? 'info' : 'purple'}>{rule.stage}</Badge>
-          {!rule.enabled && <Badge>disabled</Badge>}
+          {!rule.enabled && <Badge>Off</Badge>}
+          {blocksEverything(rule, rule.when.trim() === 'true') && <Badge tone="error">Blocks every request</Badge>}
         </div>
         <div className={r.cardActions}>
-          <Checkbox label="Enabled" checked={rule.enabled} onChange={(v) => onChange({ ...rule, enabled: v })} />
-          <Button size="small" variant="ghost" icon={ArrowUp} aria-label={`Move ${label} up`} disabled={index === 0} onClick={() => onMove(-1)} />
-          <Button size="small" variant="ghost" icon={ArrowDown} aria-label={`Move ${label} down`} disabled={index === count - 1} onClick={() => onMove(1)} />
+          <Checkbox label="On" checked={rule.enabled} onChange={(v) => onChange({ ...rule, enabled: v })} />
+          <Button size="small" variant="ghost" icon={ArrowUp} aria-label={`Move ${label} up`} className={index === 0 ? r.hiddenAction : undefined}
+            disabled={index === 0} onClick={() => onMove(-1)} />
+          <Button size="small" variant="ghost" icon={ArrowDown} aria-label={`Move ${label} down`} className={index === count - 1 ? r.hiddenAction : undefined}
+            disabled={index === count - 1} onClick={() => onMove(1)} />
           <Button size="small" variant="ghost" icon={Trash2} aria-label={`Remove ${label}`} onClick={onRemove} />
         </div>
       </div>
       <div className={r.fields}>
         <TextField label="Name" value={rule.name} onChange={(v) => onChange({ ...rule, name: v })} maxLength={100} />
-        <SelectField label="Stage" value={rule.stage} options={stages}
+        <SelectField label="Runs" value={rule.stage} options={stages}
           onChange={(st: RuleStage) => onChange({ ...rule, stage: st, action: actionsByStage[st].some((a) => a.value === rule.action) ? rule.action : (actionsByStage[st][0]?.value as RuleAction) })} />
       </div>
       <ExprEditor label="When" kind="bool" scope={rule.stage} value={rule.when} onChange={(v) => onChange({ ...rule, when: v })}
-        placeholder={rule.stage === 'request' ? "request.harness == 'codex'" : "candidate.account.billing == 'metered_api'"}
-        hint="A boolean expression. Unknown values (such as missing quota) make the rule not apply; guard them with known(...)." />
+        placeholder={rule.stage === 'request' ? "e.g. request.harness == 'codex'" : "e.g. candidate.account.billing == 'metered_api'"}
+        hint="A condition that is true or false. Unknown values (such as missing quota) make the rule not apply; guard them with known(...)." />
       <div className={r.fields}>
         <ActionEditor stage={rule.stage} value={rule} onChange={(a) => onChange({ ...rule, ...a })} />
       </div>
@@ -125,10 +127,14 @@ function Cell({ label, value, onChange, scope, kind, onFocus }: {
   onFocus: () => void
 }) {
   const id = useId()
-  const v = useExprValidation(value, kind, scope, { any: scope === 'cell' })
+  const [touched, setTouched] = useState(false)
+  const checked = useExprValidation(value, kind, scope, { any: scope === 'cell' })
+  // A new, still-empty input column is not an error until the person leaves it.
+  const v = !touched && value.trim() === '' && checked.state === 'error' ? { state: 'empty' as const, message: undefined } : checked
   return (
     <div className={r.expr}>
       <textarea
+        onBlur={() => setTouched(true)}
         className={r.cellInput}
         rows={1}
         spellCheck={false}
@@ -184,28 +190,31 @@ function TableCard({ table, index, count, errors, engine, onChange, onMove, onRe
         <div className={r.cardTitle}>
           <span className="num secondary">{index + 1}.</span>
           <strong className="mono">{label}</strong>
-          <Badge tone={table.stage === 'request' ? 'info' : 'purple'}>{table.stage}</Badge>
-          <Badge>hit policy: {table.hit_policy}</Badge>
-          {!table.enabled && <Badge>disabled</Badge>}
+          {!table.enabled && <Badge>Off</Badge>}
+          {table.rows.some((x) => blocksEverything({ ...x, stage: table.stage, enabled: table.enabled }, rowMatchesAll(x))) && (
+            <Badge tone="error">Blocks every request</Badge>
+          )}
         </div>
         <div className={r.cardActions}>
-          <Checkbox label="Enabled" checked={table.enabled} onChange={(v) => onChange({ ...table, enabled: v })} />
-          <Button size="small" variant="ghost" icon={ArrowUp} aria-label={`Move ${label} up`} disabled={index === 0} onClick={() => onMove(-1)} />
-          <Button size="small" variant="ghost" icon={ArrowDown} aria-label={`Move ${label} down`} disabled={index === count - 1} onClick={() => onMove(1)} />
+          <Checkbox label="On" checked={table.enabled} onChange={(v) => onChange({ ...table, enabled: v })} />
+          <Button size="small" variant="ghost" icon={ArrowUp} aria-label={`Move ${label} up`} className={index === 0 ? r.hiddenAction : undefined}
+            disabled={index === 0} onClick={() => onMove(-1)} />
+          <Button size="small" variant="ghost" icon={ArrowDown} aria-label={`Move ${label} down`} className={index === count - 1 ? r.hiddenAction : undefined}
+            disabled={index === count - 1} onClick={() => onMove(1)} />
           <Button size="small" variant="ghost" icon={Trash2} aria-label={`Remove ${label}`} onClick={onRemove} />
         </div>
       </div>
       <div className={r.fields}>
         <TextField label="Name" value={table.name} onChange={(v) => onChange({ ...table, name: v })} maxLength={100} />
-        <SelectField label="Stage" value={table.stage} options={stages}
+        <SelectField label="Runs" value={table.stage} options={stages}
           onChange={(st: RuleStage) =>
             onChange({ ...table, stage: st, rows: table.rows.map((x) => (actionsByStage[st].some((a) => a.value === x.action) ? x : { ...x, action: actionsByStage[st][0]?.value as RuleAction })) })} />
-        <SelectField label="Hit policy" value={table.hit_policy} hint={hp?.help} options={hitPolicies.map((h) => ({ value: h.value, label: h.label }))}
+        <SelectField label="When several rows match" value={table.hit_policy} hint={hp?.help} options={hitPolicies.map((h) => ({ value: h.value, label: h.label }))}
           onChange={(v) => onChange({ ...table, hit_policy: v })} />
       </div>
       <p className={r.hint}>
-        Each column evaluates an input expression; each cell is a condition over <code>value</code> (the column's result), for example{' '}
-        <code>value == 'codex'</code> or <code>value in ['a', 'b']</code>. <code>-</code> matches anything.
+        Each column reads one fact about the request (for example the tool, <code>request.harness</code>). Each cell compares it: write{' '}
+        <code>value == 'codex'</code> to match Codex, or leave <code>-</code> to match anything. A row whose cells are all <code>-</code> matches every request.
       </p>
       <div className={r.tableWrap}>
         <table className={r.grid} aria-label={`Decision table ${label}`}>
@@ -231,7 +240,14 @@ function TableCard({ table, index, count, errors, engine, onChange, onMove, onRe
           <tbody>
             {table.rows.map((row, i) => (
               <tr key={i}>
-                <td className="num">{i + 1}</td>
+                <td className="num">
+                  {i + 1}
+                  {blocksEverything({ ...row, stage: table.stage, enabled: table.enabled }, rowMatchesAll(row)) && (
+                    <div className={r.hazard} title="This row has no condition and blocks every request.">
+                      blocks all
+                    </div>
+                  )}
+                </td>
                 {table.inputs.map((_, col) => (
                   <td key={col}>
                     <Cell label={`Row ${i + 1} condition ${col + 1}`} value={row.conditions[col] ?? '-'} onChange={(v) => setCond(i, col, v)} scope="cell" kind="bool"
@@ -244,9 +260,10 @@ function TableCard({ table, index, count, errors, engine, onChange, onMove, onRe
                   </div>
                 </td>
                 <td style={{ whiteSpace: 'nowrap' }}>
-                  <Button size="small" variant="ghost" icon={ArrowUp} aria-label={`Move row ${i + 1} up`} disabled={i === 0}
+                  <Button size="small" variant="ghost" icon={ArrowUp} aria-label={`Move row ${i + 1} up`} disabled={i === 0} className={i === 0 ? r.hiddenAction : undefined}
                     onClick={() => onChange({ ...table, rows: move(table.rows, i, -1) })} />
                   <Button size="small" variant="ghost" icon={ArrowDown} aria-label={`Move row ${i + 1} down`} disabled={i === table.rows.length - 1}
+                    className={i === table.rows.length - 1 ? r.hiddenAction : undefined}
                     onClick={() => onChange({ ...table, rows: move(table.rows, i, 1) })} />
                   <Button size="small" variant="ghost" icon={Trash2} aria-label={`Remove row ${i + 1}`}
                     onClick={() => onChange({ ...table, rows: table.rows.filter((_, j) => j !== i) })} />
@@ -256,7 +273,7 @@ function TableCard({ table, index, count, errors, engine, onChange, onMove, onRe
             {table.rows.length === 0 && (
               <tr>
                 <td colSpan={table.inputs.length + 3} className="secondary">
-                  No rows. A table without rows never applies.
+                  No rows yet, so this table never applies. Add a row and give it a condition.
                 </td>
               </tr>
             )}
@@ -265,7 +282,7 @@ function TableCard({ table, index, count, errors, engine, onChange, onMove, onRe
       </div>
       <div className={r.cardActions}>
         <Button size="small" icon={Rows3}
-          onClick={() => onChange({ ...table, rows: [...table.rows, { conditions: table.inputs.map(() => '-'), action: firstAction }] })}>
+          onClick={() => onChange({ ...table, rows: [...table.rows, { conditions: table.inputs.map(() => ''), action: firstAction }] })}>
           Add row
         </Button>
         <Button size="small" icon={Columns3} disabled={table.inputs.length >= 10} onClick={addColumn}>
@@ -298,8 +315,8 @@ export function EngineEditor({ value, onChange, errors = [] }: { value: EngineSp
   return (
     <div className={r.section}>
       <Banner tone="info">
-        Evaluation order: request rules and tables (block, require, set intent) → hard restrictions → account health → candidate rules and
-        tables (exclude, adjust score) → score expression → pool order. Scores never bring back an excluded candidate.
+        Order: rules and tables that run before choosing an account (block, require, set intent) → hard restrictions → account health → rules and tables
+        for each account (exclude, adjust score) → score → fallback group order. New rules and tables start off; turn them on when ready.
       </Banner>
       {errors.length > 0 && (
         <Banner tone="error" role="status">
@@ -358,7 +375,7 @@ export function EngineEditor({ value, onChange, errors = [] }: { value: EngineSp
       )}
       <div>
         <Button size="small" icon={Plus} disabled={value.tables.length >= 50}
-          onClick={() => onChange({ ...value, tables: [...value.tables, newTable([...value.rules.map((x) => x.name), ...value.tables.map((x) => x.name)])] })}>
+          onClick={() => onChange({ ...value, tables: [...value.tables, newTable(value.tables.map((x) => x.name))] })}>
           Add decision table
         </Button>
       </div>
@@ -367,7 +384,7 @@ export function EngineEditor({ value, onChange, errors = [] }: { value: EngineSp
         <h3>Score</h3>
       </div>
       <ExprEditor label="Score expression (optional)" kind="float" scope="candidate" optional value={value.score} onChange={(v) => onChange({ ...value, score: v })}
-        placeholder="candidate.native ? 10.0 : 0.0"
+        placeholder="e.g. candidate.native ? 10.0 : 0.0"
         hint="A number per candidate; higher ranks earlier, after exclusions and before pool order. Leave empty to keep pool order." />
     </div>
   )

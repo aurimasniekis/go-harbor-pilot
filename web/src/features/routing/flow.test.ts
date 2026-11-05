@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AccountRes, PlanDocument } from '@/lib/api/types'
 import type { Lane } from './graph'
-import { fallbackSentence, planSummary } from './flow'
+import { docDiff, engineHazards, fallbackSentence, planSummary, sameDocument } from './flow'
 
 const doc = (p: Partial<PlanDocument['fallback']> = {}): PlanDocument =>
   ({ fallback: { steps: ['alternate_account', 'alternate_model', 'stop'], max_attempts: 3, allow_paid_fallback: false, wait_max_seconds: 0, ...p } }) as unknown as PlanDocument
@@ -27,12 +27,60 @@ describe('fallbackSentence', () => {
   })
 })
 
+const withEngine = (engine: unknown, extra: Partial<PlanDocument> = {}): PlanDocument =>
+  ({ ...doc(), model_mappings: [], default_alias_id: '', restrictions: {}, engine, ...extra }) as unknown as PlanDocument
+const blockAllTable = { tables: [{ name: 'table-1', stage: 'request', hit_policy: 'first', inputs: ['request.harness'], enabled: true, rows: [{ conditions: ['-'], action: 'block' }] }] }
+
 describe('planSummary', () => {
-  it('names the accounts in priority order', () => {
+  it('covers every lane, first account and how many more', () => {
     const lanes = [lane('mapping', 'claude-*', [['a', 0]]), lane('default', 'any other model', [['team-2', 1], ['team-1', 0], ['openai', 2]])]
-    expect(planSummary(doc(), lanes)).toBe('Other requests go to team-1 first, then team-2, openai.')
+    expect(planSummary(doc(), lanes)).toBe('claude-* → a · anything else → team-1 (then 2 more).')
+  })
+  it('leads with a rule that blocks every request', () => {
+    const lanes = [lane('default', 'any other model', [['team-1', 0]])]
+    expect(planSummary(withEngine(blockAllTable), lanes)).toBe('Blocks every request (table table-1 row 1).')
+  })
+  it('mentions conditional blocking rules and paid fallback', () => {
+    const lanes = [lane('default', 'any other model', [['team-1', 0]])]
+    const d = withEngine({ rules: [{ name: 'no-codex', stage: 'request', when: 'request.harness == "codex"', action: 'block', enabled: true }] })
+    d.fallback.allow_paid_fallback = true
+    expect(planSummary(d, lanes)).toBe('Blocks some requests (rule no-codex). anything else → team-1. Paid fallback allowed.')
+  })
+  it('ignores rules that are turned off', () => {
+    const lanes = [lane('default', 'any other model', [['team-1', 0]])]
+    const off = { tables: [{ ...blockAllTable.tables[0], enabled: false }] }
+    expect(planSummary(withEngine(off), lanes)).toBe('anything else → team-1.')
   })
   it('explains a plan without a live version', () => {
     expect(planSummary(undefined, [])).toMatch(/^Not live yet/)
+  })
+})
+
+describe('engineHazards', () => {
+  it('flags a match-everything block row', () => {
+    expect(engineHazards(withEngine(blockAllTable))).toEqual(['Table table-1 row 1 matches every request and blocks it.'])
+  })
+  it('is quiet for conditional rows and other actions', () => {
+    const t = { tables: [{ ...blockAllTable.tables[0], rows: [{ conditions: ['value == "codex"'], action: 'block' }, { conditions: ['-'], action: 'set_intent', intent: 'x' }] }] }
+    expect(engineHazards(withEngine(t))).toEqual([])
+  })
+})
+
+describe('docDiff and sameDocument', () => {
+  const base = withEngine(undefined, { model_mappings: [{ match: 'claude-*', alias_id: 'a1', note: '' }], default_alias_id: 'a1' } as Partial<PlanDocument>)
+  const name = (id: string) => ({ a1: 'coding/default', a2: 'coding/fast' })[id] ?? id
+  it('reports nothing for identical documents', () => {
+    expect(docDiff(base, structuredClone(base), name)).toEqual([])
+    expect(sameDocument(base, JSON.parse(JSON.stringify(base)) as PlanDocument)).toBe(true)
+  })
+  it('lists mapping, default and rule changes in words', () => {
+    const next = withEngine(blockAllTable, { model_mappings: [{ match: 'claude-*', alias_id: 'a2', note: '' }, { match: 'gpt-*', alias_id: 'a1', note: '' }], default_alias_id: '' } as Partial<PlanDocument>)
+    expect(docDiff(base, next, name)).toEqual([
+      'Changes claude-*: coding/default → coding/fast',
+      'Adds gpt-* → coding/default',
+      'Unmapped models are now rejected',
+      'Adds decision table table-1',
+    ])
+    expect(sameDocument(base, next)).toBe(false)
   })
 })

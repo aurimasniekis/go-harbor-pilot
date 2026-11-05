@@ -57,8 +57,31 @@ describe('structural problems', () => {
   it('allows repeated rows with hit policy collect', () => {
     const e = emptyEngine()
     e.tables = [{ name: 't', stage: 'request', hit_policy: 'collect', inputs: ['request.harness'], enabled: true,
-      rows: [{ conditions: ['-'], action: 'block' }, { conditions: ['-'], action: 'block' }] }]
+      rows: [{ conditions: ["value == 'codex'"], action: 'block' }, { conditions: ["value == 'codex'"], action: 'block' }] }]
     expect(structuralProblems(e)).toEqual([])
+  })
+
+  it('flags enabled rows and rules that block every request', () => {
+    const e = emptyEngine()
+    e.rules = [{ name: 'all', stage: 'request', when: 'true', action: 'block', enabled: true }]
+    e.tables = [{ name: 't', stage: 'request', hit_policy: 'first', inputs: ['request.harness'], enabled: true, rows: [{ conditions: [''], action: 'block' }] }]
+    expect(structuralProblems(e)).toEqual(['Rule all blocks every request.', 'Table t, row 1 has no condition, so it blocks every request.'])
+    e.rules[0]!.enabled = false
+    e.tables[0]!.enabled = false
+    expect(structuralProblems(e)).toEqual([])
+  })
+})
+
+describe('new rules and tables are inert', () => {
+  it('start turned off, and a new table has no rows', () => {
+    expect(newRule([]).enabled).toBe(false)
+    const t = newTable([])
+    expect(t.enabled).toBe(false)
+    expect(t.rows).toEqual([])
+  })
+  it('number tables among tables only', () => {
+    expect(newTable(['table-1']).name).toBe('table-2')
+    expect(newTable([]).name).toBe('table-1')
   })
 })
 
