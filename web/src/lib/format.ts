@@ -102,7 +102,12 @@ export function fmtTime(iso: string | null | undefined): string {
 export function fmtDuration(ms: number | null | undefined): string {
   if (!isKnown(ms)) return UNKNOWN
   const neg = ms < 0
-  let s = Math.round(Math.abs(ms) / 1000)
+  const abs = Math.abs(ms)
+  // Sub-second durations (latencies) keep their milliseconds; 10 s and up
+  // round to whole seconds.
+  if (abs < 1000) return `${neg ? '-' : ''}${Math.round(abs)} ms`
+  if (abs < 10_000) return `${neg ? '-' : ''}${(Math.round(abs / 100) / 10).toString()} s`
+  let s = Math.round(abs / 1000)
   const d = Math.floor(s / 86400)
   s -= d * 86400
   const h = Math.floor(s / 3600)
