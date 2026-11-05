@@ -8,6 +8,7 @@ import (
 
 	cp "github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/executor/bridge/claudecode"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/executor/bridge/codex"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota"
 )
 
@@ -32,6 +33,42 @@ func lookBinary(configured, name string) string {
 
 // setupBridges registers CLI bridges whose binaries are available.
 func (a *App) setupBridges(o Options) {
+	a.setupClaudeBridge(o)
+	a.setupCodexBridge(o)
+}
+
+func (a *App) setupCodexBridge(o Options) {
+	cfg := a.Cfg.Bridges.Codex
+	st := &BridgeStatus{Kind: cp.ProviderCodex}
+	a.bridgeStatus = append(a.bridgeStatus, st)
+	if cfg.Disabled {
+		return
+	}
+	bin := lookBinary(cfg.Binary, "codex")
+	if bin == "" {
+		st.LastError = "codex CLI not found on PATH (set bridges.codex.binary)"
+		return
+	}
+	b := codex.New(codex.Options{Binary: bin, Root: filepath.Join(a.Cfg.Server.DataDir, "bridges", "codex"), ExtraEnv: o.BridgeEnv,
+		MaxProcesses: cfg.MaxProcesses, MaxPerAccount: cfg.MaxPerAccount, ToolTimeout: cfg.ToolTimeout, Log: a.Log, Now: a.Clock.Now})
+	a.Gateway.Bridges[cp.ProviderCodex] = b
+	a.closers = append(a.closers, b.Close)
+	st.Enabled, st.Binary = true, bin
+	a.AddBackground(func(ctx context.Context) {
+		v, err := b.Version(ctx)
+		a.bridgeMu.Lock()
+		defer a.bridgeMu.Unlock()
+		if err != nil {
+			st.LastError = err.Error()
+			a.Log.Warn("bridge.codex.self_test_failed", "error", err.Error())
+			return
+		}
+		st.Version = v
+		a.Log.Info("bridge.codex.ready", "version", v)
+	})
+}
+
+func (a *App) setupClaudeBridge(o Options) {
 	cc := a.Cfg.Bridges.ClaudeCode
 	st := &BridgeStatus{Kind: cp.ProviderClaudeCode}
 	a.bridgeStatus = append(a.bridgeStatus, st)

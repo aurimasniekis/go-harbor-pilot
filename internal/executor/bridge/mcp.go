@@ -11,6 +11,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -53,8 +54,9 @@ type Session struct {
 	tools []MCPTool
 
 	mu      sync.Mutex
-	calls   map[string]*ToolCall // by tool_use id
+	calls   map[string]*ToolCall // by tool_use id (or arrival key)
 	replies map[string]ToolReply // results that arrived before the call
+	seq     int                  // arrival counter for calls without an id
 	arrived chan struct{}        // signalled when a call arrives
 	closed  bool
 	done    chan struct{}
@@ -237,6 +239,12 @@ func (s *Session) call(w http.ResponseWriter, ctx context.Context, req rpcReq) {
 	id, _ := p.Meta["claudecode/toolUseId"].(string)
 	c := &ToolCall{ToolUseID: id, Name: p.Name, Arguments: p.Arguments, reply: make(chan ToolReply, 1)}
 	s.mu.Lock()
+	if id == "" {
+		// Clients that do not tag calls are matched in arrival order.
+		s.seq++
+		id = ArrivalKey(s.seq)
+		c.ToolUseID = id
+	}
 	if s.closed {
 		s.mu.Unlock()
 		writeRPC(w, req.ID, nil, &rpcError{Code: -32000, Message: "session closed"})
@@ -264,3 +272,20 @@ func (s *Session) call(w http.ResponseWriter, ctx context.Context, req rpcReq) {
 
 // ErrNoSession is returned for unknown sessions.
 var ErrNoSession = errors.New("bridge: unknown MCP session")
+
+// ArrivalKey names the n-th (1-based) untagged tool call of a session.
+func ArrivalKey(n int) string { return "arrival:" + strconv.Itoa(n) }
+
+// Calls returns the parked calls (for clients that do not tag calls).
+func (s *Session) Calls() []ToolCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]ToolCall, 0, len(s.calls))
+	for _, c := range s.calls {
+		out = append(out, ToolCall{ToolUseID: c.ToolUseID, Name: c.Name, Arguments: c.Arguments})
+	}
+	return out
+}
+
+// Arrived signals when a tool call reaches the session.
+func (s *Session) Arrived() <-chan struct{} { return s.arrived }

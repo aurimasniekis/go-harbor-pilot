@@ -18,7 +18,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 |---|---|---|---|---|---|
 | R2.1 | Multi-provider, multi-account gateway | 4–5 | gateway, executor, routing | implemented | gateway, routing, executor/httpapi; acceptance A/B/E |
 | R2.2 | Harness integrations and protocol translation | 4, 12 | protocol, harness | in-progress | protocol adapters contract-tested; harness tooling Phase 12 |
-| R2.3 | API, subscription (CLI bridge) and local executors | 4, 7 | executor | in-progress | HTTP API + local executors; Claude Code bridge contract-tested with the real CLI (bridge/claudecode); Codex bridge next |
+| R2.3 | API, subscription (CLI bridge) and local executors | 4, 7 | executor | contract-tested | HTTP API + local executors; Claude Code bridge against the real CLI with a synthetic upstream (bridge/claudecode, TestClaudeCodeBridge*); Codex bridge against a fake CLI (bridge/codex); live runs blocked (credentials / binary) |
 | R2.4 | Explainable Expr routing plans and decision tables | 5 | routing | in-progress | routing/engine.go (rules, decision tables, score), routingapi; TestEngineRules; editor UI pending |
 | R2.5 | Quota monitoring, account switching, budgets, attribution | 5–6 | quota, accounting | contract-tested | quota monitors feed routing health (TestQuotaMonitorDrivesRouting), account switching (scenario C), budgets enforced in reservations (TestBudgetBlocksMeteredSpend), ledger attribution by workspace/project/binding |
 | R2.6 | Consumer-neutral identity via tokens and base URLs | 3–4 | controlplane, gateway | implemented | gateway auth by hpk_ token + base URL; acceptance A |

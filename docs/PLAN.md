@@ -11,7 +11,7 @@ Source of truth for sequencing. Status per phase is updated as work lands; requi
 | 4 | Canonical IR, protocol adapters, gateway vertical slice, HTTP/local executors, ledger, activity (scenarios A, B, E) | planned |
 | 5 | Routing engine, decision tables, simulator, publish workflow, failover (scenarios C, D) | done |
 | 6 | Quotas, budgets, forecasting (migrated adapters, header-derived observations) | done |
-| 7 | CLI bridges (Claude Code, Codex) | in-progress (Claude Code bridge done; Codex next) |
+| 7 | CLI bridges (Claude Code, Codex) | done (live runs blocked on credentials and the codex binary) |
 | 8 | Privacy masking and short-lived traces (scenarios F, G, J) | planned |
 | 9 | Compatibility breakers, passthrough, Protocol Watch (scenarios H, I) | planned |
 | 10 | Events (outbox, Pulse, webhooks) and notifications (scenario K) | planned |

@@ -33,6 +33,9 @@ This file is kept current alongside the implementation. Each entry is one of:
 - **Claude Code bridge fidelity (design).** Through the CLI the model sees a system prompt prefixed with the CLI's own identity line and an environment note, and client tools appear to it with an `mcp__client__` prefix (names are mapped back for the client). Sampling parameters, stop sequences, output limits and forced tool choice are not passed. Each is recorded as an approximate loss on the attempt. Provider-executed tools (web search and similar) are not available through the bridge.
 - **Bridge processes are local state (design).** A parked CLI process holds a conversation between a tool call and its result. A restart loses parked processes; the next request resumes from the transcript with a recorded loss.
 
+- **Codex bridge history (design).** The CLI runs one turn per process. Turns the bridge served continue the CLI thread with `codex exec resume`; a conversation seen for the first time is replayed to the CLI as text, recorded as an approximate `history_replay` loss. The CLI may also run its own built-in tools (shell in a read-only sandbox, web search); those are not forwarded to the client.
+- **Codex sign-in refresh (design).** The account's `auth.json` is seeded from the stored credential once and refreshed in place by the CLI, so one process per account runs at a time by default (`bridges.codex.max_per_account`).
+
 ## Pending
 
 Pending items are tracked per requirement in TRACEABILITY.md (status `planned` or `in-progress`).

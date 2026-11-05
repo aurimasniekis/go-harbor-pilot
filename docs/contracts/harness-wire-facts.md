@@ -107,6 +107,12 @@ These were observed by running the real binary with `ANTHROPIC_BASE_URL` pointed
 Status: `unverified` until a live run (`scripts/live/codex.sh`). The bridge is contract-tested against a fake
 `codex` binary that emits documented JSONL shapes.
 
+Bridge invocation (doc-claim): `codex exec [resume <thread_id>] --json --skip-git-repo-check --sandbox read-only --color never -m <model>
+[-c developer_instructions="…"] [-c model_reasoning_effort="…"] [-c experimental_use_rmcp_client=true -c mcp_servers.client.url="…"] -`
+with the prompt on stdin. Events consumed: `thread.started {thread_id}`, `item.started` / `item.completed` with items of type
+`agent_message {text}`, `reasoning {text}`, `mcp_tool_call {id, server, tool, arguments}`, `command_execution`, `file_change`, `web_search`;
+`turn.completed {usage: {input_tokens, cached_input_tokens, output_tokens}}`; `turn.failed {error: {message}}` and `error {message}`.
+
 ## 3. OpenCode (not installed; doc-claim)
 
 | Item | Value |
