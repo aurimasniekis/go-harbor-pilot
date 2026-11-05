@@ -7904,6 +7904,21 @@ paths:
               - error
               - ""
             type: string
+        - description: RFC 3339; only entries at or after this time.
+          explode: false
+          in: query
+          name: since
+          schema:
+            description: RFC 3339; only entries at or after this time.
+            type: string
+        - description: Text found in the action, actor, target or details.
+          explode: false
+          in: query
+          name: q
+          schema:
+            description: Text found in the action, actor, target or details.
+            maxLength: 200
+            type: string
       responses:
         "200":
           content:
@@ -14026,6 +14041,53 @@ paths:
                 $ref: "#/components/schemas/Error"
           description: Error
       summary: Take an online backup
+      tags:
+        - System
+      x-permission: system.manage
+  /system/backups/{name}:
+    delete:
+      operationId: delete-backup
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a backup from the data directory
+      tags:
+        - System
+      x-permission: system.manage
+  /system/backups/{name}/archive:
+    get:
+      description: The archive holds the manifest and database snapshots exactly as stored; sealed secrets stay encrypted and need the same master key to restore.
+      operationId: download-backup
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Download a backup as a .tar.gz archive
       tags:
         - System
       x-permission: system.manage

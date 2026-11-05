@@ -220,6 +220,19 @@ func (c *Client) Do(method, path string, body, out any, hdr ...string) int {
 	return resp.StatusCode
 }
 
+// GetRaw fetches a path and returns the status, raw body and headers (for
+// downloads that are not JSON).
+func (c *Client) GetRaw(path string) (int, []byte, http.Header) {
+	c.t.Helper()
+	resp, err := c.hc.Get(c.e.Srv.URL + path)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, data, resp.Header
+}
+
 // MustDo fails the test unless the status matches.
 func (c *Client) MustDo(want int, method, path string, body, out any, hdr ...string) {
 	c.t.Helper()

@@ -145,6 +145,8 @@ func (h *Handlers) registerAdmin(a *api.API) {
 		TargetID   string `query:"target_id" maxLength:"64"`
 		ActorID    string `query:"actor_id" maxLength:"64"`
 		Outcome    string `query:"outcome" enum:"success,denied,error," required:"false"`
+		Since      string `query:"since" doc:"RFC 3339; only entries at or after this time."`
+		Search     string `query:"q" maxLength:"200" doc:"Text found in the action, actor, target or details."`
 	}
 	type auditOut struct{ Body api.Page[AuditEntryDTO] }
 	api.Register(a, api.Op{ID: "list-audit-log", Method: http.MethodGet, Path: "/audit", Summary: "Query the audit log (newest first)",
@@ -163,6 +165,19 @@ func (h *Handlers) registerAdmin(a *api.API) {
 		if in.Action != "" {
 			q += ` AND action LIKE ? ESCAPE '\'`
 			args = append(args, strings.NewReplacer("%", `\%`, "_", `\_`).Replace(in.Action)+"%")
+		}
+		if in.Since != "" {
+			t, err := time.Parse(time.RFC3339, in.Since)
+			if err != nil {
+				return nil, api.Invalid("invalid since", api.FieldError{Location: "query.since", Message: "must be RFC 3339"})
+			}
+			q += ` AND at >= ?`
+			args = append(args, t.UnixMilli())
+		}
+		if s := strings.TrimSpace(in.Search); s != "" {
+			like := "%" + strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(s) + "%"
+			q += ` AND (action LIKE ? ESCAPE '\' OR actor_id LIKE ? ESCAPE '\' OR COALESCE(target_id, '') LIKE ? ESCAPE '\' OR details LIKE ? ESCAPE '\')`
+			args = append(args, like, like, like, like)
 		}
 		for col, v := range map[string]string{"target_kind": in.TargetKind, "target_id": in.TargetID, "actor_id": in.ActorID, "outcome": in.Outcome} {
 			if v != "" {

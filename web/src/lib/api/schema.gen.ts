@@ -2062,6 +2062,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/backups/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a backup from the data directory */
+        delete: operations["delete-backup"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/backups/{name}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a backup as a .tar.gz archive
+         * @description The archive holds the manifest and database snapshots exactly as stored; sealed secrets stay encrypted and need the same master key to restore.
+         */
+        get: operations["download-backup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/system/bridges": {
         parameters: {
             query?: never;
@@ -5897,6 +5934,10 @@ export interface operations {
                 target_id?: string;
                 actor_id?: string;
                 outcome?: "success" | "denied" | "error" | "";
+                /** @description RFC 3339; only entries at or after this time. */
+                since?: string;
+                /** @description Text found in the action, actor, target or details. */
+                q?: string;
             };
             header?: never;
             path?: never;
@@ -11586,6 +11627,64 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["BackupOutBody"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "download-backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {

@@ -1,17 +1,23 @@
 package app
 
 import (
+	"archive/tar"
+	"compress/gzip"
+	"context"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
-
-	"context"
-	"github.com/aurimasniekis/go-harbor-pilot/internal/audit"
-	"github.com/aurimasniekis/go-harbor-pilot/internal/ops"
-	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
+
 	"github.com/aurimasniekis/go-harbor-pilot/internal/api"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/audit"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/ops"
 )
 
 // MetaDTO describes the server instance.
@@ -122,6 +128,99 @@ func (a *App) registerSystem(ap *api.API) {
 		}
 		return out, nil
 	})
+	a.registerBackupFiles(ap)
+}
+
+// backupNameRE matches backup directory names (no separators or dots-only
+// names), so a request can never reach outside <data_dir>/backups.
+var backupNameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+
+// backupDir resolves a backup by name inside <data_dir>/backups.
+func (a *App) backupDir(name string) (string, error) {
+	if !backupNameRE.MatchString(name) || strings.Contains(name, "..") {
+		return "", api.NotFound("backup")
+	}
+	dir := filepath.Join(a.Cfg.Server.DataDir, "backups", name)
+	st, err := os.Lstat(dir)
+	if err != nil || !st.IsDir() {
+		return "", api.NotFound("backup")
+	}
+	return dir, nil
+}
+
+func (a *App) registerBackupFiles(ap *api.API) {
+	type nameIn struct {
+		Name string `path:"name" maxLength:"64"`
+	}
+	api.Register(ap, api.Op{ID: "delete-backup", Method: http.MethodDelete, Path: "/system/backups/{name}", Summary: "Delete a backup from the data directory",
+		Tags: []string{"System"}, Permission: auth.PermSystemManage, Status: http.StatusNoContent}, func(ctx context.Context, in *nameIn) (*struct{}, error) {
+		dir, err := a.backupDir(in.Name)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			return nil, err
+		}
+		_ = audit.Record(ctx, a.DB.W, audit.Entry{Action: "system.backup.delete", TargetKind: "backup", TargetID: in.Name})
+		return nil, nil
+	})
+	api.Register(ap, api.Op{ID: "download-backup", Method: http.MethodGet, Path: "/system/backups/{name}/archive", Summary: "Download a backup as a .tar.gz archive",
+		Description: "The archive holds the manifest and database snapshots exactly as stored; sealed secrets stay encrypted and need the same master key to restore.",
+		Tags:        []string{"System"}, Permission: auth.PermSystemManage}, func(ctx context.Context, in *nameIn) (*huma.StreamResponse, error) {
+		dir, err := a.backupDir(in.Name)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := ops.Verify(dir); err != nil {
+			return nil, api.Conflict("this backup failed verification and cannot be downloaded: " + err.Error())
+		}
+		_ = audit.Record(ctx, a.DB.W, audit.Entry{Action: "system.backup.download", TargetKind: "backup", TargetID: in.Name})
+		return &huma.StreamResponse{Body: func(hc huma.Context) {
+			hc.SetHeader("Content-Type", "application/gzip")
+			hc.SetHeader("Content-Disposition", `attachment; filename="harbor-pilot-backup-`+in.Name+`.tar.gz"`)
+			_ = writeBackupArchive(hc.BodyWriter(), dir, in.Name)
+		}}, nil
+	})
+}
+
+// writeBackupArchive streams the regular files of a backup directory as a
+// gzipped tar under a folder named after the backup.
+func writeBackupArchive(w io.Writer, dir, name string) error {
+	gz := gzip.NewWriter(w)
+	tw := tar.NewWriter(gz)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if !e.Type().IsRegular() {
+			continue
+		}
+		if err := addFile(tw, filepath.Join(dir, e.Name()), name+"/"+e.Name()); err != nil {
+			return err
+		}
+	}
+	if err := tw.Close(); err != nil {
+		return err
+	}
+	return gz.Close()
+}
+
+func addFile(tw *tar.Writer, path, name string) error {
+	f, err := os.Open(path) //nolint:gosec // a regular file inside a validated backup directory
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o600, Size: st.Size(), ModTime: st.ModTime(), Typeflag: tar.TypeReg}); err != nil {
+		return err
+	}
+	_, err = io.Copy(tw, f)
+	return err
 }
 
 // BackupDTO describes a stored backup.
