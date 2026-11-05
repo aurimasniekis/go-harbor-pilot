@@ -168,3 +168,63 @@ func TestSecretsNeverLeak(t *testing.T) {
 		}
 	}
 }
+
+// Errors that arrive inside a stream (before or after output began, as CLI
+// bridges and some upstreams report them) are scrubbed before they reach
+// the client, the attempt record or Protocol Watch.
+func TestStreamErrorsAreScrubbed(t *testing.T) {
+	const (
+		preKey = "sk-CANARY-stream-pre-0a1b2c"
+		midKey = "sk-CANARY-stream-mid-3d4e5f"
+		other  = "sk-ant-api03-ECHOEDotherKEY0000000000"
+	)
+	echo := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key := r.Header.Get("x-api-key")
+		w.Header().Set("Content-Type", "text/event-stream")
+		ev := func(name, data string) { _, _ = io.WriteString(w, "event: "+name+"\ndata: "+data+"\n\n") }
+		ev("message_start", `{"type":"message_start","message":{"id":"m","type":"message","role":"assistant","model":"m","content":[],"usage":{"input_tokens":1,"output_tokens":1}}}`)
+		if key == midKey {
+			ev("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`)
+			ev("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"partial"}}`)
+		}
+		ev("error", `{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key `+key+` (also tried `+other+`)"}}`)
+	}))
+	t.Cleanup(echo.Close)
+	e := apptest.New(t)
+	prov := e.Provider("anthropic", "anthropic", echo.URL, apptest.Model{ID: "m", MaxOutput: 1024, Capabilities: []string{"streaming"}})
+	for _, tt := range []struct{ name, key string }{{"before output", preKey}, {"after output began", midKey}} {
+		t.Run(tt.name, func(t *testing.T) {
+			acc := e.Account("acc-"+tt.key[len(tt.key)-6:], prov, apptest.AccountOpts{Secret: tt.key})
+			alias := e.Alias("a/"+tt.key[len(tt.key)-6:], e.Pool("p-"+tt.key[len(tt.key)-6:], "ordered", apptest.Member{Account: acc, Model: "m"}))
+			tok := e.Token(e.Binding("b-"+tt.key[len(tt.key)-6:], e.Plan("p-"+tt.key[len(tt.key)-6:], apptest.PlanOpts{DefaultAlias: alias}), apptest.BindingOpts{}))
+			r := e.Gateway("POST", "/v1/messages", tok, map[string]any{"model": "x", "max_tokens": 8, "stream": true,
+				"messages": []any{map[string]any{"role": "user", "content": "x"}}})
+			body := apptest.ReadAll(r)
+			e.Flush()
+			var reqs json.RawMessage
+			e.Admin.MustDo(200, "GET", "/api/v1/activity/requests?limit=50", nil, &reqs)
+			var list struct {
+				Items []struct {
+					ID string `json:"id"`
+				} `json:"items"`
+			}
+			_ = json.Unmarshal(reqs, &list)
+			surfaces := map[string]string{"client response": body, "attempts": e.QueryString(`SELECT group_concat(COALESCE(error_message,''), '|') FROM attempts`)}
+			for _, it := range list.Items {
+				var raw json.RawMessage
+				e.Admin.MustDo(200, "GET", "/api/v1/activity/requests/"+it.ID, nil, &raw)
+				surfaces["request "+it.ID] = string(raw)
+			}
+			var changes json.RawMessage
+			e.Admin.MustDo(200, "GET", "/api/v1/protocol-watch/changes", nil, &changes)
+			surfaces["protocol watch"] = string(changes)
+			for where, text := range surfaces {
+				for _, k := range []string{tt.key, other} {
+					if strings.Contains(text, k) {
+						t.Errorf("%s leaked into %s", k, where)
+					}
+				}
+			}
+		})
+	}
+}

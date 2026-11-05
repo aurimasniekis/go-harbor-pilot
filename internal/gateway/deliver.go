@@ -31,7 +31,11 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 	}
 	g.Tel.Attempt(ar)
 
+	// secret is resolved below; fail scrubs it (and any key-shaped text)
+	// from every error before it is recorded, observed or returned.
+	var secret credentials.Secret
 	fail := func(ae *executor.AttemptError) (bool, *executor.AttemptError) {
+		executor.ScrubError(ae.Err, secret)
 		g.recordCompat(rc, cand, mode, ae.Err)
 		now := g.Clock.Now()
 		d := now.Sub(started).Milliseconds()
@@ -68,7 +72,6 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 		return false, ae
 	}
 
-	var secret credentials.Secret
 	if pt := cp.ProviderTypes[prov.Spec.Type]; pt.CredentialKind != "none" {
 		s, err := g.CP.ResolveSecret(ctx, cp.AccountDef, acc.ID, "credential")
 		if err != nil {
@@ -87,7 +90,6 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 		}
 	}
 	if aerr != nil {
-		executor.ScrubError(aerr.Err, secret)
 		return fail(aerr)
 	}
 	g.teeTrace(ctx, rc, res)
@@ -290,6 +292,8 @@ loop:
 			}
 		}
 	}
+	// Scrub before the error is written to the client or recorded.
+	executor.ScrubError(streamErr, secret)
 	if !semantic && !headersSent {
 		// Nothing was sent to the client. The upstream accepted the request
 		// (200) and then failed or ended: execution is ambiguous, so it is
@@ -324,7 +328,6 @@ loop:
 	ar.FinishedAt, ar.DurationMs, ar.TTFTms = &now, &d, fi.ttft
 	ar.Status = status
 	if streamErr != nil {
-		executor.ScrubError(streamErr, secret)
 		ar.ErrorKind, ar.ErrorMessage, ar.Executed = string(streamErr.Kind), truncate(streamErr.Message, 300), true
 	}
 	ar.InputTokens, ar.OutputTokens = fi.usage.UncachedInput(), fi.usage.OutputTokens

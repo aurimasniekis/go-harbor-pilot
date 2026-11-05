@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
@@ -18,6 +19,10 @@ func TestScrubText(t *testing.T) {
 		{"gateway token", "token hpk_ab12cd34_secretpart", "token [redacted]"},
 		{"google key", "API key AIzaSyA1234567890abcdefghij not valid", "API key [redacted] not valid"},
 		{"bearer token", "header was Bearer abcdefghijklmnop1234", "header was Bearer [redacted]"},
+		{"github fine-grained token", "token github_pat_11ABCDEFG0123456789_abcdefghijklmnop rejected", "token [redacted] rejected"},
+		{"slack token", "xoxb-1234567890-abcdefghij is invalid", "[redacted] is invalid"},
+		{"jwt access token", "expired eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.c2lnbmF0dXJl here", "expired [redacted] here"},
+		{"base64 bearer", "got Bearer dGhpcyBpcyBh+c2VjcmV0/dG9rZW4== back", "got Bearer [redacted] back"},
 		{"ordinary text", "rate limit reached for model sk", "rate limit reached for model sk"},
 		{"short words survive", "task-scoped error in sk-1", "task-scoped error in sk-1"},
 	}
@@ -34,4 +39,24 @@ func TestScrubText(t *testing.T) {
 		t.Fatalf("ScrubError: %q", e.Message)
 	}
 	ScrubError(nil, cred)
+}
+
+// The attempt's credential is also removed in escaped forms an upstream may
+// echo it in.
+func TestScrubEscapedCredential(t *testing.T) {
+	cred := credentials.NewSecret(`pa"ss<wo rd>+1/x`)
+	tests := []struct{ name, in string }{
+		{"plain", `key pa"ss<wo rd>+1/x rejected`},
+		{"json escaped", `{"error":"key pa\"ss\u003cwo rd\u003e+1/x rejected"}`},
+		{"query escaped", "url ?k=pa%22ss%3Cwo+rd%3E%2B1%2Fx rejected"},
+		{"path escaped", "url /k/pa%22ss%3Cwo%20rd%3E+1%2Fx rejected"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ScrubText(tt.in, cred)
+			if !strings.Contains(got, Redacted) || strings.Contains(got, "rd") {
+				t.Fatalf("credential survived: %q", got)
+			}
+		})
+	}
 }
