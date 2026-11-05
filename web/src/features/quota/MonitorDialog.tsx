@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle } from 'lucide-react'
 import { Badge, Banner, Button, TierBadge } from '@/components/ui'
-import { Checkbox, Dialog, Field, MutationError, SelectField, TextField, formStyles as f } from '@/components/form'
+import { Advanced, Checkbox, Dialog, Field, MutationError, SelectField, TextField, formStyles as f } from '@/components/form'
 import { TerraformEditWarning } from '@/components/ResourceBadges'
 import { quotaAdaptersQuery, resourceListQuery } from '@/lib/api/queries'
 import { useSaveResource } from '@/lib/api/resources'
@@ -78,9 +78,10 @@ export function MonitorDialog({ monitor, onClose }: { monitor: QuotaMonitorRes |
   const [adapter, setAdapter] = useState(init?.adapter ?? '')
   const [accountID, setAccountID] = useState(init?.account_id ?? '')
   const [enabled, setEnabled] = useState(init?.enabled ?? true)
-  const [pollInterval, setPollInterval] = useState(String(init?.poll_interval_secs ?? 0))
+  // Shown in minutes; empty means the provider's default.
+  const [pollInterval, setPollInterval] = useState(init?.poll_interval_secs ? String(Math.round(init.poll_interval_secs / 60)) : '')
   const [below, setBelow] = useState(String(Math.round((init?.exhausted_below ?? 0) * 100)))
-  const [staleAfter, setStaleAfter] = useState(String(init?.stale_after_secs ?? 0))
+  const [staleAfter, setStaleAfter] = useState(init?.stale_after_secs ? String(Math.round(init.stale_after_secs / 60)) : '')
   const [scope, setScope] = useState(init?.shared_scope_id ?? '')
   const [ack, setAck] = useState(init?.acknowledge_terms_risk ?? false)
   const [optText, setOptText] = useState(init?.options && Object.keys(init.options).length ? JSON.stringify(init.options, null, 2) : '')
@@ -107,9 +108,9 @@ export function MonitorDialog({ monitor, onClose }: { monitor: QuotaMonitorRes |
       account_id: accountID,
       options: opts.value ?? {},
       enabled,
-      poll_interval_secs: toInt(pollInterval),
+      poll_interval_secs: toInt(pollInterval) * 60,
       exhausted_below: Math.min(100, Math.max(0, toInt(below))) / 100,
-      stale_after_secs: toInt(staleAfter),
+      stale_after_secs: toInt(staleAfter) * 60,
       shared_scope_id: scope.trim(),
       acknowledge_terms_risk: needsAck ? ack : false,
       api_key_ref: '',
@@ -128,20 +129,44 @@ export function MonitorDialog({ monitor, onClose }: { monitor: QuotaMonitorRes |
   }
 
   const accountItems = accounts.data?.items ?? []
+  const credential = (sf: (typeof secretFields)[number]) => {
+    const info = monitor?.secrets?.[sf.name]
+    const m = modes[sf.name]
+    return (
+      <div key={sf.name} className={c.row}>
+        <SelectField<Mode>
+          label={sf.label}
+          value={m}
+          onChange={(v) => setModes({ ...modes, [sf.name]: v })}
+          options={[
+            ...(info?.source === 'stored' ? [{ value: 'keep' as Mode, label: `Keep the saved one (${info.fingerprint ?? 'set'})` }] : []),
+            { value: 'stored', label: info?.source === 'stored' ? 'Replace it' : 'Paste it (stored encrypted)' },
+            { value: 'reference', label: 'Read from an environment variable or file' },
+            { value: 'none', label: info?.source === 'stored' ? 'Remove it' : 'Not needed' },
+          ]}
+        />
+        {m === 'stored' && (
+          <TextField label={`${sf.label} value`} type="password" autoComplete="off" value={values[sf.name]} onChange={(v) => setValues({ ...values, [sf.name]: v })}
+            hint="Never shown again after saving." />
+        )}
+        {m === 'reference' && (
+          <TextField label={`${sf.label} reference`} value={refs[sf.ref]} onChange={(v) => setRefs({ ...refs, [sf.ref]: v })} placeholder="env:NAME or file:/run/secrets/key" />
+        )}
+      </div>
+    )
+  }
+  const primary = secretFields.filter((sf) => sf.name === 'api_key' || modes[sf.name] !== 'none')
+  const others = secretFields.filter((sf) => !primary.includes(sf))
   return (
-    <Dialog open wide title={monitor ? `Edit quota monitor ${monitor.name}` : 'Add quota monitor'} onClose={onClose}>
+    <Dialog open wide title={monitor ? `Edit quota tracker ${monitor.name}` : 'Track a provider quota'} onClose={onClose}>
       <TerraformEditWarning r={monitor} />
       <div className={f.grid}>
-        <TextField label="Name" value={name} onChange={setName} disabled={!!monitor} required />
-        <SelectField label="Adapter" value={adapter} onChange={setAdapter}
-          options={[{ value: '', label: adapters.isLoading ? 'Loading…' : 'Select an adapter' }, ...list.map((a) => ({ value: a.id, label: `${a.display_name} (${a.tier})` }))]} />
-        <SelectField label="Feeds routing health of" value={accountID} onChange={setAccountID}
-          hint="When linked, an exhausted global window makes this account unavailable for routing until it resets."
-          options={[{ value: '', label: 'No account (monitor only)' }, ...accountItems.map((a) => ({ value: a.id, label: a.name }))]} />
-        <TextField label="Poll interval (seconds, 0 = adapter default)" type="number" value={pollInterval} onChange={setPollInterval} />
-        <TextField label="Exhausted at or below (% remaining)" type="number" value={below} onChange={setBelow} hint="0 = only when fully used." />
-        <TextField label="Stale after (seconds, 0 = three poll intervals)" type="number" value={staleAfter} onChange={setStaleAfter} />
-        <TextField label="Shared scope id (optional)" value={scope} onChange={setScope} hint="Monitors drawing on the same provider quota share an id." />
+        <SelectField label="Adapter" value={adapter} onChange={setAdapter} placeholder="Choose the provider API"
+          options={[{ value: '', label: adapters.isLoading ? 'Loading…' : 'Choose the provider API' }, ...list.map((a) => ({ value: a.id, label: a.display_name }))]} />
+        <TextField label="Name" value={name} onChange={setName} disabled={!!monitor} required placeholder="e.g. claude-team" hint={monitor ? undefined : 'Lowercase; cannot be changed later.'} />
+        <SelectField label="Routes for" value={accountID} onChange={setAccountID}
+          hint="When a limit is reached, routing skips this account until the window resets."
+          options={[{ value: '', label: 'No account (watch only)' }, ...accountItems.map((a) => ({ value: a.id, label: a.name }))]} />
       </div>
       {selected && <AdapterInfo a={selected} />}
       {needsAck && (
@@ -153,46 +178,27 @@ export function MonitorDialog({ monitor, onClose }: { monitor: QuotaMonitorRes |
           </div>
         </Banner>
       )}
-      <Field label="Adapter options (JSON object)" error={opts.error} hint="Non-secret settings such as base URL, organization id, token_source or field mappings. See the adapter documentation.">
-        {(p) => (
-          <textarea {...p} className={f.textarea} rows={8} spellCheck={false} value={optText} onChange={(e) => setOptText(e.target.value)} placeholder='{"token_source": "env"}' style={{ fontFamily: 'var(--font-mono)' }} />
-        )}
-      </Field>
-      <fieldset className={c.checks} style={{ flexDirection: 'column' }}>
-        <legend className={c.legend}>Credentials (write-only)</legend>
-        {secretFields.map((s) => {
-          const info = monitor?.secrets?.[s.name]
-          const m = modes[s.name]
-          return (
-            <div key={s.name} className={c.row}>
-              <SelectField<Mode>
-                label={s.label}
-                value={m}
-                onChange={(v) => setModes({ ...modes, [s.name]: v })}
-                options={[
-                  ...(info?.source === 'stored' ? [{ value: 'keep' as Mode, label: `Keep stored secret (${info.fingerprint ?? 'set'})` }] : []),
-                  { value: 'stored', label: info?.source === 'stored' ? 'Replace stored secret' : 'Store a secret (encrypted)' },
-                  { value: 'reference', label: 'Secret reference (env/file)' },
-                  { value: 'none', label: info?.source === 'stored' ? 'Remove the stored secret' : 'Not set' },
-                ]}
-              />
-              {m === 'stored' && (
-                <TextField label={`${s.label} value`} type="password" autoComplete="off" value={values[s.name]} onChange={(v) => setValues({ ...values, [s.name]: v })}
-                  hint="Never shown again after saving." />
-              )}
-              {m === 'reference' && (
-                <TextField label={`${s.label} reference`} value={refs[s.ref]} onChange={(v) => setRefs({ ...refs, [s.ref]: v })} placeholder="env:NAME or file:/run/secrets/key" />
-              )}
-            </div>
-          )
-        })}
-      </fieldset>
-      <Checkbox label="Enabled" checked={enabled} onChange={setEnabled} />
+      {primary.map(credential)}
+      <Advanced>
+        <div className={f.grid}>
+          <TextField label="Check every" type="number" suffix="min" value={pollInterval} onChange={setPollInterval} placeholder="Provider default" />
+          <TextField label="Mark out of date after" type="number" suffix="min" value={staleAfter} onChange={setStaleAfter} placeholder="3 checks" />
+          <TextField label="Treat as used up at" type="number" suffix="% left" value={below} onChange={setBelow} hint="0 means only when fully used." />
+          <TextField label="Shared scope" value={scope} onChange={setScope} placeholder="Optional" hint="Trackers reading the same provider quota share one id so it is not counted twice." />
+        </div>
+        {others.map(credential)}
+        <Field label="Adapter options (JSON object)" error={opts.error} hint="Non-secret settings such as base URL, organization id or token_source. See the adapter documentation.">
+          {(p) => (
+            <textarea {...p} className={f.textarea} rows={6} spellCheck={false} value={optText} onChange={(e) => setOptText(e.target.value)} placeholder='{"token_source": "env"}' style={{ fontFamily: 'var(--font-mono)' }} />
+          )}
+        </Field>
+        <Checkbox label="Tracking on" checked={enabled} onChange={setEnabled} />
+      </Advanced>
       <MutationError error={save.error} />
       <div className={f.actions}>
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="primary" busy={save.isPending} disabled={!name || !adapter || !!opts.error || (needsAck && !ack)} onClick={submit}>
-          Save monitor
+          {monitor ? 'Save changes' : 'Start tracking'}
         </Button>
       </div>
     </Dialog>

@@ -36,7 +36,7 @@ function useAttention(): { items: AttentionItem[]; loading: boolean } {
   }
   for (const b of budgets.data?.items ?? []) {
     if (b.state === 'exceeded' || b.state === 'warning') {
-      items.push({ id: `budget-${b.budget_id}`, severity: b.state === 'exceeded' ? 'critical' : 'warning', area: 'budget', title: `Budget ${b.name} is ${Math.round(b.fraction * 100)}% spent`, link: '/usage/budgets' })
+      items.push({ id: `budget-${b.budget_id}`, severity: b.state === 'exceeded' ? 'critical' : 'warning', area: 'budget', title: `Budget ${b.name} is ${Math.round(b.fraction * 100)}% spent`, link: '/quotas#budgets' })
     }
   }
   const rank: Record<Severity, number> = { critical: 0, warning: 1, info: 2 }

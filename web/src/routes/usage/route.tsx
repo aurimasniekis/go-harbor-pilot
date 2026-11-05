@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
+import { createFileRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { Button, SegmentedControl } from '@mantine/core'
 import { Plus } from 'lucide-react'
 import { z } from 'zod'
@@ -23,7 +23,6 @@ function UsageLayout() {
   const navigate = useNavigate()
   const onSpend = useRouterState({ select: (r) => r.location.pathname.replace(/\/$/, '') === '/usage' })
   if (!onSpend) {
-    // Budgets belong to Limits; their page keeps its own content for now.
     return (
       <>
         <PageHeader title="Budgets" />
@@ -44,7 +43,7 @@ function UsageLayout() {
               onChange={(v) => void navigate({ to: '/usage', search: { range: Number(v) as UsageRange } })}
               data={usageRanges.map((r) => ({ value: r.value, label: r.label }))}
             />
-            <Button component={Link} to="/usage/budgets" variant="light" leftSection={<Plus size={14} />}>
+            <Button variant="light" leftSection={<Plus size={14} />} onClick={() => void navigate({ to: '/quotas', search: { add: 'budget' } })}>
               Add budget
             </Button>
           </>

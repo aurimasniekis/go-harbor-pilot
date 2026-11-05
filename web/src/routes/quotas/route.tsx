@@ -1,23 +1,19 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router'
-import { PageHeader } from '@/components/PageHeader'
-import { SubNav } from '@/components/SubNav'
+import { LinkTabs, PageHeader } from '@/ui/kit'
 
 export const Route = createFileRoute('/quotas')({
-  component: QuotasLayout,
+  component: LimitsLayout,
 })
 
-function QuotasLayout() {
+function LimitsLayout() {
   return (
     <>
-      <PageHeader
-        title="Quotas"
-        subtitle="Provider quota windows, balances and rate limits, how fresh they are, and how they affect routing. Unknown values stay unknown."
-      />
-      <SubNav
-        label="Quota sections"
+      <PageHeader title="Limits" info="Provider quota windows, rate limits and spend budgets, and how they affect routing. Unknown values stay unknown, never zero." />
+      <LinkTabs
+        label="Limits sections"
         items={[
-          { to: '/quotas', label: 'Board', exact: true },
-          { to: '/quotas/monitors', label: 'Monitors' },
+          { to: '/quotas', label: 'Overview', exact: true },
+          { to: '/quotas/monitors', label: 'Quota tracking' },
         ]}
       />
       <Outlet />

@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { z } from 'zod'
 import { Badge, TierBadge } from '@/components/ui'
-import { ResourceList } from '@/features/config/ResourceList'
+import { NameCell, ResourceList } from '@/features/config/ResourceList'
 import { MonitorDialog } from '@/features/quota/MonitorDialog'
 import { LoginCallback, LoginPanel } from '@/features/quota/LoginPanel'
 import { quotaAdaptersQuery, resourceListQuery } from '@/lib/api/queries'
@@ -35,30 +35,32 @@ function Monitors() {
       )}
       <ResourceList<QuotaMonitorRes>
         plural="quota-monitors"
-        title="Quota monitors"
-        subtitle="Each monitor polls one provider quota or usage API with its own write-only credentials."
-        noun="monitor"
-        empty="Add a monitor to track quota windows, balances or budgets. Link it to a provider account to let routing avoid exhausted accounts."
+        title="Quota tracking"
+        subtitle="Each tracker reads one provider's quota or usage API with its own write-only credential. Link it to an account so routing avoids the account when a limit is reached."
+        noun="quota tracker"
+        empty="Track a provider's quota windows, balance or budget. Link the tracker to a provider account so routing avoids it when a limit is reached."
+        nameCell={(r) => <NameCell name={r.name} display={ad[r.spec.adapter]?.display_name ?? r.spec.adapter} />}
         columns={[
           {
-            header: 'Adapter',
+            header: 'Routes for',
+            mobile: 'meta',
+            cell: (r) => (r.spec.account_id ? <span>{acc[r.spec.account_id]?.name ?? r.spec.account_id}</span> : <span className="muted">Not linked</span>),
+          },
+          {
+            header: 'Checks',
+            mobile: 'meta',
+            cell: (r) => (r.spec.poll_interval_secs ? `Every ${Math.round(r.spec.poll_interval_secs / 60)} min` : <span className="muted">Provider default</span>),
+          },
+          {
+            header: 'Status',
+            mobile: 'aside',
             cell: (r) => (
               <span className={q.badges}>
-                {ad[r.spec.adapter]?.display_name ?? r.spec.adapter}
+                {!r.spec.enabled && <Badge>Off</Badge>}
                 {ad[r.spec.adapter] && <TierBadge tier={ad[r.spec.adapter]!.tier as Tier} />}
               </span>
             ),
           },
-          { header: 'Routing account', cell: (r) => (r.spec.account_id ? <span className="mono">{acc[r.spec.account_id]?.name ?? r.spec.account_id}</span> : <span className="muted">monitor only</span>) },
-          { header: 'Poll', cell: (r) => (r.spec.poll_interval_secs ? `every ${Math.round(r.spec.poll_interval_secs / 60)} min` : <span className="muted">adapter default</span>) },
-          {
-            header: 'Credentials',
-            cell: (r) => {
-              const set = Object.entries(r.secrets ?? {}).filter(([, v]) => v.set)
-              return set.length ? set.map(([k, v]) => <Badge key={k}>{k.replaceAll('_', ' ')} · {v.source}</Badge>) : <span className="muted">none</span>
-            },
-          },
-          { header: 'State', cell: (r) => (r.spec.enabled ? <Badge tone="success">Enabled</Badge> : <Badge>Disabled</Badge>) },
         ]}
         dialog={(r, close) => <MonitorDialog monitor={r} onClose={close} />}
       />

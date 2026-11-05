@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui'
-import { Checkbox, Dialog, MutationError, SelectField, TextField, formStyles as f } from '@/components/form'
+import { Advanced, Checkbox, Dialog, MutationError, SelectField, TextField, formStyles as f } from '@/components/form'
 import { TerraformEditWarning } from '@/components/ResourceBadges'
 import { resourceListQuery, type ResourcePlural } from '@/lib/api/queries'
 import { useSaveResource } from '@/lib/api/resources'
@@ -19,9 +19,9 @@ const scopeKinds: Record<Exclude<Scope, 'global'>, { plural: ResourcePlural; lab
 }
 
 export const costKinds = [
-  { value: 'estimated_api_charge', label: 'Estimated API charges', hint: 'Metered usage priced at configured list prices.' },
-  { value: 'actual_api_charge', label: 'Actual API charges', hint: 'Charges reported by provider billing APIs.' },
-  { value: 'list_equivalent', label: 'Subscription list-price equivalent', hint: 'Subscription usage valued at list prices. Not money spent; count it only to cap subscription consumption.' },
+  { value: 'estimated_api_charge', label: 'Estimated cost', hint: 'Metered usage priced at the prices configured on providers.' },
+  { value: 'actual_api_charge', label: 'Billed cost', hint: 'Charges reported by the providers’ billing APIs.' },
+  { value: 'list_equivalent', label: 'Subscription usage at list prices', hint: 'Not money spent; count it only to cap how much of a subscription is used.' },
 ] as const
 
 /** Create or edit a spend budget. */
@@ -63,7 +63,8 @@ export function BudgetDialog({ budget, onClose }: { budget: BudgetRes | null; on
     <Dialog open wide title={budget ? `Edit budget ${budget.name}` : 'Add budget'} onClose={onClose}>
       <TerraformEditWarning r={budget} />
       <div className={f.grid}>
-        <TextField label="Name" value={name} onChange={setName} disabled={!!budget} required />
+        <TextField label="Name" value={name} onChange={setName} disabled={!!budget} required placeholder="e.g. team-monthly" />
+        <TextField label="Limit" value={limit} onChange={setLimit} placeholder="50.00" required suffix={currency} />
         <SelectField<Scope>
           label="Scope"
           value={scope}
@@ -78,23 +79,23 @@ export function BudgetDialog({ budget, onClose }: { budget: BudgetRes | null; on
             options={[{ value: '', label: options.isLoading ? 'Loading…' : `Select a ${target.label.toLowerCase()}` }, ...(options.data?.items ?? []).map((o) => ({ value: o.id, label: o.name }))]} />
         )}
         <SelectField label="Period" value={period} onChange={setPeriod} options={[{ value: 'day', label: 'Day' }, { value: 'week', label: 'Week (Monday start)' }, { value: 'month', label: 'Month' }]} />
-        <TextField label="Limit" value={limit} onChange={setLimit} placeholder="50.00" required />
-        <TextField label="Currency" value={currency} onChange={(v) => setCurrency(v.toUpperCase())} maxLength={3} hint="Only costs in this currency count." />
         <SelectField label="Enforcement" value={enforcement} onChange={setEnforcement}
-          options={[{ value: 'block', label: 'Block new attempts at the limit' }, { value: 'warn', label: 'Warn only' }]} />
-        <TextField label="Warn at (% of limit)" type="number" value={warnAt} onChange={setWarnAt} error={warnValid ? undefined : 'Between 1 and 100.'} />
-        <TextField label="Timezone (IANA, empty = UTC)" value={tz} onChange={setTz} placeholder="Europe/Vilnius" hint="Period boundaries use this timezone." />
+          options={[{ value: 'block', label: 'Block new requests at the limit' }, { value: 'warn', label: 'Warn only' }]} />
       </div>
-      <fieldset className={c.checks} style={{ flexDirection: 'column' }}>
-        <legend className={c.legend}>Cost categories that count</legend>
-        {costKinds.map((k) => (
-          <div key={k.value}>
-            <Checkbox label={k.label} checked={kinds.includes(k.value)} onChange={(on) => setKinds(toggle(kinds, k.value, on))} />
-            <div className="muted" style={{ fontSize: 'var(--text-xs)', marginLeft: 24 }}>{k.hint}</div>
-          </div>
-        ))}
-      </fieldset>
-      <Checkbox label="Enabled" checked={enabled} onChange={setEnabled} />
+      <Advanced>
+        <div className={f.grid}>
+          <TextField label="Warn at" type="number" suffix="%" value={warnAt} onChange={setWarnAt} error={warnValid ? undefined : 'Between 1 and 100.'} />
+          <TextField label="Currency" value={currency} onChange={(v) => setCurrency(v.toUpperCase())} maxLength={3} hint="Only costs in this currency count." />
+          <TextField label="Timezone" value={tz} onChange={setTz} placeholder="UTC" hint="Period boundaries use this IANA timezone, e.g. Europe/Vilnius." />
+        </div>
+        <fieldset className={c.checks} style={{ flexDirection: 'column' }}>
+          <legend className={c.legend}>What counts</legend>
+          {costKinds.map((k) => (
+            <Checkbox key={k.value} label={k.label} description={k.hint} checked={kinds.includes(k.value)} onChange={(on) => setKinds(toggle(kinds, k.value, on))} />
+          ))}
+        </fieldset>
+        <Checkbox label="Budget on" checked={enabled} onChange={setEnabled} />
+      </Advanced>
       <MutationError error={save.error} />
       <div className={f.actions}>
         <Button onClick={onClose}>Cancel</Button>

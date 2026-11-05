@@ -19,7 +19,7 @@ const quickActions: { id: string; label: string; description: string; to: string
   { id: 'new-client', label: 'Add a client', description: 'Create a client and its access token', to: '/clients', perm: 'config.write' },
   { id: 'new-provider', label: 'Add a provider', description: 'API key, local model or CLI subscription', to: '/providers', perm: 'config.write' },
   { id: 'simulate', label: 'Test a request', description: 'See where a routing plan would send it', to: '/routing/plans', perm: 'config.read' },
-  { id: 'budgets', label: 'Budgets', description: 'Spend limits and how close you are', to: '/usage/budgets', perm: 'usage.read' },
+  { id: 'budgets', label: 'Budgets', description: 'Spend limits and how close you are', to: '/quotas#budgets', perm: 'usage.read' },
   { id: 'people', label: 'People', description: 'Invite and manage users', to: '/settings/users', perm: 'users.manage' },
   { id: 'audit', label: 'Audit log', description: 'Who changed what', to: '/settings/audit', perm: 'audit.read' },
   { id: 'backups', label: 'System & backups', description: 'Version, storage and backups', to: '/settings/system', perm: 'system.manage' },
