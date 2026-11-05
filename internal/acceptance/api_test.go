@@ -213,3 +213,98 @@ func TestAttentionList(t *testing.T) {
 		}
 	})
 }
+
+// The request list filters by time, fallbacks and search and reports the
+// total; usage series split by a dimension.
+func TestRequestFiltersAndGroupedSeries(t *testing.T) {
+	e := apptest.New(t)
+	up := apptest.NewUpstream(t, "anthropic")
+	price := [2]string{"3", "15"}
+	prov := e.Provider("anthropic", "anthropic", up.Srv.URL, apptest.Model{ID: "m", MaxOutput: 1024, Price: &price})
+	a1 := e.Account("a1", prov, apptest.AccountOpts{})
+	a2 := e.Account("a2", prov, apptest.AccountOpts{})
+	alias := e.Alias("coding/default", e.Pool("p", "ordered", apptest.Member{Account: a1, Model: "m"}, apptest.Member{Account: a2, Model: "m", Priority: 1}))
+	plan := e.Plan("default", apptest.PlanOpts{DefaultAlias: alias})
+	tokA := e.Token(e.Binding("laptop", plan, apptest.BindingOpts{}))
+	tokB := e.Token(e.Binding("ci", plan, apptest.BindingOpts{}))
+	send := func(tok, model string) {
+		r := e.Gateway("POST", "/v1/messages", tok, map[string]any{"model": model, "max_tokens": 8, "messages": []any{map[string]any{"role": "user", "content": "x"}}})
+		if b := apptest.ReadAll(r); r.StatusCode != 200 {
+			t.Fatalf("%d %s", r.StatusCode, b)
+		}
+	}
+	up.Push(apptest.Reply{Status: 429, RetryAfter: 5})
+	send(tokA, "claude-opus") // needs a fallback
+	send(tokA, "claude-sonnet")
+	send(tokB, "gpt-x")
+	e.Flush()
+
+	type page struct {
+		Items []struct {
+			ID             string `json:"id"`
+			RequestedModel string `json:"requested_model"`
+			Attempts       int    `json:"attempts"`
+		} `json:"items"`
+		Total      int64  `json:"total"`
+		NextCursor string `json:"next_cursor"`
+	}
+	tests := []struct {
+		name  string
+		query string
+		want  int64
+	}{
+		{"all", "", 3},
+		{"fallbacks", "fallbacks=true", 1},
+		{"model prefix", "q=claude", 2},
+		{"underscore is literal", "q=claude_", 0},
+		{"future range", "from=2999-01-01T00:00:00Z", 0},
+		{"past range", "to=2000-01-01T00:00:00Z", 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var p page
+			e.Admin.MustDo(200, "GET", "/api/v1/activity/requests?limit=1&"+tt.query, nil, &p)
+			if p.Total != tt.want || int64(len(p.Items)) != min(tt.want, 1) || (p.NextCursor != "") != (tt.want > 1) {
+				t.Fatalf("total %d items %d next %q, want total %d", p.Total, len(p.Items), p.NextCursor, tt.want)
+			}
+		})
+	}
+	var all page
+	e.Admin.MustDo(200, "GET", "/api/v1/activity/requests", nil, &all)
+	var byID page
+	e.Admin.MustDo(200, "GET", "/api/v1/activity/requests?q="+all.Items[0].ID, nil, &byID)
+	if byID.Total != 1 || byID.Items[0].ID != all.Items[0].ID {
+		t.Fatalf("search by id %+v", byID)
+	}
+
+	var ser struct {
+		Points []struct {
+			Attempts int64 `json:"attempts"`
+		} `json:"points"`
+		Groups []struct {
+			Key    string `json:"key"`
+			Points []struct {
+				Attempts int64 `json:"attempts"`
+			} `json:"points"`
+		} `json:"groups"`
+	}
+	e.Admin.MustDo(200, "GET", "/api/v1/usage/series?step=day&by=binding&top=1", nil, &ser)
+	sum := func(pts []struct {
+		Attempts int64 `json:"attempts"`
+	}) (n int64) {
+		for _, p := range pts {
+			n += p.Attempts
+		}
+		return n
+	}
+	if len(ser.Groups) != 2 || ser.Groups[1].Key != "other" {
+		t.Fatalf("groups %+v", ser.Groups)
+	}
+	if total := sum(ser.Points); total == 0 || sum(ser.Groups[0].Points)+sum(ser.Groups[1].Points) != total {
+		t.Fatalf("groups do not add up to the total: %+v vs %+v", ser.Groups, ser.Points)
+	}
+	e.Admin.MustDo(200, "GET", "/api/v1/usage/series?step=week", nil, &ser)
+	if len(ser.Points) == 0 {
+		t.Fatal("weekly series is empty")
+	}
+}

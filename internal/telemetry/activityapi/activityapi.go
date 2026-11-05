@@ -161,6 +161,16 @@ type ActivitySummary struct {
 	Dropped   int64            `json:"telemetry_dropped" doc:"Records dropped under back-pressure since start (coverage gap)."`
 }
 
+// RequestPage is a page of requests with the total matching the filters.
+type RequestPage struct {
+	api.Page[RequestSummary]
+	Total int64 `json:"total" doc:"Requests matching the filters across all pages."`
+}
+
+func escapeLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
 // Register adds activity operations.
 func Register(a *api.API, db func() *store.DB, dropped func() int64) {
 	tags := []string{"Activity"}
@@ -173,8 +183,12 @@ func Register(a *api.API, db func() *store.DB, dropped func() int64) {
 		Status    string `query:"status" enum:"in_progress,ok,error,blocked,canceled," required:"false"`
 		Model     string `query:"model" maxLength:"200"`
 		Harness   string `query:"harness" maxLength:"32"`
+		From      string `query:"from" doc:"RFC 3339; only requests created at or after this time."`
+		To        string `query:"to" doc:"RFC 3339; only requests created before this time."`
+		Fallbacks bool   `query:"fallbacks" doc:"Only requests that needed more than one attempt."`
+		Search    string `query:"q" maxLength:"200" doc:"Request id, or a prefix of the requested or served model."`
 	}
-	type listOut struct{ Body api.Page[RequestSummary] }
+	type listOut struct{ Body RequestPage }
 	api.Register(a, api.Op{ID: "list-requests", Method: http.MethodGet, Path: "/activity/requests", Summary: "List gateway requests (newest first)",
 		Tags: tags, Permission: auth.PermActivityRead}, func(ctx context.Context, in *listIn) (*listOut, error) {
 		before, err := api.DecodeCursor(in.Cursor)
@@ -182,18 +196,44 @@ func Register(a *api.API, db func() *store.DB, dropped func() int64) {
 			return nil, err
 		}
 		lim := in.NormalizeLimit()
-		q := `SELECT ` + summaryCols + ` FROM requests WHERE 1=1`
+		where := ` WHERE 1=1`
 		var args []any
-		if before != "" {
-			q += ` AND id < ?`
-			args = append(args, before)
-		}
 		for col, v := range map[string]string{"binding_id": in.BindingID, "project_id": in.ProjectID, "session_id": in.SessionID,
 			"final_account_id": in.AccountID, "status": in.Status, "requested_model": in.Model, "harness": in.Harness} {
 			if v != "" {
-				q += ` AND ` + col + ` = ?` //nolint:gosec // col comes from the static map above
+				where += ` AND ` + col + ` = ?` //nolint:gosec // col comes from the static map above
 				args = append(args, v)
 			}
+		}
+		for _, t := range []struct {
+			raw, op, field string
+		}{{in.From, ">=", "from"}, {in.To, "<", "to"}} {
+			if t.raw == "" {
+				continue
+			}
+			at, err := time.Parse(time.RFC3339, t.raw)
+			if err != nil {
+				return nil, api.Invalid("invalid "+t.field, api.FieldError{Location: "query." + t.field, Message: "must be RFC 3339"})
+			}
+			where += ` AND created_at ` + t.op + ` ?`
+			args = append(args, at.UnixMilli())
+		}
+		if in.Fallbacks {
+			where += ` AND attempt_count > 1`
+		}
+		if q := strings.TrimSpace(in.Search); q != "" {
+			like := escapeLike(q) + "%"
+			where += ` AND (id = ? OR requested_model LIKE ? ESCAPE '\' OR final_model LIKE ? ESCAPE '\')`
+			args = append(args, q, like, like)
+		}
+		out := &listOut{}
+		if err := db().R.QueryRowContext(ctx, `SELECT count(*) FROM requests`+where, args...).Scan(&out.Body.Total); err != nil {
+			return nil, err
+		}
+		q := `SELECT ` + summaryCols + ` FROM requests` + where
+		if before != "" {
+			q += ` AND id < ?`
+			args = append(args, before)
 		}
 		q += ` ORDER BY id DESC LIMIT ?`
 		args = append(args, lim+1)
@@ -201,7 +241,8 @@ func Register(a *api.API, db func() *store.DB, dropped func() int64) {
 		if err != nil {
 			return nil, err
 		}
-		return &listOut{Body: api.Paginate(items, lim, func(r RequestSummary) string { return r.ID })}, nil
+		out.Body.Page = api.Paginate(items, lim, func(r RequestSummary) string { return r.ID })
+		return out, nil
 	})
 
 	type idIn struct {

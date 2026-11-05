@@ -3513,19 +3513,6 @@ components:
       required:
         - items
       type: object
-    PageRequestSummary:
-      additionalProperties: false
-      properties:
-        items:
-          items:
-            $ref: "#/components/schemas/RequestSummary"
-          type: array
-        next_cursor:
-          description: Present when more items are available.
-          type: string
-      required:
-        - items
-      type: object
     PageResourceAccountSpec:
       additionalProperties: false
       properties:
@@ -4758,6 +4745,24 @@ components:
         - tokens
         - usage_source
         - tool_calls
+      type: object
+    RequestPage:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/RequestSummary"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+        total:
+          description: Requests matching the filters across all pages.
+          format: int64
+          type: integer
+      required:
+        - total
+        - items
       type: object
     RequestSummary:
       additionalProperties: false
@@ -6093,6 +6098,11 @@ components:
         from:
           format: date-time
           type: string
+        groups:
+          description: "Present with by: one series per group; key \"other\" holds the remaining groups."
+          items:
+            $ref: "#/components/schemas/SeriesGroup"
+          type: array
         points:
           items:
             $ref: "#/components/schemas/UsagePoint"
@@ -6106,6 +6116,20 @@ components:
         - from
         - to
         - step
+        - points
+      type: object
+    SeriesGroup:
+      additionalProperties: false
+      properties:
+        key:
+          description: Group value (id or name); "other" for the remaining groups, "" when unattributed.
+          type: string
+        points:
+          items:
+            $ref: "#/components/schemas/UsagePoint"
+          type: array
+      required:
+        - key
         - points
       type: object
     ServicePrincipalDTO:
@@ -7525,12 +7549,41 @@ paths:
           schema:
             maxLength: 32
             type: string
+        - description: RFC 3339; only requests created at or after this time.
+          explode: false
+          in: query
+          name: from
+          schema:
+            description: RFC 3339; only requests created at or after this time.
+            type: string
+        - description: RFC 3339; only requests created before this time.
+          explode: false
+          in: query
+          name: to
+          schema:
+            description: RFC 3339; only requests created before this time.
+            type: string
+        - description: Only requests that needed more than one attempt.
+          explode: false
+          in: query
+          name: fallbacks
+          schema:
+            description: Only requests that needed more than one attempt.
+            type: boolean
+        - description: Request id, or a prefix of the requested or served model.
+          explode: false
+          in: query
+          name: q
+          schema:
+            description: Request id, or a prefix of the requested or served model.
+            maxLength: 200
+            type: string
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PageRequestSummary"
+                $ref: "#/components/schemas/RequestPage"
           description: OK
         default:
           content:
@@ -14404,6 +14457,7 @@ paths:
             enum:
               - hour
               - day
+              - week
               - ""
             type: string
         - explode: false
@@ -14426,6 +14480,32 @@ paths:
           schema:
             maxLength: 200
             type: string
+        - description: Also split the series by this dimension (top groups by attempts, the rest as other).
+          explode: false
+          in: query
+          name: by
+          schema:
+            description: Also split the series by this dimension (top groups by attempts, the rest as other).
+            enum:
+              - account
+              - provider
+              - model
+              - binding
+              - project
+              - workspace
+              - billing
+              - ""
+            type: string
+        - description: Groups returned with by (default 6).
+          explode: false
+          in: query
+          name: top
+          schema:
+            description: Groups returned with by (default 6).
+            format: int64
+            maximum: 20
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
