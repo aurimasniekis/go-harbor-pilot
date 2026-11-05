@@ -178,14 +178,42 @@ func (s *Service) MintChild(ctx context.Context, parent *AuthenticatedCredential
 	for k, v := range parent.BoundRefs {
 		merged[k] = v
 	}
+	binding := s.Snapshot().Bindings[parent.BindingID]
 	for k, v := range in.BoundRefs {
 		if pv, ok := parent.BoundRefs[k]; ok && pv != v {
 			return nil, "", &ValidationError{Errors: []FieldError{{Location: "body.bound_refs." + k, Message: "cannot override a reference bound to the parent credential"}}}
+		}
+		if err := checkChildRef(binding, k, v); err != nil {
+			return nil, "", &ValidationError{Errors: []FieldError{{Location: "body.bound_refs." + k, Message: err.Error()}}}
 		}
 		merged[k] = v
 	}
 	in.BoundRefs = merged
 	return s.insertCredential(ctx, parent.BindingID, parent.ID, in)
+}
+
+// ChildProjectAllowed reports whether a child credential of binding may be
+// bound to project: only the binding's own project or one it allows.
+func ChildProjectAllowed(binding *Res[BindingSpec], project string) bool {
+	if binding == nil {
+		return false
+	}
+	return project == binding.Spec.ProjectID || slices.Contains(binding.Spec.AllowedProjectIDs, project)
+}
+
+// checkChildRef limits what a minter may bind: a project must be one the
+// binding may attribute to, and references the operator configured on the
+// binding cannot be replaced.
+func checkChildRef(binding *Res[BindingSpec], key, val string) error {
+	if key == "project_id" && !ChildProjectAllowed(binding, val) {
+		return errors.New("project must be the client's project or one of its allowed projects")
+	}
+	if binding != nil {
+		if bv, ok := binding.Spec.ExternalRefs[key]; ok && bv != val {
+			return errors.New("cannot override a reference configured on the client")
+		}
+	}
+	return nil
 }
 
 func (s *Service) insertCredential(ctx context.Context, bindingID, parentID string, in CredentialInput) (*Credential, string, error) {

@@ -38,6 +38,7 @@
    - Redirect following is limited to the same host.
    - Response size and timeouts are bounded.
 4. **Identity spoofing through headers.** Project, run and session headers are untrusted claims. Trusted refs come only from the binding or from the minting call. If a claim conflicts with a trusted ref, the conflict is recorded and the trusted value wins.
+   - A minter (a credential holding `tokens:mint`) can bind a child only to the client's own project or one of its allowed projects, and cannot replace references the operator configured on the client. The gateway re-checks the bound project against the client on every request.
 5. **Prompt injection steering routing or authorization.** Prompts and classifier output are data only. Intent from a classifier cannot widen permissions, raise budgets, or select accounts outside the plan's eligible set.
 6. **Placeholder abuse.** A model could emit `HPSEC_…` tokens into tool arguments (URLs, commands) to exfiltrate secrets.
    - Restoring originals into tool arguments is off by default.
