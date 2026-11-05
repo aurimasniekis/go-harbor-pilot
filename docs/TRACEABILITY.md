@@ -16,52 +16,53 @@ This matrix maps every requirement in the product brief to the phase, package an
 ## §2 Non-negotiable goals
 | ID | Requirement | Phase | Package(s) | Status | Evidence |
 |---|---|---|---|---|---|
-| R2.1 | Multi-provider, multi-account gateway | 4–5 | gateway, executor, routing | implemented | gateway, routing, executor/httpapi; acceptance A/B/E |
-| R2.2 | Harness integrations and protocol translation | 4, 12 | protocol, harness | in-progress | protocol adapters contract-tested; harness tooling Phase 12 |
+| R2.1 | Multi-provider, multi-account gateway | 4–5 | gateway, executor, routing | contract-tested | synthetic upstreams: TestScenarioA_StandaloneHarness, TestScenarioB_CrossProtocolTools, TestScenarioE_ConcurrentReservations, TestAttemptCountAndFailoverRecorded (internal/acceptance/scenarios_test.go); TestScenarioC/D (internal/acceptance/routing_test.go); live provider runs blocked (credentials, LIMITATIONS) |
+| R2.2 | Harness integrations and protocol translation | 4, 12 | protocol, harness | contract-tested | protocol adapters with golden fixtures and fuzzing (internal/protocol: TestAnthropicToChatTranslation, TestCrossProtocolStreaming, FuzzParsers); reversible harness config tooling (internal/harness TestSetupAndUninstallPreserveUserConfig); setup guides in the UI; live harness runs: Claude Code CLI only, others blocked (binaries, LIMITATIONS) |
 | R2.3 | API, subscription (CLI bridge) and local executors | 4, 7 | executor | contract-tested | HTTP API + local executors; Claude Code bridge against the real CLI with a synthetic upstream (bridge/claudecode, TestClaudeCodeBridge*); Codex bridge against a fake CLI (bridge/codex); live runs blocked (credentials / binary) |
-| R2.4 | Explainable Expr routing plans and decision tables | 5 | routing | in-progress | routing/engine.go (rules, decision tables, score), routingapi; TestEngineRules; editor UI pending |
+| R2.4 | Explainable Expr routing plans and decision tables | 5 | routing | contract-tested | internal/routing TestEngineRules, TestCompileErrors, TestTransitions; internal/acceptance/routing_test.go TestSimulationAndReplay; "Why this route?" explanation (activity request page); rule builder and decision-table editor in web/e2e/routing.spec.ts |
 | R2.5 | Quota monitoring, account switching, budgets, attribution | 5–6 | quota, accounting | contract-tested | quota monitors feed routing health (TestQuotaMonitorDrivesRouting), account switching (scenario C), budgets enforced in reservations (TestBudgetBlocksMeteredSpend), ledger attribution by workspace/project/binding |
-| R2.6 | Consumer-neutral identity via tokens and base URLs | 3–4 | controlplane, gateway | implemented | gateway auth by hpk_ token + base URL; acceptance A |
-| R2.7 | Activity statistics (models, intents, tools, sessions, attempts) | 4, 11 | telemetry | in-progress | requests/attempts/sessions/tool observation + activityapi; intents & rollups Phase 11 |
-| R2.8 | Optional short-lived traces | 8 | traces | planned | |
-| R2.9 | Secret masking and privacy controls | 8 | privacy | planned | |
-| R2.10 | Authorized native passthrough during protocol drift | 9 | compat, gateway | planned | |
-| R2.11 | Protocol Watch changelog | 9 | compat | planned | |
+| R2.6 | Consumer-neutral identity via tokens and base URLs | 3–4 | controlplane, gateway | contract-tested | hpk_ token plus base URL only (TestScenarioA_StandaloneHarness); SpaceMan uses the same primitives (TestScenarioN_SpaceManAndStandaloneClientCoexist) |
+| R2.7 | Activity statistics (models, intents, tools, sessions, attempts) | 4, 11 | telemetry | contract-tested | requests/attempts/sessions + GET /stats by dimension (TestIntentClassifierAndPrecedence asserts stats by intent); request filters with totals and grouped usage series (TestRequestFiltersAndGroupedSeries); dedupe (TestScenarioN) |
+| R2.8 | Optional short-lived traces | 8 | traces | contract-tested | off by default, encrypted, read-time expiry and crypto-erasure (TestScenarioF_MaskedSecretAbsentUpstreamAndPersistence, TestScenarioG_ExpiredTracesUnreadableAndUnsearchable) |
+| R2.9 | Secret masking and privacy controls | 8 | privacy | contract-tested | internal/privacy TestDetectors, TestPrecedence, TestMaskRequestPlaceholders, TestRestorerAcrossChunks, TestToolArgRestorationIsGuarded, TestSandboxDoesNotRetain; TestScenarioF, TestScenarioJ_RequiredPrivacyBlocksRawFallback, TestPrivacyBlockRule |
+| R2.10 | Authorized native passthrough during protocol drift | 9 | compat, gateway | contract-tested | TestScenarioH_DriftActivatesApprovedPassthrough; refused under required privacy (TestScenarioJ); internal/compat TestClassify, TestBreakerLifecycle |
+| R2.11 | Protocol Watch changelog | 9 | compat | contract-tested | TestScenarioH_DriftActivatesApprovedPassthrough (Protocol Watch assertions, scenario I); TestFingerprintSanitization |
 | R2.12 | Durable events plus Pulse/NATS | 10 | events | contract-tested | transactional outbox, Pulse relay against embedded JetStream, signed webhooks; TestScenarioK; live Pulse run blocked on an instance |
 | R2.13 | Telegram, Slack, Discord and webhook notifications | 10 | notify | contract-tested | internal/notify adapters against httptest fakes (notify_test.go); live channel runs blocked on credentials |
 | R2.14 | Local password and OIDC SSO | 2 | auth | implemented | internal/auth, internal/auth/authapi; auth/oidc_test.go (contract) |
-| R2.15 | UI preserving Quota Harbor's stack and theme | 0–15 | web | planned | |
-| R2.16 | Terraform provider | 14 | ../terraform-provider-harbor-pilot | planned | |
+| R2.15 | UI preserving Quota Harbor's stack and theme | 0–15 | web | in-progress | Superseded by owner decision D-034 (2026-11-05): UI rebuilt on Mantine 9 with the existing palette. Shell, Home, Requests, Spend (d70dd11d8e4e); Limits, Clients, Providers, Routing, Privacy, Alerts, Settings, readable audit log, Requests folding (0fd325915542 … e22335aac253). Remaining: removal of old components and a full Playwright run after the rollout |
+| R2.16 | Terraform provider | 14 | ../terraform-provider-harbor-pilot | contract-tested | provider acceptance suite against a real harbor-pilot serve (TestAccObjectKinds, TestAccConcurrencyConflict, TestAccEphemeralTokenAndWriteOnlySecrets, TestAccScenarioL; Terraform 1.17.1, 2026-11-05); Registry publication blocked (owner, LIMITATIONS) |
 | R2.17 | Migration, backup, recovery, security, ops docs | 13 | store, cmd, docs | contract-tested | backup/verify/restore (internal/ops, TestScenarioM); Quota Harbor importer with dry run and idempotent re-runs (internal/migrate/quotaharbor, TestImport; live import of a real Quota Harbor deployment not run); docs/operations/{deployment,backup-restore,upgrade-rollback,troubleshooting}.md; docs/guides/migrate-quota-harbor.md |
+| R2.18 | No secrets in ordinary logs, metrics, errors, events or Terraform diagnostics (brief §2 priorities) | 1–15 | all | contract-tested | secret-leak sweep with canaries in every secret field, success and failure paths, raw database files and all read APIs (TestSecretsNeverLeak); upstream errors echoing keys are scrubbed (internal/executor TestScrubText); validation errors never echo input (TestValidationErrorsDoNotEchoValues); internal/platform/observability TestLoggerRedactsSecrets; provider TestErrorEnvelopeNeverKeepsValues |
 
 ## §3 Discovery and design deliverables
 | ID | Requirement | Status | Evidence |
 |---|---|---|---|
 | R3.1 | PRODUCT, ARCHITECTURE, PLAN, DECISIONS, THREAT_MODEL, TRACEABILITY, LIMITATIONS, COMPATIBILITY, contracts/, AGENTS.md | implemented | `docs/`, `AGENTS.md` |
 | R3.2 | Verified reference contracts, licensing, UI tokens | implemented | `docs/contracts/reference-*.md` |
-| R3.3 | Domain model, topology, capability matrix, migration strategy, API/event/config/TF contracts | in-progress | ARCHITECTURE §1–6, docs/contracts/, docs/reference/auth.md |
+| R3.3 | Domain model, topology, capability matrix, migration strategy, API/event/config/TF contracts | implemented | ARCHITECTURE §1–9 (topology, layers, domain model, lifecycle, storage, capacity, security); COMPATIBILITY.md; docs/guides/migrate-quota-harbor.md; api/openapi.yaml; docs/contracts/{gateway,events,config}.md (config.md covers the Terraform-facing contract); provider docs/DECISIONS.md |
 
 ## §4 Platform
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
 | R4.1 | Go, one binary, embedded UI | 0–1 | implemented | cmd/harbor-pilot, internal/app, internal/web; app_test.go |
-| R4.2 | SQLite WAL, single instance, documented capacity | 1, 15 | planned | |
-| R4.3 | Quota Harbor UI stack, pnpm, lint/test/E2E conventions | 0 | implemented | web/ (pinned stack), make check, web/e2e |
+| R4.2 | SQLite WAL, single instance, documented capacity | 1, 15 | contract-tested | WAL with a single writer and a data-directory lock (internal/store TestOpenAppliesMigrations; restore and migrate take the lock); capacity measured in-process against a synthetic upstream on 2026-11-05 and recorded in docs/operations/capacity.md (internal/acceptance/load_test.go TestLoadStreamingThroughputAndIntegrity, TestLoadSlowClientsDoNotStallOthers, TestLoadTelemetryBackPressure; `make load`; cmd/hp-loadgen for running servers); not live |
+| R4.3 | Quota Harbor UI stack, pnpm, lint/test/E2E conventions | 0 | implemented | pnpm, typecheck/lint/Vitest/build in make check, Playwright with axe in web/e2e; component stack changed to Mantine by owner decision D-034 |
 | R4.4 | Container and native deployment | 13 | implemented | deploy/Dockerfile (distroless, non-root) and deploy/Dockerfile.bridge (claude 2.1.318, codex 0.166.0) built and smoke-run locally on 2026-11-05: health check, bootstrap, backup, doctor; deploy/docker-compose.yml; deploy/systemd/harbor-pilot.service; goreleaser snapshot builds linux/darwin amd64/arm64; release workflow not yet run on GitHub (blocked: owner pushes) |
-| R4.5 | Deterministic, isolated demo mode | 4+ | implemented | demo seed + synthetic upstreams + real-path traffic (internal/demo) |
-| R4.6 | Execution, control, telemetry, events and notifications kept separate; bounded queues | 4, 10 | implemented | bounded telemetry queue with drop counters; outbox-only events (D-020) |
+| R4.5 | Deterministic, isolated demo mode | 4+ | implemented | internal/demo seed, synthetic upstreams and real-path traffic; demo conditions asserted in TestAttentionList; Playwright runs against the demo binary |
+| R4.6 | Execution, control, telemetry, events and notifications kept separate; bounded queues | 4, 10 | contract-tested | bounded telemetry queue with drop counters (TestLoadTelemetryBackPressure); slow clients do not stall others (TestLoadSlowClientsDoNotStallOthers); delivery outages do not block requests (TestScenarioK_DeliveryOutagesDoNotBlockGateway); outbox-only events (D-020) |
 
 ## §5 Domain model and identity
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R5.1 | All domain concepts listed in the brief | 3 | in-progress | controlplane/specs.go (workspace, project, provider, account, entitlement, pool, alias, plan, binding, credential); policy/trace/event/notification kinds land with their phases |
-| R5.2 | Client binding composition | 3 | implemented | BindingSpec (owner, plan, projects, harness, limits, trust, refs); controlplane tests |
-| R5.3 | Token-plus-base-URL onboarding with no custom headers | 4 | implemented | acceptance A |
-| R5.4 | Token scopes, expiry, revocation, ownership, last-used, nonreversible storage, shown once, never forwarded upstream | 3–4 | implemented | controlplane/credentials.go (scopes, expiry, revocation, verifier, last-used, children); TestGatewayCredentials |
-| R5.5 | Base URLs select namespaces but do not authenticate | 4 | implemented | namespaced bases /anthropic,/openai,/gemini; token required |
+| R5.1 | All domain concepts listed in the brief | 3 | implemented | controlplane kinds: workspace, project, provider, account, entitlement, pool, alias, plan, binding, quota monitor, budget, privacy and trace policies, event destination, notification channel and rule; gateway credentials (TestCreateCanonicalizesAndSnapshots, TestGatewayCredentials; every kind exercised over the API by the provider TestAccObjectKinds) |
+| R5.2 | Client binding composition | 3 | implemented | BindingSpec (owner, plan, projects, harness, limits, trust, refs); TestCreateCanonicalizesAndSnapshots, TestControlPlaneOverHTTP |
+| R5.3 | Token-plus-base-URL onboarding with no custom headers | 4 | contract-tested | TestScenarioA_StandaloneHarness |
+| R5.4 | Token scopes, expiry, revocation, ownership, last-used, nonreversible storage, shown once, never forwarded upstream | 3–4 | implemented | controlplane/credentials.go (scopes, expiry, revocation, verifier, last-used, children); TestGatewayCredentials; single-credential read returns no token (TestPlanReferencesPreconditionsAndCredentials) |
+| R5.5 | Base URLs select namespaces but do not authenticate | 4 | in-progress | namespaced bases /anthropic, /openai, /gemini mounted in internal/gateway/gateway.go; no test exercises the namespaced paths yet (tests use the unprefixed /v1 and /v1beta paths) |
 | R5.6 | Trusted versus untrusted metadata; harness detection treated as telemetry | 4 | implemented | claims vs trusted_refs; DetectHarness confidence; gateway/handle.go |
-| R5.7 | Optional external refs (SpaceMan, CI, repo) | 3, 11 | in-progress | project/binding external_refs; credential bound_refs (trusted, mint-time) |
-| R5.8 | Session uncertainty recorded; no merging by token | 4, 11 | implemented | sessions only from bound refs or trusted hints; acceptance A asserts no merge |
+| R5.7 | Optional external refs (SpaceMan, CI, repo) | 3, 11 | contract-tested | project/binding external_refs; credential bound_refs (trusted, mint-time); TestScenarioN_SpaceManAndStandaloneClientCoexist |
+| R5.8 | Session uncertainty recorded; no merging by token | 4, 11 | contract-tested | sessions only from bound refs or trusted hints; TestScenarioA_StandaloneHarness, TestScenarioN (uncertain occurrences, separate sessions) |
 
 ## §6 Harness, protocol and provider layers
 | ID | Requirement | Phase | Status | Evidence |
@@ -72,7 +73,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R6.4 | Coverage of instructions, multimodal, tools, streaming args, structured output, reasoning, opaque state, cache, usage, finish/errors/cancel/rate-limit | 4 | contract-tested | protocol_test.go (tools, streaming args, reasoning, sealed, usage, errors, cancellation via ctx) |
 | R6.5 | No invented reasoning; opaque state never turned into text | 4 | contract-tested | TestAnthropicToChatTranslation/TestResponsesNativeAndForeign assert no leak of sealed state |
 | R6.6 | Explicit-policy rejection or downgrade; unknown extensions preserved | 4, 9 | implemented | ir.Loss severities; executor rejects LossReject unless AllowLosses |
-| R6.7 | Capability-qualified compatibility matrix | 4+ | in-progress | COMPATIBILITY.md |
+| R6.7 | Capability-qualified compatibility matrix | 4+ | contract-tested | COMPATIBILITY.md cells cite contract tests; no cell is live-verified (credentials and binaries blocked, LIMITATIONS) |
 | R6.8 | Bridge isolation: no shared credential rewrite | 7 | contract-tested | per-account CLAUDE_CONFIG_DIR/HOME, per-process work dir, setup-token only in the child env, built-in tools disabled, client tools via per-process loopback MCP token (bridge/claudecode tests) |
 
 ## §7 Providers, quotas, accounting
@@ -82,32 +83,32 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R7.2 | Integration classification (official, partial, unofficial opt-in, unsupported) | 6 | implemented | adapter tiers official/unofficial/client_reported/demo; unofficial requires acknowledge_terms_risk (TestUnofficialAdapterNeedsAcknowledgement); capability matrix per adapter (GET /quota/adapters) |
 | R7.3 | Multiple windows, resets, freshness, unknown vs zero, concurrency, auth health, cooldowns, affinity, external usage | 6 | contract-tested | multiple buckets per monitor with window/reset semantics; freshness and stale flags; nil remaining stays unknown (TestBoardHealth, TestParseHeaders); local concurrency via reservations; monitor auth health; gateway cooldowns merged with quota health; affinity (routing); provider-reported external usage |
 | R7.4 | The seven separated money/usage categories | 6 | contract-tested | usageapi categories: gateway_observed, estimated_api_charge, actual_api_charge, list_equivalent, subscription_fee, allocation, plus provider-reported quota on the board; never summed across categories (TestBudgetBlocksMeteredSpend usage summary) |
-| R7.5 | Hierarchy: workspace → run → session → request → attempts | 4, 11 | in-progress | ledger carries workspace/project/run/session/request/attempt |
-| R7.6 | Immutable, idempotent ledger with corrections; fixed-precision money | 4 | implemented | accounting ledger (append-only, idempotency_key, provenance, money.Amount) |
-| R7.7 | Atomic reservations; abandoned and crash recovery | 4 | contract-tested | accounting.Reserve (IMMEDIATE tx), reaper, RecoverStartup; scenario E |
+| R7.5 | Hierarchy: workspace → run → session → request → attempts | 4, 11 | contract-tested | ledger columns workspace_id, project_id, run_ref, session_id, request_id, attempt_id; run_ref and sessions asserted in TestScenarioN_SpaceManAndStandaloneClientCoexist |
+| R7.6 | Immutable, idempotent ledger with corrections; fixed-precision money | 4 | implemented | append-only ledger with idempotency_key, provenance and money.Amount (internal/platform/money tests); no duplicate idempotency keys after restore (TestScenarioM) |
+| R7.7 | Atomic reservations; abandoned and crash recovery | 4 | contract-tested | accounting.Reserve (IMMEDIATE tx), reaper, startup recovery; TestScenarioE_ConcurrentReservations; startup recovery in TestScenarioM; reservations closed under load (TestLoadStreamingThroughputAndIntegrity) |
 | R7.8 | Policy-controlled failover order; no ambiguous replay; no splicing; no unapproved paid fallback | 5 | contract-tested | pre-first-byte failover, Transition steps, no ambiguous replay, paid fallback filter; TestScenarioC, TestScenarioD, TestTransitions |
 
 ## §8 Routing
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R8.1 | Plan contents (aliases, pools, restrictions, capabilities, quota, ranking, retry, privacy, degradation) | 5 | planned | |
+| R8.1 | Plan contents (aliases, pools, restrictions, capabilities, quota, ranking, retry, privacy, degradation) | 5 | contract-tested | PlanDocument: model mappings, default alias, restrictions, capability requirements, rules/decision tables/scores, fallback policy, privacy and trace policy, compatibility; quota and budget via health and reservations (TestPlanVersionsPublishRollback, TestEngineRules, TestOptionalFieldsAndFallbackDefault, TestQuotaMonitorDrivesRouting, TestBudgetBlocksMeteredSpend, TestScenarioH, TestScenarioJ) |
 | R8.2 | Aliases as data, not hard-coded | 3, 5 | implemented | model_alias kind (path names), plan model_mappings; ResolveModel tests |
 | R8.3 | Bounded Expr: typed, no side effects | 5 | contract-tested | expr-lang typed env (expr.Env, AsBool/AsFloat64, MaxNodes, no now()/side-effect builtins); TestCompileErrors |
-| R8.4 | Nine evaluation stages; hard restrictions cannot be overridden by scores | 5 | in-progress | request stage (block/require/set_intent) → hard restrictions → health → candidate rules (exclude/boost) → score; exclusions never re-admitted (TestEngineRules); remaining stages tracked with quota/privacy/degradation phases |
-| R8.5 | Rule builder, decision tables, Expr editor, variable reference | 5 | in-progress | variable reference API (GET /routing/variables), expression validation API; rule builder/table/Expr editor UI pending |
-| R8.6 | Unknown, stale and missing semantics; immutable snapshots | 5 | in-progress | known() guard, unknown values error instead of matching (TestEngineRules), immutable snapshot; quota freshness exposed as candidate.health.stale (TestBoardHealth) |
+| R8.4 | Nine evaluation stages; hard restrictions cannot be overridden by scores | 5 | contract-tested | authenticate (TestScenarioA) → access and privacy restrictions (TestScenarioJ, TestPrivacyBlockRule) → capabilities → filter (health, quota, budget: TestQuotaMonitorDrivesRouting, TestBudgetBlocksMeteredSpend) → rules → rank (TestEngineRules; exclusions never re-admitted) → reserve (TestScenarioE) → dispatch → reconcile and emit (TestScenarioC one switch event) |
+| R8.5 | Rule builder, decision tables, Expr editor, variable reference | 5 | contract-tested | GET /routing/variables, expression validation API (TestCompileErrors); rule builder, decision tables and Expr editor in web/src/features/routing, covered by web/e2e/routing.spec.ts ("rule builder and decision table are saved, validated and simulated") |
+| R8.6 | Unknown, stale and missing semantics; immutable snapshots | 5 | contract-tested | known() guard, unknown values error instead of matching (TestEngineRules); immutable snapshots; quota freshness as candidate.health.stale (TestBoardHealth) |
 | R8.7 | Draft, validate, publish, rollback; simulator; fixtures; replay distinct from simulation | 5 | contract-tested | draft/validate/publish/rollback (TestPlanVersionsPublishRollback); simulate and replay APIs labelled mode=simulation/replay, no upstream calls (TestSimulationAndReplay); UI pending |
-| R8.8 | Cycle and ambiguity prevention; read-only decision graph | 3, 5 | in-progress | alias cycle/depth detection, duplicate mapping rejection (snapshot.go); decision graph UI pending |
+| R8.8 | Cycle and ambiguity prevention; read-only decision graph | 3, 5 | contract-tested | alias cycle/depth detection (TestAliasCycleRejected), duplicate mapping rejection (TestValidationAndIntegrity); referenced deletes return 409 including published plans (TestPlanReferencesPreconditionsAndCredentials); read-only decision graph (web/src/features/routing/DecisionGraph.tsx) |
 
 ## §9 Activity and intents
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R9.1 | Requested, alias, capability, recommendation, actual, rules: each recorded separately | 4–5 | implemented | requests table: requested/alias/resolution/plan/caps/actual + decision JSON |
+| R9.1 | Requested, alias, capability, recommendation, actual, rules: each recorded separately | 4–5 | contract-tested | requests table: requested/alias/resolution/plan/caps/actual + decision JSON (TestAttemptCountAndFailoverRecorded, TestScenarioC; web/e2e/activity.spec.ts) |
 | R9.2 | Intent sources with classifier controls | 11 | contract-tested | declared (trusted bindings) > rule (engine set_intent) > classifier; heuristic-v1 local classifier; model-v1 classifier needs send_content authorization, runs after masking, bounded latency/input, validates the label, records version/latency/outcome and separately accounted ledger usage (TestIntentClassifierAndPrecedence, TestModelIntentClassifierSeesMaskedContent) |
-| R9.3 | Honest tool observation (offered, generated, results seen, provider-executed) | 4 | implemented | tools offered/calls generated/results seen/errors (ObserveTools) |
-| R9.4 | History dedupe; unique vs uncertain occurrences | 11 | contract-tested | per-session message fingerprints (hashes only) in session_messages; new vs repeated messages and unique tool results; requests without a known session marked uncertain (TestScenarioN) |
+| R9.3 | Honest tool observation (offered, generated, results seen, provider-executed) | 4 | in-progress | ir.ObserveTools recorded per request (gateway/handle.go); tool round trips tested (TestScenarioB_CrossProtocolTools), but no test asserts the recorded offered/generated/results counts yet |
+| R9.4 | History dedupe; unique vs uncertain occurrences | 11 | contract-tested | per-session message fingerprints (hashes only) in session_messages; repeated messages and uncertain occurrences asserted in TestScenarioN_SpaceManAndStandaloneClientCoexist; unique tool-result counting is recorded but not yet asserted by a test |
 | R9.5 | Statistics across all listed dimensions | 11 | contract-tested | GET /stats by client, harness, project, plan, intent, model, account, provider, session or period: requests, attempts, failovers, passthrough, compat failures, tokens, unknown usage, costs per category, tool activity, unique vs uncertain, TTFT/latency avg/p50/p95, classifier runs/tokens/latency/costs, switches/fallbacks, unattributed ledger entries |
-| R9.6 | OpenSearch-ready logs; no high-cardinality metric labels | 1, 11 | implemented | redacting JSON logs with one correlated gateway.request.completed line per request (ids and figures only); metric labels stay low-cardinality |
+| R9.6 | OpenSearch-ready logs; no high-cardinality metric labels | 1, 11 | implemented | redacting JSON logs with one gateway.request.completed line per request (TestLoggerRedactsSecrets, TestLoggerKeepsNumericTokenCounts); logs scanned for secrets in TestSecretsNeverLeak; metric labels stay low-cardinality |
 
 ## §10 Traces
 | ID | Requirement | Phase | Status | Evidence |
@@ -135,7 +136,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R12.2 | Pre-authorized feature loss; no silent weakening | 9 | contract-tested | plan compatibility.allowed_losses pre-authorizes masking, detailed_usage, intent_inspection, tool_statistics, traces; passthrough needs detailed_usage and tool_statistics listed; traces suspended; unknown_usage and unenforceable_budget policies (TestScenarioH, TestScenarioJ) |
 | R12.3 | Failure classification; scoped breakers; half-open; manual override | 9 | contract-tested | compat.Classify separates compatibility from auth, rate limit, outage, client and capability failures; breakers per provider and protocol path with window threshold, cooldown backoff, single half-open probe, manual override, operator-triggered live canary (TestClassify, TestBreakerLifecycle) |
 | R12.4 | Inbound incompatibility detection; no replay or splicing | 9 | contract-tested | reject-severity translation losses refuse before dispatch; executed attempts are never replayed and streams are never spliced: a request is entirely inspected or entirely passthrough (TestScenarioH) |
-| R12.5 | Degradation shown in UI; durable transition events | 9–10 | in-progress | durable compat.breaker.{opened,half_opened,closed} events; GET /compat/degradations lists open breakers with each plan's action and losses; UI banner pending |
+| R12.5 | Degradation shown in UI; durable transition events | 9–10 | contract-tested | durable compat.breaker.{opened,half_opened,closed} events (TestScenarioH); GET /compat/degradations; degradation banner in the shell (web/src/shell/Shell.tsx, features/compat/Degradations.tsx); paused protocol paths also listed in GET /attention (TestAttentionList) |
 
 ## §13 Protocol Watch
 | ID | Requirement | Phase | Status | Evidence |
@@ -166,13 +167,13 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R15.2 | Bootstrap, hashing, rate limits, cookies, CSRF, expiry, revocation | 2 | implemented | auth/service_test.go, app/app_test.go, web/e2e/auth.spec.ts |
 | R15.3 | OIDC discovery, state, nonce, PKCE, iss/aud; account linking; role mapping | 2 | contract-tested | auth/oidc_test.go: PKCE, nonce, iss/aud, RFC 9207, browser binding, JIT/preprovisioned, group roles |
 | R15.4 | Break-glass; admin/operator/viewer; scoped service accounts; trace-content permissions; audit | 2 | implemented | auth/rbac.go, auth/login.go (break-glass + alert), audit; app_test.go |
-| R15.5 | Encrypted secrets or secret refs; KEK management documented | 1 | implemented | platform/crypto (+tests), store/serverkeys.go, app/rotate.go, docs/operations/master-key.md |
+| R15.5 | Encrypted secrets or secret refs; KEK management documented | 1 | contract-tested | platform/crypto tests, store/serverkeys.go, app/rotate.go, docs/operations/master-key.md; no plaintext secret in the raw database files (TestSecretsNeverLeak) |
 
 ## §16 API, configuration and CLI
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
 | R16.1 | Versioned OpenAPI: generated and validated | 1 | implemented | huma + api/openapi.yaml; cmd/harbor-pilot/openapi_test.go (drift + x-permission) |
-| R16.2 | Stable IDs, pagination, structured errors, redaction, concurrency control, idempotency | 1, 3 | implemented | envelope, cursor pagination, ETag/If-Match (412), referenced-delete 409, idempotent import; app/controlplane_test.go |
+| R16.2 | Stable IDs, pagination, structured errors, redaction, concurrency control, idempotency | 1, 3 | implemented | envelope, cursor pagination, ETag/If-Match (412), referenced-delete 409, idempotent import (app/controlplane_test.go TestControlPlaneOverHTTP); errors never echo input (TestValidationErrorsDoNotEchoValues); publish/rollback preconditions (TestPlanReferencesPreconditionsAndCredentials); paged delivery and notification history (TestNotificationsChannelsHysteresisRecoveryAndTest) |
 | R16.3 | Configuration revision and effective-policy endpoints | 3 | implemented | GET /config/revisions, GET /config/effective |
 | R16.4 | One authority; export and import; last-known-good; merge vs replace | 3 | implemented | controlplane/bundle.go merge/replace/dry-run, compile-before-commit + atomic snapshot swap; TestExportImportRoundTrip |
 | R16.5 | Terraform-managed marking and drift | 3 | implemented | managed_by + drift_state; TestRevisionsAndDrift, TestControlPlaneOverHTTP |
@@ -193,23 +194,23 @@ This matrix maps every requirement in the product brief to the phase, package an
 ## §18 UI
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R18.1 | All twelve screen groups listed in the brief | 2–11 | planned | |
-| R18.2 | "Why this route?" screen | 4, 11 | implemented | GET /activity/requests/{id}; web/src/routes/activity/$requestId.tsx; e2e activity.spec.ts |
-| R18.3 | Loading, empty, error, stale, partial, expired and denied states; keyboard access; responsive | all | in-progress | states/ErrorBoundary, a11y + responsive e2e for current screens |
-| R18.4 | Deterministic synthetic demo exercising real paths | 4+ | planned | |
+| R18.1 | All twelve screen groups listed in the brief | 2–11 | in-progress | all twelve groups exist: Home (needs attention from GET /attention, TestAttentionList), Clients and setup, Workspaces (Settings), Providers/accounts/subscriptions, Routing (plans, model names, fallback groups, simulator), Spend and Limits (usage, cost, quotas, forecasts, budgets), Requests and request page, Privacy and captured content, Diagnostics (compatibility, Protocol Watch), event stream, Alerts, Settings; every admin page rendered by web/e2e/crawl.spec.ts. Remaining: Mantine rollout cleanup and a full Playwright run (D-034) |
+| R18.2 | "Why this route?" screen | 4, 11 | implemented | GET /activity/requests/{id}; request page web/src/routes/activity/$requestId.tsx; web/e2e/activity.spec.ts and the phone-width check in web/e2e/responsive.spec.ts |
+| R18.3 | Loading, empty, error, stale, partial, expired and denied states; keyboard access; responsive | all | in-progress | state components and empty states with next actions; axe checks per admin page and a keyboard skip-link test (web/e2e/a11y.spec.ts); no horizontal scroll at 390px (web/e2e/responsive.spec.ts). Remaining: confirm every migrated page after the rollout |
+| R18.4 | Deterministic synthetic demo exercising real paths | 4+ | implemented | internal/demo: synthetic upstreams with fixed latency, seeded configuration, real gateway traffic; isolated data directory and throwaway key; Playwright runs against it; demo conditions asserted in TestAttentionList |
 
 ## §19 Testing and acceptance scenarios
 | ID | Scenario | Phase | Status | Evidence |
 |---|---|---|---|---|
-| A | Standalone harness using only a token and base URL | 4 | planned | `internal/acceptance/scenario_a_test.go` |
-| B | Cross-protocol tools and streaming | 4 | planned | scenario_b |
+| A | Standalone harness using only a token and base URL | 4 | contract-tested | internal/acceptance/scenarios_test.go TestScenarioA_StandaloneHarness |
+| B | Cross-protocol tools and streaming | 4 | contract-tested | internal/acceptance/scenarios_test.go TestScenarioB_CrossProtocolTools |
 | C | Exhaustion leads to failover and one switch event | 5 | contract-tested | internal/acceptance/routing_test.go TestScenarioC_ExhaustionFailoverOneSwitchEvent |
 | D | Unapproved paid fallback blocked | 5 | contract-tested | internal/acceptance/routing_test.go TestScenarioD_UnapprovedPaidFallbackBlocked |
-| E | No over-allocation of concurrent reservations | 4 | planned | scenario_e |
+| E | No over-allocation of concurrent reservations | 4 | contract-tested | internal/acceptance/scenarios_test.go TestScenarioE_ConcurrentReservations; integrity under load in TestLoadStreamingThroughputAndIntegrity |
 | F | Masked secret absent upstream and from persistence | 8 | contract-tested | internal/acceptance/privacy_test.go TestScenarioF_MaskedSecretAbsentUpstreamAndPersistence |
 | G | Expired traces unreadable and unsearchable | 8 | contract-tested | internal/acceptance/privacy_test.go TestScenarioG_ExpiredTracesUnreadableAndUnsearchable |
 | H | Drift activates approved passthrough with no splice | 9 | contract-tested | internal/acceptance/compat_test.go TestScenarioH_DriftActivatesApprovedPassthrough |
-| I | Protocol Watch dedupes a sanitized change | 9 | contract-tested | internal/acceptance/compat_test.go TestScenarioH_DriftActivatesApprovedPassthrough (Protocol Watch assertions) |
+| I | Protocol Watch dedupes a sanitized change | 9 | contract-tested | internal/acceptance/compat_test.go TestScenarioH_DriftActivatesApprovedPassthrough (Protocol Watch assertions); internal/compat TestFingerprintSanitization |
 | J | Required privacy blocks raw fallback | 8 | contract-tested | internal/acceptance/compat_test.go TestScenarioJ_RequiredPrivacyBlocksRawFallback |
 | K | Pulse or notification outage does not block requests | 10 | contract-tested | internal/acceptance/events_test.go TestScenarioK_DeliveryOutagesDoNotBlockGateway |
 | L | Terraform lifecycle | 14 | contract-tested | ../terraform-provider-harbor-pilot TestAccScenarioL: all seven examples applied, empty second plan, destroyed (2026-11-05, Terraform 1.17.1) |
