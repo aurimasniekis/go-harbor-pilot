@@ -27,12 +27,12 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R2.9 | Secret masking and privacy controls | 8 | privacy | planned | |
 | R2.10 | Authorized native passthrough during protocol drift | 9 | compat, gateway | planned | |
 | R2.11 | Protocol Watch changelog | 9 | compat | planned | |
-| R2.12 | Durable events plus Pulse/NATS | 10 | events | planned | |
-| R2.13 | Telegram, Slack, Discord and webhook notifications | 10 | notify | planned | |
+| R2.12 | Durable events plus Pulse/NATS | 10 | events | contract-tested | transactional outbox, Pulse relay against embedded JetStream, signed webhooks; TestScenarioK; live Pulse run blocked on an instance |
+| R2.13 | Telegram, Slack, Discord and webhook notifications | 10 | notify | contract-tested | internal/notify adapters against httptest fakes (notify_test.go); live channel runs blocked on credentials |
 | R2.14 | Local password and OIDC SSO | 2 | auth | implemented | internal/auth, internal/auth/authapi; auth/oidc_test.go (contract) |
 | R2.15 | UI preserving Quota Harbor's stack and theme | 0–15 | web | planned | |
 | R2.16 | Terraform provider | 14 | ../terraform-provider-harbor-pilot | planned | |
-| R2.17 | Migration, backup, recovery, security, ops docs | 13 | store, cmd, docs | planned | |
+| R2.17 | Migration, backup, recovery, security, ops docs | 13 | store, cmd, docs | in-progress | backup/verify/restore (internal/ops, TestScenarioM); Quota Harbor importer (internal/migrate/quotaharbor, TestImport); upgrade, rollback and troubleshooting docs pending |
 
 ## §3 Discovery and design deliverables
 | ID | Requirement | Status | Evidence |
@@ -176,7 +176,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R16.3 | Configuration revision and effective-policy endpoints | 3 | implemented | GET /config/revisions, GET /config/effective |
 | R16.4 | One authority; export and import; last-known-good; merge vs replace | 3 | implemented | controlplane/bundle.go merge/replace/dry-run, compile-before-commit + atomic snapshot swap; TestExportImportRoundTrip |
 | R16.5 | Terraform-managed marking and drift | 3 | implemented | managed_by + drift_state; TestRevisionsAndDrift, TestControlPlaneOverHTTP |
-| R16.6 | CLI operations; secrets read from stdin, file or env | 1–13 | in-progress | serve, admin, keys, config validate, openapi, healthcheck, doctor, harness, token issue, policy simulate; secrets only from files, stdin or env (TestReadSecretSources, TestSecretsNotAcceptedAsArguments); backup/restore/migrate land in Phase 13 |
+| R16.6 | CLI operations; secrets read from stdin, file or env | 1–13 | implemented | serve, admin, keys, config validate, openapi, healthcheck, doctor, harness, token issue, policy simulate; secrets only from files, stdin or env (TestReadSecretSources, TestSecretsNotAcceptedAsArguments); backup, backup verify, restore --yes (server stopped, data-dir lock), migrate quota-harbor (dry run by default, --apply) |
 
 ## §17 Terraform
 | ID | Requirement | Phase | Status | Evidence |
@@ -213,7 +213,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | J | Required privacy blocks raw fallback | 8 | contract-tested | internal/acceptance/compat_test.go TestScenarioJ_RequiredPrivacyBlocksRawFallback |
 | K | Pulse or notification outage does not block requests | 10 | contract-tested | internal/acceptance/events_test.go TestScenarioK_DeliveryOutagesDoNotBlockGateway |
 | L | Terraform lifecycle | 14 | planned | TF acceptance |
-| M | Restart and restore integrity | 13 | planned | scenario_m |
+| M | Restart and restore integrity | 13 | contract-tested | internal/acceptance/ops_test.go TestScenarioM_RestartAndRestorePreserveIntegrity (restart, startup reservation recovery, wrong-key refusal, restore to backup point, no duplicate ledger keys, tamper detection) |
 | N | SpaceMan and standalone client isolated | 11 | contract-tested | internal/acceptance/spaceman_test.go TestScenarioN_SpaceManAndStandaloneClientCoexist |
 
 ## §20 Final delivery

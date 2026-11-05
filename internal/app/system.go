@@ -1,7 +1,12 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
+
 	"context"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/audit"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/ops"
 	"net/http"
 	"time"
 
@@ -66,4 +71,64 @@ func (a *App) registerSystem(ap *api.API) {
 		a.bridgeMu.Unlock()
 		return out, nil
 	})
+	type backupIn struct {
+		Body struct {
+			IncludeTraces bool `json:"include_traces" required:"false" doc:"Also back up encrypted trace content (excluded by default)."`
+		}
+	}
+	type backupOut struct {
+		Body struct {
+			Path     string        `json:"path"`
+			Manifest *ops.Manifest `json:"manifest"`
+		}
+	}
+	api.Register(ap, api.Op{ID: "create-backup", Method: http.MethodPost, Path: "/system/backups", Summary: "Take an online backup",
+		Description: "Consistent SQLite snapshots with a checksum manifest, written under <data_dir>/backups. Restore with `harbor-pilot restore` while the server is stopped.",
+		Tags:        []string{"System"}, Permission: auth.PermSystemManage}, func(ctx context.Context, in *backupIn) (*backupOut, error) {
+		dir := filepath.Join(a.Cfg.Server.DataDir, "backups", a.Clock.Now().UTC().Format("20060102T150405.000Z"))
+		m, err := ops.Backup(ctx, ops.Sources{DB: a.Cfg.DBPath(), Traces: a.Cfg.TracesDBPath()}, dir, in.Body.IncludeTraces, a.Version)
+		if err != nil {
+			return nil, err
+		}
+		_ = audit.Record(ctx, a.DB.W, audit.Entry{Action: "system.backup", TargetKind: "backup", TargetID: filepath.Base(dir),
+			Details: map[string]any{"include_traces": in.Body.IncludeTraces}})
+		out := &backupOut{}
+		out.Body.Path, out.Body.Manifest = dir, m
+		return out, nil
+	})
+	type listOut struct {
+		Body struct {
+			Items []BackupDTO `json:"items"`
+		}
+	}
+	api.Register(ap, api.Op{ID: "list-backups", Method: http.MethodGet, Path: "/system/backups", Summary: "Backups in the data directory",
+		Tags: []string{"System"}, Permission: auth.PermSystemManage}, func(ctx context.Context, _ *struct{}) (*listOut, error) {
+		out := &listOut{}
+		out.Body.Items = []BackupDTO{}
+		root := filepath.Join(a.Cfg.Server.DataDir, "backups")
+		entries, _ := os.ReadDir(root)
+		for i := len(entries) - 1; i >= 0; i-- {
+			e := entries[i]
+			if !e.IsDir() {
+				continue
+			}
+			d := BackupDTO{Name: e.Name(), Path: filepath.Join(root, e.Name())}
+			if m, err := ops.Verify(d.Path); err == nil {
+				d.Manifest, d.Intact = m, true
+			} else {
+				d.Problem = err.Error()
+			}
+			out.Body.Items = append(out.Body.Items, d)
+		}
+		return out, nil
+	})
+}
+
+// BackupDTO describes a stored backup.
+type BackupDTO struct {
+	Name     string        `json:"name"`
+	Path     string        `json:"path"`
+	Intact   bool          `json:"intact"`
+	Problem  string        `json:"problem,omitempty"`
+	Manifest *ops.Manifest `json:"manifest,omitempty"`
 }

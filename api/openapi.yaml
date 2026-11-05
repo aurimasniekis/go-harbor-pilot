@@ -465,6 +465,42 @@ components:
         - updated_at
         - revision
       type: object
+    BackupDTO:
+      additionalProperties: false
+      properties:
+        intact:
+          type: boolean
+        manifest:
+          $ref: "#/components/schemas/Manifest"
+        name:
+          type: string
+        path:
+          type: string
+        problem:
+          type: string
+      required:
+        - name
+        - path
+        - intact
+      type: object
+    BackupInBody:
+      additionalProperties: false
+      properties:
+        include_traces:
+          description: Also back up encrypted trace content (excluded by default).
+          type: boolean
+      type: object
+    BackupOutBody:
+      additionalProperties: false
+      properties:
+        manifest:
+          $ref: "#/components/schemas/Manifest"
+        path:
+          type: string
+      required:
+        - path
+        - manifest
+      type: object
     BindingLimits:
       additionalProperties: false
       properties:
@@ -2059,6 +2095,25 @@ components:
         - location
         - message
       type: object
+    File:
+      additionalProperties: false
+      properties:
+        bytes:
+          format: int64
+          type: integer
+        name:
+          type: string
+        schema_version:
+          format: int64
+          type: integer
+        sha256:
+          type: string
+      required:
+        - name
+        - sha256
+        - bytes
+        - schema_version
+      type: object
     Finding:
       additionalProperties: false
       properties:
@@ -2712,12 +2767,22 @@ components:
       properties:
         items:
           items:
-            $ref: "#/components/schemas/LoginView"
+            $ref: "#/components/schemas/BackupDTO"
           type: array
       required:
         - items
       type: object
     ListOutBody1:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/LoginView"
+          type: array
+      required:
+        - items
+      type: object
+    ListOutBody2:
       additionalProperties: false
       properties:
         dropped:
@@ -2784,6 +2849,36 @@ components:
         - expires_at
         - obtained_at
         - instructions
+      type: object
+    Manifest:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        files:
+          items:
+            $ref: "#/components/schemas/File"
+          type: array
+        format:
+          format: int64
+          type: integer
+        include_traces:
+          type: boolean
+        master_key_ids:
+          description: Key ids that sealed secrets in this backup.
+          items:
+            type: string
+          type: array
+        server_version:
+          type: string
+      required:
+        - format
+        - created_at
+        - server_version
+        - master_key_ids
+        - include_traces
+        - files
       type: object
     Meta:
       additionalProperties: false
@@ -12006,7 +12101,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ListOutBody"
+                $ref: "#/components/schemas/ListOutBody1"
           description: OK
         default:
           content:
@@ -13534,6 +13629,52 @@ paths:
       tags:
         - Subscription entitlements
       x-permission: config.read
+  /system/backups:
+    get:
+      operationId: list-backups
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Backups in the data directory
+      tags:
+        - System
+      x-permission: system.manage
+    post:
+      description: Consistent SQLite snapshots with a checksum manifest, written under <data_dir>/backups. Restore with `harbor-pilot restore` while the server is stopped.
+      operationId: create-backup
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackupInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Take an online backup
+      tags:
+        - System
+      x-permission: system.manage
   /system/bridges:
     get:
       operationId: list-bridges
@@ -13886,7 +14027,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ListOutBody1"
+                $ref: "#/components/schemas/ListOutBody2"
           description: OK
         default:
           content:

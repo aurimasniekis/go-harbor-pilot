@@ -474,7 +474,7 @@ func upsertBucket(ctx context.Context, ex store.Execer, b bucketState, history b
 		spec = excluded.spec, limit_value = excluded.limit_value, used_value = excluded.used_value, remaining_value = excluded.remaining_value,
 		remaining_fraction = excluded.remaining_fraction, limit_e10 = excluded.limit_e10, used_e10 = excluded.used_e10,
 		remaining_e10 = excluded.remaining_e10, reset_at = excluded.reset_at, source_time = excluded.source_time,
-		observed_at = excluded.observed_at, quality = excluded.quality`,
+		observed_at = excluded.observed_at, quality = excluded.quality WHERE excluded.observed_at >= quota_buckets.observed_at`,
 		b.owner, o.Spec.Key, nullStr(b.monitorID), nullStr(b.accountID), b.source, encodeSpec(o.Spec), fl(o.Limit), fl(o.Used),
 		fl(o.Remaining), fl(o.RemainingFraction()), limE, usedE, remE, ms(o.ResetAt), ms(o.SourceTime), b.observedAt.UnixMilli(), quality)
 	if err != nil || !history {
@@ -737,4 +737,22 @@ func (s *Service) BackfillDemo(ctx context.Context, history time.Duration) error
 		}
 		return nil
 	})
+}
+
+// ImportObservation records a historical adapter observation for a monitor
+// (used by importers). It is appended to history, and becomes the bucket's
+// current state unless a newer observation already is. An observation
+// already in history (same bucket and time) is skipped; the result reports
+// whether it was recorded.
+func ImportObservation(ctx context.Context, ex store.Execer, monitorID string, obs domain.BucketObservation, observedAt time.Time) (bool, error) {
+	var one int
+	err := ex.QueryRowContext(ctx, `SELECT 1 FROM quota_observations WHERE owner_key = ? AND bucket_key = ? AND observed_at = ?`,
+		monitorID, obs.Spec.Key, observedAt.UnixMilli()).Scan(&one)
+	if err == nil {
+		return false, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return false, err
+	}
+	return true, upsertBucket(ctx, ex, bucketState{owner: monitorID, monitorID: monitorID, source: "adapter", obs: obs, observedAt: observedAt}, true)
 }

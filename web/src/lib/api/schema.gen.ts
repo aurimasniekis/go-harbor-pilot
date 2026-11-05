@@ -1966,6 +1966,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Backups in the data directory */
+        get: operations["list-backups"];
+        put?: never;
+        /**
+         * Take an online backup
+         * @description Consistent SQLite snapshots with a checksum manifest, written under <data_dir>/backups. Restore with `harbor-pilot restore` while the server is stopped.
+         */
+        post: operations["create-backup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/system/bridges": {
         parameters: {
             query?: never;
@@ -2554,6 +2575,21 @@ export interface components {
             readonly revision: number;
             /** Format: date-time */
             readonly updated_at: string;
+        };
+        BackupDTO: {
+            intact: boolean;
+            manifest?: components["schemas"]["Manifest"];
+            name: string;
+            path: string;
+            problem?: string;
+        };
+        BackupInBody: {
+            /** @description Also back up encrypted trace content (excluded by default). */
+            include_traces?: boolean;
+        };
+        BackupOutBody: {
+            manifest: components["schemas"]["Manifest"];
+            path: string;
         };
         BindingLimits: {
             /**
@@ -3194,6 +3230,14 @@ export interface components {
             location: string;
             message: string;
         };
+        File: {
+            /** Format: int64 */
+            bytes: number;
+            name: string;
+            /** Format: int64 */
+            schema_version: number;
+            sha256: string;
+        };
         Finding: {
             action: string;
             /** Format: int64 */
@@ -3475,9 +3519,12 @@ export interface components {
             auth_url: string;
         };
         ListOutBody: {
-            items: components["schemas"]["LoginView"][];
+            items: components["schemas"]["BackupDTO"][];
         };
         ListOutBody1: {
+            items: components["schemas"]["LoginView"][];
+        };
+        ListOutBody2: {
             /**
              * Format: int64
              * @description Captures dropped because the writer was behind (since start).
@@ -3505,6 +3552,17 @@ export interface components {
             obtained_at: string | null;
             signed_in: boolean;
             tier: string;
+        };
+        Manifest: {
+            /** Format: date-time */
+            created_at: string;
+            files: components["schemas"]["File"][];
+            /** Format: int64 */
+            format: number;
+            include_traces: boolean;
+            /** @description Key ids that sealed secrets in this backup. */
+            master_key_ids: string[];
+            server_version: string;
         };
         Meta: {
             binding_id: string;
@@ -9634,7 +9692,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ListOutBody"];
+                    "application/json": components["schemas"]["ListOutBody1"];
                 };
             };
             /** @description Error */
@@ -11119,6 +11177,68 @@ export interface operations {
             };
         };
     };
+    "list-backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-bridges": {
         parameters: {
             query?: never;
@@ -11408,7 +11528,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ListOutBody1"];
+                    "application/json": components["schemas"]["ListOutBody2"];
                 };
             };
             /** @description Error */

@@ -55,3 +55,6 @@ func demoKey(dir string) (crypto.KEK, error) {
 	}
 	return crypto.LoadKEKFile(p)
 }
+
+// LockDataDir takes the exclusive data-directory lock (offline commands).
+func LockDataDir(dir string) (func(), error) { return lockDataDir(dir) }

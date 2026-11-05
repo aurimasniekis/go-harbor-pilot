@@ -43,6 +43,13 @@ Usage:
   harbor-pilot openapi                               print the control-plane OpenAPI document (YAML)
   harbor-pilot healthcheck [--url URL]
   harbor-pilot doctor [--config FILE] [--server URL]  check configuration, keys, storage and CLI bridges
+  harbor-pilot backup [--config FILE] [--out DIR] [--include-traces]
+                                                     online, consistent backup with a checksum manifest
+  harbor-pilot backup verify DIR
+  harbor-pilot restore --from DIR [--config FILE] --yes
+                                                     verify and install a backup (server stopped)
+  harbor-pilot migrate quota-harbor --qh-config FILE [--qh-db FILE] [--since 2160h] [--apply] [--json]
+                                                     import monitored accounts, Telegram alerts and history (dry run by default)
   harbor-pilot harness preview|setup|uninstall KIND --url URL (--token-file F | --token-stdin | --token-env VAR) [--model M] [--yes]
                                                      configure claude, codex, opencode or pi reversibly
   harbor-pilot harness status
@@ -83,6 +90,12 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return cmdHarness(args[1:], os.Stdin, stdout)
 	case "doctor":
 		return cmdDoctor(args[1:], stdout)
+	case "backup":
+		return cmdBackup(args[1:], stdout)
+	case "migrate":
+		return cmdMigrate(args[1:], stdout)
+	case "restore":
+		return cmdRestore(args[1:], stdout)
 	case "token":
 		return cmdToken(args[1:], os.Stdin, stdout)
 	case "policy":

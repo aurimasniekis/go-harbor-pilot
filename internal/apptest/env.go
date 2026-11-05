@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,14 +31,29 @@ type Env struct {
 	App   *app.App
 	Srv   *httptest.Server
 	Admin *Client
-	ctx   context.Context
-	stop  context.CancelFunc
+	// Key is the master key (reuse it to restart on the same data).
+	Key     string
+	DataDir string
+	ctx     context.Context
+	stop    context.CancelFunc
+	once    sync.Once
+}
+
+// Stop shuts the app down (idempotent; also run at cleanup).
+func (e *Env) Stop() {
+	e.once.Do(func() {
+		e.stop()
+		e.Srv.Close()
+		e.App.WaitBackground()
+		e.App.Close()
+	})
 }
 
 // Setup is what options may change before the app starts.
 type Setup struct {
 	Config *config.Config
 	App    *app.Options
+	key    string
 }
 
 // Option customizes the environment before the app starts.
@@ -50,6 +66,12 @@ func WithBridgeEnv(env ...string) Option {
 
 // WithPulse replaces how the event relay connects to Pulse.
 func WithPulse(c relay.PulseConnector) Option { return func(s *Setup) { s.App.PulseConnector = c } }
+
+// WithDataDir reuses a data directory (restart and restore tests).
+func WithDataDir(dir string) Option { return func(s *Setup) { s.Config.Server.DataDir = dir } }
+
+// WithMasterKey reuses a master key.
+func WithMasterKey(key string) Option { return func(s *Setup) { s.key = key } }
 
 // WithClock replaces the application clock.
 func WithClock(c clock.Clock) Option { return func(s *Setup) { s.App.Clock = c } }
@@ -65,6 +87,7 @@ func New(t testing.TB, opts ...Option) *Env {
 	srv := httptest.NewUnstartedServer(nil)
 	cfg.Server.PublicURL = "http://" + srv.Listener.Addr().String()
 	cfg.Server.Listen = srv.Listener.Addr().String()
+	setup := &Setup{Config: &cfg}
 	key := crypto.GenerateKEKString()
 	ao := app.Options{Version: "test", Log: slog.New(slog.DiscardHandler),
 		QuotaScheduler: polling.Options{Tick: 20 * time.Millisecond, ManualMinInterval: time.Millisecond, BackoffBase: time.Second},
@@ -74,8 +97,12 @@ func New(t testing.TB, opts ...Option) *Env {
 			}
 			return ""
 		}}
+	setup.App = &ao
 	for _, o := range opts {
-		o(&Setup{Config: &cfg, App: &ao})
+		o(setup)
+	}
+	if setup.key != "" {
+		key = setup.key
 	}
 	ao.Config = cfg
 	a, err := app.New(context.Background(), ao)
@@ -85,17 +112,12 @@ func New(t testing.TB, opts ...Option) *Env {
 	// Synthetic upstreams run on loopback.
 	a.Gateway.HTTP.AllowedPrivate = []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}
 	ctx, stop := context.WithCancel(context.Background())
-	e := &Env{T: t, App: a, Srv: srv, ctx: ctx, stop: stop}
+	e := &Env{T: t, App: a, Srv: srv, ctx: ctx, stop: stop, Key: key, DataDir: cfg.Server.DataDir}
 	a.MarkReady()
 	srv.Config.Handler = a.Handler()
 	srv.Start()
 	a.StartBackground(ctx)
-	t.Cleanup(func() {
-		stop()
-		srv.Close()
-		a.WaitBackground()
-		a.Close()
-	})
+	t.Cleanup(e.Stop)
 	e.Admin = e.newAdmin()
 	return e
 }
@@ -109,19 +131,30 @@ type Client struct {
 }
 
 func (e *Env) newAdmin() *Client {
+	jar, _ := cookiejar.New(nil)
+	c := &Client{t: e.T, e: e, hc: &http.Client{Jar: jar}}
+	var sess struct {
+		CSRF string `json:"csrf_token"`
+	}
+	required, err := e.App.Auth.SetupRequired(context.Background())
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	if !required { // restarted on existing data: sign in
+		if code := c.Do("POST", "/api/v1/session", map[string]string{"email": "admin@example.test", "password": "correct-horse-battery"}, &sess); code != 200 {
+			e.T.Fatalf("sign in: %d", code)
+		}
+		c.csrf = sess.CSRF
+		return c
+	}
 	tok, _, err := e.App.Auth.IssueOneTime(context.Background(), auth.PurposeSetup, "", "", "", "test")
 	if err != nil {
 		e.T.Fatal(err)
 	}
-	jar, _ := cookiejar.New(nil)
-	c := &Client{t: e.T, e: e, hc: &http.Client{Jar: jar}}
-	var s struct {
-		CSRF string `json:"csrf_token"`
-	}
-	if code := c.Do("POST", "/api/v1/auth/setup", map[string]string{"token": tok, "email": "admin@example.test", "display_name": "Admin", "password": "correct-horse-battery"}, &s); code != 200 {
+	if code := c.Do("POST", "/api/v1/auth/setup", map[string]string{"token": tok, "email": "admin@example.test", "display_name": "Admin", "password": "correct-horse-battery"}, &sess); code != 200 {
 		e.T.Fatalf("setup admin: %d", code)
 	}
-	c.csrf = s.CSRF
+	c.csrf = sess.CSRF
 	return c
 }
 
