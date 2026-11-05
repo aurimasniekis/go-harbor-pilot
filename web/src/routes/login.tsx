@@ -41,6 +41,25 @@ export function AuthCard({ title, children }: { title: string; children: React.R
   )
 }
 
+/**
+ * Messages the server may put in ?error= after single sign-on. Anything else
+ * (including text an attacker puts in a link) shows a generic message, so
+ * the page never displays arbitrary URL text as an official notice.
+ */
+const SSO_ERRORS: Record<string, string> = {
+  'sign-in request expired or was not started from this browser': 'The sign-in request expired or was started in another browser. Try again.',
+  'no Harbor Pilot account is linked to this identity; ask an administrator to invite you': 'No Harbor Pilot account is linked to this identity. Ask an administrator to invite you.',
+  'your identity provider groups do not grant access to Harbor Pilot': 'Your identity provider groups do not grant access to Harbor Pilot.',
+  'this sign-in provider is disabled': 'This sign-in provider is turned off.',
+  'your email domain is not allowed to sign in': 'Your email domain is not allowed to sign in.',
+  'this identity is already linked to another account': 'This identity is already linked to another account.',
+}
+
+export function ssoErrorMessage(code: string | undefined): string | undefined {
+  if (!code) return undefined
+  return SSO_ERRORS[code] ?? 'Single sign-on did not complete. Try again, or ask an administrator to check the identity provider settings.'
+}
+
 function Login() {
   const { next, error } = Route.useSearch()
   const navigate = useNavigate()
@@ -73,7 +92,7 @@ function Login() {
     <AuthCard title="Harbor Pilot">
       {error && (
         <Banner tone="error" role="alert">
-          {error}
+          {ssoErrorMessage(error)}
         </Banner>
       )}
       {meta.data?.demo && (
