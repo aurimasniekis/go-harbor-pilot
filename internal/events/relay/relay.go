@@ -377,6 +377,7 @@ func (r *Relay) publisher(ctx context.Context, d *cp.Res[cp.DestinationSpec]) (P
 // Delivery is one delivery row.
 type Delivery struct {
 	ID          string     `json:"id"`
+	EventSeq    int64      `json:"event_seq"`
 	Consumer    string     `json:"consumer"`
 	EventID     string     `json:"event_id"`
 	EventType   string     `json:"event_type"`
@@ -385,21 +386,27 @@ type Delivery struct {
 	Attempts    int        `json:"attempts"`
 	NextAttempt time.Time  `json:"next_attempt_at"`
 	LastStatus  *int64     `json:"last_status"`
-	LastError   string     `json:"last_error"`
+	LastError   string     `json:"last_error,omitempty" required:"false"`
 	DeliveredAt *time.Time `json:"delivered_at"`
 }
 
-// Deliveries lists delivery history for a destination.
-func (r *Relay) Deliveries(ctx context.Context, destID, status string, limit int) ([]Delivery, error) {
-	if limit <= 0 || limit > 500 {
+// Deliveries lists delivery history for a destination, newest event first.
+// beforeSeq (0 = none) continues a previous page; limit is not clamped
+// here (callers fetch one extra row to detect a next page).
+func (r *Relay) Deliveries(ctx context.Context, destID, status string, beforeSeq int64, limit int) ([]Delivery, error) {
+	if limit <= 0 {
 		limit = 100
 	}
-	q := `SELECT d.id, d.consumer, e.id, e.type, e.occurred_at, d.status, d.attempts, d.next_attempt_at, d.last_status, COALESCE(d.last_error,''), d.delivered_at
+	q := `SELECT d.id, e.seq, d.consumer, e.id, e.type, e.occurred_at, d.status, d.attempts, d.next_attempt_at, d.last_status, COALESCE(d.last_error,''), d.delivered_at
 		FROM event_deliveries d JOIN event_outbox e ON e.seq = d.event_seq WHERE d.consumer = ?`
 	args := []any{consumer(destID)}
 	if status != "" {
 		q += ` AND d.status = ?`
 		args = append(args, status)
+	}
+	if beforeSeq > 0 {
+		q += ` AND e.seq < ?`
+		args = append(args, beforeSeq)
 	}
 	q += ` ORDER BY e.seq DESC LIMIT ?`
 	args = append(args, limit)
@@ -407,7 +414,7 @@ func (r *Relay) Deliveries(ctx context.Context, destID, status string, limit int
 		var x Delivery
 		var at, next int64
 		var ls, del sql.NullInt64
-		err := row.Scan(&x.ID, &x.Consumer, &x.EventID, &x.EventType, &at, &x.Status, &x.Attempts, &next, &ls, &x.LastError, &del)
+		err := row.Scan(&x.ID, &x.EventSeq, &x.Consumer, &x.EventID, &x.EventType, &at, &x.Status, &x.Attempts, &next, &ls, &x.LastError, &del)
 		x.OccurredAt, x.NextAttempt = time.UnixMilli(at).UTC(), time.UnixMilli(next).UTC()
 		if ls.Valid {
 			x.LastStatus = &ls.Int64

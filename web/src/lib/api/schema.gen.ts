@@ -3018,9 +3018,6 @@ export interface components {
             breaker: components["schemas"]["Breaker"];
             plans: components["schemas"]["PlanEffect"][];
         };
-        DelOutBody: {
-            items: components["schemas"]["Delivery"][];
-        };
         Delivery: {
             /** Format: int64 */
             attempts: number;
@@ -3028,9 +3025,11 @@ export interface components {
             /** Format: date-time */
             delivered_at: string | null;
             event_id: string;
+            /** Format: int64 */
+            event_seq: number;
             event_type: string;
             id: string;
-            last_error: string;
+            last_error?: string;
             /** Format: int64 */
             last_status: number | null;
             /** Format: date-time */
@@ -3126,6 +3125,21 @@ export interface components {
             starts_on: string;
             windows: components["schemas"]["WindowSpec"][];
         };
+        Envelope: {
+            correlation_id?: string;
+            data?: unknown;
+            id: string;
+            name: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: int64 */
+            schema_version: number;
+            severity: string;
+            subjects?: {
+                [key: string]: string;
+            };
+            type: string;
+        };
         Error: {
             error: components["schemas"]["ErrorInfo"];
         };
@@ -3151,7 +3165,8 @@ export interface components {
             t: string;
         };
         EventDTO: {
-            envelope: unknown;
+            /** @description The published envelope; data fields per kind are listed in the event catalog. */
+            envelope: components["schemas"]["Envelope"];
             id: string;
             /** Format: date-time */
             occurred_at: string;
@@ -3639,9 +3654,6 @@ export interface components {
             /** @description The monitor authenticates with an in-app sign-in token. */
             uses_login: boolean;
         };
-        NOutBody: {
-            items: components["schemas"]["Notification"][];
-        };
         Notification: {
             /** Format: int64 */
             attempts: number;
@@ -3653,7 +3665,7 @@ export interface components {
             id: string;
             /** @enum {string} */
             kind: "alert" | "recovery" | "digest" | "test";
-            last_error: string;
+            last_error?: string;
             rule_id: string;
             /** Format: date-time */
             sent_at: string | null;
@@ -3761,8 +3773,18 @@ export interface components {
             /** @description Present when more items are available. */
             next_cursor?: string;
         };
+        PageDelivery: {
+            items: components["schemas"]["Delivery"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
         PageEventDTO: {
             items: components["schemas"]["EventDTO"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageNotification: {
+            items: components["schemas"]["Notification"][];
             /** @description Present when more items are available. */
             next_cursor?: string;
         };
@@ -4252,6 +4274,16 @@ export interface components {
             harness_version: string;
             id: string;
             inbound_protocol: string;
+            /** @description Request intent label, when one was declared, derived by a rule or classified. */
+            intent?: string;
+            intent_detail?: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description Where the intent came from.
+             * @enum {string}
+             */
+            intent_source?: "declared" | "rule" | "classifier" | "";
             ledger: components["schemas"]["LedgerDTO"][];
             losses: unknown;
             mode: string;
@@ -4306,6 +4338,16 @@ export interface components {
             harness: string;
             id: string;
             inbound_protocol: string;
+            /** @description Request intent label, when one was declared, derived by a rule or classified. */
+            intent?: string;
+            intent_detail?: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description Where the intent came from.
+             * @enum {string}
+             */
+            intent_source?: "declared" | "rule" | "classifier" | "";
             mode: string;
             project_id: string;
             requested_model: string;
@@ -7167,8 +7209,11 @@ export interface operations {
     "list-deliveries": {
         parameters: {
             query?: {
-                status?: "pending" | "deferred" | "delivered" | "dead" | "";
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
                 limit?: number;
+                status?: "pending" | "deferred" | "delivered" | "dead" | "";
             };
             header?: never;
             path: {
@@ -7184,7 +7229,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DelOutBody"];
+                    "application/json": components["schemas"]["PageDelivery"];
                 };
             };
             /** @description Error */
@@ -8027,9 +8072,12 @@ export interface operations {
     "list-notifications": {
         parameters: {
             query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
                 channel_id?: string;
                 status?: "pending" | "digest" | "sent" | "digested" | "dead" | "";
-                limit?: number;
             };
             header?: never;
             path?: never;
@@ -8043,7 +8091,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["NOutBody"];
+                    "application/json": components["schemas"]["PageNotification"];
                 };
             };
             /** @description Error */
@@ -10935,7 +10983,7 @@ export interface operations {
                 by?: "client" | "harness" | "project" | "plan" | "intent" | "model" | "account" | "provider" | "session" | "period" | "";
                 /** @description RFC 3339; default 7 days before to. */
                 from?: string;
-                /** @description RFC 3339; default now. */
+                /** @description RFC 3339, exclusive; default now (inclusive of requests recorded at this instant). */
                 to?: string;
                 /** @description Bucket size for by=period. */
                 step?: "hour" | "day" | "";

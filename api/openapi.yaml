@@ -1578,16 +1578,6 @@ components:
         - breaker
         - plans
       type: object
-    DelOutBody:
-      additionalProperties: false
-      properties:
-        items:
-          items:
-            $ref: "#/components/schemas/Delivery"
-          type: array
-      required:
-        - items
-      type: object
     Delivery:
       additionalProperties: false
       properties:
@@ -1603,6 +1593,9 @@ components:
             - "null"
         event_id:
           type: string
+        event_seq:
+          format: int64
+          type: integer
         event_type:
           type: string
         id:
@@ -1629,6 +1622,7 @@ components:
           type: string
       required:
         - id
+        - event_seq
         - consumer
         - event_id
         - event_type
@@ -1637,7 +1631,6 @@ components:
         - attempts
         - next_attempt_at
         - last_status
-        - last_error
         - delivered_at
       type: object
     DestinationSpec:
@@ -1834,6 +1827,38 @@ components:
         - ends_on
         - windows
       type: object
+    Envelope:
+      additionalProperties: false
+      properties:
+        correlation_id:
+          type: string
+        data: {}
+        id:
+          type: string
+        name:
+          type: string
+        occurred_at:
+          format: date-time
+          type: string
+        schema_version:
+          format: int64
+          type: integer
+        severity:
+          type: string
+        subjects:
+          additionalProperties:
+            type: string
+          type: object
+        type:
+          type: string
+      required:
+        - schema_version
+        - id
+        - type
+        - name
+        - occurred_at
+        - severity
+      type: object
     Error:
       additionalProperties: false
       properties:
@@ -1889,7 +1914,9 @@ components:
     EventDTO:
       additionalProperties: false
       properties:
-        envelope: {}
+        envelope:
+          $ref: "#/components/schemas/Envelope"
+          description: The published envelope; data fields per kind are listed in the event catalog.
         id:
           type: string
         occurred_at:
@@ -3086,16 +3113,6 @@ components:
         - poll
         - buckets
       type: object
-    NOutBody:
-      additionalProperties: false
-      properties:
-        items:
-          items:
-            $ref: "#/components/schemas/Notification"
-          type: array
-      required:
-        - items
-      type: object
     Notification:
       additionalProperties: false
       properties:
@@ -3152,7 +3169,6 @@ components:
         - body
         - status
         - attempts
-        - last_error
         - sent_at
         - created_at
       type: object
@@ -3440,12 +3456,38 @@ components:
       required:
         - items
       type: object
+    PageDelivery:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Delivery"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
     PageEventDTO:
       additionalProperties: false
       properties:
         items:
           items:
             $ref: "#/components/schemas/EventDTO"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageNotification:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Notification"
           type: array
         next_cursor:
           description: Present when more items are available.
@@ -4615,6 +4657,20 @@ components:
           type: string
         inbound_protocol:
           type: string
+        intent:
+          description: Request intent label, when one was declared, derived by a rule or classified.
+          type: string
+        intent_detail:
+          additionalProperties: {}
+          type: object
+        intent_source:
+          description: Where the intent came from.
+          enum:
+            - declared
+            - rule
+            - classifier
+            - ""
+          type: string
         ledger:
           items:
             $ref: "#/components/schemas/LedgerDTO"
@@ -4765,6 +4821,20 @@ components:
         id:
           type: string
         inbound_protocol:
+          type: string
+        intent:
+          description: Request intent label, when one was declared, derived by a rule or classified.
+          type: string
+        intent_detail:
+          additionalProperties: {}
+          type: object
+        intent_source:
+          description: Where the intent came from.
+          enum:
+            - declared
+            - rule
+            - classifier
+            - ""
           type: string
         mode:
           type: string
@@ -9273,6 +9343,24 @@ paths:
     get:
       operationId: list-deliveries
       parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
         - in: path
           name: id
           required: true
@@ -9289,20 +9377,12 @@ paths:
               - dead
               - ""
             type: string
-        - explode: false
-          in: query
-          name: limit
-          schema:
-            format: int64
-            maximum: 500
-            minimum: 0
-            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DelOutBody"
+                $ref: "#/components/schemas/PageDelivery"
           description: OK
         default:
           content:
@@ -10244,6 +10324,24 @@ paths:
     get:
       operationId: list-notifications
       parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
         - explode: false
           in: query
           name: channel_id
@@ -10262,20 +10360,12 @@ paths:
               - dead
               - ""
             type: string
-        - explode: false
-          in: query
-          name: limit
-          schema:
-            format: int64
-            maximum: 500
-            minimum: 0
-            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NOutBody"
+                $ref: "#/components/schemas/PageNotification"
           description: OK
         default:
           content:
@@ -13349,12 +13439,12 @@ paths:
           schema:
             description: RFC 3339; default 7 days before to.
             type: string
-        - description: RFC 3339; default now.
+        - description: RFC 3339, exclusive; default now (inclusive of requests recorded at this instant).
           explode: false
           in: query
           name: to
           schema:
-            description: RFC 3339; default now.
+            description: RFC 3339, exclusive; default now (inclusive of requests recorded at this instant).
             type: string
         - description: Bucket size for by=period.
           explode: false

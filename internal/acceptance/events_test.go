@@ -276,6 +276,31 @@ func TestNotificationsChannelsHysteresisRecoveryAndTest(t *testing.T) {
 	if !test.Delivered {
 		t.Fatal("test delivery failed")
 	}
+	// History pages with a cursor, newest first, and test sends are not
+	// replayable.
+	type page struct {
+		Items []struct {
+			ID     string `json:"id"`
+			Kind   string `json:"kind"`
+			Status string `json:"status"`
+		} `json:"items"`
+		NextCursor string `json:"next_cursor"`
+	}
+	var p1, p2 page
+	e.Admin.MustDo(200, "GET", "/api/v1/notifications?limit=4", nil, &p1)
+	if len(p1.Items) != 4 || p1.NextCursor == "" || p1.Items[0].Kind != "test" {
+		t.Fatalf("first page %+v", p1)
+	}
+	e.Admin.MustDo(200, "GET", "/api/v1/notifications?limit=4&cursor="+p1.NextCursor, nil, &p2)
+	if len(p2.Items) != 3 || p2.NextCursor != "" || p2.Items[0].ID >= p1.Items[3].ID {
+		t.Fatalf("second page %+v after %+v", p2, p1)
+	}
+	if _, err := e.App.DB.W.Exec(`UPDATE notifications SET status = 'dead' WHERE kind = 'test'`); err != nil {
+		t.Fatal(err)
+	}
+	if code := e.Admin.Do("POST", "/api/v1/notifications/"+p1.Items[0].ID+"/replay", nil, nil); code != 409 {
+		t.Fatalf("test notification replay: %d, want 409", code)
+	}
 	// Notification rules cannot subscribe to notification events (no loops).
 	if code := e.Admin.Do("POST", "/api/v1/notification-rules", map[string]any{"name": "loop", "spec": map[string]any{"enabled": true,
 		"channel_ids": []string{sl}, "filter": map[string]any{"events": []string{"notification.*"}}}}, nil); code != 422 {

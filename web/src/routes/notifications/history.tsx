@@ -96,7 +96,7 @@ function History() {
                   </td>
                   <td className="num">{n.attempts}</td>
                   <td style={{ textAlign: 'right' }}>
-                    {canReplay && n.status === 'dead' && (confirm === n.id ? (
+                    {canReplay && n.status === 'dead' && n.kind !== 'test' && (confirm === n.id ? (
                       <span className={e.confirm} role="group" aria-label="Confirm replay" style={{ display: 'inline-flex' }}>
                         <span>Send again?</span>
                         <Button size="small" variant="primary" busy={replay.isPending} onClick={() => replay.mutate(n.id)}>Confirm</Button>

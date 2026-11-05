@@ -127,12 +127,11 @@ test('slack channel, test send, rule and history', async ({ page }) => {
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByRole('row').filter({ hasText: `quota-${suffix}` })).toContainText(channel)
 
-  // The failed test is in the history and can be replayed.
+  // The failed test is in the history. Tests are one-shot: no replay is
+  // offered (send a new test instead).
   await page.getByRole('link', { name: 'History' }).click()
   await page.getByLabel('Status').selectOption('dead')
   const failed = page.getByRole('row').filter({ hasText: 'Harbor Pilot test notification' }).filter({ hasText: channel })
   await expect(failed).toContainText('Failed')
-  await failed.getByRole('button', { name: /Replay notification/ }).click()
-  await failed.getByRole('group', { name: 'Confirm replay' }).getByRole('button', { name: 'Confirm' }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'for another attempt' })).toBeVisible()
+  await expect(failed.getByRole('button', { name: /Replay notification/ })).toHaveCount(0)
 })

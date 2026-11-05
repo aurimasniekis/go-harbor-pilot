@@ -7,7 +7,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/api"
@@ -36,7 +38,7 @@ type EventDTO struct {
 	Subject    string          `json:"subject"`
 	Severity   string          `json:"severity"`
 	OccurredAt time.Time       `json:"occurred_at"`
-	Envelope   json.RawMessage `json:"envelope"`
+	Envelope   events.Envelope `json:"envelope" doc:"The published envelope; data fields per kind are listed in the event catalog."`
 }
 
 // Register mounts the endpoints.
@@ -87,8 +89,11 @@ func Register(a *api.API, d Deps) {
 			var at int64
 			var p string
 			err := r.Scan(&e.Seq, &e.ID, &e.Type, &e.Subject, &e.Severity, &at, &p)
-			e.OccurredAt, e.Envelope = time.UnixMilli(at).UTC(), json.RawMessage(p)
-			return e, err
+			if err != nil {
+				return e, err
+			}
+			e.OccurredAt = time.UnixMilli(at).UTC()
+			return e, json.Unmarshal([]byte(p), &e.Envelope)
 		}, q, args...)
 		if err != nil {
 			return nil, err
@@ -97,24 +102,29 @@ func Register(a *api.API, d Deps) {
 	})
 
 	type delIn struct {
+		api.PageParams
 		ID     string `path:"id"`
 		Status string `query:"status" enum:"pending,deferred,delivered,dead," required:"false"`
-		Limit  int    `query:"limit" minimum:"0" maximum:"500"`
 	}
-	type delOut struct {
-		Body struct {
-			Items []relay.Delivery `json:"items"`
-		}
-	}
+	type delOut struct{ Body api.Page[relay.Delivery] }
 	api.Register(a, api.Op{ID: "list-deliveries", Method: http.MethodGet, Path: "/event-destinations/{id}/deliveries", Summary: "Delivery history",
 		Tags: tags, Permission: auth.PermConfigRead}, func(ctx context.Context, in *delIn) (*delOut, error) {
-		items, err := d.Relay().Deliveries(ctx, in.ID, in.Status, in.Limit)
+		cur, err := api.DecodeCursor(in.Cursor)
 		if err != nil {
 			return nil, err
 		}
-		out := &delOut{}
-		out.Body.Items = items
-		return out, nil
+		var before int64
+		if cur != "" {
+			if before, err = strconv.ParseInt(cur, 10, 64); err != nil {
+				return nil, api.Invalid("invalid cursor", api.FieldError{Location: "query.cursor", Message: "malformed cursor"})
+			}
+		}
+		lim := in.NormalizeLimit()
+		items, err := d.Relay().Deliveries(ctx, in.ID, in.Status, before, lim+1)
+		if err != nil {
+			return nil, err
+		}
+		return &delOut{Body: api.Paginate(items, lim, func(x relay.Delivery) string { return strconv.FormatInt(x.EventSeq, 10) })}, nil
 	})
 	type replayIn struct {
 		ID   string `path:"id"`
@@ -153,24 +163,23 @@ func Register(a *api.API, d Deps) {
 
 	ntags := []string{"Notifications"}
 	type nIn struct {
+		api.PageParams
 		ChannelID string `query:"channel_id" maxLength:"64"`
 		Status    string `query:"status" enum:"pending,digest,sent,digested,dead," required:"false"`
-		Limit     int    `query:"limit" minimum:"0" maximum:"500"`
 	}
-	type nOut struct {
-		Body struct {
-			Items []notify.Notification `json:"items"`
-		}
-	}
+	type nOut struct{ Body api.Page[notify.Notification] }
 	api.Register(a, api.Op{ID: "list-notifications", Method: http.MethodGet, Path: "/notifications", Summary: "Notification history",
 		Tags: ntags, Permission: auth.PermConfigRead}, func(ctx context.Context, in *nIn) (*nOut, error) {
-		items, err := d.Notify().List(ctx, in.ChannelID, in.Status, in.Limit)
+		cur, err := api.DecodeCursor(in.Cursor)
 		if err != nil {
 			return nil, err
 		}
-		out := &nOut{}
-		out.Body.Items = items
-		return out, nil
+		lim := in.NormalizeLimit()
+		items, err := d.Notify().List(ctx, in.ChannelID, in.Status, cur, lim+1)
+		if err != nil {
+			return nil, err
+		}
+		return &nOut{Body: api.Paginate(items, lim, func(n notify.Notification) string { return n.ID })}, nil
 	})
 	type idIn struct {
 		ID string `path:"id"`
@@ -183,6 +192,9 @@ func Register(a *api.API, d Deps) {
 	api.Register(a, api.Op{ID: "replay-notification", Method: http.MethodPost, Path: "/notifications/{id}/replay", Summary: "Replay a dead notification",
 		Tags: ntags, Permission: auth.PermNotifyManage}, func(ctx context.Context, in *idIn) (*okOut, error) {
 		ok, err := d.Notify().Replay(ctx, in.ID)
+		if errors.Is(err, notify.ErrTestNotReplayable) {
+			return nil, api.Errorf(http.StatusConflict, "conflict", err.Error())
+		}
 		if err != nil {
 			return nil, err
 		}

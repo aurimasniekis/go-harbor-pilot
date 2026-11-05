@@ -167,6 +167,28 @@ func TestIntentClassifierAndPrecedence(t *testing.T) {
 	if len(st.Groups) != 2 || st.Totals.ClassifierRuns != 2 {
 		t.Fatalf("stats %+v", st)
 	}
+	// List rows carry the intent and where it came from.
+	var list struct {
+		Items []struct {
+			Intent       string         `json:"intent"`
+			IntentSource string         `json:"intent_source"`
+			IntentDetail map[string]any `json:"intent_detail"`
+		} `json:"items"`
+	}
+	e.Admin.MustDo(200, "GET", "/api/v1/activity/requests?limit=10", nil, &list)
+	sources := map[string]int{}
+	for _, it := range list.Items {
+		if it.Intent == "" {
+			t.Fatalf("list row without intent: %+v", list.Items)
+		}
+		sources[it.IntentSource]++
+		if it.IntentSource == "classifier" && it.IntentDetail["version"] == nil {
+			t.Fatalf("classifier row without detail: %+v", it)
+		}
+	}
+	if sources["rule"] == 0 || sources["classifier"] == 0 {
+		t.Fatalf("intent sources in list %v", sources)
+	}
 }
 
 func TestModelIntentClassifierSeesMaskedContent(t *testing.T) {

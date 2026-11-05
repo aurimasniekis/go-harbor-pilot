@@ -61,6 +61,10 @@ type RequestSummary struct {
 	Cost           *CostDTO   `json:"cost,omitempty"`
 	ToolCalls      int        `json:"tool_calls"`
 	FinishedAt     *time.Time `json:"finished_at,omitempty"`
+	Intent         string     `json:"intent,omitempty" doc:"Request intent label, when one was declared, derived by a rule or classified."`
+	IntentSource   string     `json:"intent_source,omitempty" enum:"declared,rule,classifier," doc:"Where the intent came from."`
+	// IntentDetail describes classifier runs (version, latency, outcome).
+	IntentDetail map[string]any `json:"intent_detail,omitempty"`
 }
 
 // AttemptDTO is one upstream attempt.
@@ -284,7 +288,7 @@ const summaryCols = `id, created_at, finished_at, COALESCE(binding_id,''), COALE
 	inbound_protocol, stream, COALESCE(requested_model,''), COALESCE(alias_id,''), status, COALESCE(error_kind,''), COALESCE(stop_reason,''),
 	ttft_ms, duration_ms, attempt_count, COALESCE(final_account_id,''), COALESCE(final_provider_id,''), COALESCE(final_model,''), COALESCE(mode,''),
 	input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, COALESCE(usage_source,''), cost_e10,
-	COALESCE(currency,''), COALESCE(cost_kind,''), tool_calls`
+	COALESCE(currency,''), COALESCE(cost_kind,''), tool_calls, COALESCE(intent,''), COALESCE(intent_source,''), COALESCE(intent_detail,'{}')`
 
 func scanSummary(r *sql.Rows) (RequestSummary, error) {
 	var s RequestSummary
@@ -292,10 +296,14 @@ func scanSummary(r *sql.Rows) (RequestSummary, error) {
 	var finished, ttft, dur, cost sql.NullInt64
 	var in, out, cr, cw, rs sql.NullInt64
 	var stream int64
-	var currency, costKind string
+	var currency, costKind, intentDetail string
 	err := r.Scan(&s.ID, &created, &finished, &s.BindingID, &s.ProjectID, &s.SessionID, &s.Harness, &s.Protocol, &stream, &s.RequestedModel,
 		&s.AliasID, &s.Status, &s.ErrorKind, &s.StopReason, &ttft, &dur, &s.Attempts, &s.AccountID, &s.ProviderID, &s.Model, &s.Mode,
-		&in, &out, &cr, &cw, &rs, &s.UsageSource, &cost, &currency, &costKind, &s.ToolCalls)
+		&in, &out, &cr, &cw, &rs, &s.UsageSource, &cost, &currency, &costKind, &s.ToolCalls,
+		&s.Intent, &s.IntentSource, &intentDetail)
+	if intentDetail != "" && intentDetail != "{}" {
+		_ = json.Unmarshal([]byte(intentDetail), &s.IntentDetail)
+	}
 	s.CreatedAt = time.UnixMilli(created).UTC()
 	s.FinishedAt = tptr(finished)
 	s.Stream = stream == 1

@@ -574,14 +574,15 @@ type Notification struct {
 	Body      string     `json:"body"`
 	Status    string     `json:"status" enum:"pending,digest,sent,digested,dead"`
 	Attempts  int        `json:"attempts"`
-	LastError string     `json:"last_error"`
+	LastError string     `json:"last_error,omitempty" required:"false"`
 	SentAt    *time.Time `json:"sent_at"`
 	CreatedAt time.Time  `json:"created_at"`
 }
 
-// List returns notifications, newest first.
-func (e *Engine) List(ctx context.Context, channelID, status string, limit int) ([]Notification, error) {
-	if limit <= 0 || limit > 500 {
+// List returns notifications, newest first. beforeID ("" = none)
+// continues a previous page.
+func (e *Engine) List(ctx context.Context, channelID, status, beforeID string, limit int) ([]Notification, error) {
+	if limit <= 0 {
 		limit = 100
 	}
 	q := `SELECT id, COALESCE(rule_id,''), channel_id, COALESCE(event_id,''), kind, severity, title, body, status, attempts, COALESCE(last_error,''), sent_at, created_at
@@ -595,7 +596,11 @@ func (e *Engine) List(ctx context.Context, channelID, status string, limit int) 
 		q += ` AND status = ?`
 		args = append(args, status)
 	}
-	q += ` ORDER BY created_at DESC LIMIT ?`
+	if beforeID != "" {
+		q += ` AND id < ?`
+		args = append(args, beforeID)
+	}
+	q += ` ORDER BY id DESC LIMIT ?`
 	args = append(args, limit)
 	return store.Query(ctx, e.DB.R, func(r *sql.Rows) (Notification, error) {
 		var n Notification
@@ -611,10 +616,18 @@ func (e *Engine) List(ctx context.Context, channelID, status string, limit int) 
 	}, q, args...)
 }
 
+// ErrTestNotReplayable is returned when replaying a test notification:
+// tests are one-shot, so send a new one instead.
+var ErrTestNotReplayable = errors.New("test notifications are not replayed; send a new test")
+
 // Replay re-queues a dead notification.
 func (e *Engine) Replay(ctx context.Context, id string) (bool, error) {
+	var kind string
+	if err := e.DB.R.QueryRowContext(ctx, `SELECT kind FROM notifications WHERE id = ?`, id).Scan(&kind); err == nil && kind == "test" {
+		return false, ErrTestNotReplayable
+	}
 	res, err := e.DB.W.ExecContext(ctx, `UPDATE notifications SET status = 'pending', attempts = 0, last_error = NULL, next_attempt_at = ?, created_at = ?
-		WHERE id = ? AND status = 'dead'`, e.Clock.Now().UnixMilli(), e.Clock.Now().UnixMilli(), id)
+		WHERE id = ? AND status = 'dead' AND kind != 'test'`, e.Clock.Now().UnixMilli(), e.Clock.Now().UnixMilli(), id)
 	if err != nil {
 		return false, err
 	}

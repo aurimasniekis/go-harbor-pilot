@@ -359,14 +359,15 @@ func Register(a *api.API, d Deps) {
 	type in struct {
 		By   string `query:"by" enum:"client,harness,project,plan,intent,model,account,provider,session,period," required:"false"`
 		From string `query:"from" doc:"RFC 3339; default 7 days before to."`
-		To   string `query:"to" doc:"RFC 3339; default now."`
+		To   string `query:"to" doc:"RFC 3339, exclusive; default now (inclusive of requests recorded at this instant)."`
 		Step string `query:"step" enum:"hour,day," required:"false" doc:"Bucket size for by=period."`
 	}
 	type out struct{ Body *Stats }
 	api.Register(a, api.Op{ID: "activity-stats", Method: http.MethodGet, Path: "/stats", Summary: "Activity statistics by dimension",
 		Tags: []string{"Activity"}, Permission: auth.PermActivityRead}, func(ctx context.Context, i *in) (*out, error) {
-		now := d.Clock.Now().UTC()
-		to := now
+		// The range end is exclusive; by default it is just after now, so
+		// requests recorded at the current instant are included.
+		to := d.Clock.Now().UTC().Add(time.Millisecond)
 		var from time.Time
 		var err error
 		if i.To != "" {
