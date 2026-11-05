@@ -8,7 +8,7 @@ DEMO_CLOCK ?= 2026-11-05T12:00:00Z
 E2E_PORT ?= 18189
 FUZZTIME ?= 30s
 
-.PHONY: all web web-deps build build-go run demo test test-go test-web race lint golint vet typecheck check \
+.PHONY: all web web-deps build build-go run demo dev test test-go test-web race lint golint vet typecheck check \
 	gen gen-api gen-web fuzz-smoke e2e e2e-install docker docker-up release-snapshot clean
 
 all: build
@@ -31,6 +31,16 @@ run: build-go
 
 demo: build-go
 	$(BIN) serve --demo --listen 127.0.0.1:8080 --data-dir $(CURDIR)/.data-demo
+
+# dev builds the UI and a separate binary, then serves a demo instance you
+# can keep using while the tree changes. DEV_RESET=1 starts from fresh data.
+DEV_ADDR ?= 127.0.0.1:8080
+DEV_BIN := bin/harbor-pilot-dev
+dev: web
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(DEV_BIN) ./cmd/harbor-pilot
+	@if [ "$(DEV_RESET)" = "1" ]; then rm -rf $(CURDIR)/.data-dev; fi
+	@echo "Harbor Pilot demo: http://$(DEV_ADDR)  (admin@example.test / harbor-pilot-demo)"
+	$(DEV_BIN) serve --demo --listen $(DEV_ADDR) --data-dir $(CURDIR)/.data-dev
 
 vet:
 	$(GO) vet ./...
@@ -91,4 +101,4 @@ release-snapshot:
 	$(GO) run github.com/goreleaser/goreleaser/v2@v2.12.7 release --snapshot --clean
 
 clean:
-	rm -rf bin dist .data-demo web/node_modules/.tmp web/test-results web/playwright-report web/.e2e
+	rm -rf bin dist .data-demo .data-dev web/node_modules/.tmp web/test-results web/playwright-report web/.e2e
