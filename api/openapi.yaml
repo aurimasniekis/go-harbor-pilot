@@ -1316,55 +1316,6 @@ components:
         - status
         - refresh
       type: object
-    Content:
-      additionalProperties: false
-      properties:
-        binding_id:
-          type: string
-        created_at:
-          format: date-time
-          type: string
-        expires_at:
-          format: date-time
-          type: string
-        id:
-          type: string
-        mode:
-          enum:
-            - masked_diagnostic
-            - masked_full
-            - unredacted
-          type: string
-        plan_id:
-          type: string
-        policy_id:
-          type: string
-        request_id:
-          type: string
-        sections:
-          additionalProperties: {}
-          type: object
-        session_id:
-          type: string
-        size_bytes:
-          format: int64
-          type: integer
-        truncated:
-          type: boolean
-      required:
-        - sections
-        - id
-        - request_id
-        - binding_id
-        - session_id
-        - plan_id
-        - policy_id
-        - mode
-        - created_at
-        - expires_at
-        - size_bytes
-        - truncated
-      type: object
     Cost:
       additionalProperties: false
       properties:
@@ -2516,10 +2467,16 @@ components:
         snippet:
           description: Excerpt of redacted text.
           type: string
+        snippet_parts:
+          description: The excerpt split into plain and matching runs, in order.
+          items:
+            $ref: "#/components/schemas/SnippetPart"
+          type: array
         truncated:
           type: boolean
       required:
         - snippet
+        - snippet_parts
         - id
         - request_id
         - binding_id
@@ -6396,6 +6353,17 @@ components:
         - decision
         - version
       type: object
+    SnippetPart:
+      additionalProperties: false
+      properties:
+        match:
+          type: boolean
+        text:
+          type: string
+      required:
+        - text
+        - match
+      type: object
     SpBody:
       additionalProperties: false
       properties:
@@ -6680,6 +6648,59 @@ components:
         - kind
         - stage
         - matched
+      type: object
+    TraceContent:
+      additionalProperties: false
+      properties:
+        allow_export:
+          description: Whether the capture rule allows downloading this trace.
+          type: boolean
+        binding_id:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        expires_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        mode:
+          enum:
+            - masked_diagnostic
+            - masked_full
+            - unredacted
+          type: string
+        plan_id:
+          type: string
+        policy_id:
+          type: string
+        request_id:
+          type: string
+        sections:
+          additionalProperties: {}
+          type: object
+        session_id:
+          type: string
+        size_bytes:
+          format: int64
+          type: integer
+        truncated:
+          type: boolean
+      required:
+        - allow_export
+        - sections
+        - id
+        - request_id
+        - binding_id
+        - session_id
+        - plan_id
+        - policy_id
+        - mode
+        - created_at
+        - expires_at
+        - size_bytes
+        - truncated
       type: object
     TracePolicySpec:
       additionalProperties: false
@@ -14526,7 +14547,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Content"
+                $ref: "#/components/schemas/TraceContent"
           description: OK
         default:
           content:

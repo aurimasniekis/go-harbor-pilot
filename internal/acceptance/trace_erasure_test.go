@@ -39,6 +39,10 @@ func TestTraceIndexHoldsNoMaskedValuesAndErases(t *testing.T) {
 		Items []struct {
 			ID      string `json:"id"`
 			Snippet string `json:"snippet"`
+			Parts   []struct {
+				Text  string `json:"text"`
+				Match bool   `json:"match"`
+			} `json:"snippet_parts"`
 		} `json:"items"`
 	}
 	r.e.Admin.MustDo(200, "GET", "/api/v1/traces/search?q="+dbName, nil, &hits)
@@ -51,6 +55,13 @@ func TestTraceIndexHoldsNoMaskedValuesAndErases(t *testing.T) {
 	}
 	if s := hits.Items[0].Snippet; strings.Contains(s, email) || strings.Contains(s, dbName) {
 		t.Fatalf("snippet shows a masked value: %q", s)
+	}
+	matched := false
+	for _, p := range hits.Items[0].Parts {
+		matched = matched || (p.Match && strings.EqualFold(p.Text, marker))
+	}
+	if !matched || strings.ContainsAny(hits.Items[0].Snippet, "\x02\x03") {
+		t.Fatalf("search hit does not mark the match: %+v", hits.Items[0])
 	}
 	var tr json.RawMessage
 	r.e.Admin.MustDo(200, "GET", "/api/v1/traces/"+hits.Items[0].ID, nil, &tr)

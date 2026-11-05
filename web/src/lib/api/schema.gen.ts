@@ -3045,26 +3045,6 @@ export interface components {
             refresh: string;
             status: string;
         };
-        Content: {
-            binding_id: string;
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            expires_at: string;
-            id: string;
-            /** @enum {string} */
-            mode: "masked_diagnostic" | "masked_full" | "unredacted";
-            plan_id: string;
-            policy_id: string;
-            request_id: string;
-            sections: {
-                [key: string]: unknown;
-            };
-            session_id: string;
-            /** Format: int64 */
-            size_bytes: number;
-            truncated: boolean;
-        };
         Cost: {
             amount: string;
             currency: string;
@@ -3555,6 +3535,8 @@ export interface components {
             size_bytes: number;
             /** @description Excerpt of redacted text. */
             snippet: string;
+            /** @description The excerpt split into plain and matching runs, in order. */
+            snippet_parts: components["schemas"]["SnippetPart"][];
             truncated: boolean;
         };
         IdentityDTO: {
@@ -5219,6 +5201,10 @@ export interface components {
             /** Format: int64 */
             version: number;
         };
+        SnippetPart: {
+            match: boolean;
+            text: string;
+        };
         SpBody: {
             description?: string;
             disabled?: boolean;
@@ -5334,6 +5320,28 @@ export interface components {
             /** Format: int64 */
             row?: number;
             stage: string;
+        };
+        TraceContent: {
+            /** @description Whether the capture rule allows downloading this trace. */
+            allow_export: boolean;
+            binding_id: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            id: string;
+            /** @enum {string} */
+            mode: "masked_diagnostic" | "masked_full" | "unredacted";
+            plan_id: string;
+            policy_id: string;
+            request_id: string;
+            sections: {
+                [key: string]: unknown;
+            };
+            session_id: string;
+            /** Format: int64 */
+            size_bytes: number;
+            truncated: boolean;
         };
         TracePolicySpec: {
             /** @description Permit users with traces.export to download trace content. */
@@ -12081,7 +12089,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Content"];
+                    "application/json": components["schemas"]["TraceContent"];
                 };
             };
             /** @description Error */

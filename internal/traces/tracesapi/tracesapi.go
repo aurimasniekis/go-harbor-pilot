@@ -67,7 +67,11 @@ func Register(a *api.API, d Deps) {
 	type getIn struct {
 		ID string `path:"id"`
 	}
-	type getOut struct{ Body *traces.Content }
+	type TraceContent struct {
+		traces.Content
+		AllowExport bool `json:"allow_export" doc:"Whether the capture rule allows downloading this trace."`
+	}
+	type getOut struct{ Body TraceContent }
 	load := func(ctx context.Context, id, action string) (*traces.Content, error) {
 		c, err := d.Traces().Get(ctx, id)
 		if err != nil {
@@ -98,7 +102,8 @@ func Register(a *api.API, d Deps) {
 			return nil, err
 		}
 		record(ctx, d, "trace.read", in.ID, audit.Success, map[string]any{"mode": c.Mode})
-		return &getOut{Body: c}, nil
+		pol := d.Snapshot().TracePols[c.PolicyID]
+		return &getOut{Body: TraceContent{Content: *c, AllowExport: pol != nil && pol.Spec.AllowExport}}, nil
 	})
 
 	type expOut struct {

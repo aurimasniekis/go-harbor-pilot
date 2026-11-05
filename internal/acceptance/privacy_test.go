@@ -98,6 +98,9 @@ func TestScenarioF_MaskedSecretAbsentUpstreamAndPersistence(t *testing.T) {
 	if strings.Contains(b, fakeSecret) || !strings.Contains(b, "[redacted:") {
 		t.Fatalf("trace content not redacted: %s", b)
 	}
+	if content["allow_export"] != true {
+		t.Fatalf("trace does not say its capture rule allows export: %v", content["allow_export"])
+	}
 	if code := r.e.Admin.Do("GET", "/api/v1/traces/"+list.Items[0].ID+"/export", nil, nil); code != 200 {
 		t.Fatalf("export: %d", code)
 	}

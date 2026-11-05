@@ -547,7 +547,49 @@ func (s *Service) Get(ctx context.Context, id string) (*Content, error) {
 // Hit is a search result.
 type Hit struct {
 	Meta
-	Snippet string `json:"snippet" doc:"Excerpt of redacted text."`
+	Snippet string        `json:"snippet" doc:"Excerpt of redacted text."`
+	Parts   []SnippetPart `json:"snippet_parts" doc:"The excerpt split into plain and matching runs, in order."`
+}
+
+// SnippetPart is a run of a search excerpt; Match marks query terms.
+type SnippetPart struct {
+	Text  string `json:"text"`
+	Match bool   `json:"match"`
+}
+
+// Match markers: control characters that never occur in indexed text, so
+// highlighting cannot be confused with brackets in the content.
+const (
+	markOpen  = "\x02"
+	markClose = "\x03"
+)
+
+// splitSnippet turns a marked excerpt into runs and plain text.
+func splitSnippet(marked string) (string, []SnippetPart) {
+	parts := []SnippetPart{}
+	var plain strings.Builder
+	rest := marked
+	for rest != "" {
+		i := strings.Index(rest, markOpen)
+		if i < 0 {
+			parts = append(parts, SnippetPart{Text: rest})
+			plain.WriteString(rest)
+			break
+		}
+		if i > 0 {
+			parts = append(parts, SnippetPart{Text: rest[:i]})
+			plain.WriteString(rest[:i])
+		}
+		rest = rest[i+len(markOpen):]
+		j := strings.Index(rest, markClose)
+		if j < 0 {
+			j = len(rest)
+		}
+		parts = append(parts, SnippetPart{Text: rest[:j], Match: true})
+		plain.WriteString(rest[:j])
+		rest = strings.TrimPrefix(rest[j:], markClose)
+	}
+	return plain.String(), parts
 }
 
 // Search matches redacted text of live traces.
@@ -567,9 +609,10 @@ func (s *Service) Search(ctx context.Context, query string, limit int) ([]Hit, e
 		err := r.Scan(&h.ID, &h.RequestID, &h.BindingID, &h.SessionID, &h.PlanID, &h.PolicyID, &h.Mode, &created, &expires, &h.SizeBytes, &trunc, &secs, &h.Snippet)
 		h.CreatedAt, h.ExpiresAt, h.Truncated = time.UnixMilli(created).UTC(), time.UnixMilli(expires).UTC(), trunc == 1
 		_ = json.Unmarshal([]byte(secs), &h.Sections)
+		h.Snippet, h.Parts = splitSnippet(h.Snippet)
 		return h, err
 	}, `SELECT t.id, t.request_id, COALESCE(t.binding_id,''), COALESCE(t.session_id,''), COALESCE(t.plan_id,''), COALESCE(t.policy_id,''), t.mode,
-		t.created_at, t.expires_at, t.size_bytes, t.truncated, t.sections, snippet(trace_search, 1, '[', ']', '…', 12)
+		t.created_at, t.expires_at, t.size_bytes, t.truncated, t.sections, snippet(trace_search, 1, char(2), char(3), '…', 12)
 		FROM trace_search JOIN traces t ON t.id = trace_search.trace_id
 		WHERE trace_search MATCH ? AND t.expires_at > ? ORDER BY t.id DESC LIMIT ?`, q, s.Clock.Now().UnixMilli(), limit)
 }
