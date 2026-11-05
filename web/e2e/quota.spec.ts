@@ -65,13 +65,20 @@ test('usage keeps cost categories apart and budgets show status', async ({ page 
   page.on('dialog', (dl) => void dl.accept())
   await signIn(page)
   await page.goto('/usage')
-  await expect(page.getByRole('heading', { name: 'Totals by category' })).toBeVisible()
-  await expect(page.getByText('est. API charge').first()).toBeVisible()
-  await expect(page.getByRole('img', { name: 'Tokens and cost per category over time' })).toBeVisible()
-  await page.getByLabel('Group by').selectOption('model')
+  // Each cost category is its own headline figure; they are never summed.
+  const totals = page.getByRole('group', { name: /^Spend for the/ })
+  await expect(totals.getByText('Estimated cost')).toBeVisible()
+  await expect(totals.getByText('Billed by providers')).toBeVisible()
+  // The demo's traffic sits in one day, so the chart explains it has too
+  // little data instead of drawing one bar.
+  await expect(page.getByRole('img', { name: 'Cost per day' }).or(page.getByText(/Not enough data for a trend yet/))).toBeVisible()
+  await page.locator('label').filter({ hasText: /^Model$/ }).click()
   await expect(page.getByRole('region', { name: 'Usage by group' })).toContainText('demo-')
-  await page.getByRole('tab', { name: '7 days' }).first().click()
-  await expect(page.getByRole('heading', { name: 'Reconciliation' })).toBeVisible()
+  await page.locator('label').filter({ hasText: /^90d$/ }).click()
+  await expect(page).toHaveURL(/range=90/)
+  await expect(page.getByRole('heading', { name: 'Cost per week' })).toBeVisible()
+  await page.getByRole('button', { name: /Provider vs gateway/ }).click()
+  await expect(page.getByRole('region', { name: 'Provider vs gateway', exact: true })).toBeVisible()
 
   await page.goto('/usage/budgets')
   await expect(page.getByRole('article', { name: 'acme-monthly' })).toBeVisible()
@@ -100,5 +107,5 @@ test('usage keeps cost categories apart and budgets show status', async ({ page 
   await expect(page.getByRole('article', { name })).toHaveCount(0)
 
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Quotas and budgets' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Closest to a limit' })).toBeVisible()
 })

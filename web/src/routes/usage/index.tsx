@@ -1,255 +1,286 @@
 import { useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Coins } from 'lucide-react'
-import { Badge, Banner, EmptyState, Panel, Skeleton, TableScroll, Tabs } from '@/components/ui'
-import { SelectField } from '@/components/form'
-import { QueryError, TableSkeleton } from '@/components/states'
+import { Accordion, Badge, Button, Group, Paper, Progress, SegmentedControl, Skeleton, Stack, Text, Tooltip } from '@mantine/core'
+import { Coins, Download } from 'lucide-react'
+import { QueryError } from '@/components/states'
 import { externalUsageQuery, reconciliationQuery, resourceListQuery, usageSeriesQuery, usageSummaryQuery } from '@/lib/api/queries'
 import { byId } from '@/lib/api/resources'
-import type { AccountRes, QuotaMonitorRes, UsageGroupBy } from '@/lib/api/types'
-import { fmtDateTime, fmtMoney, fmtNumber } from '@/lib/format'
-import { TokenValue } from '@/features/activity/bits'
-import { CostList } from '@/features/usage/CostList'
-import { UsageChart } from '@/features/usage/UsageChart'
-import { presetRange, rangePresets, stepFor, type RangePreset } from '@/features/usage/range'
-import q from '@/features/quota/quota.module.css'
+import type { AccountRes, ReconciliationRow, UsageGroup, UsageGroupBy } from '@/lib/api/types'
+import { presetRange } from '@/features/usage/range'
+import { bucketFor, bucketize, stepFor } from '@/features/usage/buckets'
+import { UsageChart } from '@/features/usage/UsageCharts'
+import { type Column, DataTable, Empty, Section, Stat, StatGrid, StatSkeleton } from '@/ui/kit'
+import { costKindHelp, money, short } from '@/ui/fmt'
+import { Route as UsageRoute } from './route'
 
 export const Route = createFileRoute('/usage/')({
-  component: UsagePage,
+  component: SpendPage,
 })
 
 const groupOptions: { value: UsageGroupBy; label: string }[] = [
-  { value: 'account', label: 'Provider account' },
-  { value: 'provider', label: 'Provider' },
-  { value: 'model', label: 'Model' },
+  { value: 'account', label: 'Account' },
   { value: 'binding', label: 'Client' },
+  { value: 'model', label: 'Model' },
   { value: 'project', label: 'Project' },
-  { value: 'workspace', label: 'Workspace' },
-  { value: 'billing', label: 'Billing class' },
 ]
 
-function UsagePage() {
-  const [preset, setPreset] = useState<RangePreset>('30')
+const rangeName: Record<string, string> = { '1': 'last 24 hours', '7': 'last 7 days', '30': 'last 30 days', '90': 'last 90 days' }
+
+/** Estimated cost of a group in its main currency (the one shown on the page). */
+function estimate(g: UsageGroup, currency: string): number {
+  return Number(g.costs.find((c) => c.kind === 'estimated_api_charge' && c.currency === currency)?.amount ?? 0)
+}
+
+function SpendPage() {
+  const { range: rangeDays = 30 } = UsageRoute.useSearch()
+  const preset = String(rangeDays)
   const [groupBy, setGroupBy] = useState<UsageGroupBy>('account')
+  const [mode, setMode] = useState<'cost' | 'tokens'>('cost')
   const days = Number(preset)
-  // Recompute the range only when the preset changes so queries stay stable.
+  const bucket = bucketFor(days)
   const range = useMemo(() => presetRange(days), [days])
   const summary = useQuery(usageSummaryQuery(range, groupBy))
-  const series = useQuery(usageSeriesQuery(range, stepFor(days)))
+  const series = useQuery(usageSeriesQuery(range, stepFor(bucket)))
+  const rec = useQuery(reconciliationQuery(Math.min(days, 90)))
+  const rows = useMemo(() => (series.data ? bucketize(series.data.points ?? [], range.from, range.to, bucket) : []), [series.data, range, bucket])
+  const tokens = useMemo(() => rows.reduce((t, r) => ({ input: t.input + r.input, output: t.output + r.output }), { input: 0, output: 0 }), [rows])
   const s = summary.data
-  return (
-    <div className={q.stack}>
-      <div className={q.toolbar}>
-        <Tabs label="Time range" variant="segmented" value={preset} onChange={setPreset} items={rangePresets.map((r) => ({ value: r.value, label: r.label }))} />
-        <SelectField label="Group by" value={groupBy} onChange={setGroupBy} options={groupOptions} />
-        <span className="muted" style={{ fontSize: 'var(--text-sm)' }}>
-          {fmtDateTime(range.from)} → {fmtDateTime(range.to)}
+  const est = s?.totals.find((c) => c.kind === 'estimated_api_charge')
+  const currency = est?.currency ?? 'USD'
+  const billed = useMemo(() => {
+    let sum = 0
+    let any = false
+    for (const r of rec.data?.items ?? []) {
+      if (r.provider_actual_cost && r.currency === currency) {
+        sum += Number(r.provider_actual_cost)
+        any = true
+      }
+    }
+    return any ? sum : null
+  }, [rec.data, currency])
+  const fees = useMemo(() => (s?.subscription_fees ?? []).reduce((n, f) => n + (f.currency === currency ? Number(f.prorated) : 0), 0), [s, currency])
+  const busyBuckets = rows.filter((r) => r.attempts > 0).length
+  const totalEst = (s?.groups ?? []).reduce((n, g) => n + estimate(g, currency), 0)
+
+  const groupLabel = groupOptions.find((g) => g.value === groupBy)?.label ?? 'Name'
+  const columns: Column<UsageGroup>[] = [
+    {
+      id: 'name',
+      header: groupLabel,
+      mobile: 'title',
+      cell: (g) => (
+        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', minWidth: 0 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{g.label || <span className="muted">Not set</span>}</span>
+          {g.billing === 'local' && groupBy === 'account' && (
+            <Badge color="gray" size="xs">
+              Local
+            </Badge>
+          )}
         </span>
-      </div>
-      <Panel title="Over time" subtitle={`Tokens per ${stepFor(days)} and cost per category (one line per category and currency).`}>
+      ),
+    },
+    { id: 'requests', header: 'Requests', align: 'right', only: 'desktop', cell: (g) => short(g.attempts) },
+    {
+      id: 'tokens',
+      header: 'Tokens in / out',
+      align: 'right',
+      only: 'desktop',
+      cell: (g) => (
+        <span>
+          {short(g.tokens.input)} <span className="muted">/</span> {short(g.tokens.output)}
+          {g.tokens.unknown_usage_attempts > 0 && (
+            <Tooltip label={`${g.tokens.unknown_usage_attempts} requests did not report usage`}>
+              <span style={{ color: 'var(--warning)' }}> *</span>
+            </Tooltip>
+          )}
+        </span>
+      ),
+    },
+    {
+      id: 'mobile-meta',
+      header: 'Usage',
+      only: 'mobile',
+      mobile: 'meta',
+      cell: (g) => `${short(g.attempts)} ${g.attempts === 1 ? 'request' : 'requests'} · ${short(g.tokens.input)} in · ${short(g.tokens.output)} out`,
+    },
+    {
+      id: 'cost',
+      header: 'Estimated cost',
+      align: 'right',
+      mobile: 'aside',
+      cell: (g) => {
+        const v = g.costs.find((c) => c.kind === 'estimated_api_charge' && c.currency === currency)
+        return v ? money(v.amount, v.currency) : <span className="muted">—</span>
+      },
+    },
+    {
+      id: 'share',
+      header: 'Share',
+      width: 140,
+      mobile: 'hidden',
+      cell: (g) => {
+        const pct = totalEst > 0 ? (estimate(g, currency) / totalEst) * 100 : 0
+        return (
+          <Group gap={8} wrap="nowrap">
+            <Progress value={pct} size={6} radius="xl" style={{ flex: 1 }} aria-label={`${g.label} share of cost`} />
+            <Text size="xs" c="dimmed" w={34} ta="right" className="num">
+              {Math.round(pct)}%
+            </Text>
+          </Group>
+        )
+      },
+    },
+  ]
+
+  return (
+    <Stack gap={28}>
+      {summary.isError ? (
+        <QueryError error={summary.error} retry={() => void summary.refetch()} />
+      ) : !s || !series.data ? (
+        <StatSkeleton count={4} />
+      ) : (
+        <StatGrid cols={fees > 0 ? 4 : 3} label={`Spend for the ${rangeName[preset]}`}>
+          <Stat label="Estimated cost" value={est ? money(est.amount, est.currency) : '—'} hint={rangeName[preset]} info={costKindHelp.estimated_api_charge} spark={rows.map((r) => r.costs[`estimated_api_charge|${currency}`] ?? 0)} />
+          <Stat
+            label="Billed by providers"
+            value={billed === null ? '—' : money(billed, currency)}
+            hint={billed === null ? 'No provider billing data' : `Last ${Math.min(days, 90)} days`}
+            info={`${costKindHelp.actual_api_charge} Only accounts with quota tracking that reports billing are included.`}
+          />
+          {fees > 0 && <Stat label="Subscription fees" value={money(fees, currency)} hint="Prorated to the range" info={costKindHelp.subscription_fee} />}
+          <Stat label="Tokens" value={short(tokens.input + tokens.output)} hint={`${short(tokens.input)} in · ${short(tokens.output)} out`} spark={rows.map((r) => r.input + r.output)} />
+        </StatGrid>
+      )}
+
+      <Section
+        title={mode === 'cost' ? `Cost per ${bucket}` : `Tokens per ${bucket}`}
+        actions={
+          <SegmentedControl
+            size="xs"
+            aria-label="Chart"
+            value={mode}
+            onChange={(v) => setMode(v as typeof mode)}
+            data={[
+              { value: 'cost', label: 'Cost' },
+              { value: 'tokens', label: 'Tokens' },
+            ]}
+          />
+        }
+      >
         {series.isError ? (
           <QueryError error={series.error} retry={() => void series.refetch()} />
         ) : !series.data ? (
-          <Skeleton height={300} />
-        ) : (series.data.points ?? []).length === 0 ? (
-          <EmptyState icon={Coins} title="No usage in this range" />
+          <Skeleton height={240} radius="md" />
+        ) : busyBuckets === 0 ? (
+          <Empty icon={<Coins size={22} />} title="No usage in this range" />
+        ) : busyBuckets < 3 ? (
+          <Paper withBorder radius="md" p="md">
+            <Text size="sm" c="dimmed">
+              Not enough data for a trend yet: usage on {busyBuckets} {busyBuckets === 1 ? bucket : `${bucket}s`} so far.
+            </Text>
+          </Paper>
         ) : (
-          <UsageChart points={series.data.points ?? []} />
+          <Paper withBorder radius="md" p="md">
+            <UsageChart rows={rows} bucket={bucket} mode={mode} />
+          </Paper>
         )}
-      </Panel>
-      {summary.isError ? (
-        <QueryError error={summary.error} retry={() => void summary.refetch()} />
-      ) : !s ? (
-        <TableSkeleton />
-      ) : (
-        <>
-          <Panel title="Totals by category" subtitle="Each category and currency is reported on its own; they are never summed.">
-            <CostList costs={s.totals} empty="No costs in this range." />
-            <details style={{ marginTop: 12 }}>
-              <summary className="muted" style={{ cursor: 'pointer', fontSize: 'var(--text-sm)' }}>What the categories mean</summary>
-              <ul className={q.list}>
-                {s.categories.map((c) => (
-                  <li key={c}>{c}</li>
-                ))}
-              </ul>
-            </details>
-          </Panel>
-          <Panel title={`By ${groupOptions.find((g) => g.value === groupBy)?.label.toLowerCase()}`}>
-            {s.groups.length === 0 ? (
-              <EmptyState icon={Coins} title="No usage in this range" />
-            ) : (
-              <TableScroll label="Usage by group">
-                <table className="data-table" style={{ width: '100%' }}>
-                  <thead>
-                    <tr>
-                      <th>{groupOptions.find((g) => g.value === groupBy)?.label}</th>
-                      <th>Attempts</th>
-                      <th>Input</th>
-                      <th>Output</th>
-                      <th>Cache read / write</th>
-                      <th>Usage not reported</th>
-                      <th>Costs</th>
-                      <th>Allocated subscription fees</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {s.groups.map((g) => (
-                      <tr key={g.key || '(none)'}>
-                        <td>
-                          <span className="mono">{g.label || <span className="muted">(none)</span>}</span>
-                          {g.billing && groupBy === 'account' && <> <Badge>{g.billing.replaceAll('_', ' ')}</Badge></>}
-                        </td>
-                        <td className="num">{fmtNumber(g.attempts)}</td>
-                        <td><TokenValue v={g.tokens.input} /></td>
-                        <td><TokenValue v={g.tokens.output} /></td>
-                        <td>
-                          <TokenValue v={g.tokens.cache_read} /> / <TokenValue v={g.tokens.cache_write} />
-                        </td>
-                        <td className="num">{g.tokens.unknown_usage_attempts > 0 ? <Badge tone="warning">{g.tokens.unknown_usage_attempts}</Badge> : 0}</td>
-                        <td><CostList costs={g.costs} /></td>
-                        <td><CostList costs={g.allocated} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableScroll>
-            )}
-          </Panel>
-          <Panel title="Subscription fees" subtitle="Entitlement fees prorated to this range. Fees are not usage charges and are not invoices.">
-            {s.subscription_fees.length === 0 ? (
-              <span className="muted">No subscription with a fee is active in this range.</span>
-            ) : (
-              <TableScroll label="Subscription fees">
-                <table className="data-table" style={{ width: '100%' }}>
-                  <thead>
-                    <tr>
-                      <th>Plan</th>
-                      <th>Fee</th>
-                      <th>Share of this range</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {s.subscription_fees.map((f) => (
-                      <tr key={f.entitlement_id}>
-                        <td>{f.plan_name}</td>
-                        <td className="num">{fmtMoney(f.fee, f.currency)} / {f.period === 'yearly' ? 'year' : 'month'}</td>
-                        <td className="num">{fmtMoney(f.prorated, f.currency)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableScroll>
-            )}
-          </Panel>
-        </>
-      )}
-      <ProviderReported />
-    </div>
+      </Section>
+
+      <Section
+        title="Breakdown"
+        actions={
+          <SegmentedControl size="xs" aria-label="Group by" value={groupBy} onChange={(v) => setGroupBy(v as UsageGroupBy)} data={groupOptions} />
+        }
+      >
+        {!s ? (
+          <Skeleton height={160} radius="md" />
+        ) : (
+          <DataTable label="Usage by group" rows={s.groups} rowKey={(g) => g.key || '(none)'} columns={columns} empty={<Empty title="No usage in this range" />} />
+        )}
+      </Section>
+
+      <ProviderVsGateway rows={rec.data?.items ?? []} loading={!rec.data} error={rec.error} days={Math.min(days, 90)} />
+    </Stack>
   )
 }
 
-function ProviderReported() {
-  const [days, setDays] = useState<'7' | '14' | '30'>('14')
-  const ext = useQuery(externalUsageQuery(Number(days)))
-  const rec = useQuery(reconciliationQuery(Number(days)))
-  const monitors = useQuery(resourceListQuery<QuotaMonitorRes>('quota-monitors'))
+/** Provider-reported usage next to what the gateway saw, for the page range. */
+function ProviderVsGateway({ rows, loading, error, days }: { rows: ReconciliationRow[]; loading: boolean; error: Error | null; days: number }) {
   const accounts = useQuery(resourceListQuery<AccountRes>('provider-accounts'))
-  const mon = byId(monitors.data?.items)
+  const ext = useQuery(externalUsageQuery(days))
   const acc = byId(accounts.data?.items)
+  const bypass = rows.reduce((n, r) => n + (r.unattributed_input_tokens ?? 0), 0)
+  const columns: Column<ReconciliationRow>[] = [
+    { id: 'day', header: 'Day', mobile: 'aside', cell: (r) => <span style={{ whiteSpace: 'nowrap' }}>{r.day.slice(0, 10)}{r.partial && <span className="muted"> · so far</span>}</span> },
+    { id: 'account', header: 'Account', mobile: 'title', cell: (r) => acc[r.account_id]?.name ?? r.account_id },
+    { id: 'provider', header: 'Provider reported', align: 'right', only: 'desktop', cell: (r) => `${short(r.provider_input_tokens)} in` },
+    { id: 'gateway', header: 'Gateway saw', align: 'right', only: 'desktop', cell: (r) => `${short(r.gateway_input_tokens)} in` },
+    {
+      id: 'gap',
+      header: (
+        <Tooltip label="Input tokens the provider reported that did not go through Harbor Pilot.">
+          <span>Not seen by gateway</span>
+        </Tooltip>
+      ),
+      align: 'right',
+      mobile: 'line',
+      cell: (r) =>
+        r.unattributed_input_tokens === null ? (
+          <span className="muted">Unknown</span>
+        ) : r.unattributed_input_tokens > 0 ? (
+          <span style={{ color: 'var(--warning)' }}>{short(r.unattributed_input_tokens)} in</span>
+        ) : (
+          <span className="muted">None</span>
+        ),
+    },
+    { id: 'billed', header: 'Billed', align: 'right', mobile: 'meta', cell: (r) => (r.provider_actual_cost ? money(r.provider_actual_cost, r.currency) : <span className="muted">—</span>) },
+  ]
+  const exportCsv = () => {
+    const items = ext.data?.items ?? []
+    const head = ['interval_start', 'interval_end', 'monitor_id', 'requests', 'input_tokens', 'output_tokens', 'actual_cost', 'estimated_cost', 'currency', 'quality']
+    const lines = [head.join(',')].concat(items.map((r) => head.map((k) => JSON.stringify((r as Record<string, unknown>)[k] ?? '')).join(',')))
+    const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `provider-usage-${days}d.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
   return (
-    <>
-      <Panel
-        title="Reconciliation"
-        subtitle="Provider-reported usage compared with what the gateway observed for the linked account. Differences are usage that bypassed the gateway, reporting lag or price differences."
-        actions={<Tabs label="Days" variant="segmented" value={days} onChange={setDays} items={[{ value: '7', label: '7 days' }, { value: '14', label: '14 days' }, { value: '30', label: '30 days' }]} />}
-      >
-        {rec.isError ? (
-          <QueryError error={rec.error} retry={() => void rec.refetch()} />
-        ) : !rec.data ? (
-          <TableSkeleton rows={3} />
-        ) : (rec.data.items ?? []).length === 0 ? (
-          <span className="muted">No monitor linked to a provider account reports usage in this range.</span>
-        ) : (
-          <TableScroll label="Reconciliation">
-            <table className="data-table" style={{ width: '100%' }}>
-              <thead>
-                <tr>
-                  <th>Day</th>
-                  <th>Monitor → account</th>
-                  <th>Provider input / output</th>
-                  <th>Gateway input / output</th>
-                  <th>Not seen by gateway (input)</th>
-                  <th>Provider charge</th>
-                  <th>Gateway estimate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(rec.data.items ?? []).map((r) => (
-                  <tr key={r.monitor_id + r.day}>
-                    <td>{r.day.slice(0, 10)}{r.partial && <> <Badge tone="info">partial</Badge></>}</td>
-                    <td className="mono">{mon[r.monitor_id]?.name ?? r.monitor_id} → {acc[r.account_id]?.name ?? r.account_id}</td>
-                    <td><TokenValue v={r.provider_input_tokens} /> / <TokenValue v={r.provider_output_tokens} /></td>
-                    <td><TokenValue v={r.gateway_input_tokens} /> / <TokenValue v={r.gateway_output_tokens} /></td>
-                    <td className="num">
-                      {r.unattributed_input_tokens === null ? (
-                        <span className="muted">Unknown</span>
-                      ) : r.unattributed_input_tokens !== 0 ? (
-                        <span className={q.highlight}>{fmtNumber(r.unattributed_input_tokens)}</span>
-                      ) : (
-                        0
-                      )}
-                    </td>
-                    <td className="num">{r.provider_actual_cost ? `${fmtMoney(r.provider_actual_cost, r.currency)} actual` : <span className="muted">—</span>}</td>
-                    <td className="num">{r.gateway_estimated_cost ? `${fmtMoney(r.gateway_estimated_cost, r.currency)} est.` : <span className="muted">—</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        )}
-      </Panel>
-      <Panel title="Provider-reported usage" subtitle="Totals from provider usage and billing APIs (the total breakdown only, so rows are not double counted).">
-        {ext.isError ? (
-          <QueryError error={ext.error} retry={() => void ext.refetch()} />
-        ) : !ext.data ? (
-          <TableSkeleton rows={3} />
-        ) : (ext.data.items ?? []).length === 0 ? (
-          <span className="muted">No provider-reported usage in this range.</span>
-        ) : (
-          <>
-            {(ext.data.items ?? []).length >= 5000 && <Banner tone="warning">Showing the first 5,000 rows.</Banner>}
-            <TableScroll label="Provider-reported usage" style={{ maxHeight: 420 }}>
-              <table className="data-table" style={{ width: '100%' }}>
-                <thead>
-                  <tr>
-                    <th>Interval</th>
-                    <th>Monitor</th>
-                    <th>Requests</th>
-                    <th>Input / output</th>
-                    <th>Actual charge</th>
-                    <th>Estimated</th>
-                    <th>Quality</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(ext.data.items ?? []).map((r) => (
-                    <tr key={r.monitor_id + r.interval_start + r.dimensions}>
-                      <td>{fmtDateTime(r.interval_start)}{r.partial && <> <Badge tone="info">partial</Badge></>}</td>
-                      <td className="mono">{mon[r.monitor_id]?.name ?? r.monitor_id}</td>
-                      <td><TokenValue v={r.requests} /></td>
-                      <td><TokenValue v={r.input_tokens} /> / <TokenValue v={r.output_tokens} /></td>
-                      <td className="num">{r.actual_cost ? fmtMoney(r.actual_cost, r.currency) : <span className="muted">—</span>}</td>
-                      <td className="num">{r.estimated_cost ? fmtMoney(r.estimated_cost, r.currency) : <span className="muted">—</span>}</td>
-                      <td><Badge>{r.quality.replaceAll('_', ' ')}</Badge></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TableScroll>
-          </>
-        )}
-      </Panel>
-    </>
+    <Accordion variant="separated" chevronPosition="right">
+      <Accordion.Item value="pvg">
+        <Accordion.Control>
+          <Stack gap={0}>
+            <Text fw={600}>Provider vs gateway</Text>
+            <Text size="xs" c={bypass > 0 ? 'yellow' : 'dimmed'}>
+              {loading
+                ? 'Comparing…'
+                : rows.length === 0
+                  ? 'No provider reports usage for a linked account.'
+                  : bypass > 0
+                    ? `Providers reported ${short(bypass)} input tokens the gateway never saw. Usage may be bypassing Harbor Pilot.`
+                    : 'Everything providers reported went through the gateway.'}
+            </Text>
+          </Stack>
+        </Accordion.Control>
+        <Accordion.Panel>
+          {error ? (
+            <QueryError error={error} />
+          ) : (
+            <Stack gap="sm">
+              {rows.length > 0 && <DataTable label="Provider vs gateway" rows={rows} rowKey={(r) => r.monitor_id + r.day} columns={columns} sticky={false} />}
+              {(ext.data?.items ?? []).length > 0 && (
+                <Group justify="flex-end">
+                  <Button variant="subtle" size="xs" leftSection={<Download size={14} />} onClick={exportCsv}>
+                    Export provider-reported usage (CSV)
+                  </Button>
+                </Group>
+              )}
+            </Stack>
+          )}
+        </Accordion.Panel>
+      </Accordion.Item>
+    </Accordion>
   )
 }

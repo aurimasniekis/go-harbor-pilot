@@ -1,0 +1,3 @@
+/* Cascade order: element defaults, then Mantine, then unlayered app CSS
+   (CSS modules and utilities). Imported before any other stylesheet. */
+@layer reset, mantine;

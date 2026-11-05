@@ -36,7 +36,8 @@ test('issue a service principal token and never show it again', async ({ page })
 
 test('sign out ends the session', async ({ page }) => {
   await signIn(page)
-  await page.getByRole('button', { name: 'Sign out' }).click()
+  await page.getByRole('button', { name: 'Account menu' }).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await page.goto('/settings/users')
   await expect(page).toHaveURL(/\/login/)
 })

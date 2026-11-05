@@ -24,23 +24,32 @@ test('activity explains a request that failed over', async ({ page }) => {
   }
   expect(target, 'demo traffic produced a request with a failover').toBeDefined()
 
-  // The list renders and links to the request.
+  // The log renders; a whole row opens the request's own page.
   await page.goto('/activity')
-  await expect(page.getByRole('heading', { name: 'Activity', level: 1 })).toBeVisible()
-  await expect(page.locator('table.data-table tbody tr').first()).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Requests', level: 1 })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Last 24 hours' })).toBeVisible()
+  const rows = page.getByRole('region', { name: 'Requests' }).locator('tbody tr[tabindex]')
+  await expect(rows.first()).toBeVisible()
+  await rows.first().click()
+  await expect(page).toHaveURL(/\/activity\/req_/)
+  await page.getByRole('link', { name: 'Requests', exact: true }).first().click()
+  await expect(page).toHaveURL(/\/activity$/)
 
+  // The request page answers in one sentence, then shows the route.
   await page.goto(`/activity/${target!.id}`)
-  await expect(page.getByRole('heading', { name: 'Candidates' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Attempts' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Accounting' })).toBeVisible()
-  await expect(page.getByText(/alternate_account|alternate_provider/).first()).toBeVisible()
+  const main = page.locator('#main')
+  await expect(main.getByText(/^Served by .+ after .+ was /).first()).toBeVisible()
+  for (const h of ['Route', 'Attempts', 'Candidates', 'Cost']) {
+    await expect(main.getByRole('heading', { name: h, level: 2 })).toBeVisible()
+  }
+  await expect(main.getByText(/Fell back to another (account|provider)/).first()).toBeVisible()
 
-  const text = await page.locator('main').innerText()
+  const text = await main.innerText()
   expect(text).not.toContain('NaN')
   expect(text).not.toContain('undefined')
 
-  // Tokens the upstream did not report render as an em dash, never as 0.
-  const missing = page.getByLabel('not reported by upstream')
+  // Tokens the provider did not report render as an em dash, never as 0.
+  const missing = page.getByLabel('Not reported by the provider')
   if ((await missing.count()) > 0) await expect(missing.first()).toHaveText('—')
 
   // Sessions screen renders.

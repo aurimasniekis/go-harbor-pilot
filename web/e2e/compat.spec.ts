@@ -15,7 +15,8 @@ async function axeSerious(page: Page): Promise<string[]> {
 
 test('compatibility and Protocol Watch empty states', async ({ page }) => {
   await signIn(page)
-  await page.getByRole('link', { name: 'Compatibility' }).click()
+  // Diagnostics live under Settings; the page is reached directly or from Home when something is wrong.
+  await page.goto('/compatibility')
   await expect(page.getByRole('heading', { name: 'Compatibility', level: 1 })).toBeVisible()
   await expect(page.getByText('No degraded routes')).toBeVisible()
   await expect(page.getByText('No breakers yet')).toBeVisible()

@@ -81,9 +81,9 @@ test('privacy policy, rule sandbox and trace policy', async ({ page }) => {
   await expect(page.getByRole('cell', { name: trace, exact: true })).toHaveCount(0)
 })
 
-test('overview lists CLI bridge availability', async ({ page }) => {
+test('system settings list CLI bridge availability', async ({ page }) => {
   await signIn(page)
-  await page.goto('/')
+  await page.goto('/settings/system')
   const panel = page.getByRole('region', { name: 'CLI bridges' })
   await expect(panel).toContainText('Claude Code')
   await expect(panel).toContainText('Codex')

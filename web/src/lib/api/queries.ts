@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
-import { apiGet } from './client'
+import { ApiError, apiGet } from './client'
 import type { Backup, Stats, StatsBy, Delivery, EventItem, EventKindInfo, NotificationItem, Breaker, Degradation, ProtocolChange, WorkItem, WorkStatus, BridgeStatus, TraceContent, TraceHit, TraceMeta, BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummary, ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
 
 export const qk = {
@@ -362,4 +362,22 @@ export const statsQuery = (r: { from: string; to: string }, by: StatsBy, step: '
 export const backupsQuery = queryOptions({
   queryKey: ['system', 'backups'],
   queryFn: ({ signal }) => apiGet<{ items: Backup[] | null }>('/system/backups', undefined, signal),
+})
+
+// ---------- home ----------
+/**
+ * Issues that need an operator, most severe first. Resolves to null when the
+ * server has no attention endpoint (older server) so callers can fall back.
+ */
+export const attentionQuery = queryOptions({
+  queryKey: ['attention'],
+  queryFn: async ({ signal }) => {
+    try {
+      return await apiGet<{ items: import('./types').AttentionItem[] }>('/attention', undefined, signal)
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 404 || e.status === 405)) return null
+      throw e
+    }
+  },
+  refetchInterval: 30_000,
 })

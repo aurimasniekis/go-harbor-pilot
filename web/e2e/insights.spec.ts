@@ -14,7 +14,7 @@ test('statistics break down activity by dimension', async ({ page }) => {
     .toBeGreaterThan(0)
 
   await page.goto('/activity/stats')
-  await expect(page.getByRole('heading', { name: 'Activity', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Requests', level: 1 })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Statistics' })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByText('Unknown usage').first()).toBeVisible()
   await expect(page.getByText(/^\d+ ok · \d+ errors · \d+ blocked$/)).not.toHaveText('0 ok · 0 errors · 0 blocked')

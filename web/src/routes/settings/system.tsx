@@ -10,6 +10,7 @@ import { backupsQuery, metaQuery, systemStatusQuery } from '@/lib/api/queries'
 import type { Backup, BackupCreated } from '@/lib/api/types'
 import { fmtDateTime, fmtNumber, fmtRelative } from '@/lib/format'
 import { CodeBlock } from '@/features/harness/CodeBlock'
+import { BridgesPanel } from '@/features/config/BridgesPanel'
 
 export const Route = createFileRoute('/settings/system')({
   component: SystemSettings,
@@ -55,6 +56,7 @@ function SystemSettings() {
           />
         )}
       </Panel>
+      <BridgesPanel />
       <Backups />
     </>
   )

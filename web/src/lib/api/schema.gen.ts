@@ -89,6 +89,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/attention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Conditions that need an operator
+         * @description Failing credentials, used-up quotas and budgets, unavailable CLI bridges, paused protocol paths, failed deliveries and setup gaps, most severe first.
+         */
+        get: operations["list-attention"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/audit": {
         parameters: {
             query?: never;
@@ -430,7 +450,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get one gateway credential (metadata only) */
+        get: operations["get-gateway-credential"];
         put?: never;
         post?: never;
         /** Revoke a gateway credential and its children */
@@ -2427,31 +2448,31 @@ export interface components {
         };
         AccountSpec: {
             /** @description Restrict to these provider model ids; empty = all models of the provider. */
-            allowed_models: string[];
+            allowed_models?: string[];
             /**
              * @description How usage on this account is paid for. Paid fallback rules use this.
              * @enum {string}
              */
             billing: "metered_api" | "subscription" | "free" | "local";
             /** @description env:NAME or file:/path. Alternative to the write-only 'credential' secret. */
-            credential_ref: string;
-            display_name: string;
+            credential_ref?: string;
+            display_name?: string;
             enabled: boolean;
             /** @description Free-form labels available to routing expressions as account.labels. */
-            labels: {
+            labels?: {
                 [key: string]: string;
             };
             /**
              * Format: int64
              * @description Local concurrency cap enforced by reservations; 0 = unlimited.
              */
-            max_concurrency: number;
+            max_concurrency?: number;
             provider_id: string;
             /**
              * Format: int64
              * @description Local request rate cap; 0 = unlimited.
              */
-            requests_per_minute: number;
+            requests_per_minute?: number;
         };
         ActivitySummary: {
             /** Format: double */
@@ -2513,12 +2534,12 @@ export interface components {
         };
         AliasSpec: {
             /** @description Target alias (chains are allowed; cycles are rejected). */
-            alias_id: string;
-            description: string;
+            alias_id?: string;
+            description?: string;
             /** @description Target pool (exactly one of pool_id or alias_id). */
-            pool_id: string;
+            pool_id?: string;
             /** @description Capabilities every candidate must have in addition to what a request demands. */
-            required_capabilities: string[];
+            required_capabilities?: string[];
         };
         AttemptDTO: {
             account_id: string;
@@ -2549,6 +2570,21 @@ export interface components {
             ttft_ms: number | null;
             unknown_events: string[];
             upstream_protocol: string;
+        };
+        AttentionItem: {
+            /** @enum {string} */
+            area: "security" | "quota" | "budget" | "provider" | "compatibility" | "delivery" | "system";
+            detail?: string;
+            /** @description Stable key for the condition (for dismiss state in clients). */
+            id: string;
+            /** @description UI path where the condition can be resolved. */
+            link: string;
+            /** @enum {string} */
+            severity: "critical" | "warning" | "info";
+            /** Format: date-time */
+            since?: string;
+            /** @description Short plain-language summary. */
+            title: string;
         };
         AuditEntryDTO: {
             action: string;
@@ -2596,54 +2632,54 @@ export interface components {
              * Format: int64
              * @description 0 = unlimited.
              */
-            max_concurrency: number;
+            max_concurrency?: number;
             /**
              * Format: int64
              * @description 0 = server default.
              */
-            max_request_bytes: number;
+            max_request_bytes?: number;
             /**
              * Format: int64
              * @description 0 = unlimited.
              */
-            requests_per_minute: number;
+            requests_per_minute?: number;
         };
         BindingSpec: {
             /** @description Requested model names (aliases or plan mappings) this client may use; empty = any the plan maps. */
-            allowed_models: string[];
+            allowed_models?: string[];
             /** @description Projects a trusted project hint may select. */
-            allowed_project_ids: string[];
-            display_name: string;
+            allowed_project_ids?: string[];
+            display_name?: string;
             enabled: boolean;
             /**
              * @description Informational; mismatches are recorded, never enforced as identity.
              * @enum {string}
              */
-            expected_harness: "claude_code" | "codex" | "opencode" | "pi" | "generic" | "";
+            expected_harness?: "claude_code" | "codex" | "opencode" | "pi" | "generic" | "";
             /** @description Operator-configured trusted references. */
-            external_refs: {
+            external_refs?: {
                 [key: string]: string;
             };
-            limits: components["schemas"]["BindingLimits"];
+            limits?: components["schemas"]["BindingLimits"];
             /** @description usr_… or pri_… (empty when owner_kind is none). */
-            owner_id: string;
+            owner_id?: string;
             /**
              * @description Who is accountable for this client (empty = none).
              * @enum {string}
              */
-            owner_kind: "user" | "service" | "none" | "";
+            owner_kind?: "user" | "service" | "none" | "";
             plan_id: string;
             /** @description Default project for attribution (optional). */
-            project_id: string;
-            trust: components["schemas"]["BindingTrust"];
+            project_id?: string;
+            trust?: components["schemas"]["BindingTrust"];
         };
         BindingTrust: {
             /** @description Accept declared intent (X-HP-Intent) as trusted. */
-            intent_hints: boolean;
+            intent_hints?: boolean;
             /** @description Allow X-HP-Project to select one of allowed_project_ids. */
-            project_hints: boolean;
+            project_hints?: boolean;
             /** @description Use harness session headers to group requests into sessions. */
-            session_hints: boolean;
+            session_hints?: boolean;
         };
         BoardBody: {
             account_health: components["schemas"]["AccountHealthView"][];
@@ -3074,7 +3110,7 @@ export interface components {
         };
         DraftRequest: {
             document: components["schemas"]["PlanDocument"];
-            note: string;
+            note?: string;
         };
         DriftedObject: {
             id: string;
@@ -3115,15 +3151,15 @@ export interface components {
             account_id: string;
             currency: string;
             /** @description YYYY-MM-DD, empty = open-ended */
-            ends_on: string;
+            ends_on?: string;
             /** @description Subscription fee per period as a decimal string. */
             fee: string;
             /** @enum {string} */
             period: "monthly" | "yearly";
-            plan_name: string;
+            plan_name?: string;
             /** @description YYYY-MM-DD */
             starts_on: string;
-            windows: components["schemas"]["WindowSpec"][];
+            windows?: components["schemas"]["WindowSpec"][];
         };
         Envelope: {
             correlation_id?: string;
@@ -3230,16 +3266,16 @@ export interface components {
         };
         FallbackPolicy: {
             /** @description Allow falling back from free/subscription/local candidates to metered_api candidates. */
-            allow_paid_fallback: boolean;
+            allow_paid_fallback?: boolean;
             /** Format: int64 */
-            max_attempts: number;
-            /** @description Ordered steps: retry, alternate_account, alternate_model, alternate_provider, wait, stop. */
-            steps: string[];
+            max_attempts?: number;
+            /** @description Ordered steps: retry, alternate_account, alternate_model, alternate_provider, wait, stop. Omit for the default (alternate_account, alternate_model, stop); an empty list means no fallback. */
+            steps?: string[];
             /**
              * Format: int64
              * @description Upper bound for the wait step.
              */
-            wait_max_seconds: number;
+            wait_max_seconds?: number;
         };
         FieldError: {
             location: string;
@@ -3616,25 +3652,25 @@ export interface components {
             note: string;
         };
         ModelPricing: {
-            cache_read_per_mtok: string;
-            cache_write_per_mtok: string;
+            cache_read_per_mtok?: string;
+            cache_write_per_mtok?: string;
             /** @description ISO 4217 currency, e.g. USD. */
             currency: string;
             /** @description Decimal price per million input tokens. */
             input_per_mtok: string;
             output_per_mtok: string;
             /** @description Operator label for this price list, recorded on every cost estimate. */
-            price_version: string;
+            price_version?: string;
         };
         ModelSpec: {
-            capabilities: string[];
+            capabilities?: string[];
             /** Format: int64 */
-            context_window: number;
-            display_name: string;
+            context_window?: number;
+            display_name?: string;
             /** @description Upstream model identifier. */
             id: string;
             /** Format: int64 */
-            max_output_tokens: number;
+            max_output_tokens?: number;
             /** @description List prices for estimates; omit when unknown. */
             pricing?: components["schemas"]["ModelPricing"];
         };
@@ -3759,6 +3795,9 @@ export interface components {
         };
         OkOutBody: {
             queued: boolean;
+        };
+        OutBody: {
+            items: components["schemas"]["AttentionItem"][];
         };
         OvInBody: {
             /** @enum {string} */
@@ -3916,15 +3955,15 @@ export interface components {
         PlanDocument: {
             compatibility?: components["schemas"]["PlanCompat"];
             /** @description Alias for requests whose model matches no mapping and no alias name; empty = reject. */
-            default_alias_id: string;
+            default_alias_id?: string;
             engine?: unknown;
-            fallback: components["schemas"]["FallbackPolicy"];
+            fallback?: components["schemas"]["FallbackPolicy"];
             intent?: components["schemas"]["PlanIntent"];
-            model_mappings: components["schemas"]["ModelMapping"][];
+            model_mappings?: components["schemas"]["ModelMapping"][];
             privacy?: components["schemas"]["PlanPrivacy"];
-            restrictions: components["schemas"]["PlanRestrictions"];
+            restrictions?: components["schemas"]["PlanRestrictions"];
             /** Format: int64 */
-            schema_version: number;
+            schema_version?: number;
         };
         PlanEffect: {
             /** @enum {string} */
@@ -3954,17 +3993,17 @@ export interface components {
         };
         PlanRestrictions: {
             /** @description Subset of metered_api, subscription, free, local; empty = any. */
-            allowed_billing: string[];
+            allowed_billing?: string[];
             /** @description Subset of official, partial, unofficial, local; empty = any. */
-            allowed_classifications: string[];
+            allowed_classifications?: string[];
             /** @description Empty = any. */
-            allowed_provider_ids: string[];
-            denied_provider_ids: string[];
-            required_capabilities: string[];
+            allowed_provider_ids?: string[];
+            denied_provider_ids?: string[];
+            required_capabilities?: string[];
         };
         PlanSpec: {
-            description: string;
-            display_name: string;
+            description?: string;
+            display_name?: string;
         };
         Point: {
             /** Format: double */
@@ -4002,26 +4041,26 @@ export interface components {
              * Format: int64
              * @description Lower is preferred for ordered strategies.
              */
-            priority: number;
+            priority?: number;
             /**
              * Format: int64
              * @description Relative weight for the weighted strategy.
              */
-            weight: number;
+            weight?: number;
         };
         PoolSpec: {
             /**
              * @description Empty = session. Keep a conversation on the same member while it stays eligible (prompt-cache friendly).
              * @enum {string}
              */
-            affinity: "session" | "none" | "";
-            display_name: string;
+            affinity?: "session" | "none" | "";
+            display_name?: string;
             members: components["schemas"]["PoolMember"][];
             /**
              * @description Default ranking inside the pool (empty = ordered); plans may override.
              * @enum {string}
              */
-            strategy: "ordered" | "weighted" | "reset_soonest" | "least_used" | "round_robin" | "";
+            strategy?: "ordered" | "weighted" | "reset_soonest" | "least_used" | "round_robin" | "";
         };
         PrivacyAllowRule: {
             detectors?: string[];
@@ -4070,10 +4109,10 @@ export interface components {
             result: "succeeded" | "failed";
         };
         ProjectSpec: {
-            description: string;
-            display_name: string;
+            description?: string;
+            display_name?: string;
             /** @description Operator-configured external references (trusted). */
-            external_refs: {
+            external_refs?: {
                 [key: string]: string;
             };
             /** @description Workspace this project belongs to. */
@@ -4081,30 +4120,30 @@ export interface components {
         };
         ProviderSpec: {
             /** @description Explicitly authorize a private or loopback destination (local models). Cloud metadata addresses stay blocked. */
-            allow_private_network: boolean;
+            allow_private_network?: boolean;
             /** @description Upstream base URL. Defaults per type; required for openai_compatible. */
-            base_url: string;
+            base_url?: string;
             /**
              * @description Integration classification shown wherever this provider is used. Empty = the type default.
              * @enum {string}
              */
-            classification: "official" | "partial" | "unofficial" | "local" | "";
-            display_name: string;
+            classification?: "official" | "partial" | "unofficial" | "local" | "";
+            display_name?: string;
             /** @description Static non-secret headers sent upstream (authorization headers are refused). */
-            headers: {
+            headers?: {
                 [key: string]: string;
             };
-            models: components["schemas"]["ModelSpec"][];
+            models?: components["schemas"]["ModelSpec"][];
             /**
              * Format: int64
              * @description Overall upstream request timeout; 0 = default (600s).
              */
-            request_timeout_seconds: number;
+            request_timeout_seconds?: number;
             /**
              * Format: int64
              * @description Abort a stream with no upstream bytes for this long; 0 = default (300s).
              */
-            stream_idle_timeout_seconds: number;
+            stream_idle_timeout_seconds?: number;
             /** @enum {string} */
             type: "anthropic" | "openai" | "gemini" | "openai_compatible" | "ollama" | "claude_code" | "codex";
         };
@@ -5366,8 +5405,8 @@ export interface components {
             status?: "new" | "acknowledged" | "investigating" | "fix_available" | "verified" | "resolved" | "ignored";
         };
         WorkspaceSpec: {
-            description: string;
-            display_name: string;
+            description?: string;
+            display_name?: string;
         };
         WriteBodyAccountSpec: {
             name: string;
@@ -5666,6 +5705,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActivitySummary"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-attention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutBody"];
                 };
             };
             /** @description Error */
@@ -6710,10 +6778,45 @@ export interface operations {
             };
         };
     };
-    "revoke-gateway-credential": {
+    "get-gateway-credential": {
         parameters: {
             query?: never;
             header?: never;
+            path: {
+                id: string;
+                credential_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Credential"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "revoke-gateway-credential": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
             path: {
                 id: string;
                 credential_id: string;
@@ -10101,6 +10204,8 @@ export interface operations {
             header?: {
                 /** @description Change source; Terraform sends terraform. */
                 "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Publish only if the published version is still this one: "<version id>", or "none" when nothing is published yet. */
+                "If-Match"?: string;
             };
             path: {
                 id: string;
@@ -10311,7 +10416,10 @@ export interface operations {
     "discard-plan-draft": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
             path: {
                 id: string;
                 version_id: string;
@@ -10344,6 +10452,8 @@ export interface operations {
             header?: {
                 /** @description Change source; Terraform sends terraform. */
                 "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Publish only if the published version is still this one: "<version id>", or "none" when nothing is published yet. */
+                "If-Match"?: string;
             };
             path: {
                 id: string;

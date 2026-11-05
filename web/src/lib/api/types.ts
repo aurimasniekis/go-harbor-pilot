@@ -6,6 +6,13 @@ import type { components } from './schema.gen'
 
 type S = components['schemas']
 
+/**
+ * Server responses carry every spec field (specs are normalized before they
+ * are stored), while the OpenAPI schema marks many as optional for writes.
+ * Read-side types are therefore deep-required.
+ */
+type Filled<T> = T extends (infer U)[] ? Filled<U>[] : T extends object ? { [K in keyof T]-?: Filled<T[K]> } : T
+
 export type Session = S['SessionDTO']
 export type User = S['UserDTO']
 export type WebSession = S['WebSessionDTO']
@@ -30,34 +37,36 @@ export type Tier = 'official' | 'partial' | 'unofficial' | 'client_reported' | '
 
 // ---------- managed configuration ----------
 export type SecretInfo = S['SecretInfo']
-export type ProviderSpec = S['ProviderSpec']
-export type ModelSpec = S['ModelSpec']
+export type ProviderSpec = Filled<Omit<S['ProviderSpec'], 'models'>> & { models: ModelSpec[] }
+export type ModelSpec = Filled<Omit<S['ModelSpec'], 'pricing'>> & Pick<S['ModelSpec'], 'pricing'>
 export type ModelPricing = S['ModelPricing']
-export type AccountSpec = S['AccountSpec']
+export type AccountSpec = Filled<S['AccountSpec']>
 export type EntitlementSpec = S['EntitlementSpec']
 export type WindowSpec = S['WindowSpec']
-export type PoolSpec = S['PoolSpec']
+export type PoolSpec = Filled<Omit<S['PoolSpec'], 'members'>> & Pick<S['PoolSpec'], 'members'>
 export type PoolMember = S['PoolMember']
-export type AliasSpec = S['AliasSpec']
+export type AliasSpec = Filled<S['AliasSpec']>
 export type PlanSpec = S['PlanSpec']
-export type BindingSpec = S['BindingSpec']
-export type WorkspaceSpec = S['WorkspaceSpec']
-export type ProjectSpec = S['ProjectSpec']
-export type PlanDocument = S['PlanDocument']
+export type BindingSpec = Filled<S['BindingSpec']>
+export type WorkspaceSpec = Filled<S['WorkspaceSpec']>
+export type ProjectSpec = Filled<S['ProjectSpec']>
+/** Optional sections stay optional so the editor can omit them. */
+type PlanOptional = 'compatibility' | 'engine' | 'intent' | 'privacy'
+export type PlanDocument = Filled<Omit<S['PlanDocument'], PlanOptional>> & Pick<S['PlanDocument'], PlanOptional>
 export type ModelMapping = S['ModelMapping']
-export type FallbackPolicy = S['FallbackPolicy']
+export type FallbackPolicy = Filled<S['FallbackPolicy']>
 
-export type ProviderRes = S['ResourceProviderSpec']
-export type AccountRes = S['ResourceAccountSpec']
-export type EntitlementRes = S['ResourceEntitlementSpec']
-export type PoolRes = S['ResourcePoolSpec']
-export type AliasRes = S['ResourceAliasSpec']
-export type PlanRes = S['ResourcePlanSpec']
-export type BindingRes = S['ResourceBindingSpec']
-export type WorkspaceRes = S['ResourceWorkspaceSpec']
-export type ProjectRes = S['ResourceProjectSpec']
+export type ProviderRes = Filled<S['ResourceProviderSpec']>
+export type AccountRes = Filled<S['ResourceAccountSpec']>
+export type EntitlementRes = Filled<S['ResourceEntitlementSpec']>
+export type PoolRes = Filled<S['ResourcePoolSpec']>
+export type AliasRes = Filled<S['ResourceAliasSpec']>
+export type PlanRes = Filled<S['ResourcePlanSpec']>
+export type BindingRes = Filled<S['ResourceBindingSpec']>
+export type WorkspaceRes = Filled<S['ResourceWorkspaceSpec']>
+export type ProjectRes = Filled<S['ResourceProjectSpec']>
 
-export type PlanVersion = S['Version']
+export type PlanVersion = Filled<S['Version']>
 export type ValidationReport = S['ValidationReport']
 export type FieldErrorDTO = S['FieldError']
 export type Credential = S['Credential']
@@ -213,9 +222,9 @@ export interface ReplayResult {
 
 // ---------- quota, usage and budgets ----------
 export type QuotaMonitorSpec = S['QuotaMonitorSpec']
-export type QuotaMonitorRes = S['ResourceQuotaMonitorSpec']
+export type QuotaMonitorRes = Filled<S['ResourceQuotaMonitorSpec']>
 export type BudgetSpec = S['BudgetSpec']
-export type BudgetRes = S['ResourceBudgetSpec']
+export type BudgetRes = Filled<S['ResourceBudgetSpec']>
 export type QuotaBoard = S['BoardBody']
 export type MonitorView = S['MonitorView']
 export type BucketView = S['BucketView']
@@ -240,12 +249,12 @@ export type UsageGroupBy = 'account' | 'provider' | 'model' | 'binding' | 'proje
 
 // ---------- privacy and traces ----------
 export type PrivacyPolicySpec = S['PrivacyPolicySpec']
-export type PrivacyPolicyRes = S['ResourcePrivacyPolicySpec']
+export type PrivacyPolicyRes = Filled<S['ResourcePrivacyPolicySpec']>
 export type PrivacyRule = S['PrivacyRule']
 export type PrivacyAllowRule = S['PrivacyAllowRule']
 export type ToolArgRestore = S['ToolArgRestore']
 export type TracePolicySpec = S['TracePolicySpec']
-export type TracePolicyRes = S['ResourceTracePolicySpec']
+export type TracePolicyRes = Filled<S['ResourceTracePolicySpec']>
 export type PlanPrivacy = S['PlanPrivacy']
 export type SandboxResult = S['SandboxResult']
 export type Finding = S['Finding']
@@ -269,11 +278,11 @@ export type PlanCompat = S['PlanCompat']
 // ---------- events and notifications ----------
 export type EventFilter = S['EventFilter']
 export type DestinationSpec = S['DestinationSpec']
-export type DestinationRes = S['ResourceDestinationSpec']
+export type DestinationRes = Filled<S['ResourceDestinationSpec']>
 export type ChannelSpec = S['ChannelSpec']
-export type ChannelRes = S['ResourceChannelSpec']
+export type ChannelRes = Filled<S['ResourceChannelSpec']>
 export type NotificationRuleSpec = S['NotificationRuleSpec']
-export type NotificationRuleRes = S['ResourceNotificationRuleSpec']
+export type NotificationRuleRes = Filled<S['ResourceNotificationRuleSpec']>
 export type EventKindInfo = S['KindInfo']
 export type EventItem = S['EventDTO']
 export type Delivery = S['Delivery']
@@ -331,3 +340,5 @@ export interface BackupCreated {
   path: string
   manifest: BackupManifest
 }
+
+export type AttentionItem = S['AttentionItem']

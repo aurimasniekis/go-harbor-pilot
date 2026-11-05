@@ -110,9 +110,9 @@ export function ProviderDialog({ provider, onClose }: { provider: ProviderRes | 
                   <TextField label="Currency" value={m.pricing.currency} onChange={(v) => setModel(i, { pricing: { ...m.pricing!, currency: v.toUpperCase() } })} maxLength={3} />
                   <TextField label="Input per 1M tokens" value={m.pricing.input_per_mtok} onChange={(v) => setModel(i, { pricing: { ...m.pricing!, input_per_mtok: v } })} />
                   <TextField label="Output per 1M tokens" value={m.pricing.output_per_mtok} onChange={(v) => setModel(i, { pricing: { ...m.pricing!, output_per_mtok: v } })} />
-                  <TextField label="Cache read per 1M" value={m.pricing.cache_read_per_mtok} onChange={(v) => setModel(i, { pricing: { ...m.pricing!, cache_read_per_mtok: v } })} />
-                  <TextField label="Cache write per 1M" value={m.pricing.cache_write_per_mtok} onChange={(v) => setModel(i, { pricing: { ...m.pricing!, cache_write_per_mtok: v } })} />
-                  <TextField label="Price version" value={m.pricing.price_version} onChange={(v) => setModel(i, { pricing: { ...m.pricing!, price_version: v } })} hint="Recorded on every estimate." />
+                  <TextField label="Cache read per 1M" value={m.pricing.cache_read_per_mtok ?? ''} onChange={(v) => setModel(i, { pricing: { ...m.pricing!, cache_read_per_mtok: v } })} />
+                  <TextField label="Cache write per 1M" value={m.pricing.cache_write_per_mtok ?? ''} onChange={(v) => setModel(i, { pricing: { ...m.pricing!, cache_write_per_mtok: v } })} />
+                  <TextField label="Price version" value={m.pricing.price_version ?? ''} onChange={(v) => setModel(i, { pricing: { ...m.pricing!, price_version: v } })} hint="Recorded on every estimate." />
                 </div>
               )}
             </div>

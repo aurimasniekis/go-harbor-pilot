@@ -105,7 +105,7 @@ test('configure a provider through to an issued client credential', async ({ pag
   await expect(page.getByText(token)).toHaveCount(0)
   await expect(page.getByText(/hpk_[a-z2-7]{8}_…/)).toBeVisible()
 
-  // Overview shows the published plan.
-  await page.goto('/')
-  await expect(page.getByRole('link', { name: `plan-${suffix}` })).toBeVisible()
+  // The plans list shows the published plan.
+  await page.goto('/routing/plans')
+  await expect(page.getByRole('link', { name: `plan-${suffix}` }).first()).toBeVisible()
 })

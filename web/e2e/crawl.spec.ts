@@ -14,7 +14,7 @@ test('every administrator page renders without errors', async ({ page }) => {
 
 test('viewer sees no administration pages', async ({ page }) => {
   await signIn(page, { email: 'viewer@example.test', password: 'harbor-pilot-demo' })
-  await expect(page.getByRole('link', { name: 'Overview' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Home' })).toBeVisible()
   const res = await page.request.get('/api/v1/users')
   expect(res.status()).toBe(403)
 })

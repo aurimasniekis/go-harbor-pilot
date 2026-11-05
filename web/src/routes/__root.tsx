@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Outlet, createRootRouteWithContext, useRouterState } from '@tanstack/react-router'
 import { type QueryClient, useQuery } from '@tanstack/react-query'
 import { Compass } from 'lucide-react'
-import { AppShell } from '@/components/AppShell'
+import { Shell } from '@/shell/Shell'
 import { ErrorBoundary, QueryError } from '@/components/states'
 import { EmptyState, Panel } from '@/components/ui'
 import { useSessionSync } from '@/lib/session'
@@ -39,14 +39,14 @@ function Root() {
     return <Navigate to="/login" search={{ next: pathname }} replace />
   }
   return (
-    <AppShell>
+    <Shell>
       <ErrorBoundary>
         <Outlet />
       </ErrorBoundary>
       <Suspense>
         <Devtools />
       </Suspense>
-    </AppShell>
+    </Shell>
   )
 }
 
