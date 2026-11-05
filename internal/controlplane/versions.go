@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/audit"
@@ -33,11 +34,11 @@ type ModelMapping struct {
 
 // PlanRestrictions are hard constraints; scores can never override them.
 type PlanRestrictions struct {
-	AllowedProviderIDs     []string `json:"allowed_provider_ids" doc:"Empty = any."`
-	DeniedProviderIDs      []string `json:"denied_provider_ids"`
-	AllowedBilling         []string `json:"allowed_billing" doc:"Subset of metered_api, subscription, free, local; empty = any."`
-	AllowedClassifications []string `json:"allowed_classifications" doc:"Subset of official, partial, unofficial, local; empty = any."`
-	RequiredCapabilities   []string `json:"required_capabilities"`
+	AllowedProviderIDs     []string `json:"allowed_provider_ids" doc:"Empty = any." required:"false"`
+	DeniedProviderIDs      []string `json:"denied_provider_ids" required:"false"`
+	AllowedBilling         []string `json:"allowed_billing" doc:"Subset of metered_api, subscription, free, local; empty = any." required:"false"`
+	AllowedClassifications []string `json:"allowed_classifications" doc:"Subset of official, partial, unofficial, local; empty = any." required:"false"`
+	RequiredCapabilities   []string `json:"required_capabilities" required:"false"`
 }
 
 // Fallback steps.
@@ -53,19 +54,19 @@ const (
 // FallbackPolicy controls what happens when a candidate fails before any
 // byte reached the client. Ambiguous executions are never replayed.
 type FallbackPolicy struct {
-	Steps             []string `json:"steps" doc:"Ordered steps: retry, alternate_account, alternate_model, alternate_provider, wait, stop."`
-	MaxAttempts       int      `json:"max_attempts" minimum:"1" maximum:"10"`
-	AllowPaidFallback bool     `json:"allow_paid_fallback" doc:"Allow falling back from free/subscription/local candidates to metered_api candidates."`
-	WaitMaxSeconds    int      `json:"wait_max_seconds" minimum:"0" maximum:"600" doc:"Upper bound for the wait step."`
+	Steps             []string `json:"steps" doc:"Ordered steps: retry, alternate_account, alternate_model, alternate_provider, wait, stop. Omit for the default (alternate_account, alternate_model, stop); an empty list means no fallback." required:"false"`
+	MaxAttempts       int      `json:"max_attempts" minimum:"1" maximum:"10" required:"false"`
+	AllowPaidFallback bool     `json:"allow_paid_fallback" doc:"Allow falling back from free/subscription/local candidates to metered_api candidates." required:"false"`
+	WaitMaxSeconds    int      `json:"wait_max_seconds" minimum:"0" maximum:"600" doc:"Upper bound for the wait step." required:"false"`
 }
 
 // PlanDocument is the versioned routing logic of a plan.
 type PlanDocument struct {
-	SchemaVersion  int              `json:"schema_version"`
-	ModelMappings  []ModelMapping   `json:"model_mappings"`
-	DefaultAliasID string           `json:"default_alias_id" doc:"Alias for requests whose model matches no mapping and no alias name; empty = reject."`
-	Restrictions   PlanRestrictions `json:"restrictions"`
-	Fallback       FallbackPolicy   `json:"fallback"`
+	SchemaVersion  int              `json:"schema_version" required:"false"`
+	ModelMappings  []ModelMapping   `json:"model_mappings" required:"false"`
+	DefaultAliasID string           `json:"default_alias_id" doc:"Alias for requests whose model matches no mapping and no alias name; empty = reject." required:"false"`
+	Restrictions   PlanRestrictions `json:"restrictions" required:"false"`
+	Fallback       FallbackPolicy   `json:"fallback" required:"false"`
 	Privacy        PlanPrivacy      `json:"privacy" required:"false"`
 	Compatibility  PlanCompat       `json:"compatibility" required:"false"`
 	Intent         PlanIntent       `json:"intent" required:"false"`
@@ -468,6 +469,34 @@ func documentWarnings(s *Snapshot, d *PlanDocument) []FieldError {
 	return out
 }
 
+// PublishedError reports that the plan's published version is not the one
+// the caller's If-Match named.
+type PublishedError struct{ Current string }
+
+func (e *PublishedError) Error() string {
+	return "the published version changed (current " + e.Current + ")"
+}
+
+// publishedETag is the precondition value for publish and rollback: the id
+// of the currently published version, or "none".
+func publishedETag(id string) string {
+	if id == "" {
+		return "none"
+	}
+	return id
+}
+
+func checkPublished(ifMatch, current string) error {
+	h := strings.TrimPrefix(strings.TrimSpace(ifMatch), "W/")
+	if h == "" || h == "*" {
+		return nil
+	}
+	if strings.Trim(h, `"`) != publishedETag(current) {
+		return &PublishedError{Current: publishedETag(current)}
+	}
+	return nil
+}
+
 // Publish makes a version the active one. The previous published version
 // becomes superseded. rollbackOf is recorded for rollbacks.
 func (s *Service) Publish(ctx context.Context, planID, versionID string, m Mutation) (*Version, error) {
@@ -495,6 +524,9 @@ func (s *Service) Publish(ctx context.Context, planID, versionID string, m Mutat
 		}
 		var prevID sql.NullString
 		_ = tx.QueryRowContext(ctx, `SELECT id FROM policy_versions WHERE plan_id = ? AND status = 'published'`, plan.ID).Scan(&prevID)
+		if err := checkPublished(m.IfMatch, prevID.String); err != nil {
+			return "", err
+		}
 		if _, err := tx.ExecContext(ctx, `UPDATE policy_versions SET status = 'superseded' WHERE plan_id = ? AND status = 'published'`, plan.ID); err != nil {
 			return "", err
 		}
@@ -527,6 +559,13 @@ func (s *Service) Rollback(ctx context.Context, planID, targetVersionID string, 
 	}
 	if target.Status == "draft" {
 		return nil, &ValidationError{Errors: []FieldError{{Location: "body.version_id", Message: "roll back to a previously published version, not a draft"}}}
+	}
+	// Check the precondition before creating the rollback draft; Publish
+	// checks it again atomically.
+	var cur sql.NullString
+	_ = s.db.R.QueryRowContext(ctx, `SELECT id FROM policy_versions WHERE plan_id = ? AND status = 'published'`, planID).Scan(&cur)
+	if err := checkPublished(m.IfMatch, cur.String); err != nil {
+		return nil, err
 	}
 	raw, _ := json.Marshal(target.Document)
 	draft, err := s.SaveDraft(ctx, planID, "", raw, fmt.Sprintf("rollback to v%d", target.Version), m)

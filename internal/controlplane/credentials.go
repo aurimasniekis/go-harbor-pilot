@@ -227,6 +227,12 @@ func (s *Service) insertCredential(ctx context.Context, bindingID, parentID stri
 
 // RevokeCredential revokes a credential and its children.
 func (s *Service) RevokeCredential(ctx context.Context, bindingID, credID, reason string) error {
+	return s.RevokeCredentialBy(ctx, bindingID, credID, reason, "")
+}
+
+// RevokeCredentialBy revokes a credential and records the change source
+// (ui, api, terraform, ...) in the audit log.
+func (s *Service) RevokeCredentialBy(ctx context.Context, bindingID, credID, reason, source string) error {
 	now := s.o.Clock.Now().UnixMilli()
 	return s.db.Tx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE gateway_credentials SET revoked_at = COALESCE(revoked_at, ?), revoke_reason = COALESCE(revoke_reason, ?)
@@ -242,7 +248,7 @@ func (s *Service) RevokeCredential(ctx context.Context, bindingID, credID, reaso
 			return err
 		}
 		if err := audit.Record(ctx, tx, audit.Entry{Action: "gateway_credential.revoke", TargetKind: KindClientBinding, TargetID: bindingID,
-			Details: map[string]any{"credential_id": credID, "reason": reason}}); err != nil {
+			Details: map[string]any{"credential_id": credID, "reason": reason, "source": source}}); err != nil {
 			return err
 		}
 		_, err = events.Append(ctx, tx, events.Event{Kind: events.Kind{Area: "access", Entity: "credential", Action: "revoked"},

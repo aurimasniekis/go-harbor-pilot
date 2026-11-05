@@ -50,18 +50,18 @@ func checkText(v *Validator, loc, s string, max int) {
 
 // WorkspaceSpec groups projects, budgets and bindings.
 type WorkspaceSpec struct {
-	DisplayName string `json:"display_name" maxLength:"120"`
-	Description string `json:"description" maxLength:"1000"`
+	DisplayName string `json:"display_name" maxLength:"120" required:"false"`
+	Description string `json:"description" maxLength:"1000" required:"false"`
 }
 
 // ProjectSpec is an attribution unit inside a workspace.
 type ProjectSpec struct {
 	WorkspaceID string `json:"workspace_id" doc:"Workspace this project belongs to."`
-	DisplayName string `json:"display_name" maxLength:"120"`
-	Description string `json:"description" maxLength:"1000"`
+	DisplayName string `json:"display_name" maxLength:"120" required:"false"`
+	Description string `json:"description" maxLength:"1000" required:"false"`
 	// ExternalRefs are trusted references configured by an operator, e.g.
 	// {"spaceman.space":"spc_…","git.repo":"github.com/org/repo"}.
-	ExternalRefs map[string]string `json:"external_refs" doc:"Operator-configured external references (trusted)."`
+	ExternalRefs map[string]string `json:"external_refs" doc:"Operator-configured external references (trusted)." required:"false"`
 }
 
 // ---------- providers ----------
@@ -106,32 +106,32 @@ type ModelPricing struct {
 	Currency          string `json:"currency" doc:"ISO 4217 currency, e.g. USD."`
 	InputPerMTok      string `json:"input_per_mtok" doc:"Decimal price per million input tokens."`
 	OutputPerMTok     string `json:"output_per_mtok"`
-	CacheReadPerMTok  string `json:"cache_read_per_mtok"`
-	CacheWritePerMTok string `json:"cache_write_per_mtok"`
-	PriceVersion      string `json:"price_version" doc:"Operator label for this price list, recorded on every cost estimate."`
+	CacheReadPerMTok  string `json:"cache_read_per_mtok" required:"false"`
+	CacheWritePerMTok string `json:"cache_write_per_mtok" required:"false"`
+	PriceVersion      string `json:"price_version" doc:"Operator label for this price list, recorded on every cost estimate." required:"false"`
 }
 
 // ModelSpec declares a model served by a provider and its capabilities.
 type ModelSpec struct {
 	ID              string        `json:"id" doc:"Upstream model identifier."`
-	DisplayName     string        `json:"display_name"`
-	ContextWindow   int           `json:"context_window" minimum:"0"`
-	MaxOutputTokens int           `json:"max_output_tokens" minimum:"0"`
-	Capabilities    []string      `json:"capabilities"`
+	DisplayName     string        `json:"display_name" required:"false"`
+	ContextWindow   int           `json:"context_window" minimum:"0" required:"false"`
+	MaxOutputTokens int           `json:"max_output_tokens" minimum:"0" required:"false"`
+	Capabilities    []string      `json:"capabilities" required:"false"`
 	Pricing         *ModelPricing `json:"pricing,omitempty" doc:"List prices for estimates; omit when unknown."`
 }
 
 // ProviderSpec configures an upstream provider endpoint.
 type ProviderSpec struct {
 	Type                string            `json:"type" enum:"anthropic,openai,gemini,openai_compatible,ollama,claude_code,codex"`
-	DisplayName         string            `json:"display_name" maxLength:"120"`
-	BaseURL             string            `json:"base_url" doc:"Upstream base URL. Defaults per type; required for openai_compatible."`
-	AllowPrivateNetwork bool              `json:"allow_private_network" doc:"Explicitly authorize a private or loopback destination (local models). Cloud metadata addresses stay blocked."`
-	Classification      string            `json:"classification" enum:"official,partial,unofficial,local," doc:"Integration classification shown wherever this provider is used. Empty = the type default."`
-	Headers             map[string]string `json:"headers" doc:"Static non-secret headers sent upstream (authorization headers are refused)."`
-	RequestTimeoutSecs  int               `json:"request_timeout_seconds" minimum:"0" maximum:"3600" doc:"Overall upstream request timeout; 0 = default (600s)."`
-	IdleTimeoutSecs     int               `json:"stream_idle_timeout_seconds" minimum:"0" maximum:"3600" doc:"Abort a stream with no upstream bytes for this long; 0 = default (300s)."`
-	Models              []ModelSpec       `json:"models"`
+	DisplayName         string            `json:"display_name" maxLength:"120" required:"false"`
+	BaseURL             string            `json:"base_url" doc:"Upstream base URL. Defaults per type; required for openai_compatible." required:"false"`
+	AllowPrivateNetwork bool              `json:"allow_private_network" doc:"Explicitly authorize a private or loopback destination (local models). Cloud metadata addresses stay blocked." required:"false"`
+	Classification      string            `json:"classification" enum:"official,partial,unofficial,local," doc:"Integration classification shown wherever this provider is used. Empty = the type default." required:"false"`
+	Headers             map[string]string `json:"headers" doc:"Static non-secret headers sent upstream (authorization headers are refused)." required:"false"`
+	RequestTimeoutSecs  int               `json:"request_timeout_seconds" minimum:"0" maximum:"3600" doc:"Overall upstream request timeout; 0 = default (600s)." required:"false"`
+	IdleTimeoutSecs     int               `json:"stream_idle_timeout_seconds" minimum:"0" maximum:"3600" doc:"Abort a stream with no upstream bytes for this long; 0 = default (300s)." required:"false"`
+	Models              []ModelSpec       `json:"models" required:"false"`
 }
 
 var forbiddenHeaders = []string{"authorization", "x-api-key", "x-goog-api-key", "proxy-authorization", "cookie", "host", "content-length", "transfer-encoding", "connection"}
@@ -230,16 +230,16 @@ const (
 type AccountSpec struct {
 	ProviderID string `json:"provider_id"`
 	// DisplayName is shown in the UI; never the credential.
-	DisplayName string `json:"display_name" maxLength:"120"`
+	DisplayName string `json:"display_name" maxLength:"120" required:"false"`
 	// CredentialRef points at the credential (env:NAME or file:/path) as an
 	// alternative to a stored write-only credential secret.
-	CredentialRef     string            `json:"credential_ref" doc:"env:NAME or file:/path. Alternative to the write-only 'credential' secret."`
+	CredentialRef     string            `json:"credential_ref" doc:"env:NAME or file:/path. Alternative to the write-only 'credential' secret." required:"false"`
 	Billing           string            `json:"billing" enum:"metered_api,subscription,free,local" doc:"How usage on this account is paid for. Paid fallback rules use this."`
-	AllowedModels     []string          `json:"allowed_models" doc:"Restrict to these provider model ids; empty = all models of the provider."`
-	MaxConcurrency    int               `json:"max_concurrency" minimum:"0" maximum:"10000" doc:"Local concurrency cap enforced by reservations; 0 = unlimited."`
-	RequestsPerMinute int               `json:"requests_per_minute" minimum:"0" maximum:"1000000" doc:"Local request rate cap; 0 = unlimited."`
+	AllowedModels     []string          `json:"allowed_models" doc:"Restrict to these provider model ids; empty = all models of the provider." required:"false"`
+	MaxConcurrency    int               `json:"max_concurrency" minimum:"0" maximum:"10000" doc:"Local concurrency cap enforced by reservations; 0 = unlimited." required:"false"`
+	RequestsPerMinute int               `json:"requests_per_minute" minimum:"0" maximum:"1000000" doc:"Local request rate cap; 0 = unlimited." required:"false"`
 	Enabled           bool              `json:"enabled"`
-	Labels            map[string]string `json:"labels" doc:"Free-form labels available to routing expressions as account.labels."`
+	Labels            map[string]string `json:"labels" doc:"Free-form labels available to routing expressions as account.labels." required:"false"`
 }
 
 func normalizeAccount(s *AccountSpec) {
@@ -275,13 +275,13 @@ type WindowSpec struct {
 // EntitlementSpec records what an account's subscription includes and costs.
 type EntitlementSpec struct {
 	AccountID string       `json:"account_id"`
-	PlanName  string       `json:"plan_name" maxLength:"120"`
+	PlanName  string       `json:"plan_name" maxLength:"120" required:"false"`
 	Fee       string       `json:"fee" doc:"Subscription fee per period as a decimal string."`
 	Currency  string       `json:"currency"`
 	Period    string       `json:"period" enum:"monthly,yearly"`
 	StartsOn  string       `json:"starts_on" doc:"YYYY-MM-DD"`
-	EndsOn    string       `json:"ends_on" doc:"YYYY-MM-DD, empty = open-ended"`
-	Windows   []WindowSpec `json:"windows"`
+	EndsOn    string       `json:"ends_on" doc:"YYYY-MM-DD, empty = open-ended" required:"false"`
+	Windows   []WindowSpec `json:"windows" required:"false"`
 }
 
 var dateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
@@ -317,15 +317,15 @@ func validateEntitlement(v *Validator, s *EntitlementSpec) {
 type PoolMember struct {
 	AccountID string `json:"account_id"`
 	Model     string `json:"model" doc:"Upstream model id at the account's provider."`
-	Priority  int    `json:"priority" doc:"Lower is preferred for ordered strategies."`
-	Weight    int    `json:"weight" minimum:"0" maximum:"1000" doc:"Relative weight for the weighted strategy."`
+	Priority  int    `json:"priority" doc:"Lower is preferred for ordered strategies." required:"false"`
+	Weight    int    `json:"weight" minimum:"0" maximum:"1000" doc:"Relative weight for the weighted strategy." required:"false"`
 }
 
 // PoolSpec is a set of eligible account/model candidates.
 type PoolSpec struct {
-	DisplayName string       `json:"display_name" maxLength:"120"`
-	Strategy    string       `json:"strategy" enum:"ordered,weighted,reset_soonest,least_used,round_robin," doc:"Default ranking inside the pool (empty = ordered); plans may override."`
-	Affinity    string       `json:"affinity" enum:"session,none," doc:"Empty = session. Keep a conversation on the same member while it stays eligible (prompt-cache friendly)."`
+	DisplayName string       `json:"display_name" maxLength:"120" required:"false"`
+	Strategy    string       `json:"strategy" enum:"ordered,weighted,reset_soonest,least_used,round_robin," doc:"Default ranking inside the pool (empty = ordered); plans may override." required:"false"`
+	Affinity    string       `json:"affinity" enum:"session,none," doc:"Empty = session. Keep a conversation on the same member while it stays eligible (prompt-cache friendly)." required:"false"`
 	Members     []PoolMember `json:"members"`
 }
 
@@ -374,10 +374,10 @@ func validatePool(v *Validator, s *PoolSpec) {
 // AliasSpec maps a client-facing model name (the alias name, e.g.
 // coding/default) to a pool or another alias.
 type AliasSpec struct {
-	Description          string   `json:"description" maxLength:"500"`
-	PoolID               string   `json:"pool_id" doc:"Target pool (exactly one of pool_id or alias_id)."`
-	AliasID              string   `json:"alias_id" doc:"Target alias (chains are allowed; cycles are rejected)."`
-	RequiredCapabilities []string `json:"required_capabilities" doc:"Capabilities every candidate must have in addition to what a request demands."`
+	Description          string   `json:"description" maxLength:"500" required:"false"`
+	PoolID               string   `json:"pool_id" doc:"Target pool (exactly one of pool_id or alias_id)." required:"false"`
+	AliasID              string   `json:"alias_id" doc:"Target alias (chains are allowed; cycles are rejected)." required:"false"`
+	RequiredCapabilities []string `json:"required_capabilities" doc:"Capabilities every candidate must have in addition to what a request demands." required:"false"`
 }
 
 func normalizeAlias(s *AliasSpec) { s.RequiredCapabilities = SortedUnique(s.RequiredCapabilities) }
@@ -395,8 +395,8 @@ func validateAlias(v *Validator, s *AliasSpec) {
 // PlanSpec holds plan metadata; the routing logic lives in versioned plan
 // documents (see versions.go).
 type PlanSpec struct {
-	DisplayName string `json:"display_name" maxLength:"120"`
-	Description string `json:"description" maxLength:"1000"`
+	DisplayName string `json:"display_name" maxLength:"120" required:"false"`
+	Description string `json:"description" maxLength:"1000" required:"false"`
 }
 
 // ---------- client bindings ----------
@@ -406,33 +406,33 @@ var Harnesses = []string{"claude_code", "codex", "opencode", "pi", "generic"}
 
 // BindingLimits are enforceable local limits.
 type BindingLimits struct {
-	RequestsPerMinute int `json:"requests_per_minute" minimum:"0" doc:"0 = unlimited."`
-	MaxConcurrency    int `json:"max_concurrency" minimum:"0" doc:"0 = unlimited."`
-	MaxRequestBytes   int `json:"max_request_bytes" minimum:"0" doc:"0 = server default."`
+	RequestsPerMinute int `json:"requests_per_minute" minimum:"0" doc:"0 = unlimited." required:"false"`
+	MaxConcurrency    int `json:"max_concurrency" minimum:"0" doc:"0 = unlimited." required:"false"`
+	MaxRequestBytes   int `json:"max_request_bytes" minimum:"0" doc:"0 = server default." required:"false"`
 }
 
 // BindingTrust controls which client-supplied hints are honoured. Hints are
 // always recorded as untrusted claims; trust only affects attribution.
 type BindingTrust struct {
-	SessionHints bool `json:"session_hints" doc:"Use harness session headers to group requests into sessions."`
-	ProjectHints bool `json:"project_hints" doc:"Allow X-HP-Project to select one of allowed_project_ids."`
-	IntentHints  bool `json:"intent_hints" doc:"Accept declared intent (X-HP-Intent) as trusted."`
+	SessionHints bool `json:"session_hints" doc:"Use harness session headers to group requests into sessions." required:"false"`
+	ProjectHints bool `json:"project_hints" doc:"Allow X-HP-Project to select one of allowed_project_ids." required:"false"`
+	IntentHints  bool `json:"intent_hints" doc:"Accept declared intent (X-HP-Intent) as trusted." required:"false"`
 }
 
 // BindingSpec connects a principal to a routing plan with limits and
 // telemetry policy. Gateway credentials are issued against a binding.
 type BindingSpec struct {
-	DisplayName       string            `json:"display_name" maxLength:"120"`
-	OwnerKind         string            `json:"owner_kind" enum:"user,service,none," doc:"Who is accountable for this client (empty = none)."`
-	OwnerID           string            `json:"owner_id" doc:"usr_… or pri_… (empty when owner_kind is none)."`
+	DisplayName       string            `json:"display_name" maxLength:"120" required:"false"`
+	OwnerKind         string            `json:"owner_kind" enum:"user,service,none," doc:"Who is accountable for this client (empty = none)." required:"false"`
+	OwnerID           string            `json:"owner_id" doc:"usr_… or pri_… (empty when owner_kind is none)." required:"false"`
 	PlanID            string            `json:"plan_id"`
-	ProjectID         string            `json:"project_id" doc:"Default project for attribution (optional)."`
-	AllowedProjectIDs []string          `json:"allowed_project_ids" doc:"Projects a trusted project hint may select."`
-	ExpectedHarness   string            `json:"expected_harness" enum:"claude_code,codex,opencode,pi,generic," doc:"Informational; mismatches are recorded, never enforced as identity."`
-	AllowedModels     []string          `json:"allowed_models" doc:"Requested model names (aliases or plan mappings) this client may use; empty = any the plan maps."`
-	Limits            BindingLimits     `json:"limits"`
-	Trust             BindingTrust      `json:"trust"`
-	ExternalRefs      map[string]string `json:"external_refs" doc:"Operator-configured trusted references."`
+	ProjectID         string            `json:"project_id" doc:"Default project for attribution (optional)." required:"false"`
+	AllowedProjectIDs []string          `json:"allowed_project_ids" doc:"Projects a trusted project hint may select." required:"false"`
+	ExpectedHarness   string            `json:"expected_harness" enum:"claude_code,codex,opencode,pi,generic," doc:"Informational; mismatches are recorded, never enforced as identity." required:"false"`
+	AllowedModels     []string          `json:"allowed_models" doc:"Requested model names (aliases or plan mappings) this client may use; empty = any the plan maps." required:"false"`
+	Limits            BindingLimits     `json:"limits" required:"false"`
+	Trust             BindingTrust      `json:"trust" required:"false"`
+	ExternalRefs      map[string]string `json:"external_refs" doc:"Operator-configured trusted references." required:"false"`
 	Enabled           bool              `json:"enabled"`
 }
 

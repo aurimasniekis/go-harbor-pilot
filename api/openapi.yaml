@@ -162,14 +162,8 @@ components:
           type: integer
       required:
         - provider_id
-        - display_name
-        - credential_ref
         - billing
-        - allowed_models
-        - max_concurrency
-        - requests_per_minute
         - enabled
-        - labels
       type: object
     ActivitySummary:
       additionalProperties: false
@@ -318,11 +312,6 @@ components:
           items:
             type: string
           type: array
-      required:
-        - description
-        - pool_id
-        - alias_id
-        - required_capabilities
       type: object
     AttemptDTO:
       additionalProperties: false
@@ -519,10 +508,6 @@ components:
           format: int64
           minimum: 0
           type: integer
-      required:
-        - requests_per_minute
-        - max_concurrency
-        - max_request_bytes
       type: object
     BindingSpec:
       additionalProperties: false
@@ -578,17 +563,7 @@ components:
         trust:
           $ref: "#/components/schemas/BindingTrust"
       required:
-        - display_name
-        - owner_kind
-        - owner_id
         - plan_id
-        - project_id
-        - allowed_project_ids
-        - expected_harness
-        - allowed_models
-        - limits
-        - trust
-        - external_refs
         - enabled
       type: object
     BindingTrust:
@@ -603,10 +578,6 @@ components:
         session_hints:
           description: Use harness session headers to group requests into sessions.
           type: boolean
-      required:
-        - session_hints
-        - project_hints
-        - intent_hints
       type: object
     BoardBody:
       additionalProperties: false
@@ -1698,7 +1669,6 @@ components:
           type: string
       required:
         - document
-        - note
       type: object
     DriftedObject:
       additionalProperties: false
@@ -1819,13 +1789,10 @@ components:
           type: array
       required:
         - account_id
-        - plan_name
         - fee
         - currency
         - period
         - starts_on
-        - ends_on
-        - windows
       type: object
     Envelope:
       additionalProperties: false
@@ -2095,7 +2062,7 @@ components:
           minimum: 1
           type: integer
         steps:
-          description: "Ordered steps: retry, alternate_account, alternate_model, alternate_provider, wait, stop."
+          description: "Ordered steps: retry, alternate_account, alternate_model, alternate_provider, wait, stop. Omit for the default (alternate_account, alternate_model, stop); an empty list means no fallback."
           items:
             type: string
           type: array
@@ -2105,11 +2072,6 @@ components:
           maximum: 600
           minimum: 0
           type: integer
-      required:
-        - steps
-        - max_attempts
-        - allow_paid_fallback
-        - wait_max_seconds
       type: object
     FieldError:
       additionalProperties: false
@@ -3024,9 +2986,6 @@ components:
         - currency
         - input_per_mtok
         - output_per_mtok
-        - cache_read_per_mtok
-        - cache_write_per_mtok
-        - price_version
       type: object
     ModelSpec:
       additionalProperties: false
@@ -3053,10 +3012,6 @@ components:
           description: List prices for estimates; omit when unknown.
       required:
         - id
-        - display_name
-        - context_window
-        - max_output_tokens
-        - capabilities
       type: object
     MonitorView:
       additionalProperties: false
@@ -3844,12 +3799,6 @@ components:
         schema_version:
           format: int64
           type: integer
-      required:
-        - schema_version
-        - model_mappings
-        - default_alias_id
-        - restrictions
-        - fallback
       type: object
     PlanEffect:
       additionalProperties: false
@@ -3939,12 +3888,6 @@ components:
           items:
             type: string
           type: array
-      required:
-        - allowed_provider_ids
-        - denied_provider_ids
-        - allowed_billing
-        - allowed_classifications
-        - required_capabilities
       type: object
     PlanSpec:
       additionalProperties: false
@@ -3955,9 +3898,6 @@ components:
         display_name:
           maxLength: 120
           type: string
-      required:
-        - display_name
-        - description
       type: object
     Point:
       additionalProperties: false
@@ -4054,8 +3994,6 @@ components:
       required:
         - account_id
         - model
-        - priority
-        - weight
       type: object
     PoolSpec:
       additionalProperties: false
@@ -4085,9 +4023,6 @@ components:
             - ""
           type: string
       required:
-        - display_name
-        - strategy
-        - affinity
         - members
       type: object
     PrivacyAllowRule:
@@ -4224,9 +4159,6 @@ components:
           type: string
       required:
         - workspace_id
-        - display_name
-        - description
-        - external_refs
       type: object
     ProviderSpec:
       additionalProperties: false
@@ -4282,14 +4214,6 @@ components:
           type: string
       required:
         - type
-        - display_name
-        - base_url
-        - allow_private_network
-        - classification
-        - headers
-        - request_timeout_seconds
-        - stream_idle_timeout_seconds
-        - models
       type: object
     QuietHours:
       additionalProperties: false
@@ -7141,9 +7065,6 @@ components:
         display_name:
           maxLength: 120
           type: string
-      required:
-        - display_name
-        - description
       type: object
     WriteBodyAccountSpec:
       additionalProperties: false
@@ -8847,6 +8768,19 @@ paths:
     delete:
       operationId: revoke-gateway-credential
       parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
         - in: path
           name: id
           required: true
@@ -8872,6 +8806,38 @@ paths:
       tags:
         - Gateway credentials
       x-permission: tokens.manage
+    get:
+      operationId: get-gateway-credential
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: path
+          name: credential_id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Credential"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get one gateway credential (metadata only)
+      tags:
+        - Gateway credentials
+      x-permission: config.read
   /client-bindings/{id}/history:
     get:
       operationId: history-client_binding
@@ -12583,6 +12549,12 @@ paths:
           schema:
             maxLength: 255
             type: string
+        - description: "Publish only if the published version is still this one: \"<version id>\", or \"none\" when nothing is published yet."
+          in: header
+          name: If-Match
+          schema:
+            description: "Publish only if the published version is still this one: \"<version id>\", or \"none\" when nothing is published yet."
+            type: string
       requestBody:
         content:
           application/json:
@@ -12715,6 +12687,19 @@ paths:
     delete:
       operationId: discard-plan-draft
       parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
         - in: path
           name: id
           required: true
@@ -12851,6 +12836,12 @@ paths:
           required: true
           schema:
             maxLength: 64
+            type: string
+        - description: "Publish only if the published version is still this one: \"<version id>\", or \"none\" when nothing is published yet."
+          in: header
+          name: If-Match
+          schema:
+            description: "Publish only if the published version is still this one: \"<version id>\", or \"none\" when nothing is published yet."
             type: string
       responses:
         "200":

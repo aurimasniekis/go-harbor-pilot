@@ -150,9 +150,9 @@ func TestValidationAndIntegrity(t *testing.T) {
 			return f.svc.Delete(f.ctx, ProviderDef, prov.ID, Mutation{})
 		}, want: "referenced"},
 		{name: "delete alias used by published plan", run: func() error {
-			// No resource_refs from versions, so the compile step catches it.
+			// Published plan documents block the delete like resource refs.
 			return f.svc.Delete(f.ctx, AliasDef, alias.ID, Mutation{})
-		}, want: "unknown model alias"},
+		}, want: "referenced"},
 		{name: "duplicate name", run: func() error {
 			_, err := f.svc.Create(f.ctx, PlanDef, "default", js(PlanSpec{}), nil, Mutation{})
 			return err

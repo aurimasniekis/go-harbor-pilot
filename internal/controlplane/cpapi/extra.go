@@ -87,13 +87,18 @@ func registerVersions(a *api.API, svc func() *cp.Service) {
 		v, err := svc().SaveDraft(ctx, p.ID, in.VersionID, raw, in.Body.Note, cp.Mutation{ManagedBy: managedBy(ctx, in.ManagedBy)})
 		return &verOut{Body: v}, mapErr(err)
 	})
+	type discardIn struct {
+		ManagedByHeader
+		ID        string `path:"id" maxLength:"255"`
+		VersionID string `path:"version_id" maxLength:"64"`
+	}
 	api.Register(a, api.Op{ID: "discard-plan-draft", Method: http.MethodDelete, Path: base + "/{version_id}", Summary: "Discard a draft version",
-		Tags: tags, Permission: auth.PermConfigWrite, Status: http.StatusNoContent}, func(ctx context.Context, in *verIn) (*struct{}, error) {
+		Tags: tags, Permission: auth.PermConfigWrite, Status: http.StatusNoContent}, func(ctx context.Context, in *discardIn) (*struct{}, error) {
 		p, err := plan(ctx, in.ID)
 		if err != nil {
 			return nil, err
 		}
-		return nil, mapErr(svc().DiscardDraft(ctx, p.ID, in.VersionID, cp.Mutation{ManagedBy: managedBy(ctx, "")}))
+		return nil, mapErr(svc().DiscardDraft(ctx, p.ID, in.VersionID, cp.Mutation{ManagedBy: managedBy(ctx, in.ManagedBy)}))
 	})
 	type validateOut struct{ Body *cp.ValidationReport }
 	api.Register(a, api.Op{ID: "validate-plan-version", Method: http.MethodPost, Path: base + "/{version_id}/validate",
@@ -110,6 +115,7 @@ func registerVersions(a *api.API, svc func() *cp.Service) {
 		ManagedByHeader
 		ID        string `path:"id" maxLength:"255"`
 		VersionID string `path:"version_id" maxLength:"64"`
+		IfMatch   string `header:"If-Match" doc:"Publish only if the published version is still this one: \"<version id>\", or \"none\" when nothing is published yet."`
 	}
 	api.Register(a, api.Op{ID: "publish-plan-version", Method: http.MethodPost, Path: base + "/{version_id}/publish",
 		Summary: "Publish a draft (the previous version is superseded)", Tags: tags, Permission: auth.PermPolicyPublish},
@@ -118,13 +124,14 @@ func registerVersions(a *api.API, svc func() *cp.Service) {
 			if err != nil {
 				return nil, err
 			}
-			v, err := svc().Publish(ctx, p.ID, in.VersionID, cp.Mutation{ManagedBy: managedBy(ctx, in.ManagedBy)})
+			v, err := svc().Publish(ctx, p.ID, in.VersionID, cp.Mutation{ManagedBy: managedBy(ctx, in.ManagedBy), IfMatch: in.IfMatch})
 			return &verOut{Body: v}, mapErr(err)
 		})
 	type rollbackIn struct {
 		ManagedByHeader
-		ID   string `path:"id" maxLength:"255"`
-		Body RollbackRequest
+		ID      string `path:"id" maxLength:"255"`
+		IfMatch string `header:"If-Match" doc:"Publish only if the published version is still this one: \"<version id>\", or \"none\" when nothing is published yet."`
+		Body    RollbackRequest
 	}
 	api.Register(a, api.Op{ID: "rollback-plan", Method: http.MethodPost, Path: "/routing-plans/{id}/rollback",
 		Summary: "Publish a copy of a previous version", Tags: tags, Permission: auth.PermPolicyPublish},
@@ -133,7 +140,7 @@ func registerVersions(a *api.API, svc func() *cp.Service) {
 			if err != nil {
 				return nil, err
 			}
-			v, err := svc().Rollback(ctx, p.ID, in.Body.VersionID, cp.Mutation{ManagedBy: managedBy(ctx, in.ManagedBy)})
+			v, err := svc().Rollback(ctx, p.ID, in.Body.VersionID, cp.Mutation{ManagedBy: managedBy(ctx, in.ManagedBy), IfMatch: in.IfMatch})
 			return &verOut{Body: v}, mapErr(err)
 		})
 }
@@ -190,7 +197,25 @@ func registerCredentials(a *api.API, svc func() *cp.Service, origin func() strin
 		out.Body.Credential, out.Body.Token, out.Body.BaseURLs = c, tok, BaseURLs(origin())
 		return out, nil
 	})
+	type credIn struct {
+		ID           string `path:"id" maxLength:"255"`
+		CredentialID string `path:"credential_id" maxLength:"64"`
+	}
+	type credOut struct{ Body *cp.Credential }
+	api.Register(a, api.Op{ID: "get-gateway-credential", Method: http.MethodGet, Path: base + "/{credential_id}", Summary: "Get one gateway credential (metadata only)",
+		Tags: tags, Permission: auth.PermConfigRead}, func(ctx context.Context, in *credIn) (*credOut, error) {
+		b, err := binding(ctx, in.ID)
+		if err != nil {
+			return nil, err
+		}
+		c, err := svc().GetCredential(ctx, in.CredentialID)
+		if err != nil || c == nil || c.BindingID != b.ID {
+			return nil, api.NotFound("gateway credential")
+		}
+		return &credOut{Body: c}, nil
+	})
 	type revokeIn struct {
+		ManagedByHeader
 		ID           string `path:"id" maxLength:"255"`
 		CredentialID string `path:"credential_id" maxLength:"64"`
 	}
@@ -201,7 +226,7 @@ func registerCredentials(a *api.API, svc func() *cp.Service, origin func() strin
 			if err != nil {
 				return nil, err
 			}
-			return nil, mapErr(svc().RevokeCredential(ctx, b.ID, in.CredentialID, "revoked via API"))
+			return nil, mapErr(svc().RevokeCredentialBy(ctx, b.ID, in.CredentialID, "revoked via API", managedBy(ctx, in.ManagedBy)))
 		})
 }
 
@@ -387,7 +412,7 @@ type VersionList struct {
 // DraftRequest creates or replaces a draft version.
 type DraftRequest struct {
 	Document cp.PlanDocument `json:"document"`
-	Note     string          `json:"note" maxLength:"500"`
+	Note     string          `json:"note" required:"false" maxLength:"500"`
 }
 
 // RollbackRequest selects the version to restore.

@@ -69,6 +69,7 @@ func mapErr(err error) error {
 	var ve *cp.ValidationError
 	var re *cp.RevisionError
 	var ref *cp.ReferencedError
+	var pe *cp.PublishedError
 	switch {
 	case err == nil:
 		return nil
@@ -80,6 +81,8 @@ func mapErr(err error) error {
 		return api.Invalid(ve.Error(), fields...)
 	case errors.As(err, &re):
 		return api.PreconditionFailed(api.ETag(re.Current))
+	case errors.As(err, &pe):
+		return api.PreconditionFailed(`"` + pe.Current + `"`)
 	case errors.As(err, &ref):
 		return api.Conflict(ref.Error()).WithDetails(map[string]any{"referenced_by": ref.By})
 	case errors.Is(err, cp.ErrNotFound):

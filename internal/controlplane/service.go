@@ -481,6 +481,19 @@ func (s *Service) DeleteTx(ctx context.Context, tx *sql.Tx, now time.Time, rev i
 	if err != nil {
 		return "", err
 	}
+	// Published plan documents reference aliases, pools and policies by id
+	// without resource_refs rows; ids are unique prefixed ULIDs, so a text
+	// match is exact.
+	plans, err := store.Query(ctx, tx, func(r *sql.Rows) (string, error) {
+		var n string
+		err := r.Scan(&n)
+		return "routing_plan " + n, err
+	}, `SELECT DISTINCT p.name FROM policy_versions v JOIN resources p ON p.id = v.plan_id
+		WHERE v.status = 'published' AND instr(v.document, ?) > 0 ORDER BY p.name LIMIT 20`, `"`+cur.ID+`"`)
+	if err != nil {
+		return "", err
+	}
+	by = append(by, plans...)
 	if len(by) > 0 {
 		return "", &ReferencedError{By: by}
 	}

@@ -39,11 +39,11 @@ func (e *Error) GetStatus() int { return e.status }
 // Code returns the machine-readable code.
 func (e *Error) Code() string { return e.ErrorBody.Error.Code }
 
-// FieldError describes one invalid input field.
+// FieldError describes one invalid input field. Submitted values are
+// never echoed back: they may be secrets.
 type FieldError struct {
 	Location string `json:"location"`
 	Message  string `json:"message"`
-	Value    any    `json:"value,omitempty"`
 }
 
 // Errorf builds an API error.
@@ -113,7 +113,7 @@ func newHumaError(status int, msg string, errs ...error) *Error {
 		var d huma.ErrorDetailer
 		if errors.As(err, &d) {
 			det := d.ErrorDetail()
-			fields = append(fields, FieldError{Location: det.Location, Message: det.Message, Value: det.Value})
+			fields = append(fields, FieldError{Location: det.Location, Message: det.Message})
 			continue
 		}
 		fields = append(fields, FieldError{Message: err.Error()})
