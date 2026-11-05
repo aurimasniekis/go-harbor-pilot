@@ -26,6 +26,9 @@ linters:
         - (*database/sql.DB).Close
         - (*github.com/aurimasniekis/go-harbor-pilot/internal/store.DB).Close
         - (net/http.ResponseWriter).Write
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
     gosec:
       excludes:
         - G104 # covered by errcheck with explicit exclusions

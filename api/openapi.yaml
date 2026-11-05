@@ -1,0 +1,2275 @@
+components:
+  schemas:
+    APITokenDTO:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        expires_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        last_used_at:
+          format: date-time
+          type: string
+        last_used_ip:
+          type: string
+        name:
+          type: string
+        prefix:
+          description: Non-secret token prefix for identification (hpa_<prefix>_…).
+          type: string
+        revoked_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - prefix
+        - name
+        - created_by
+        - created_at
+      type: object
+    AcceptInBody:
+      additionalProperties: false
+      properties:
+        password:
+          maxLength: 4096
+          type: string
+        purpose:
+          enum:
+            - invite
+            - reset
+          type: string
+        token:
+          maxLength: 128
+          type: string
+      required:
+        - token
+        - purpose
+        - password
+      type: object
+    AlertsOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/SecurityAlertDTO"
+          type: array
+      required:
+        - items
+      type: object
+    AuditEntryDTO:
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+        actor_id:
+          type: string
+        actor_kind:
+          type: string
+        at:
+          format: date-time
+          type: string
+        details: {}
+        id:
+          type: string
+        ip:
+          type: string
+        outcome:
+          type: string
+        request_id:
+          type: string
+        target_id:
+          type: string
+        target_kind:
+          type: string
+      required:
+        - id
+        - at
+        - actor_id
+        - actor_kind
+        - action
+        - outcome
+        - details
+      type: object
+    AuthSettingsDTO:
+      additionalProperties: false
+      properties:
+        absolute_timeout_seconds:
+          format: int64
+          maximum: 2592000
+          minimum: 300
+          type: integer
+        idle_timeout_seconds:
+          format: int64
+          maximum: 86400
+          minimum: 300
+          type: integer
+        password_login:
+          description: When false, only SSO (and break-glass recovery) can sign in.
+          type: boolean
+        revision:
+          format: int64
+          readOnly: true
+          type: integer
+        updated_at:
+          format: date-time
+          readOnly: true
+          type: string
+      required:
+        - password_login
+        - idle_timeout_seconds
+        - absolute_timeout_seconds
+        - updated_at
+        - revision
+      type: object
+    CreateUserInBody:
+      additionalProperties: false
+      properties:
+        display_name:
+          maxLength: 120
+          type: string
+        email:
+          maxLength: 254
+          type: string
+        invite:
+          description: Return a one-time invitation link (valid 72h) for the user to set a password.
+          type: boolean
+        role:
+          enum:
+            - admin
+            - operator
+            - viewer
+          type: string
+      required:
+        - email
+        - role
+        - invite
+      type: object
+    CreateUserOutBody:
+      additionalProperties: false
+      properties:
+        invite_expires_at:
+          format: date-time
+          type: string
+        invite_url:
+          type: string
+        user:
+          $ref: "#/components/schemas/UserDTO"
+      required:
+        - user
+      type: object
+    Error:
+      additionalProperties: false
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorInfo"
+      required:
+        - error
+      type: object
+    ErrorInfo:
+      additionalProperties: false
+      properties:
+        code:
+          description: Stable machine-readable error code.
+          type: string
+        details:
+          description: Optional structured details.
+        message:
+          description: Human-readable message. Never contains secrets.
+          type: string
+        request_id:
+          description: Correlates with server logs.
+          type: string
+      required:
+        - code
+        - message
+      type: object
+    GrantsInBody:
+      additionalProperties: false
+      properties:
+        grants:
+          items:
+            enum:
+              - traces.content.read
+              - traces.content.unredacted
+              - traces.export
+            type: string
+          type: array
+      required:
+        - grants
+      type: object
+    IdentityDTO:
+      additionalProperties: false
+      properties:
+        issuer:
+          type: string
+        last_seen_at:
+          format: date-time
+          type: string
+        linked_at:
+          format: date-time
+          type: string
+        provider_id:
+          type: string
+        subject:
+          type: string
+      required:
+        - provider_id
+        - issuer
+        - subject
+        - linked_at
+      type: object
+    IssueInBody:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 80
+          minLength: 1
+          type: string
+        ttl_seconds:
+          description: 0 = no expiry.
+          format: int64
+          maximum: 63072000
+          minimum: 0
+          type: integer
+      required:
+        - name
+      type: object
+    IssueOutBody:
+      additionalProperties: false
+      properties:
+        plaintext:
+          description: The bearer token. Shown exactly once; store it securely.
+          type: string
+        token:
+          $ref: "#/components/schemas/APITokenDTO"
+      required:
+        - token
+        - plaintext
+      type: object
+    LinkOutBody:
+      additionalProperties: false
+      properties:
+        auth_url:
+          type: string
+      required:
+        - auth_url
+      type: object
+    ListOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/OIDCProviderDTO"
+          type: array
+      required:
+        - items
+      type: object
+    LoginInBody:
+      additionalProperties: false
+      properties:
+        email:
+          maxLength: 254
+          type: string
+        password:
+          maxLength: 4096
+          type: string
+      required:
+        - email
+        - password
+      type: object
+    MetaDTO:
+      additionalProperties: false
+      properties:
+        api_version:
+          type: string
+        demo:
+          description: True when serving the deterministic synthetic demo dataset.
+          type: boolean
+        product:
+          type: string
+        public_url:
+          type: string
+        server_time:
+          format: date-time
+          type: string
+        started_at:
+          format: date-time
+          type: string
+        version:
+          type: string
+      required:
+        - product
+        - version
+        - api_version
+        - demo
+        - server_time
+        - public_url
+        - started_at
+      type: object
+    OIDCLoginOption:
+      additionalProperties: false
+      properties:
+        display_name:
+          type: string
+        slug:
+          type: string
+      required:
+        - slug
+        - display_name
+      type: object
+    OIDCProviderDTO:
+      additionalProperties: false
+      properties:
+        allow_private_network:
+          type: boolean
+        allowed_algs:
+          items:
+            type: string
+          type: array
+        allowed_domains:
+          items:
+            type: string
+          type: array
+        client_id:
+          type: string
+        client_secret_ref:
+          type: string
+        client_secret_set:
+          type: boolean
+        created_at:
+          format: date-time
+          type: string
+        default_role:
+          type: string
+        display_name:
+          type: string
+        enabled:
+          type: boolean
+        groups_claim:
+          type: string
+        id:
+          type: string
+        issuer:
+          type: string
+        managed_by:
+          type: string
+        provisioning:
+          enum:
+            - preprovisioned
+            - jit
+          type: string
+        redirect_uri:
+          description: Register this redirect URI with the identity provider.
+          type: string
+        revision:
+          format: int64
+          type: integer
+        role_mappings:
+          items:
+            $ref: "#/components/schemas/RoleMapping"
+          type: array
+        scopes:
+          items:
+            type: string
+          type: array
+        slug:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - slug
+        - display_name
+        - issuer
+        - client_id
+        - client_secret_set
+        - scopes
+        - groups_claim
+        - role_mappings
+        - provisioning
+        - allowed_domains
+        - allowed_algs
+        - allow_private_network
+        - enabled
+        - redirect_uri
+        - managed_by
+        - created_at
+        - updated_at
+        - revision
+      type: object
+    OidcBody:
+      additionalProperties: false
+      properties:
+        allow_private_network:
+          type: boolean
+        allowed_algs:
+          items:
+            type: string
+          maxItems: 6
+          type: array
+        allowed_domains:
+          items:
+            type: string
+          maxItems: 32
+          type: array
+        client_id:
+          maxLength: 256
+          minLength: 1
+          type: string
+        client_secret:
+          description: Write-only. Omit to keep the current secret; empty string clears it.
+          maxLength: 1024
+          type: string
+        client_secret_ref:
+          description: "Alternative to client_secret: env:NAME or file:/path."
+          maxLength: 512
+          type: string
+        default_role:
+          enum:
+            - admin
+            - operator
+            - viewer
+            - ""
+          type: string
+        display_name:
+          maxLength: 80
+          minLength: 1
+          type: string
+        enabled:
+          type: boolean
+        groups_claim:
+          description: Dotted claim path, e.g. porch.groups or groups.
+          maxLength: 128
+          type: string
+        issuer:
+          format: uri
+          maxLength: 512
+          type: string
+        provisioning:
+          enum:
+            - preprovisioned
+            - jit
+          type: string
+        role_mappings:
+          items:
+            $ref: "#/components/schemas/RoleMapping"
+          maxItems: 64
+          type: array
+        scopes:
+          items:
+            type: string
+          maxItems: 16
+          type: array
+        slug:
+          pattern: ^[a-z0-9][a-z0-9._-]{0,62}$
+          type: string
+      required:
+        - slug
+        - display_name
+        - issuer
+        - client_id
+        - provisioning
+        - enabled
+      type: object
+    PageAuditEntryDTO:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/AuditEntryDTO"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageServicePrincipalDTO:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ServicePrincipalDTO"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageUserDTO:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/UserDTO"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PasswordInBody:
+      additionalProperties: false
+      properties:
+        current_password:
+          maxLength: 4096
+          type: string
+        new_password:
+          maxLength: 4096
+          type: string
+      required:
+        - current_password
+        - new_password
+      type: object
+    PatchUserInBody:
+      additionalProperties: false
+      properties:
+        disabled:
+          type: boolean
+        display_name:
+          maxLength: 120
+          type: string
+        role:
+          enum:
+            - admin
+            - operator
+            - viewer
+          type: string
+      type: object
+    ResetOutBody:
+      additionalProperties: false
+      properties:
+        expires_at:
+          format: date-time
+          type: string
+        reset_url:
+          type: string
+      required:
+        - reset_url
+        - expires_at
+      type: object
+    RoleMapping:
+      additionalProperties: false
+      properties:
+        group:
+          type: string
+        role:
+          type: string
+      required:
+        - group
+        - role
+      type: object
+    SecurityAlertDTO:
+      additionalProperties: false
+      properties:
+        acknowledged_at:
+          format: date-time
+          type: string
+        acknowledged_by:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        message:
+          type: string
+      required:
+        - id
+        - kind
+        - message
+        - created_at
+      type: object
+    ServicePrincipalDTO:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        description:
+          type: string
+        disabled:
+          type: boolean
+        id:
+          type: string
+        managed_by:
+          type: string
+        name:
+          type: string
+        permissions:
+          items:
+            type: string
+          type: array
+        revision:
+          format: int64
+          type: integer
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - name
+        - description
+        - permissions
+        - disabled
+        - managed_by
+        - created_by
+        - created_at
+        - updated_at
+        - revision
+      type: object
+    SessionDTO:
+      additionalProperties: false
+      properties:
+        auth_method:
+          type: string
+        authenticated:
+          type: boolean
+        csrf_token:
+          type: string
+        expires_at:
+          format: date-time
+          type: string
+        limited:
+          type: boolean
+        oidc_providers:
+          items:
+            $ref: "#/components/schemas/OIDCLoginOption"
+          type: array
+        password_login:
+          type: boolean
+        permissions:
+          items:
+            type: string
+          type: array
+        principal_kind:
+          type: string
+        role:
+          type: string
+        security_alerts:
+          description: Unacknowledged security alerts (admins only).
+          format: int64
+          type: integer
+        session_id:
+          type: string
+        setup_required:
+          description: No administrator exists yet; use the setup link printed by 'harbor-pilot admin bootstrap'.
+          type: boolean
+        user:
+          $ref: "#/components/schemas/UserDTO"
+      required:
+        - authenticated
+        - setup_required
+        - password_login
+        - oidc_providers
+        - permissions
+        - limited
+        - security_alerts
+      type: object
+    SessionsOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/WebSessionDTO"
+          type: array
+      required:
+        - items
+      type: object
+    SetupInBody:
+      additionalProperties: false
+      properties:
+        display_name:
+          maxLength: 120
+          type: string
+        email:
+          maxLength: 254
+          type: string
+        password:
+          maxLength: 4096
+          type: string
+        token:
+          maxLength: 128
+          type: string
+      required:
+        - token
+        - email
+        - display_name
+        - password
+      type: object
+    SpBody:
+      additionalProperties: false
+      properties:
+        description:
+          maxLength: 500
+          type: string
+        disabled:
+          type: boolean
+        name:
+          pattern: ^[a-z0-9][a-z0-9._-]{0,62}$
+          type: string
+        permissions:
+          items:
+            type: string
+          maxItems: 64
+          type: array
+      required:
+        - name
+        - permissions
+      type: object
+    StatusDTO:
+      additionalProperties: false
+      properties:
+        data_dir:
+          type: string
+        master_key_id:
+          description: Fingerprint of the active master key (not secret).
+          type: string
+        schema_version:
+          format: int64
+          type: integer
+        secure_cookies:
+          description: False when the public URL is plain http (development only).
+          type: boolean
+        traces_schema_version:
+          format: int64
+          type: integer
+      required:
+        - schema_version
+        - traces_schema_version
+        - master_key_id
+        - data_dir
+        - secure_cookies
+      type: object
+    TestOutBody:
+      additionalProperties: false
+      properties:
+        claims:
+          additionalProperties: {}
+          type: object
+      required:
+        - claims
+      type: object
+    TokenInBody:
+      additionalProperties: false
+      properties:
+        token:
+          maxLength: 128
+          type: string
+      required:
+        - token
+      type: object
+    TokensOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/APITokenDTO"
+          type: array
+      required:
+        - items
+      type: object
+    UnlinkInBody:
+      additionalProperties: false
+      properties:
+        issuer:
+          type: string
+        subject:
+          type: string
+      required:
+        - issuer
+        - subject
+      type: object
+    UserDTO:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        disabled:
+          type: boolean
+        display_name:
+          type: string
+        email:
+          type: string
+        grants:
+          description: Explicit trace-content permissions.
+          items:
+            type: string
+          type: array
+        has_password:
+          type: boolean
+        id:
+          type: string
+        identities:
+          items:
+            $ref: "#/components/schemas/IdentityDTO"
+          type: array
+        last_login_at:
+          format: date-time
+          type: string
+        revision:
+          format: int64
+          type: integer
+        role:
+          enum:
+            - admin
+            - operator
+            - viewer
+          type: string
+        role_source:
+          description: local, or oidc:<provider id> when roles come from SSO groups
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - email
+        - display_name
+        - role
+        - role_source
+        - has_password
+        - disabled
+        - grants
+        - identities
+        - created_at
+        - updated_at
+        - revision
+      type: object
+    WebSessionDTO:
+      additionalProperties: false
+      properties:
+        auth_method:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        current:
+          type: boolean
+        expires_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        ip:
+          type: string
+        last_seen_at:
+          format: date-time
+          type: string
+        user_agent:
+          type: string
+      required:
+        - id
+        - auth_method
+        - current
+        - created_at
+        - last_seen_at
+        - expires_at
+      type: object
+  securitySchemes:
+    bearer:
+      description: Service principal API token (hpa_…).
+      scheme: bearer
+      type: http
+    session:
+      description: Browser session cookie. Mutations additionally require X-CSRF-Token.
+      in: cookie
+      name: __Host-hp_session
+      type: apiKey
+info:
+  description: "Control-plane API for Harbor Pilot: configuration, routing plans, accounting, activity, traces, events and notifications. The gateway data plane (/v1/messages, /v1/chat/completions, /v1/responses, /v1beta/models) is documented separately."
+  license:
+    identifier: Apache-2.0
+    name: Apache-2.0
+  title: Harbor Pilot API
+  version: dev
+openapi: 3.1.0
+paths:
+  /audit:
+    get:
+      operationId: list-audit-log
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+        - description: Action prefix filter, e.g. auth. or trace.content
+          explode: false
+          in: query
+          name: action
+          schema:
+            description: Action prefix filter, e.g. auth. or trace.content
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: target_kind
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: target_id
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: actor_id
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: outcome
+          schema:
+            enum:
+              - success
+              - denied
+              - error
+              - ""
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageAuditEntryDTO"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Query the audit log (newest first)
+      tags:
+        - Audit
+      x-permission: audit.read
+  /auth/accept:
+    post:
+      operationId: accept-invite
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDTO"
+          description: OK
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security: []
+      summary: Set a password from an invitation or reset token and sign in
+      tags:
+        - Session
+      x-permission: public
+  /auth/oidc-providers:
+    get:
+      operationId: list-oidc-providers
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List SSO providers
+      tags:
+        - Single sign-on
+      x-permission: auth.settings
+    post:
+      operationId: create-oidc-provider
+      parameters:
+        - in: header
+          name: X-HP-Managed-By
+          schema:
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OidcBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OIDCProviderDTO"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create an SSO provider
+      tags:
+        - Single sign-on
+      x-permission: auth.settings
+  /auth/oidc-providers/{id}:
+    delete:
+      operationId: delete-oidc-provider
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete an SSO provider (unlinks identities)
+      tags:
+        - Single sign-on
+      x-permission: auth.settings
+    get:
+      operationId: get-oidc-provider
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OIDCProviderDTO"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get an SSO provider
+      tags:
+        - Single sign-on
+      x-permission: auth.settings
+    put:
+      operationId: replace-oidc-provider
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+        - in: header
+          name: X-HP-Managed-By
+          schema:
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OidcBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OIDCProviderDTO"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace an SSO provider
+      tags:
+        - Single sign-on
+      x-permission: auth.settings
+  /auth/oidc-providers/{id}/test:
+    post:
+      operationId: test-oidc-provider
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkOutBody"
+          description: OK
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Start a test sign-in that reports mapped claims without signing in
+      tags:
+        - Single sign-on
+      x-permission: auth.settings
+  /auth/oidc-test-results/{rid}:
+    get:
+      operationId: get-oidc-test-result
+      parameters:
+        - in: path
+          name: rid
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Fetch the outcome of a test sign-in (valid 10 minutes)
+      tags:
+        - Single sign-on
+      x-permission: auth.settings
+  /auth/oidc/callback:
+    get:
+      operationId: oidc-callback
+      parameters:
+        - explode: false
+          in: query
+          name: code
+          schema:
+            maxLength: 2048
+            type: string
+        - explode: false
+          in: query
+          name: state
+          schema:
+            maxLength: 256
+            type: string
+        - explode: false
+          in: query
+          name: iss
+          schema:
+            maxLength: 512
+            type: string
+        - explode: false
+          in: query
+          name: error
+          schema:
+            maxLength: 128
+            type: string
+        - explode: false
+          in: query
+          name: error_description
+          schema:
+            maxLength: 512
+            type: string
+        - in: cookie
+          name: __Host-hp_oidc
+          schema:
+            type: string
+        - in: cookie
+          name: hp_oidc
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Found
+          headers:
+            Location:
+              schema:
+                type: string
+            Set-Cookie:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security: []
+      summary: Single sign-on callback (redirect target registered with the identity provider)
+      tags:
+        - Session
+      x-permission: public
+  /auth/oidc/{slug}/link:
+    post:
+      operationId: oidc-link-start
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: return_to
+          schema:
+            maxLength: 512
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkOutBody"
+          description: OK
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Link an SSO identity to my account (returns the provider URL)
+      tags:
+        - Session
+      x-permission: session
+  /auth/oidc/{slug}/start:
+    get:
+      operationId: oidc-start
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: return_to
+          schema:
+            maxLength: 512
+            type: string
+      responses:
+        "302":
+          description: Found
+          headers:
+            Location:
+              schema:
+                type: string
+            Set-Cookie:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security: []
+      summary: Start single sign-on (redirects to the identity provider)
+      tags:
+        - Session
+      x-permission: public
+  /auth/recover:
+    post:
+      operationId: recover
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDTO"
+          description: OK
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security: []
+      summary: Sign in with a break-glass recovery token
+      tags:
+        - Session
+      x-permission: public
+  /auth/settings:
+    get:
+      operationId: get-auth-settings
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSettingsDTO"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get authentication settings
+      tags:
+        - Single sign-on
+      x-permission: auth.settings
+    put:
+      operationId: replace-auth-settings
+      parameters:
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthSettingsDTO"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSettingsDTO"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace authentication settings
+      tags:
+        - Single sign-on
+      x-permission: auth.settings
+  /auth/setup:
+    post:
+      operationId: complete-setup
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetupInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDTO"
+          description: OK
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security: []
+      summary: Create the first administrator with a one-time setup token
+      tags:
+        - Session
+      x-permission: public
+  /meta:
+    get:
+      operationId: get-meta
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetaDTO"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security: []
+      summary: Server identity, version and clock
+      tags:
+        - System
+      x-permission: public
+  /security-alerts:
+    get:
+      operationId: list-security-alerts
+      parameters:
+        - description: Include acknowledged alerts.
+          explode: false
+          in: query
+          name: all
+          schema:
+            description: Include acknowledged alerts.
+            type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertsOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List security alerts
+      tags:
+        - Audit
+      x-permission: system.manage
+  /security-alerts/{id}/acknowledge:
+    post:
+      operationId: acknowledge-security-alert
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Acknowledge a security alert
+      tags:
+        - Audit
+      x-permission: system.manage
+  /service-principals:
+    get:
+      operationId: list-service-principals
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageServicePrincipalDTO"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List service principals
+      tags:
+        - Service principals
+      x-permission: users.manage
+    post:
+      operationId: create-service-principal
+      parameters:
+        - in: header
+          name: X-HP-Managed-By
+          schema:
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServicePrincipalDTO"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a service principal
+      tags:
+        - Service principals
+      x-permission: users.manage
+  /service-principals/{id}:
+    delete:
+      operationId: delete-service-principal
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a service principal and its tokens
+      tags:
+        - Service principals
+      x-permission: users.manage
+    get:
+      operationId: get-service-principal
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServicePrincipalDTO"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a service principal
+      tags:
+        - Service principals
+      x-permission: users.manage
+    put:
+      operationId: replace-service-principal
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+        - in: header
+          name: X-HP-Managed-By
+          schema:
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServicePrincipalDTO"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a service principal
+      tags:
+        - Service principals
+      x-permission: users.manage
+  /service-principals/{id}/tokens:
+    get:
+      operationId: list-api-tokens
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokensOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List API tokens
+      tags:
+        - Service principals
+      x-permission: users.manage
+    post:
+      operationId: issue-api-token
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueInBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueOutBody"
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Issue an API token (plaintext returned once)
+      tags:
+        - Service principals
+      x-permission: users.manage
+  /service-principals/{id}/tokens/{token_id}:
+    delete:
+      operationId: revoke-api-token
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+        - in: path
+          name: token_id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revoke an API token
+      tags:
+        - Service principals
+      x-permission: users.manage
+  /session:
+    delete:
+      operationId: logout
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDTO"
+          description: OK
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Sign out
+      tags:
+        - Session
+      x-permission: session
+    get:
+      operationId: get-session
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDTO"
+          description: OK
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security: []
+      summary: Describe the current caller
+      tags:
+        - Session
+      x-permission: public
+    post:
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDTO"
+          description: OK
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security: []
+      summary: Sign in with email and password
+      tags:
+        - Session
+      x-permission: public
+  /session/all:
+    get:
+      operationId: list-my-sessions
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionsOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List my active sessions
+      tags:
+        - Session
+      x-permission: session
+  /session/all/{id}:
+    delete:
+      operationId: revoke-my-session
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revoke one of my sessions
+      tags:
+        - Session
+      x-permission: session
+  /session/password:
+    post:
+      operationId: change-my-password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordInBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Change my password (revokes my other sessions)
+      tags:
+        - Session
+      x-permission: session
+  /system/status:
+    get:
+      operationId: get-system-status
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusDTO"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Storage and key status
+      tags:
+        - System
+      x-permission: system.manage
+  /users:
+    get:
+      operationId: list-users
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageUserDTO"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List users
+      tags:
+        - Users
+      x-permission: users.manage
+    post:
+      operationId: create-user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserInBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateUserOutBody"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create or invite a user
+      tags:
+        - Users
+      x-permission: users.manage
+  /users/{id}:
+    delete:
+      operationId: delete-user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a user
+      tags:
+        - Users
+      x-permission: users.manage
+    get:
+      operationId: get-user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDTO"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a user
+      tags:
+        - Users
+      x-permission: users.manage
+    patch:
+      operationId: update-user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchUserInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDTO"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Update a user
+      tags:
+        - Users
+      x-permission: users.manage
+  /users/{id}/grants:
+    put:
+      operationId: set-user-grants
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GrantsInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDTO"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a user's explicit trace-content grants
+      tags:
+        - Users
+      x-permission: users.manage
+  /users/{id}/password-reset:
+    post:
+      operationId: issue-password-reset
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResetOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Issue a one-time password reset link (valid 1h)
+      tags:
+        - Users
+      x-permission: users.manage
+  /users/{id}/revoke-sessions:
+    post:
+      operationId: revoke-user-sessions
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revoke all sessions of a user
+      tags:
+        - Users
+      x-permission: users.manage
+  /users/{id}/unlink-identity:
+    post:
+      operationId: unlink-user-identity
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnlinkInBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Unlink an SSO identity (revokes SSO sessions)
+      tags:
+        - Users
+      x-permission: users.manage
+security:
+  - session: []
+  - bearer: []
+servers:
+  - url: /api/v1

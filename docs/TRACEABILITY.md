@@ -29,7 +29,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R2.11 | Protocol Watch changelog | 9 | compat | planned | |
 | R2.12 | Durable events plus Pulse/NATS | 10 | events | planned | |
 | R2.13 | Telegram, Slack, Discord and webhook notifications | 10 | notify | planned | |
-| R2.14 | Local password and OIDC SSO | 2 | auth | planned | |
+| R2.14 | Local password and OIDC SSO | 2 | auth | implemented | internal/auth, internal/auth/authapi; auth/oidc_test.go (contract) |
 | R2.15 | UI preserving Quota Harbor's stack and theme | 0–15 | web | planned | |
 | R2.16 | Terraform provider | 14 | ../terraform-provider-harbor-pilot | planned | |
 | R2.17 | Migration, backup, recovery, security, ops docs | 13 | store, cmd, docs | planned | |
@@ -39,14 +39,14 @@ This matrix maps every requirement in the product brief to the phase, package an
 |---|---|---|---|
 | R3.1 | PRODUCT, ARCHITECTURE, PLAN, DECISIONS, THREAT_MODEL, TRACEABILITY, LIMITATIONS, COMPATIBILITY, contracts/, AGENTS.md | implemented | `docs/`, `AGENTS.md` |
 | R3.2 | Verified reference contracts, licensing, UI tokens | implemented | `docs/contracts/reference-*.md` |
-| R3.3 | Domain model, topology, capability matrix, migration strategy, API/event/config/TF contracts | in-progress | ARCHITECTURE §1–6, `docs/contracts/` |
+| R3.3 | Domain model, topology, capability matrix, migration strategy, API/event/config/TF contracts | in-progress | ARCHITECTURE §1–6, docs/contracts/, docs/reference/auth.md |
 
 ## §4 Platform
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R4.1 | Go, one binary, embedded UI | 0–1 | planned | |
+| R4.1 | Go, one binary, embedded UI | 0–1 | implemented | cmd/harbor-pilot, internal/app, internal/web; app_test.go |
 | R4.2 | SQLite WAL, single instance, documented capacity | 1, 15 | planned | |
-| R4.3 | Quota Harbor UI stack, pnpm, lint/test/E2E conventions | 0 | planned | |
+| R4.3 | Quota Harbor UI stack, pnpm, lint/test/E2E conventions | 0 | implemented | web/ (pinned stack), make check, web/e2e |
 | R4.4 | Container and native deployment | 13 | planned | |
 | R4.5 | Deterministic, isolated demo mode | 4+ | planned | |
 | R4.6 | Execution, control, telemetry, events and notifications kept separate; bounded queues | 4, 10 | planned | |
@@ -107,7 +107,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R9.3 | Honest tool observation (offered, generated, results seen, provider-executed) | 4 | planned | |
 | R9.4 | History dedupe; unique vs uncertain occurrences | 11 | planned | |
 | R9.5 | Statistics across all listed dimensions | 11 | planned | |
-| R9.6 | OpenSearch-ready logs; no high-cardinality metric labels | 1, 11 | planned | |
+| R9.6 | OpenSearch-ready logs; no high-cardinality metric labels | 1, 11 | in-progress | platform/observability (redacting JSON logs, low-cardinality metrics) |
 
 ## §10 Traces
 | ID | Requirement | Phase | Status | Evidence |
@@ -156,27 +156,27 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R14.4 | Event catalog (all listed transitions) | 5–10 | planned | |
 | R14.5 | Telegram, Slack, Discord and webhook adapters | 10 | planned | |
 | R14.6 | Rules, routing, dedupe, hysteresis, quiet hours, digests, recovery, templates, rate limits, test, replay | 10 | planned | |
-| R14.7 | Webhook signing and SSRF; outbound network policy | 1, 10 | planned | |
+| R14.7 | Webhook signing and SSRF; outbound network policy | 1, 10 | in-progress | platform/netpolicy (dial-time SSRF guard) + tests; webhook signing pending |
 | R14.8 | No prompts by default; no loops; outages do not block | 10 | planned | scenario K |
 
 ## §15 Auth
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R15.1 | Local passwords plus OIDC (Porch-compatible) | 2 | planned | |
-| R15.2 | Bootstrap, hashing, rate limits, cookies, CSRF, expiry, revocation | 2 | planned | |
-| R15.3 | OIDC discovery, state, nonce, PKCE, iss/aud; account linking; role mapping | 2 | planned | |
-| R15.4 | Break-glass; admin/operator/viewer; scoped service accounts; trace-content permissions; audit | 2 | planned | |
-| R15.5 | Encrypted secrets or secret refs; KEK management documented | 1 | planned | |
+| R15.1 | Local passwords plus OIDC (Porch-compatible) | 2 | contract-tested | auth/oidc_test.go (in-process OP, Porch claim shape); live Porch: blocked |
+| R15.2 | Bootstrap, hashing, rate limits, cookies, CSRF, expiry, revocation | 2 | implemented | auth/service_test.go, app/app_test.go, web/e2e/auth.spec.ts |
+| R15.3 | OIDC discovery, state, nonce, PKCE, iss/aud; account linking; role mapping | 2 | contract-tested | auth/oidc_test.go: PKCE, nonce, iss/aud, RFC 9207, browser binding, JIT/preprovisioned, group roles |
+| R15.4 | Break-glass; admin/operator/viewer; scoped service accounts; trace-content permissions; audit | 2 | implemented | auth/rbac.go, auth/login.go (break-glass + alert), audit; app_test.go |
+| R15.5 | Encrypted secrets or secret refs; KEK management documented | 1 | implemented | platform/crypto (+tests), store/serverkeys.go, app/rotate.go, docs/operations/master-key.md |
 
 ## §16 API, configuration and CLI
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R16.1 | Versioned OpenAPI: generated and validated | 1 | planned | |
-| R16.2 | Stable IDs, pagination, structured errors, redaction, concurrency control, idempotency | 1, 3 | planned | |
+| R16.1 | Versioned OpenAPI: generated and validated | 1 | implemented | huma + api/openapi.yaml; cmd/harbor-pilot/openapi_test.go (drift + x-permission) |
+| R16.2 | Stable IDs, pagination, structured errors, redaction, concurrency control, idempotency | 1, 3 | in-progress | internal/api (envelope, cursor pagination, ETag/If-Match) + api_test.go; idempotency keys pending (Phase 3) |
 | R16.3 | Configuration revision and effective-policy endpoints | 3 | planned | |
 | R16.4 | One authority; export and import; last-known-good; merge vs replace | 3 | planned | |
 | R16.5 | Terraform-managed marking and drift | 3 | planned | |
-| R16.6 | CLI operations; secrets read from stdin, file or env | 1–13 | planned | |
+| R16.6 | CLI operations; secrets read from stdin, file or env | 1–13 | in-progress | serve, admin bootstrap/recover, keys generate/rotate, config validate, openapi, healthcheck |
 
 ## §17 Terraform
 | ID | Requirement | Phase | Status | Evidence |
@@ -195,7 +195,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 |---|---|---|---|---|
 | R18.1 | All twelve screen groups listed in the brief | 2–11 | planned | |
 | R18.2 | "Why this route?" screen | 4, 11 | planned | |
-| R18.3 | Loading, empty, error, stale, partial, expired and denied states; keyboard access; responsive | all | planned | |
+| R18.3 | Loading, empty, error, stale, partial, expired and denied states; keyboard access; responsive | all | in-progress | states/ErrorBoundary, a11y + responsive e2e for current screens |
 | R18.4 | Deterministic synthetic demo exercising real paths | 4+ | planned | |
 
 ## §19 Testing and acceptance scenarios

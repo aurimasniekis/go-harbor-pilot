@@ -4,9 +4,9 @@ Source of truth for sequencing. Status per phase is updated as work lands; requi
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | Discovery docs and scaffold | in-progress |
-| 1 | Platform foundation (clock, money, credentials, observability, netpolicy, store/migrator, crypto, ids, audit, huma API skeleton, outbox core) | planned |
-| 2 | Authentication and authorization (passwords, sessions, CSRF, OIDC, RBAC, service principals, bootstrap/recovery) | planned |
+| 0 | Discovery docs and scaffold | done |
+| 1 | Platform foundation (clock, money, credentials, observability, netpolicy, store/migrator, crypto, ids, audit, huma API skeleton, outbox core) | done |
+| 2 | Authentication and authorization (passwords, sessions, CSRF, OIDC, RBAC, service principals, bootstrap/recovery) | done |
 | 3 | Control-plane domain (all managed objects, revisions, drift, snapshot compiler, import/export) | planned |
 | 4 | Canonical IR, protocol adapters, gateway vertical slice, HTTP/local executors, ledger, activity (scenarios A, B, E) | planned |
 | 5 | Routing engine, decision tables, simulator, publish workflow, failover (scenarios C, D) | planned |

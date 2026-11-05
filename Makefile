@@ -63,7 +63,7 @@ check: vet lint race typecheck test-web
 gen: gen-api gen-web
 
 gen-api:
-	$(GO) run ./cmd/harbor-pilot openapi > api/openapi.yaml
+	$(GO) run -ldflags "-X main.version=dev" ./cmd/harbor-pilot openapi > api/openapi.yaml
 
 gen-web:
 	cd web && $(PNPM) run gen:api

@@ -1,0 +1,313 @@
+// Package app is the composition root: it loads bootstrap configuration,
+// opens storage, constructs services, mounts the API, gateway and UI, and
+// runs background workers.
+package app
+
+import (
+	"context"
+	"crypto/subtle"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net"
+	"net/http"
+	"net/netip"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/aurimasniekis/go-harbor-pilot/internal/api"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/auth"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/auth/authapi"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/config"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/demo"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/clock"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/credentials"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/crypto"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/netpolicy"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/observability"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/reqmeta"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/store"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/web"
+	"github.com/aurimasniekis/go-harbor-pilot/migrations"
+)
+
+// Options configure New.
+type Options struct {
+	Config  config.Config
+	Version string
+	Log     *slog.Logger
+	Env     func(string) string
+}
+
+// App is the running application.
+type App struct {
+	Cfg     config.Config
+	Version string
+	Log     *slog.Logger
+	Clock   clock.Clock
+	Metrics *observability.Metrics
+	Keyring *crypto.Keyring
+	DB      *store.DB
+	Traces  *store.DB
+	Keys    *store.ServerKeys
+	Auth    *auth.Service
+	Started time.Time
+
+	unlock   func()
+	bg       []func(ctx context.Context)
+	routes   []func(r chi.Router)
+	apiRegs  []func(a *api.API)
+	ready    bool
+	readyMu  sync.RWMutex
+	metricsT credentials.Secret
+}
+
+// New wires the application.
+func New(ctx context.Context, o Options) (*App, error) {
+	if o.Env == nil {
+		o.Env = os.Getenv
+	}
+	c := o.Config
+	a := &App{Cfg: c, Version: o.Version, Log: o.Log, Metrics: observability.NewMetrics(), Started: time.Now()}
+	a.Clock = clock.Real{}
+	if c.Demo.Clock != "" {
+		t, _ := time.Parse(time.RFC3339, c.Demo.Clock)
+		a.Clock = clock.Frozen{At: t}
+	}
+	unlock, err := lockDataDir(c.Server.DataDir)
+	if err != nil {
+		return nil, err
+	}
+	a.unlock = unlock
+	fail := func(err error) (*App, error) {
+		a.Close()
+		return nil, err
+	}
+	if a.Keyring, err = LoadKeyring(c, o.Env); err != nil {
+		return fail(err)
+	}
+	if a.DB, err = store.Open(ctx, store.Options{Path: c.DBPath(), Migrations: migrations.Main(), Log: a.Log, BackupBeforeMigrate: true}); err != nil {
+		return fail(fmt.Errorf("open %s: %w", c.DBPath(), err))
+	}
+	if a.Traces, err = store.Open(ctx, store.Options{Path: c.TracesDBPath(), Migrations: migrations.Traces(), Log: a.Log, Readers: 2}); err != nil {
+		return fail(fmt.Errorf("open %s: %w", c.TracesDBPath(), err))
+	}
+	a.Keys = store.NewServerKeys(a.DB, a.Keyring)
+	auth.SecretResolver = credentials.NewResolver(c.Security.SecretRoots)
+	if a.Auth, err = auth.New(ctx, auth.Options{DB: a.DB, Keys: a.Keys, Keyring: a.Keyring, Clock: a.Clock, Log: a.Log,
+		SecureCookies: c.SecureCookies(), PublicOrigin: c.PublicOrigin()}); err != nil {
+		return fail(err)
+	}
+	if c.Server.MetricsTokenFile != "" {
+		b, err := os.ReadFile(c.Server.MetricsTokenFile)
+		if err != nil {
+			return fail(fmt.Errorf("metrics token file: %w", err))
+		}
+		a.metricsT = credentials.NewSecret(strings.TrimSpace(string(b)))
+	}
+	a.AddBackground(a.authJanitor)
+	if c.Demo.Enabled {
+		if err := demo.Seed(ctx, a.DB, a.Auth); err != nil {
+			return fail(err)
+		}
+		a.Log.Info("demo.ready", "admin_email", demo.AdminEmail, "admin_password", "see docs/operations/demo.md")
+	}
+	a.apiRegs = append(a.apiRegs, a.CoreAPI()...)
+	return a, nil
+}
+
+// CoreAPI returns the always-present control-plane registrations. It only
+// captures a, so it can also be used to render the OpenAPI document without
+// live dependencies.
+func (a *App) CoreAPI() []func(*api.API) {
+	return []func(*api.API){
+		func(ap *api.API) { authapi.Register(ap, a.Auth, a.DB) },
+		a.registerSystem,
+	}
+}
+
+// AddBackground registers a worker started by Run.
+func (a *App) AddBackground(fn func(ctx context.Context)) { a.bg = append(a.bg, fn) }
+
+// AddRoutes registers additional top-level routes (gateway data plane).
+func (a *App) AddRoutes(fn func(r chi.Router)) { a.routes = append(a.routes, fn) }
+
+// AddAPI registers control-plane operations.
+func (a *App) AddAPI(fn func(a *api.API)) { a.apiRegs = append(a.apiRegs, fn) }
+
+// Close releases resources.
+func (a *App) Close() {
+	if a.Traces != nil {
+		_ = a.Traces.Close()
+	}
+	if a.DB != nil {
+		_ = a.DB.Close()
+	}
+	if a.unlock != nil {
+		a.unlock()
+	}
+}
+
+func (a *App) authJanitor(ctx context.Context) {
+	t := time.NewTicker(time.Hour)
+	defer t.Stop()
+	for {
+		if err := a.Auth.PurgeExpired(ctx); err != nil && ctx.Err() == nil {
+			a.Log.Warn("auth.purge.failed", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+// Handler builds the root HTTP handler.
+func (a *App) Handler() http.Handler {
+	trusted, _ := netpolicy.ParseCIDRs(a.Cfg.Server.TrustedProxies)
+	r := chi.NewRouter()
+	r.Use(api.RequestID, api.Recoverer(a.Log), reqmeta.Middleware(trusted), api.AccessLog(a.Log, a.Metrics))
+	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+	r.Get("/readyz", a.readyz)
+	r.Get("/metrics", a.metrics)
+	for _, fn := range a.routes {
+		fn(r)
+	}
+	r.Group(func(r chi.Router) {
+		r.Use(api.SecurityHeaders)
+		r.Route(api.Prefix, func(r chi.Router) {
+			r.Use(api.NoStore, a.Auth.Middleware)
+			BuildAPI(r, a.Version, a.apiRegs)
+			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+				WriteNotFound(w, r)
+			})
+			r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
+				api2Error(w, r, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+			})
+		})
+		r.Handle("/*", web.Handler())
+	})
+	return r
+}
+
+// BuildAPI mounts every registered operation on r.
+func BuildAPI(r chi.Router, version string, regs []func(a *api.API)) *api.API {
+	a := api.New(r, version)
+	for _, fn := range regs {
+		fn(a)
+	}
+	return a
+}
+
+// WriteNotFound writes the not-found envelope.
+func WriteNotFound(w http.ResponseWriter, r *http.Request) {
+	api2Error(w, r, http.StatusNotFound, "not_found", "unknown API route")
+}
+
+func api2Error(w http.ResponseWriter, r *http.Request, status int, code, msg string) {
+	api.WriteError(w, r, api.Errorf(status, code, msg))
+}
+
+func (a *App) readyz(w http.ResponseWriter, r *http.Request) {
+	a.readyMu.RLock()
+	ready := a.ready
+	a.readyMu.RUnlock()
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if !ready || a.DB.Ping(ctx) != nil || a.Traces.Ping(ctx) != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"status":"not_ready"}`))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(`{"status":"ready"}`))
+}
+
+func (a *App) metrics(w http.ResponseWriter, r *http.Request) {
+	if !a.metricsT.IsZero() {
+		tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if subtle.ConstantTimeCompare([]byte(tok), []byte(a.metricsT.Reveal())) != 1 {
+			api.WriteError(w, r, api.Unauthorized())
+			return
+		}
+	} else if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		// Without a token, metrics are only served to loopback clients.
+		if ip, err := netip.ParseAddr(host); err != nil || !ip.IsLoopback() {
+			api.WriteError(w, r, api.Forbidden("metrics require server.metrics_token_file for non-loopback clients"))
+			return
+		}
+	}
+	promhttp.HandlerFor(a.Metrics.Registry, promhttp.HandlerOpts{}).ServeHTTP(w, r)
+}
+
+// Run serves HTTP until ctx is cancelled, then shuts down gracefully.
+func (a *App) Run(ctx context.Context) error {
+	bgCtx, cancelBg := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	for _, fn := range a.bg {
+		wg.Add(1)
+		go func() { defer wg.Done(); fn(bgCtx) }()
+	}
+	srv := &http.Server{
+		Addr:              a.Cfg.Server.Listen,
+		Handler:           a.Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    64 << 10,
+		ErrorLog:          slog.NewLogLogger(a.Log.Handler(), slog.LevelWarn),
+	}
+	ln, err := net.Listen("tcp", a.Cfg.Server.Listen)
+	if err != nil {
+		cancelBg()
+		wg.Wait()
+		return err
+	}
+	a.readyMu.Lock()
+	a.ready = true
+	a.readyMu.Unlock()
+	a.Log.Info("server.started", "listen", ln.Addr().String(), "public_url", a.Cfg.Server.PublicURL, "version", a.Version,
+		"demo", a.Cfg.Demo.Enabled)
+	if !a.Cfg.SecureCookies() {
+		a.Log.Warn("server.insecure_cookies", "hint", "public_url is plain http; session cookies are not marked Secure. Use https in production.")
+	}
+	if req, err := a.Auth.SetupRequired(ctx); err == nil && req {
+		a.Log.Warn("setup.required", "hint", "run `harbor-pilot admin bootstrap` to create a one-time setup link for the first administrator")
+	}
+	errCh := make(chan error, 1)
+	go func() {
+		if a.Cfg.Server.TLS.CertFile != "" {
+			errCh <- srv.ServeTLS(ln, a.Cfg.Server.TLS.CertFile, a.Cfg.Server.TLS.KeyFile)
+		} else {
+			errCh <- srv.Serve(ln)
+		}
+	}()
+	select {
+	case <-ctx.Done():
+	case err := <-errCh:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			cancelBg()
+			wg.Wait()
+			return err
+		}
+	}
+	a.readyMu.Lock()
+	a.ready = false
+	a.readyMu.Unlock()
+	a.Log.Info("server.stopping")
+	sctx, cancel := context.WithTimeout(context.Background(), a.Cfg.Server.ShutdownTimeout)
+	defer cancel()
+	err = srv.Shutdown(sctx)
+	cancelBg()
+	wg.Wait()
+	a.Log.Info("server.stopped")
+	return err
+}

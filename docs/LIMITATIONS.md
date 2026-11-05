@@ -23,6 +23,9 @@ This file is kept current alongside the implementation. Each entry is one of:
   - Translating tool calls through MCP changes how tool-call IDs look to the vendor model.
 - **Exactly-once delivery is not provided (design).** Events and webhooks are at-least-once. Consumers deduplicate by event ID.
 
+- **No TOTP/WebAuthn MFA (design, for now).** Local accounts use password plus throttling. Organizations that need MFA should use OIDC SSO with an identity provider that enforces it. The brief does not require MFA.
+- **Plain-HTTP deployments (design).** When `public_url` is `http`, session cookies drop the `__Host-` prefix and `Secure` flag. This is for local development and demo use only, and the server logs a warning.
+
 ## Pending
 
 Pending items are tracked per requirement in TRACEABILITY.md (status `planned` or `in-progress`).
