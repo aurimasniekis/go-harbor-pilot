@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { ApiError, apiGet } from './client'
-import type { Backup, Stats, StatsBy, Delivery, EventItem, EventKindInfo, NotificationItem, Breaker, Degradation, ProtocolChange, WorkItem, WorkStatus, BridgeStatus, TraceContent, TraceHit, TraceMeta, BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummary, ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
+import type { Backup, Stats, StatsBy, Delivery, EventKindInfo, NotificationItem, Breaker, Degradation, ProtocolChange, WorkItem, WorkStatus, BridgeStatus, TraceContent, TraceHit, TraceMeta, BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
 
 export const qk = {
   session: ['session'] as const,
@@ -62,12 +62,6 @@ export const securityAlertsQuery = queryOptions({
   queryKey: qk.alerts,
   queryFn: ({ signal }) => apiGet<{ items: SecurityAlert[] | null }>('/security-alerts', undefined, signal),
 })
-
-export const auditQuery = (filter: { action?: string; cursor?: string; outcome?: string }) =>
-  queryOptions({
-    queryKey: [...qk.audit, filter],
-    queryFn: ({ signal }) => apiGet<Page<AuditEntry>>('/audit', { limit: 100, ...filter }, signal),
-  })
 
 export const mySessionsQuery = queryOptions({
   queryKey: qk.mySessions,
@@ -158,12 +152,6 @@ export const sessionsQuery = (f: { binding_id?: string; cursor?: string }) =>
   queryOptions({
     queryKey: ['activity', 'sessions', f],
     queryFn: ({ signal }) => apiGet<Page<ObservedSession>>('/activity/sessions', { limit: 50, ...f }, signal),
-  })
-
-export const activitySummaryQuery = (hours: number) =>
-  queryOptions({
-    queryKey: ['activity', 'summary', hours],
-    queryFn: ({ signal }) => apiGet<ActivitySummary>('/activity/summary', { hours }, signal),
   })
 
 // ---------- routing ----------
@@ -329,19 +317,6 @@ export const eventCatalogQuery = queryOptions({
   queryFn: ({ signal }) => apiGet<{ items: EventKindInfo[] }>('/events/catalog', undefined, signal),
   staleTime: 10 * 60_000,
 })
-
-export interface EventLogFilter {
-  type?: string
-  severity?: string
-  cursor?: string
-}
-
-export const eventsQuery = (f: EventLogFilter) =>
-  queryOptions({
-    queryKey: ['events', 'log', f],
-    queryFn: ({ signal }) => apiGet<Page<EventItem>>('/events', { limit: 100, ...f }, signal),
-    refetchInterval: f.cursor ? false : 15_000,
-  })
 
 export const deliveriesQuery = (destID: string, status?: string) =>
   queryOptions({

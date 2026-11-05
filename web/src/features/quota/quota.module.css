@@ -1,51 +1,8 @@
-.cards {
-  display: grid;
-  gap: var(--space-4);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
-}
-
-.card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  padding: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.cardHeader {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
-  align-items: flex-start;
-}
-
-.cardTitle {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.cardTitle h3 {
-  font-size: var(--text-md);
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
 .badges {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   align-items: center;
-}
-
-.buckets {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
 }
 
 .bucket {
@@ -90,46 +47,6 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-.progress {
-  position: relative;
-  height: 10px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
-
-.progressFill {
-  height: 100%;
-  background: var(--success);
-}
-
-.progressFill[data-state='warning'] {
-  background: var(--warning);
-}
-
-.progressFill[data-state='exceeded'] {
-  background: var(--error);
-}
-
-.progressFill[data-state='disabled'] {
-  background: var(--text-muted);
-}
-
-.warnMark {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--text);
-  opacity: 0.7;
-}
-
-.highlight {
-  color: var(--warning);
-  font-weight: 600;
 }
 
 .list {

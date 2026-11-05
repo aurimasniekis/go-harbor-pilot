@@ -289,11 +289,6 @@
   width: 90px;
 }
 
-.inlineSelect {
-  composes: inlineInput;
-  width: auto;
-}
-
 /* decision graph */
 
 .graph {

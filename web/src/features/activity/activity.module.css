@@ -48,11 +48,6 @@
   flex: none;
 }
 
-.failover {
-  color: var(--warning);
-  white-space: nowrap;
-}
-
 /* ---------- request page ---------- */
 
 .crumbs {

@@ -51,11 +51,6 @@ export function fmtPercent(v: number | null | undefined, digits = 0): string {
 }
 
 /** Percentage points (absolute difference of percentages). */
-export function fmtPP(v: number | null | undefined, digits = 1): string {
-  if (!isKnown(v)) return UNKNOWN
-  return `${v.toFixed(digits)} pp`
-}
-
 export function fmtCompact(v: number | null | undefined): string {
   if (!isKnown(v)) return UNKNOWN
   const abs = Math.abs(v)

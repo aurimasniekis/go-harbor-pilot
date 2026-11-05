@@ -21,3 +21,29 @@ test('request page fits a phone screen', async ({ page }) => {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   expect(overflow).toBeLessThanOrEqual(1)
 })
+
+test('detail pages fit a phone screen', async ({ page }) => {
+  await signIn(page)
+  const first = async (url: string) => {
+    const r = await page.request.get(url)
+    if (!r.ok()) return undefined
+    return ((await r.json()) as { items: { id: string }[] | null }).items?.[0]?.id
+  }
+  const details: [string, string | undefined][] = [
+    ['/clients/', await first('/api/v1/client-bindings')],
+    ['/routing/plans/', await first('/api/v1/routing-plans')],
+    ['/events/destinations/', await first('/api/v1/event-destinations')],
+    ['/compatibility/work-items/', await first('/api/v1/protocol-watch/work-items')],
+    ['/traces/', await first('/api/v1/traces?limit=1')],
+  ]
+  let checked = 0
+  for (const [prefix, id] of details) {
+    if (!id) continue
+    await page.goto(prefix + id)
+    await page.waitForLoadState('networkidle')
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow, prefix + id).toBeLessThanOrEqual(1)
+    checked++
+  }
+  expect(checked, 'the demo has clients and plans').toBeGreaterThanOrEqual(2)
+})

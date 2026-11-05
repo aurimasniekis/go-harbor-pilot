@@ -114,11 +114,6 @@
   white-space: nowrap;
 }
 
-.chevron {
-  color: var(--text-muted);
-  flex: none;
-}
-
 .recentAside {
   display: flex;
   flex-direction: column;
@@ -127,12 +122,6 @@
   color: var(--text-muted);
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
-}
-
-.budget {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .todo {

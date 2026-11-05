@@ -13,23 +13,9 @@ import {
   TextInput,
   Title,
 } from '@mantine/core'
-import {
-  AlertTriangle,
-  CheckCircle2,
-  CircleDashed,
-  CircleSlash,
-  Clock3,
-  HelpCircle,
-  Info,
-  KeyRound,
-  type LucideIcon,
-  OctagonAlert,
-  PauseCircle,
-  Search,
-  XCircle,
-} from 'lucide-react'
+import { AlertTriangle, Info, type LucideIcon, Search } from 'lucide-react'
 import s from './ui.module.css'
-import type { Availability, Health, Tier } from '@/lib/api/types'
+import type { Tier } from '@/lib/api/types'
 import { fmtPercent, isKnown } from '@/lib/format'
 import { Empty, InfoTip as KitInfoTip, Fields } from '@/ui/kit'
 
@@ -66,43 +52,6 @@ export function Badge({ tone = 'neutral', icon: Icon, children, title }: {
     <MBadge color={toneColor[tone]} title={title} size="sm" leftSection={Icon ? <Icon size={12} aria-hidden="true" /> : undefined} className={s.badge}>
       {children}
     </MBadge>
-  )
-}
-
-const healthMeta: Record<Health, { tone: Tone; icon: LucideIcon; label: string }> = {
-  healthy: { tone: 'success', icon: CheckCircle2, label: 'Checking normally' },
-  degraded: { tone: 'warning', icon: AlertTriangle, label: 'Degraded' },
-  auth_failed: { tone: 'error', icon: KeyRound, label: 'Sign-in failed' },
-  stale: { tone: 'warning', icon: Clock3, label: 'Out of date' },
-  error: { tone: 'error', icon: XCircle, label: 'Check failing' },
-  disabled: { tone: 'neutral', icon: PauseCircle, label: 'Off' },
-  pending: { tone: 'info', icon: CircleDashed, label: 'Not checked yet' },
-  unsupported: { tone: 'neutral', icon: CircleSlash, label: 'Unsupported' },
-}
-
-/** Tracking status of a quota monitor: credential and polling, not limits. */
-export function HealthBadge({ health, reason }: { health: Health; reason?: string }) {
-  const m = healthMeta[health] ?? { tone: 'neutral' as Tone, icon: HelpCircle, label: health }
-  return (
-    <Badge tone={m.tone} icon={m.icon} title={reason || undefined}>
-      {m.label}
-    </Badge>
-  )
-}
-
-const availMeta: Record<Availability, { tone: Tone; icon: LucideIcon; label: string }> = {
-  usable: { tone: 'success', icon: CheckCircle2, label: 'Available' },
-  exhausted: { tone: 'error', icon: OctagonAlert, label: 'Limit reached' },
-  model_limited: { tone: 'warning', icon: AlertTriangle, label: 'Some models limited' },
-  unknown: { tone: 'neutral', icon: HelpCircle, label: 'Unknown' },
-}
-
-export function AvailabilityBadge({ availability, reason }: { availability: Availability; reason?: string }) {
-  const m = availMeta[availability]
-  return (
-    <Badge tone={m.tone} icon={m.icon} title={reason || undefined}>
-      {m.label}
-    </Badge>
   )
 }
 

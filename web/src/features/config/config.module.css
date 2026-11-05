@@ -62,12 +62,6 @@
   overflow: auto;
 }
 
-.cellActions {
-  white-space: nowrap;
-  text-align: right;
-}
-
-
 .steps {
   list-style: none;
   margin: 0;

@@ -1,12 +1,10 @@
-import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, ScrollText } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { Badge, Banner, KeyValues, Panel, TableScroll } from '@/components/ui'
-import { resourceListQuery, tracesQuery } from '@/lib/api/queries'
+import { resourceListQuery } from '@/lib/api/queries'
 import { byId } from '@/lib/api/resources'
 import type { PrivacyPolicyRes, PrivacySummary } from '@/lib/api/types'
 import { useCan } from '@/lib/session'
-import { fmtRelative } from '@/lib/format'
 import { actionTone, detectorLabel } from './privacy'
 
 /** Narrows the request detail's free-form privacy JSON. */
@@ -69,19 +67,5 @@ export function PrivacySummaryPanel({ privacy }: { privacy: unknown }) {
         </>
       )}
     </Panel>
-  )
-}
-
-/** Link to this request's trace, when one was captured. */
-export function TraceLink({ requestId }: { requestId: string }) {
-  const can = useCan('traces.metadata.read')
-  const q = useQuery({ ...tracesQuery({ request_id: requestId }), enabled: can })
-  const t = q.data?.items?.[0]
-  if (!can || !t) return null
-  return (
-    <Banner tone="info" icon={ScrollText}>
-      A short-lived trace was captured for this request ({t.mode.replaceAll('_', ' ')}, expires {fmtRelative(t.expires_at)}).{' '}
-      <Link to="/traces/$traceId" params={{ traceId: t.id }} style={{ textDecoration: 'underline' }}>Open trace</Link>
-    </Banner>
   )
 }

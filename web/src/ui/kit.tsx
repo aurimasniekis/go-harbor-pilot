@@ -1,4 +1,4 @@
-import { type ReactNode, useId, useState } from 'react'
+import { type ReactNode, useId } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   ActionIcon,
@@ -418,7 +418,3 @@ export function Empty({ icon, title, children, action }: { icon?: ReactNode; tit
 }
 
 /** Small toggle-able hook for disclosure state shared by callers. */
-export function useToggle(initial = false): [boolean, () => void] {
-  const [v, set] = useState(initial)
-  return [v, () => set((x) => !x)]
-}

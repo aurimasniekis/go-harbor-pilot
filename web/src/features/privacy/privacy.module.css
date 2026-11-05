@@ -30,15 +30,6 @@
   margin-left: 24px;
 }
 
-.actionSelect {
-  font-size: var(--text-xs);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-primary);
-}
-
 .sample {
   margin: 0;
   padding: 10px 12px;
@@ -117,18 +108,5 @@
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: flex-end;
-}
-
-.snippet {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }

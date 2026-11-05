@@ -52,12 +52,6 @@
   gap: var(--space-3);
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
-  gap: var(--space-4);
-}
-
 /* Numbered setup steps. */
 .stepBlock {
   display: flex;

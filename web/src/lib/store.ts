@@ -47,9 +47,3 @@ export function updatePrefs(patch: Partial<UiPrefs>): void {
   uiStore.setState((s) => ({ ...s, ...patch }))
 }
 
-export function toggleCompare(id: string): void {
-  uiStore.setState((s) => ({
-    ...s,
-    compare: s.compare.includes(id) ? s.compare.filter((x) => x !== id) : [...s.compare, id].slice(-8),
-  }))
-}

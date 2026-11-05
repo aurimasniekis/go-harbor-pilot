@@ -99,8 +99,3 @@ export function uniqueShare(g: Pick<StatsGroup, 'unique_requests' | 'uncertain_r
   return n > 0 ? (100 * g.unique_requests) / n : null
 }
 
-export const intentSourceHelp: Record<string, string> = {
-  declared: 'Declared by the client (X-HP-Intent), accepted because the plan trusts intent hints.',
-  rule: 'Set by a routing rule (set_intent).',
-  classifier: 'Inferred by the plan’s intent classifier.',
-}
