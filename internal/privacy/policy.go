@@ -38,7 +38,8 @@ type Policy struct {
 var precedence = map[string]int{cp.PrivacyBlock: 4, cp.PrivacyActionAllow: 3, cp.PrivacyMask: 2, cp.PrivacyWarn: 1}
 
 // Compile builds a policy. secretValues are configured values to mask
-// exactly (values shorter than six characters are ignored).
+// exactly (values shorter than cp.MinSecretValueLen are ignored; the
+// control plane rejects them when they are stored).
 func Compile(id string, s cp.PrivacyPolicySpec, secretValues []string) (*Policy, error) {
 	p := &Policy{ID: id, Required: s.Required, AllowUnmasked: s.AllowUnmaskedFallback, Restore: s.RestoreInResponses, ToolArgs: s.ToolArgRestore}
 	all := builtin()
@@ -82,7 +83,7 @@ func Compile(id string, s cp.PrivacyPolicySpec, secretValues []string) (*Policy,
 	}
 	if configured {
 		for _, v := range secretValues {
-			if v = strings.TrimSpace(v); len(v) >= 6 {
+			if v = strings.TrimSpace(v); len(v) >= cp.MinSecretValueLen {
 				p.secrets = append(p.secrets, v)
 			}
 		}
@@ -141,6 +142,7 @@ func (p *Policy) Scan(text string) []Finding {
 	if len(raw) == 0 {
 		return nil
 	}
+	raw = preferCredentials(raw)
 	sort.Slice(raw, func(i, j int) bool {
 		if raw[i].Start != raw[j].Start {
 			return raw[i].Start < raw[j].Start
@@ -176,6 +178,42 @@ func (p *Policy) Scan(text string) []Finding {
 		}
 	}
 	return out
+}
+
+// personal names the personal-data detectors.
+var personal = func() map[string]bool {
+	m := map[string]bool{}
+	for _, d := range cp.PersonalDataDetectors {
+		m[d] = true
+	}
+	return m
+}()
+
+// preferCredentials drops personal-data findings that overlap a credential
+// finding with at least as strong an action. "user:password@host" also
+// looks like an e-mail address; reporting it as one would mask the host
+// too and attribute a credential leak to personal data.
+func preferCredentials(raw []Finding) []Finding {
+	out := raw[:0:0]
+	for _, f := range raw {
+		if personal[f.Rule] && overlapsCredential(raw, f) {
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+func overlapsCredential(raw []Finding, f Finding) bool {
+	for _, c := range raw {
+		if personal[c.Rule] || c.Rule == "high_entropy" {
+			continue
+		}
+		if c.Start < f.End && f.Start < c.End && precedence[c.Action] >= precedence[f.Action] {
+			return true
+		}
+	}
+	return false
 }
 
 // Redact replaces masked and blocked spans with irreversible markers

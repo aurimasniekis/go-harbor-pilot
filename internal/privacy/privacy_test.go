@@ -70,6 +70,33 @@ func TestDetectors(t *testing.T) {
 	})
 }
 
+func TestCredentialURLWinsOverEmail(t *testing.T) {
+	p := policy(t, cp.PrivacyPolicySpec{Detectors: []string{"credential_url"}, PersonalData: []string{"email"}})
+	tests := []struct {
+		name, text, rule, match string
+		action                  string
+	}{
+		{"password in a clone URL", "git clone https://deploy:hunter2hunter2@git.example.test/acme/app.git", "credential_url", "hunter2hunter2", "mask"},
+		{"plain address stays personal data", "mail ops@example.test", "email", "ops@example.test", "mask"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs := p.Scan(tt.text)
+			if len(fs) != 1 || fs[0].Rule != tt.rule || fs[0].Action != tt.action || tt.text[fs[0].Start:fs[0].End] != tt.match {
+				t.Fatalf("findings %+v", fs)
+			}
+		})
+	}
+	t.Run("a blocking personal rule still blocks", func(t *testing.T) {
+		b := policy(t, cp.PrivacyPolicySpec{Detectors: []string{"credential_url"}, PersonalData: []string{"email"},
+			DetectorActions: map[string]string{"email": "block"}})
+		fs := b.Scan("https://deploy:hunter2hunter2@git.example.test/x")
+		if len(fs) != 1 || fs[0].Action != "block" {
+			t.Fatalf("findings %+v", fs)
+		}
+	})
+}
+
 func TestPrecedence(t *testing.T) {
 	p := policy(t, cp.PrivacyPolicySpec{
 		Rules: []cp.PrivacyRule{{Name: "internal_host", Pattern: `prod-db-[0-9]+`, Action: "block"}, {Name: "ticket", Pattern: `TICKET-[0-9]+`, Action: "warn"}},

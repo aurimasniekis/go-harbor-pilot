@@ -2,6 +2,7 @@ package acceptance_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -138,4 +139,31 @@ func mustJSON(t *testing.T, v any) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// A configured value too short to mask is rejected when stored, naming the
+// line but never the value, instead of being skipped silently.
+func TestShortSecretValuesAreRejected(t *testing.T) {
+	e := apptest.New(t)
+	tests := []struct {
+		name, values, want string
+		status             int
+	}{
+		{"one short line", "q7Zx1\nsupersecretvalue123", "line 1 is shorter than 6 characters", 422},
+		{"several short lines", "q7Zx1\n\nsupersecretvalue123\nk9Wv2", "lines 1, 4 are shorter", 422},
+		{"blank lines are ignored", "supersecretvalue123\n\n", "", 201},
+	}
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out json.RawMessage
+			status := e.Admin.Do("POST", "/api/v1/privacy-policies", map[string]any{"name": fmt.Sprintf("short-%d", i),
+				"spec": map[string]any{"required": true, "detectors": []string{"configured_secrets"}}, "secrets": map[string]string{"secret_values": tt.values}}, &out)
+			if status != tt.status {
+				t.Fatalf("status %d: %s", status, out)
+			}
+			if !strings.Contains(string(out), tt.want) || strings.Contains(string(out), "q7Zx1") || strings.Contains(string(out), "k9Wv2") {
+				t.Fatalf("body %s", out)
+			}
+		})
+	}
 }

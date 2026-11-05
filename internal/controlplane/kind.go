@@ -26,6 +26,9 @@ type SecretField struct {
 	// RefField names the spec field that may hold a secret reference
 	// (env:/file:) instead of a stored value. Empty if refs are not allowed.
 	RefField string
+	// Check reports a problem with a stored value, or "". The message must
+	// not quote the value.
+	Check func(value string) string
 }
 
 // Def describes one resource kind. S is its spec type.

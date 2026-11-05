@@ -602,6 +602,11 @@ func (s *Service) checkSecretInputs(v *Validator, kind Kind, canon json.RawMessa
 		if val != nil && len(*val) > 64<<10 {
 			v.Fail("secrets."+sf.Name, "secret too large (max 64 KiB)")
 		}
+		if val != nil && *val != "" && sf.Check != nil {
+			if msg := sf.Check(*val); msg != "" {
+				v.Fail("secrets."+sf.Name, msg)
+			}
+		}
 		if sf.RefField != "" {
 			if ref, _ := spec[sf.RefField].(string); ref != "" && val != nil && *val != "" {
 				v.Fail("secrets."+sf.Name, "set either the stored secret or spec."+sf.RefField+", not both")

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/ids"
@@ -270,7 +272,7 @@ type PlanPrivacy struct {
 
 var (
 	PrivacyPolicyDef = &Def[PrivacyPolicySpec]{Name: KindPrivacyPolicy, Plural: "privacy-policies", Prefix: ids.PrivacyPolicy, Title: "Privacy policy",
-		Secrets:   []SecretField{{Name: "secret_values", Description: "Configured secret values to mask, one per line. Write-only.", RefField: "secret_values_ref"}},
+		Secrets:   []SecretField{{Name: "secret_values", Description: "Configured secret values to mask, one per line. Write-only.", RefField: "secret_values_ref", Check: checkSecretValues}},
 		Normalize: normalizePrivacy, Validate: validatePrivacy}
 	TracePolicyDef = &Def[TracePolicySpec]{Name: KindTracePolicy, Plural: "trace-policies", Prefix: ids.TracePolicy, Title: "Trace policy",
 		Normalize: normalizeTrace, Validate: validateTrace,
@@ -278,3 +280,26 @@ var (
 			return []Ref{{"spec.redaction_policy_id", s.RedactionPolicyID, []string{KindPrivacyPolicy}}}
 		}}
 )
+
+// MinSecretValueLen is the shortest configured secret value that is masked;
+// shorter values would match ordinary text.
+const MinSecretValueLen = 6
+
+// checkSecretValues rejects configured values too short to be masked, so a
+// value is never silently left unmasked. It names lines, never values.
+func checkSecretValues(raw string) string {
+	var short []string
+	for i, line := range strings.Split(raw, "\n") {
+		if t := strings.TrimSpace(line); t != "" && len(t) < MinSecretValueLen {
+			short = append(short, strconv.Itoa(i+1))
+		}
+	}
+	switch len(short) {
+	case 0:
+		return ""
+	case 1:
+		return fmt.Sprintf("line %s is shorter than %d characters and would not be masked", short[0], MinSecretValueLen)
+	default:
+		return fmt.Sprintf("lines %s are shorter than %d characters and would not be masked", strings.Join(short, ", "), MinSecretValueLen)
+	}
+}
