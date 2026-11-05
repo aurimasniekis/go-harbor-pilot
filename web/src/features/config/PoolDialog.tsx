@@ -45,13 +45,13 @@ export function PoolDialog({ pool, onClose }: { pool: PoolRes | null; onClose: (
     save.mutate({ existing: pool ?? undefined, body: { name, spec } }, { onSuccess: onClose })
   }
   return (
-    <Dialog open wide title={pool ? `Edit pool ${pool.name}` : 'Add pool'} onClose={onClose}>
+    <Dialog open wide title={pool ? `Edit fallback group ${pool.name}` : 'Add fallback group'} onClose={onClose}>
       <TerraformEditWarning r={pool} />
       <div className={f.grid}>
         <TextField label="Name" value={name} onChange={setName} disabled={!!pool} required />
         <TextField label="Display name" value={displayName} onChange={setDisplayName} maxLength={120} />
-        <SelectField label="Strategy" value={strategy} onChange={setStrategy} options={strategies} hint="Default ranking inside the pool; plans may override." />
-        <SelectField label="Session affinity" value={affinity} onChange={setAffinity}
+        <SelectField label="Order" value={strategy} onChange={setStrategy} options={strategies} hint="How members are tried; plans may override." />
+        <SelectField label="Sessions" value={affinity} onChange={setAffinity}
           options={[{ value: 'session', label: 'Keep a conversation on the same member' }, { value: 'none', label: 'None' }]} />
       </div>
       <fieldset className={c.checks} style={{ flexDirection: 'column' }}>
@@ -75,7 +75,7 @@ export function PoolDialog({ pool, onClose }: { pool: PoolRes | null; onClose: (
                   ) : (
                     <TextField label="Model id" value={m.model} onChange={(v) => setMember(i, { model: v })} hint="The provider declares no models; enter the upstream id." />
                   )}
-                  <TextField label="Priority (lower first)" type="number" value={String(m.priority)} onChange={(v) => setMember(i, { priority: toInt(v) })} />
+                  <TextField label="Try order (lower first)" type="number" value={String(m.priority)} onChange={(v) => setMember(i, { priority: toInt(v) })} />
                   <TextField label="Weight" type="number" value={String(m.weight)} onChange={(v) => setMember(i, { weight: toInt(v) })} />
                 </div>
               </div>
@@ -89,7 +89,7 @@ export function PoolDialog({ pool, onClose }: { pool: PoolRes | null; onClose: (
       <MutationError error={save.error} />
       <div className={f.actions}>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" busy={save.isPending} disabled={!name} onClick={submit}>Save pool</Button>
+        <Button variant="primary" busy={save.isPending} disabled={!name} onClick={submit}>Save fallback group</Button>
       </div>
     </Dialog>
   )

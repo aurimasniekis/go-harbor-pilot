@@ -51,16 +51,16 @@ test('configure a provider through to an issued client credential', async ({ pag
   await d.getByRole('button', { name: 'Add member' }).click()
   await choose(d, 'Account', { label: `openai-main-${suffix}` })
   await choose(d, 'Model', 'gpt-5', { exact: true })
-  await d.getByRole('button', { name: 'Save pool' }).click()
+  await d.getByRole('button', { name: 'Save fallback group' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
 
   // Alias.
   await page.goto('/routing')
-  await page.getByRole('button', { name: 'Add alias' }).click()
+  await page.getByRole('button', { name: 'Add model name' }).click()
   d = await dialog(page)
   await d.getByLabel('Name', { exact: true }).fill(`coding/${suffix}`)
-  await choose(d, 'Target pool', { label: `gpt-${suffix}` })
-  await d.getByRole('button', { name: 'Save alias' }).click()
+  await choose(d, 'Fallback group', { label: `gpt-${suffix}` }, { exact: true })
+  await d.getByRole('button', { name: 'Save model name' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByText(`coding/${suffix}`).first()).toBeVisible()
 
@@ -71,7 +71,7 @@ test('configure a provider through to an issued client credential', async ({ pag
   await d.getByLabel('Name', { exact: true }).fill(`plan-${suffix}`)
   await d.getByRole('button', { name: 'Save plan' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await page.getByRole('link', { name: `plan-${suffix}` }).click()
+  await page.waitForURL(/\/routing\/plans\/pln_/)
   await page.getByRole('button', { name: 'New draft' }).click()
   d = await dialog(page)
   await d.getByRole('button', { name: 'Add mapping' }).click()
@@ -79,12 +79,12 @@ test('configure a provider through to an issued client credential', async ({ pag
   await choose(d, 'Alias', { label: `coding/${suffix}` }, { exact: true })
   await d.getByRole('button', { name: 'Save draft' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page.getByRole('tab', { name: 'Versions' }).click()
   await page.getByRole('button', { name: 'Validate' }).first().click()
   await expect(page.getByText('Valid.')).toBeVisible()
-  await page.getByRole('button', { name: 'Publish' }).click()
+  await page.getByRole('button', { name: 'Publish v1' }).click()
   await page.getByRole('dialog', { name: /Publish v1/ }).getByRole('button', { name: 'Publish' }).click()
-  await expect(page.getByText('v1').first()).toBeVisible()
-  await expect(page.getByRole('cell', { name: 'published' })).toBeVisible()
+  await expect(page.getByText('Live v1').first()).toBeVisible()
 
   // Client → access token (the token dialog opens right after creating).
   await page.goto('/clients')
@@ -109,5 +109,5 @@ test('configure a provider through to an issued client credential', async ({ pag
 
   // The plans list shows the published plan.
   await page.goto('/routing/plans')
-  await expect(page.getByRole('link', { name: `plan-${suffix}` }).first()).toBeVisible()
+  await expect(page.getByRole('row', { name: new RegExp(`plan-${suffix}`) }).first()).toContainText('Live v1')
 })

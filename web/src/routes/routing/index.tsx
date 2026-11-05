@@ -20,33 +20,29 @@ function Aliases() {
   return (
     <ResourceList<AliasRes>
       plural="model-aliases"
-      title="Model aliases"
-      subtitle="Client-facing model names. Plans map requested models to aliases; aliases resolve to pools."
-      noun="alias"
-      empty="Create an alias such as coding/default that points at a pool."
+      title="Model names"
+      subtitle="Names your tools ask for, like coding/default. Each points at a fallback group (or another model name), and plans map other requested models onto them."
+      noun="model name"
+      empty="Create a model name such as coding/default that points at a fallback group."
       columns={[
         {
-          header: 'Target',
-          cell: (r) =>
-            r.spec.pool_id ? (
-              <>pool <span className="mono">{pool[r.spec.pool_id]?.name ?? r.spec.pool_id}</span></>
-            ) : (
-              <>alias <span className="mono">{alias[r.spec.alias_id]?.name ?? r.spec.alias_id}</span></>
-            ),
-        },
-        {
-          header: 'Resolves to',
+          header: 'Goes to',
+          mobile: 'line',
           cell: (r) => {
+            if (r.spec.alias_id) return <>Model name {alias[r.spec.alias_id]?.name ?? r.spec.alias_id}</>
+            const pl = pool[r.spec.pool_id]
             const e = resolved[r.id]
-            if (!e) return <span className="muted">—</span>
+            if (!pl) return <span className="muted">{e?.pool_id ? 'Unknown fallback group' : 'Nothing'}</span>
+            const n = pl.spec.members.length
             return (
-              <span className="mono">
-                {e.chain.join(' → ')} → {pool[e.pool_id]?.name ?? (e.pool_id || 'unresolved')}
-              </span>
+              <>
+                Fallback group {pl.name} <span className="muted">({n} {n === 1 ? 'account' : 'accounts'})</span>
+              </>
             )
           },
         },
-        { header: 'Requires', cell: (r) => r.spec.required_capabilities.join(', ') || <span className="muted">—</span> },
+        { header: 'Needs', mobile: 'meta', cell: (r) => r.spec.required_capabilities.join(', ') || <span className="muted">—</span> },
+        { header: 'Description', mobile: 'meta', cell: (r) => r.spec.description || <span className="muted">—</span> },
       ]}
       dialog={(r, close) => <AliasDialog alias={r} onClose={close} />}
     />

@@ -147,3 +147,25 @@
 .saveBar[data-dirty] {
   border-top-color: var(--accent);
 }
+
+/* Readable routing flow: accounts tried in order. */
+.flowList {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-sm);
+}
+
+.flowList li[data-blocked] {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--border-strong);
+}
+
+.flowBlocked {
+  color: var(--warning);
+  text-decoration: none;
+  display: inline-block;
+}

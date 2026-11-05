@@ -1,29 +1,35 @@
 import { useState } from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Accordion, Anchor, Group, Paper, Select, Stack, Tabs, Text, Timeline, Title } from '@mantine/core'
 import { CheckCircle2, FilePlus2, History, Pencil, Rocket, ShieldCheck, Trash2 } from 'lucide-react'
-import { Badge, Banner, Button, KeyValues, Panel, Skeleton, TableScroll, type Tone } from '@/components/ui'
-import { MutationError, SelectField, ConfirmButton } from '@/components/form'
-import { QueryError, TableSkeleton } from '@/components/states'
+import { z } from 'zod'
+import { Badge, Banner, Button, Skeleton, type Tone } from '@/components/ui'
+import { ConfirmButton, MutationError } from '@/components/form'
+import { QueryError } from '@/components/states'
 import { ResourceBadges } from '@/components/ResourceBadges'
 import { PlanDocumentEditor, defaultDocument } from '@/features/config/PlanDocumentEditor'
 import { apiSend } from '@/lib/api/client'
-import { planVersionsQuery, resourceListQuery, resourceQuery } from '@/lib/api/queries'
+import { effectiveQuery, planVersionsQuery, resourceListQuery, resourceQuery } from '@/lib/api/queries'
 import { byId } from '@/lib/api/resources'
 import type { AccountRes, AliasRes, FieldErrorDTO, PlanDocument, PlanRes, PlanVersion, PoolRes, ProviderRes, ValidationReport } from '@/lib/api/types'
 import { DecisionGraph } from '@/features/routing/DecisionGraph'
 import { Simulator } from '@/features/routing/Simulator'
 import { describeLocation, parseEngine } from '@/features/routing/engine'
-import { laneAccounts, planLanes } from '@/features/routing/graph'
+import { type Lane, laneAccounts, planLanes } from '@/features/routing/graph'
+import { fallbackSentence, orderedMembers, planSummary } from '@/features/routing/flow'
+import { billingName } from '@/features/limits/LimitsPage'
 import { useCan } from '@/lib/session'
 import { fmtDateTime } from '@/lib/format'
 import c from '@/features/config/config.module.css'
 
 export const Route = createFileRoute('/routing/plans/$planId')({
+  validateSearch: z.object({ tab: z.enum(['flow', 'versions', 'test']).optional().catch(undefined) }).parse,
   component: PlanDetail,
 })
 
 const statusTone: Record<string, Tone> = { draft: 'info', published: 'success', superseded: 'neutral', archived: 'neutral' }
+const statusLabel: Record<string, string> = { draft: 'Draft', published: 'Live', superseded: 'Replaced', archived: 'Archived' }
 
 /** Errors from a version's stored validation report, if any. */
 function storedErrors(v: PlanVersion): FieldErrorDTO[] {
@@ -47,55 +53,71 @@ function useConfigMaps() {
   }
 }
 
-/** Read-only route picture plus the simulator, for a chosen version. */
-function Explore({ planId, items }: { planId: string; items: PlanVersion[] }) {
-  const cfg = useConfigMaps()
-  const published = items.find((v) => v.status === 'published')
-  const [graphId, setGraphId] = useState('')
-  const shown = items.find((v) => v.id === graphId) ?? published ?? items.find((v) => v.status === 'draft') ?? items[0]
-  if (!shown) return null
-  const lanes = cfg.ready ? planLanes(shown.document, cfg.maps) : []
-  const allLanes = cfg.ready ? items.filter((v) => v.status === 'published' || v.status === 'draft').flatMap((v) => planLanes(v.document, cfg.maps)) : []
-  const accountName = (id: string) => {
-    const a = cfg.maps.accounts[id]
-    if (!a) return id
-    const p = cfg.maps.providers[a.spec.provider_id]
-    return p ? `${p.name} / ${a.name}` : a.name
-  }
-  const firstAlias = lanes.find((l) => l.chain.length > 0)?.chain[0]?.name ?? ''
+/** One block per incoming model pattern: the accounts tried, in order. */
+function Flow({ doc, lanes }: { doc: PlanDocument; lanes: Lane[] }) {
+  const billings = new Set(lanes.flatMap((l) => l.members.map((m) => m.account?.spec.billing)).filter(Boolean))
   return (
-    <>
-      <Panel
-        title="Decision graph"
-        subtitle="How requests flow through this version: requested model → alias → pool → members, then rule stages and fallback. Read-only."
-        actions={
-          <SelectField label="Version" value={shown.id} onChange={setGraphId}
-            options={items.map((v) => ({ value: v.id, label: `v${v.version} (${v.status})` }))} />
-        }
-      >
-        {cfg.ready ? <DecisionGraph doc={shown.document} lanes={lanes} /> : <Skeleton height={120} />}
-      </Panel>
-      <Panel
-        title="Simulator"
-        subtitle="Route a synthetic request through a version without contacting any upstream. Drafts can be simulated before publishing."
-      >
-        {cfg.ready ? (
-          <Simulator key={planId} planId={planId} versions={items} accounts={laneAccounts(allLanes)} defaultModel={firstAlias} accountName={accountName} />
-        ) : (
-          <Skeleton height={120} />
-        )}
-      </Panel>
-    </>
+    <Stack gap="md">
+      {lanes.length === 0 && <Text c="dimmed">This version maps no models and has no default, so every request is rejected.</Text>}
+      {lanes.map((l) => (
+        <Paper key={l.key} withBorder radius="md" p="md">
+          <Stack gap="xs">
+            <Group justify="space-between" gap="xs">
+              <Text fw={600}>
+                {l.entry.kind === 'default' ? 'Any other model' : (
+                  <>
+                    Requests for <code>{l.entry.match}</code>
+                  </>
+                )}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {l.chain.length > 0 && <>via {l.chain.map((a) => a.name).join(' → ')}</>}
+                {l.pool && <> · {l.pool.name}</>}
+              </Text>
+            </Group>
+            {l.problem ? (
+              <Banner tone="error">Rejected: {l.problem}.</Banner>
+            ) : l.members.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                The fallback group has no members.
+              </Text>
+            ) : (
+              <ol className={c.flowList}>
+                {orderedMembers(l).map((m) => (
+                  <li key={m.accountId + m.model} data-blocked={m.blocked.length > 0 || undefined}>
+                    <span>{m.account?.spec.display_name || m.account?.name || m.accountId}</span>
+                    <span className="muted"> · {m.model}</span>
+                    {billings.size > 1 && m.account && <span className="muted"> · {billingName[m.account.spec.billing] ?? m.account.spec.billing}</span>}
+                    {m.blocked.length > 0 && <span className={c.flowBlocked}> · skipped: {m.blocked.join(', ')}</span>}
+                  </li>
+                ))}
+              </ol>
+            )}
+            {l.required.length > 0 && (
+              <Text size="xs" c="dimmed">
+                Needs: {l.required.join(', ')}
+              </Text>
+            )}
+          </Stack>
+        </Paper>
+      ))}
+      <Text size="sm">{fallbackSentence(doc)}</Text>
+    </Stack>
   )
 }
 
 function PlanDetail() {
   const { planId } = Route.useParams()
+  const { tab } = Route.useSearch()
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const plan = useQuery(resourceQuery<PlanRes>('routing-plans', planId))
   const versions = useQuery(planVersionsQuery(planId))
+  const eff = useQuery(effectiveQuery)
+  const cfg = useConfigMaps()
   const canWrite = useCan('config.write')
   const canPublish = useCan('policy.publish')
+  const [shownId, setShownId] = useState<string | null>(null)
   const [editing, setEditing] = useState<{ version?: PlanVersion; doc: PlanDocument; note: string; errors?: FieldErrorDTO[] } | null>(null)
   const [report, setReport] = useState<{ id: string; r: ValidationReport } | null>(null)
   const invalidate = () => void qc.invalidateQueries({ queryKey: ['resources'] })
@@ -125,105 +147,180 @@ function PlanDetail() {
   const p = plan.data
   const items = versions.data?.items ?? []
   const published = items.find((v) => v.status === 'published')
-  const hasDraft = items.some((v) => v.status === 'draft')
+  const draft = items.find((v) => v.status === 'draft')
+  const shown = items.find((v) => v.id === shownId) ?? published ?? draft ?? items[0]
+  const lanes = shown && cfg.ready ? planLanes(shown.document, cfg.maps) : []
+  const liveLanes = published && cfg.ready ? planLanes(published.document, cfg.maps) : []
+  const allLanes = cfg.ready ? items.filter((v) => v.status === 'published' || v.status === 'draft').flatMap((v) => planLanes(v.document, cfg.maps)) : []
+  const usedBy = eff.data?.plans.find((x) => x.id === p.id)?.bindings ?? 0
+  const current = tab ?? 'flow'
+  const accountName = (id: string) => {
+    const a = cfg.maps.accounts[id]
+    if (!a) return id
+    const pr = cfg.maps.providers[a.spec.provider_id]
+    return pr ? `${pr.name} / ${a.name}` : a.name
+  }
+  const firstAlias = lanes.find((l) => l.chain.length > 0)?.chain[0]?.name ?? ''
+  const edit = (v: PlanVersion) => setEditing({ version: v, doc: v.document, note: v.note, errors: report?.id === v.id ? report.r.errors : storedErrors(v) })
 
   return (
-    <>
-      <p>
-        <Link to="/routing/plans">← All plans</Link>
-      </p>
-      <Panel title={<span className="mono">{p.name}</span>} subtitle={p.spec.description || undefined} actions={<ResourceBadges r={p} />}>
-        <KeyValues
-          items={[
-            ['Display name', p.spec.display_name || '—'],
-            ['Published version', published ? <Badge tone="success">v{published.version}</Badge> : <Badge tone="warning">none — requests using this plan are rejected</Badge>],
-            ['Plan id', <span className="mono">{p.id}</span>],
-          ]}
-        />
-      </Panel>
-      <Panel
-        title="Versions"
-        subtitle="Drafts never affect traffic. Publishing supersedes the current version; rollback publishes a copy of an older version."
-        actions={
-          canWrite && (
-            <Button variant="primary" icon={FilePlus2} onClick={() => setEditing({ doc: published?.document ?? defaultDocument(), note: '' })}>
-              New draft
-            </Button>
-          )
-        }
-      >
-        {hasDraft && <Banner tone="info">A draft exists. Validate it, then publish to make it active.</Banner>}
-        <MutationError error={validate.error ?? publish.error ?? discard.error ?? rollback.error} />
-        {report && (
-          <Banner tone={report.r.valid ? 'info' : 'error'} icon={report.r.valid ? CheckCircle2 : undefined} role="status">
-            <strong>{report.r.valid ? 'Valid.' : 'Invalid.'}</strong> Checked against configuration revision {report.r.config_revision}.
-            {report.r.errors.length > 0 && (
-              <ul>
-                {report.r.errors.map((e, i) => (
-                  <li key={i}>
-                    <span className="mono">{describeLocation(e.location, parseEngine(items.find((v) => v.id === report.id)?.document.engine))}</span>: {e.message}
-                  </li>
-                ))}
-              </ul>
+    <Stack gap="lg">
+      <Stack gap={4}>
+        <Text size="sm">
+          <Anchor component={Link} to="/routing/plans" c="dimmed">
+            Routing
+          </Anchor>{' '}
+          <Text span c="dimmed">
+            /
+          </Text>
+        </Text>
+        <Group justify="space-between" align="flex-end" gap="sm" wrap="wrap">
+          <Stack gap={0} miw={0}>
+            <Group gap="sm" wrap="nowrap">
+              <Title order={1}>{p.spec.display_name || p.name}</Title>
+              {published ? <Badge tone="success">Live v{published.version}</Badge> : <Badge tone="warning">Not live</Badge>}
+              {draft && <Badge tone="info">Draft v{draft.version}</Badge>}
+              <ResourceBadges r={p} />
+            </Group>
+            <Text size="sm" c="dimmed">
+              {p.spec.display_name && <span className="mono">{p.name} · </span>}
+              Used by {usedBy} {usedBy === 1 ? 'client' : 'clients'}
+            </Text>
+          </Stack>
+          <Group gap="xs">
+            {draft && canWrite && (
+              <Button icon={Pencil} onClick={() => edit(draft)}>
+                Edit draft
+              </Button>
             )}
-            {report.r.warnings.length > 0 && (
-              <ul>
-                {report.r.warnings.map((e, i) => (
-                  <li key={i}>Warning: {e.message}</li>
-                ))}
-              </ul>
+            {draft && canPublish && (
+              <ConfirmButton variant="primary" danger={false} icon={Rocket} busy={publish.isPending} title={`Publish v${draft.version}?`}
+                message="It becomes active immediately for every client using this plan." confirmLabel="Publish" onConfirm={() => publish.mutate(draft.id)}>
+                {`Publish v${draft.version}`}
+              </ConfirmButton>
             )}
-          </Banner>
-        )}
-        {versions.isError ? (
-          <QueryError error={versions.error} retry={() => void versions.refetch()} />
-        ) : !versions.data ? (
-          <TableSkeleton rows={3} />
-        ) : items.length === 0 ? (
-          <p className="secondary">No versions yet. Create a draft to define how this plan routes requests.</p>
-        ) : (
-          <TableScroll label="Plan versions">
-            <table className="data-table" style={{ width: '100%' }}>
-              <thead>
-                <tr>
-                  <th>Version</th>
-                  <th>Status</th>
-                  <th>Note</th>
-                  <th>Created</th>
-                  <th>Published</th>
-                  <th aria-label="Actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((v) => (
-                  <tr key={v.id}>
-                    <td className="num">v{v.version}</td>
-                    <td>
-                      <Badge tone={statusTone[v.status]}>{v.status}</Badge>
-                      {v.rollback_of && <Badge>rollback</Badge>}
-                    </td>
-                    <td>{v.note || <span className="muted">—</span>}</td>
-                    <td>{fmtDateTime(v.created_at)}</td>
-                    <td>{v.published_at ? fmtDateTime(v.published_at) : '—'}</td>
-                    <td className={c.cellActions}>
+            {!draft && canWrite && (
+              <Button variant="primary" icon={FilePlus2} onClick={() => setEditing({ doc: published?.document ?? defaultDocument(), note: '' })}>
+                New draft
+              </Button>
+            )}
+          </Group>
+        </Group>
+      </Stack>
+      <Text size="md">{cfg.ready ? planSummary(published?.document, liveLanes) : ' '}</Text>
+      {p.spec.description && (
+        <Text size="sm" c="dimmed">
+          {p.spec.description}
+        </Text>
+      )}
+      <MutationError error={validate.error ?? publish.error ?? discard.error ?? rollback.error} />
+      {report && (
+        <Banner tone={report.r.valid ? 'info' : 'error'} icon={report.r.valid ? CheckCircle2 : undefined} role="status">
+          <strong>{report.r.valid ? 'Valid.' : 'Invalid.'}</strong> Checked against configuration revision {report.r.config_revision}.
+          {report.r.errors.length > 0 && (
+            <ul>
+              {report.r.errors.map((e, i) => (
+                <li key={i}>
+                  <span className="mono">{describeLocation(e.location, parseEngine(items.find((v) => v.id === report.id)?.document.engine))}</span>: {e.message}
+                </li>
+              ))}
+            </ul>
+          )}
+          {report.r.warnings.length > 0 && (
+            <ul>
+              {report.r.warnings.map((e, i) => (
+                <li key={i}>Warning: {e.message}</li>
+              ))}
+            </ul>
+          )}
+        </Banner>
+      )}
+
+      <Tabs value={current} onChange={(v) => v && void navigate({ to: '/routing/plans/$planId', params: { planId }, search: { tab: v as 'flow' | 'versions' | 'test' }, replace: true })}>
+        <Group justify="space-between" gap="sm" wrap="wrap" align="flex-end">
+          <Tabs.List aria-label="Plan sections">
+            <Tabs.Tab value="flow">Flow</Tabs.Tab>
+            <Tabs.Tab value="versions">Versions</Tabs.Tab>
+            <Tabs.Tab value="test">Test a request</Tabs.Tab>
+          </Tabs.List>
+          {items.length > 1 && current === 'flow' && (
+            <Select
+              aria-label="Version"
+              size="xs"
+              w={200}
+              allowDeselect={false}
+              value={shown?.id ?? null}
+              onChange={setShownId}
+              data={items.map((v) => ({ value: v.id, label: `v${v.version} · ${statusLabel[v.status] ?? v.status}` }))}
+            />
+          )}
+        </Group>
+
+        <Tabs.Panel value="flow" pt="md">
+          {!shown ? (
+            <Text c="dimmed">No versions yet. Create a draft to define where requests go.</Text>
+          ) : !cfg.ready ? (
+            <Skeleton height={120} />
+          ) : (
+            <Stack gap="md">
+              <Flow doc={shown.document} lanes={lanes} />
+              <Accordion variant="separated" radius="md">
+                <Accordion.Item value="graph">
+                  <Accordion.Control>Detailed graph</Accordion.Control>
+                  <Accordion.Panel>
+                    <section aria-label="Decision graph">
+                      <DecisionGraph doc={shown.document} lanes={lanes} />
+                    </section>
+                  </Accordion.Panel>
+                </Accordion.Item>
+                <Accordion.Item value="json">
+                  <Accordion.Control>View as JSON</Accordion.Control>
+                  <Accordion.Panel>
+                    <pre className={c.json}>{JSON.stringify(shown.document, null, 2)}</pre>
+                  </Accordion.Panel>
+                </Accordion.Item>
+              </Accordion>
+            </Stack>
+          )}
+        </Tabs.Panel>
+
+        <Tabs.Panel value="versions" pt="md">
+          {versions.isError ? (
+            <QueryError error={versions.error} retry={() => void versions.refetch()} />
+          ) : items.length === 0 ? (
+            <Text c="dimmed">No versions yet.</Text>
+          ) : (
+            <Timeline bulletSize={20} lineWidth={2} active={-1}>
+              {items.map((v) => (
+                <Timeline.Item
+                  key={v.id}
+                  bullet={v.status === 'published' ? <CheckCircle2 size={12} /> : undefined}
+                  title={
+                    <Group gap="xs">
+                      <Text fw={600}>v{v.version}</Text>
+                      <Badge tone={statusTone[v.status]}>{statusLabel[v.status] ?? v.status}</Badge>
+                      {v.rollback_of && <Badge>Rollback</Badge>}
+                    </Group>
+                  }
+                >
+                  <Stack gap={6} mt={4}>
+                    {v.note && <Text size="sm">{v.note}</Text>}
+                    <Text size="xs" c="dimmed">
+                      Created {fmtDateTime(v.created_at)}
+                      {v.published_at ? ` · published ${fmtDateTime(v.published_at)}` : ''}
+                    </Text>
+                    <Group gap="xs">
                       <Button size="small" variant="ghost" icon={ShieldCheck} busy={validate.isPending && validate.variables === v.id} onClick={() => validate.mutate(v.id)}>
                         Validate
                       </Button>
                       {v.status === 'draft' && canWrite && (
                         <>
-                          <Button size="small" variant="ghost" icon={Pencil}
-                            onClick={() => setEditing({ version: v, doc: v.document, note: v.note, errors: report?.id === v.id ? report.r.errors : storedErrors(v) })}>
+                          <Button size="small" variant="ghost" icon={Pencil} onClick={() => edit(v)}>
                             Edit
                           </Button>
                           <ConfirmButton size="small" icon={Trash2} label={`Discard draft v${v.version}`} title={`Discard draft v${v.version}?`}
                             message="The draft and its changes are deleted." confirmLabel="Discard" onConfirm={() => discard.mutate(v.id)} />
                         </>
-                      )}
-                      {v.status === 'draft' && canPublish && (
-                        <ConfirmButton size="small" variant="primary" danger={false} icon={Rocket} busy={publish.isPending} title={`Publish v${v.version}?`}
-                          message="It becomes active immediately for every client using this plan." confirmLabel="Publish" onConfirm={() => publish.mutate(v.id)}>
-                          Publish
-                        </ConfirmButton>
                       )}
                       {v.status === 'superseded' && canPublish && (
                         <ConfirmButton size="small" danger={false} icon={History} busy={rollback.isPending} title={`Roll back to v${v.version}?`}
@@ -231,21 +328,27 @@ function PlanDetail() {
                           Roll back
                         </ConfirmButton>
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        )}
-        {published && (
-          <details>
-            <summary>Published document (v{published.version})</summary>
-            <pre className={c.json}>{JSON.stringify(published.document, null, 2)}</pre>
-          </details>
-        )}
-      </Panel>
-      {items.length > 0 && <Explore planId={planId} items={items} />}
+                    </Group>
+                  </Stack>
+                </Timeline.Item>
+              ))}
+            </Timeline>
+          )}
+        </Tabs.Panel>
+
+        <Tabs.Panel value="test" pt="md">
+          {items.length === 0 ? (
+            <Text c="dimmed">Create a draft first; drafts can be tested before publishing.</Text>
+          ) : cfg.ready ? (
+            <section aria-label="Simulator">
+              <Simulator key={planId} planId={planId} versions={items} accounts={laneAccounts(allLanes)} defaultModel={firstAlias} accountName={accountName} />
+            </section>
+          ) : (
+            <Skeleton height={120} />
+          )}
+        </Tabs.Panel>
+      </Tabs>
+
       {editing && (
         <PlanDocumentEditor
           title={editing.version ? `Edit draft v${editing.version.version}` : 'New draft'}
@@ -261,6 +364,6 @@ function PlanDetail() {
           }}
         />
       )}
-    </>
+    </Stack>
   )
 }

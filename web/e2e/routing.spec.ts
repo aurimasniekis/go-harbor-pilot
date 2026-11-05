@@ -16,14 +16,19 @@ async function axeSerious(page: Page): Promise<string[]> {
 test('simulator explains a synthetic request without contacting upstreams', async ({ page }) => {
   await signIn(page)
   await page.goto('/routing/plans')
-  await page.getByRole('link', { name: 'team-default' }).click()
+  await page.getByRole('row', { name: /team-default/ }).click()
+  // One readable sentence for the live version, then the flow per model rule.
+  await expect(page.getByText(/^Other requests go to/)).toBeVisible()
+  await expect(page.getByText('Requests for').first()).toBeVisible()
 
-  // The decision graph shows the published version's routes.
+  // The detailed decision graph shows the published version's routes.
+  await page.getByRole('button', { name: 'Detailed graph' }).click()
   const graph = page.getByRole('region', { name: 'Decision graph' })
   await expect(graph.getByRole('list', { name: 'Routes' })).toBeVisible()
   await expect(graph.getByText('claude-*')).toBeVisible()
   await expect(graph.getByText('paid fallback allowed')).toBeVisible()
 
+  await page.getByRole('tab', { name: 'Test a request' }).click()
   const sim = page.getByRole('region', { name: 'Simulator' })
   await sim.getByLabel('Requested model').fill('claude-sonnet-4')
   await choose(sim, 'Account health', 'assume_available', { exact: true })
@@ -49,7 +54,6 @@ test('simulator explains a synthetic request without contacting upstreams', asyn
 
 test('rule builder and decision table are saved, validated and simulated', async ({ page }) => {
   test.setTimeout(90_000)
-  page.on('dialog', (d) => void d.accept())
   await signIn(page)
   const suffix = Date.now().toString(36)
 
@@ -59,7 +63,7 @@ test('rule builder and decision table are saved, validated and simulated', async
   await d.getByLabel('Name', { exact: true }).fill(`rules-${suffix}`)
   await d.getByRole('button', { name: 'Save plan' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await page.getByRole('link', { name: `rules-${suffix}` }).click()
+  await page.waitForURL(/\/routing\/plans\/pln_/)
 
   await page.getByRole('button', { name: 'New draft' }).click()
   d = page.getByRole('dialog')
@@ -103,11 +107,12 @@ test('rule builder and decision table are saved, validated and simulated', async
 
   await d.getByRole('button', { name: 'Save draft' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page.getByRole('tab', { name: 'Versions' }).click()
   await page.getByRole('button', { name: 'Validate' }).first().click()
   await expect(page.getByText('Valid.')).toBeVisible()
 
   // The saved draft round-trips through the editor.
-  await page.getByRole('button', { name: 'Edit' }).click()
+  await page.getByRole('button', { name: 'Edit draft' }).click()
   d = page.getByRole('dialog')
   await d.getByRole('tab', { name: /Rules and tables/ }).click()
   await expect(d.getByRole('listitem', { name: 'Rule no-codex' }).getByLabel('When')).toHaveValue("request.harness == 'codex'")
@@ -115,11 +120,14 @@ test('rule builder and decision table are saved, validated and simulated', async
   await d.getByRole('button', { name: 'Cancel' }).click()
 
   // The decision graph counts the rules; the simulator evaluates the draft.
+  await page.getByRole('tab', { name: 'Flow' }).click()
+  await page.getByRole('button', { name: 'Detailed graph' }).click()
   const graph = page.getByRole('region', { name: 'Decision graph' })
   await expect(graph.getByText('1 request rule')).toBeVisible()
   await expect(graph.getByText('1 candidate rule')).toBeVisible()
+  await page.getByRole('tab', { name: 'Test a request' }).click()
   const sim = page.getByRole('region', { name: 'Simulator' })
-  await expect(sim.getByLabel('Plan version')).toHaveValue(/.+/)
+  await expect(sim.getByLabel('Plan version').and(sim.locator('input'))).toHaveValue(/.+/)
   await sim.getByLabel('Requested model').fill('anything')
   await choose(sim, 'Harness', 'codex')
   await sim.getByRole('button', { name: 'Run simulation' }).click()
