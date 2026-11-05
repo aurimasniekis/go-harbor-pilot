@@ -457,6 +457,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/compat/breakers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compatibility breakers */
+        get: operations["list-breakers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/compat/breakers/override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Force a breaker open or closed */
+        post: operations["override-breaker"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/compat/breakers/probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a live canary on an open breaker
+         * @description Sends one minimal synthetic request through the normal (inspected) path using an account of the provider. This is an explicitly authorized live canary; it consumes a few tokens and never replays client content.
+         */
+        post: operations["probe-breaker"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/compat/degradations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Routes currently degraded and the features lost */
+        get: operations["list-degradations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/config/effective": {
         parameters: {
             query?: never;
@@ -772,6 +843,81 @@ export interface paths {
         get: operations["history-project"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/protocol-watch/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Observed protocol changes
+         * @description An observed compatibility changelog, not an authoritative provider release history. Absence is not proof of removal.
+         */
+        get: operations["list-protocol-changes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/protocol-watch/work-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Protocol work items */
+        get: operations["list-work-items"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/protocol-watch/work-items/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a work item */
+        get: operations["get-work-item"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Triage a work item */
+        patch: operations["update-work-item"];
+        trace?: never;
+    };
+    "/protocol-watch/work-items/{id}/fixture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate a synthetic fixture from the structural diff
+         * @description Uses placeholder values only; mark it reviewed before use.
+         */
+        post: operations["generate-work-item-fixture"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2170,6 +2316,29 @@ export interface components {
             /** @description Rate-limit state derived from gateway responses. */
             observed_accounts: components["schemas"]["AccountQuotaView"][];
         };
+        BrOutBody: {
+            items: components["schemas"]["Breaker"][];
+        };
+        Breaker: {
+            key: string;
+            last_class?: string;
+            last_reason?: string;
+            /** Format: date-time */
+            opened_at: string | null;
+            /** @enum {string} */
+            override: "auto" | "force_open" | "force_closed";
+            override_reason?: string;
+            path: string;
+            provider_id: string;
+            /** Format: int64 */
+            recent_failures: number;
+            /** Format: date-time */
+            retry_at: string | null;
+            /** @enum {string} */
+            state: "closed" | "open" | "half_open";
+            /** Format: date-time */
+            updated_at: string;
+        };
         BridgeStatus: {
             binary: string;
             enabled: boolean;
@@ -2331,6 +2500,41 @@ export interface components {
             /** @enum {string} */
             status: "supported" | "partial" | "unsupported" | "unknown";
         };
+        ChOutBody: {
+            /**
+             * Format: int64
+             * @description Signals dropped under pressure; coverage is reduced when non-zero.
+             */
+            dropped: number;
+            items: components["schemas"]["Change"][];
+            /** Format: int64 */
+            processed: number;
+        };
+        Change: {
+            adapter_version: string;
+            client_harness: string;
+            client_version: string;
+            /** @enum {string} */
+            confidence: "high" | "medium" | "low";
+            /** Format: int64 */
+            count: number;
+            detail: unknown;
+            direction: string;
+            endpoint: string;
+            /** Format: date-time */
+            first_seen: string;
+            id: string;
+            /** @enum {string} */
+            impact: "breaking" | "additive" | "unknown";
+            kind: string;
+            /** Format: date-time */
+            last_seen: string;
+            path: string;
+            protocol: string;
+            provider_id: string;
+            /** @enum {string} */
+            recency: "current" | "not_observed_recently";
+        };
         CompleteInBody: {
             /** @description The code (or redirected URL) shown after approval. */
             code: string;
@@ -2443,6 +2647,13 @@ export interface components {
             resolution: string;
             rules: components["schemas"]["Trace"][];
             strategy: string;
+        };
+        DegOutBody: {
+            items: components["schemas"]["Degradation"][];
+        };
+        Degradation: {
+            breaker: components["schemas"]["Breaker"];
+            plans: components["schemas"]["PlanEffect"][];
         };
         DraftRequest: {
             document: components["schemas"]["PlanDocument"];
@@ -2941,6 +3152,14 @@ export interface components {
             scopes?: string[];
             slug: string;
         };
+        OvInBody: {
+            /** @enum {string} */
+            override: "auto" | "force_open" | "force_closed";
+            /** @description <inbound>><upstream>, e.g. anthropic_messages>anthropic_messages. */
+            path: string;
+            provider_id: string;
+            reason: string;
+        };
         PageAuditEntryDTO: {
             items: components["schemas"]["AuditEntryDTO"][];
             /** @description Present when more items are available. */
@@ -3046,7 +3265,18 @@ export interface components {
             /** @enum {string} */
             role?: "admin" | "operator" | "viewer";
         };
+        PlanCompat: {
+            /** @description masking, detailed_usage, intent_inspection, tool_statistics, traces. */
+            allowed_losses?: string[];
+            /** @enum {string} */
+            on_breaker_open?: "fail" | "passthrough";
+            /** @enum {string} */
+            unenforceable_budget?: "block" | "allow";
+            /** @enum {string} */
+            unknown_usage?: "record" | "estimate";
+        };
         PlanDocument: {
+            compatibility?: components["schemas"]["PlanCompat"];
             /** @description Alias for requests whose model matches no mapping and no alias name; empty = reject. */
             default_alias_id: string;
             engine?: unknown;
@@ -3056,6 +3286,14 @@ export interface components {
             restrictions: components["schemas"]["PlanRestrictions"];
             /** Format: int64 */
             schema_version: number;
+        };
+        PlanEffect: {
+            /** @enum {string} */
+            action: "fail" | "passthrough";
+            /** @description Features lost while degraded (pre-authorized by the plan). */
+            losses: string[];
+            name: string;
+            plan_id: string;
         };
         PlanPrivacy: {
             /** @description Privacy (masking) policy; empty = no outbound masking. */
@@ -3169,6 +3407,16 @@ export interface components {
             name: string;
             /** @description RE2 regular expression. */
             pattern: string;
+        };
+        ProbeInBody: {
+            path: string;
+            provider_id: string;
+        };
+        ProbeOutBody: {
+            breaker: components["schemas"]["Breaker"];
+            error?: string;
+            /** @enum {string} */
+            result: "succeeded" | "failed";
         };
         ProjectSpec: {
             description: string;
@@ -4252,6 +4500,9 @@ export interface components {
         WebSessionList: {
             items: components["schemas"]["WebSessionDTO"][];
         };
+        WiOutBody: {
+            items: components["schemas"]["WorkItem"][];
+        };
         WindowSpec: {
             /**
              * Format: int64
@@ -4264,6 +4515,41 @@ export interface components {
             seconds: number;
             /** @enum {string} */
             unit: "percent" | "tokens" | "requests" | "credits" | "unknown";
+        };
+        WorkItem: {
+            /** @description Action taken (e.g. passthrough activated) and features lost. */
+            action: unknown;
+            change_id: string;
+            commit_ref: string;
+            /** Format: date-time */
+            created_at: string;
+            /** @description Sanitized structural diff (no content values). */
+            diff: unknown;
+            /** @description Request ids; their content may already have expired. */
+            evidence: string[];
+            fixture?: unknown;
+            fixture_reviewed: boolean;
+            id: string;
+            issue_url: string;
+            notes: string;
+            release_ref: string;
+            /** Format: int64 */
+            revision: number;
+            routes: string[];
+            /** @enum {string} */
+            status: "new" | "acknowledged" | "investigating" | "fix_available" | "verified" | "resolved" | "ignored";
+            title: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        WorkUpdate: {
+            commit_ref?: string;
+            fixture_reviewed?: boolean;
+            issue_url?: string;
+            notes?: string;
+            release_ref?: string;
+            /** @enum {string} */
+            status?: "new" | "acknowledged" | "investigating" | "fix_available" | "verified" | "resolved" | "ignored";
         };
         WorkspaceSpec: {
             description: string;
@@ -5649,6 +5935,130 @@ export interface operations {
             };
         };
     };
+    "list-breakers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "override-breaker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OvInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Breaker"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "probe-breaker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProbeInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-degradations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DegOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "get-effective-config": {
         parameters: {
             query?: never;
@@ -6673,6 +7083,170 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-protocol-changes": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-work-items": {
+        parameters: {
+            query?: {
+                status?: "new" | "acknowledged" | "investigating" | "fix_available" | "verified" | "resolved" | "ignored" | "";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WiOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-work-item": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItem"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-work-item": {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkUpdate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItem"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "generate-work-item-fixture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItem"];
                 };
             };
             /** @description Error */

@@ -14,12 +14,14 @@ import { Route as AcceptRouteImport } from './routes/accept'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as ActivityRouteRouteImport } from './routes/activity/route'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as PrivacyRouteRouteImport } from './routes/privacy/route'
 import { Route as ProvidersRouteRouteImport } from './routes/providers/route'
 import { Route as QuotasRouteRouteImport } from './routes/quotas/route'
 import { Route as RecoverRouteImport } from './routes/recover'
 import { Route as RoutingRouteRouteImport } from './routes/routing/route'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as SetupRouteImport } from './routes/setup'
+import { Route as TracesRouteRouteImport } from './routes/traces/route'
 import { Route as UsageRouteRouteImport } from './routes/usage/route'
 import { Route as WorkspacesRouteImport } from './routes/workspaces'
 import { Route as ActivityIndexRouteImport } from './routes/activity/index'
@@ -27,6 +29,9 @@ import { Route as ActivityRequestIdRouteImport } from './routes/activity/$reques
 import { Route as ActivitySessionsRouteImport } from './routes/activity/sessions'
 import { Route as ClientsIndexRouteImport } from './routes/clients/index'
 import { Route as ClientsBindingIdRouteImport } from './routes/clients/$bindingId'
+import { Route as PrivacyIndexRouteImport } from './routes/privacy/index'
+import { Route as PrivacySandboxRouteImport } from './routes/privacy/sandbox'
+import { Route as PrivacyTracePoliciesRouteImport } from './routes/privacy/trace-policies'
 import { Route as ProvidersIndexRouteImport } from './routes/providers/index'
 import { Route as ProvidersAccountsRouteImport } from './routes/providers/accounts'
 import { Route as ProvidersPoolsRouteImport } from './routes/providers/pools'
@@ -39,6 +44,8 @@ import { Route as SettingsAuditRouteImport } from './routes/settings/audit'
 import { Route as SettingsAuthRouteImport } from './routes/settings/auth'
 import { Route as SettingsServicePrincipalsRouteImport } from './routes/settings/service-principals'
 import { Route as SettingsUsersRouteImport } from './routes/settings/users'
+import { Route as TracesIndexRouteImport } from './routes/traces/index'
+import { Route as TracesTraceIdRouteImport } from './routes/traces/$traceId'
 import { Route as UsageIndexRouteImport } from './routes/usage/index'
 import { Route as UsageBudgetsRouteImport } from './routes/usage/budgets'
 import { Route as RoutingPlansIndexRouteImport } from './routes/routing/plans/index'
@@ -69,6 +76,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRouteRoute = PrivacyRouteRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProvidersRouteRoute = ProvidersRouteRouteImport.update({
   id: '/providers',
   path: '/providers',
@@ -97,6 +109,11 @@ const SettingsRouteRoute = SettingsRouteRouteImport.update({
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
   path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TracesRouteRoute = TracesRouteRouteImport.update({
+  id: '/traces',
+  path: '/traces',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UsageRouteRoute = UsageRouteRouteImport.update({
@@ -133,6 +150,21 @@ const ClientsBindingIdRoute = ClientsBindingIdRouteImport.update({
   id: '/clients/$bindingId',
   path: '/clients/$bindingId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyIndexRoute = PrivacyIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PrivacyRouteRoute,
+} as any)
+const PrivacySandboxRoute = PrivacySandboxRouteImport.update({
+  id: '/sandbox',
+  path: '/sandbox',
+  getParentRoute: () => PrivacyRouteRoute,
+} as any)
+const PrivacyTracePoliciesRoute = PrivacyTracePoliciesRouteImport.update({
+  id: '/trace-policies',
+  path: '/trace-policies',
+  getParentRoute: () => PrivacyRouteRoute,
 } as any)
 const ProvidersIndexRoute = ProvidersIndexRouteImport.update({
   id: '/',
@@ -195,6 +227,16 @@ const SettingsUsersRoute = SettingsUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const TracesIndexRoute = TracesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => TracesRouteRoute,
+} as any)
+const TracesTraceIdRoute = TracesTraceIdRouteImport.update({
+  id: '/$traceId',
+  path: '/$traceId',
+  getParentRoute: () => TracesRouteRoute,
+} as any)
 const UsageIndexRoute = UsageIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -219,10 +261,12 @@ const RoutingPlansPlanIdRoute = RoutingPlansPlanIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRouteRouteWithChildren
+  '/privacy': typeof PrivacyRouteRouteWithChildren
   '/providers': typeof ProvidersRouteRouteWithChildren
   '/quotas': typeof QuotasRouteRouteWithChildren
   '/routing': typeof RoutingRouteRouteWithChildren
   '/settings': typeof SettingsRouteRouteWithChildren
+  '/traces': typeof TracesRouteRouteWithChildren
   '/usage': typeof UsageRouteRouteWithChildren
   '/accept': typeof AcceptRoute
   '/account': typeof AccountRoute
@@ -233,6 +277,8 @@ export interface FileRoutesByFullPath {
   '/activity/$requestId': typeof ActivityRequestIdRoute
   '/activity/sessions': typeof ActivitySessionsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
+  '/privacy/sandbox': typeof PrivacySandboxRoute
+  '/privacy/trace-policies': typeof PrivacyTracePoliciesRoute
   '/providers/accounts': typeof ProvidersAccountsRoute
   '/providers/pools': typeof ProvidersPoolsRoute
   '/providers/subscriptions': typeof ProvidersSubscriptionsRoute
@@ -241,13 +287,16 @@ export interface FileRoutesByFullPath {
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/traces/$traceId': typeof TracesTraceIdRoute
   '/usage/budgets': typeof UsageBudgetsRoute
   '/activity/': typeof ActivityIndexRoute
   '/clients/': typeof ClientsIndexRoute
+  '/privacy/': typeof PrivacyIndexRoute
   '/providers/': typeof ProvidersIndexRoute
   '/quotas/': typeof QuotasIndexRoute
   '/routing/': typeof RoutingIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/traces/': typeof TracesIndexRoute
   '/usage/': typeof UsageIndexRoute
   '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
   '/routing/plans/': typeof RoutingPlansIndexRoute
@@ -263,6 +312,8 @@ export interface FileRoutesByTo {
   '/activity/$requestId': typeof ActivityRequestIdRoute
   '/activity/sessions': typeof ActivitySessionsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
+  '/privacy/sandbox': typeof PrivacySandboxRoute
+  '/privacy/trace-policies': typeof PrivacyTracePoliciesRoute
   '/providers/accounts': typeof ProvidersAccountsRoute
   '/providers/pools': typeof ProvidersPoolsRoute
   '/providers/subscriptions': typeof ProvidersSubscriptionsRoute
@@ -271,13 +322,16 @@ export interface FileRoutesByTo {
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/traces/$traceId': typeof TracesTraceIdRoute
   '/usage/budgets': typeof UsageBudgetsRoute
   '/activity': typeof ActivityIndexRoute
   '/clients': typeof ClientsIndexRoute
+  '/privacy': typeof PrivacyIndexRoute
   '/providers': typeof ProvidersIndexRoute
   '/quotas': typeof QuotasIndexRoute
   '/routing': typeof RoutingIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/traces': typeof TracesIndexRoute
   '/usage': typeof UsageIndexRoute
   '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
   '/routing/plans': typeof RoutingPlansIndexRoute
@@ -286,10 +340,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/activity': typeof ActivityRouteRouteWithChildren
+  '/privacy': typeof PrivacyRouteRouteWithChildren
   '/providers': typeof ProvidersRouteRouteWithChildren
   '/quotas': typeof QuotasRouteRouteWithChildren
   '/routing': typeof RoutingRouteRouteWithChildren
   '/settings': typeof SettingsRouteRouteWithChildren
+  '/traces': typeof TracesRouteRouteWithChildren
   '/usage': typeof UsageRouteRouteWithChildren
   '/accept': typeof AcceptRoute
   '/account': typeof AccountRoute
@@ -300,6 +356,8 @@ export interface FileRoutesById {
   '/activity/$requestId': typeof ActivityRequestIdRoute
   '/activity/sessions': typeof ActivitySessionsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
+  '/privacy/sandbox': typeof PrivacySandboxRoute
+  '/privacy/trace-policies': typeof PrivacyTracePoliciesRoute
   '/providers/accounts': typeof ProvidersAccountsRoute
   '/providers/pools': typeof ProvidersPoolsRoute
   '/providers/subscriptions': typeof ProvidersSubscriptionsRoute
@@ -308,13 +366,16 @@ export interface FileRoutesById {
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/traces/$traceId': typeof TracesTraceIdRoute
   '/usage/budgets': typeof UsageBudgetsRoute
   '/activity/': typeof ActivityIndexRoute
   '/clients/': typeof ClientsIndexRoute
+  '/privacy/': typeof PrivacyIndexRoute
   '/providers/': typeof ProvidersIndexRoute
   '/quotas/': typeof QuotasIndexRoute
   '/routing/': typeof RoutingIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/traces/': typeof TracesIndexRoute
   '/usage/': typeof UsageIndexRoute
   '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
   '/routing/plans/': typeof RoutingPlansIndexRoute
@@ -324,10 +385,12 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/activity'
+    | '/privacy'
     | '/providers'
     | '/quotas'
     | '/routing'
     | '/settings'
+    | '/traces'
     | '/usage'
     | '/accept'
     | '/account'
@@ -338,6 +401,8 @@ export interface FileRouteTypes {
     | '/activity/$requestId'
     | '/activity/sessions'
     | '/clients/$bindingId'
+    | '/privacy/sandbox'
+    | '/privacy/trace-policies'
     | '/providers/accounts'
     | '/providers/pools'
     | '/providers/subscriptions'
@@ -346,13 +411,16 @@ export interface FileRouteTypes {
     | '/settings/auth'
     | '/settings/service-principals'
     | '/settings/users'
+    | '/traces/$traceId'
     | '/usage/budgets'
     | '/activity/'
     | '/clients/'
+    | '/privacy/'
     | '/providers/'
     | '/quotas/'
     | '/routing/'
     | '/settings/'
+    | '/traces/'
     | '/usage/'
     | '/routing/plans/$planId'
     | '/routing/plans/'
@@ -368,6 +436,8 @@ export interface FileRouteTypes {
     | '/activity/$requestId'
     | '/activity/sessions'
     | '/clients/$bindingId'
+    | '/privacy/sandbox'
+    | '/privacy/trace-policies'
     | '/providers/accounts'
     | '/providers/pools'
     | '/providers/subscriptions'
@@ -376,13 +446,16 @@ export interface FileRouteTypes {
     | '/settings/auth'
     | '/settings/service-principals'
     | '/settings/users'
+    | '/traces/$traceId'
     | '/usage/budgets'
     | '/activity'
     | '/clients'
+    | '/privacy'
     | '/providers'
     | '/quotas'
     | '/routing'
     | '/settings'
+    | '/traces'
     | '/usage'
     | '/routing/plans/$planId'
     | '/routing/plans'
@@ -390,10 +463,12 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/activity'
+    | '/privacy'
     | '/providers'
     | '/quotas'
     | '/routing'
     | '/settings'
+    | '/traces'
     | '/usage'
     | '/accept'
     | '/account'
@@ -404,6 +479,8 @@ export interface FileRouteTypes {
     | '/activity/$requestId'
     | '/activity/sessions'
     | '/clients/$bindingId'
+    | '/privacy/sandbox'
+    | '/privacy/trace-policies'
     | '/providers/accounts'
     | '/providers/pools'
     | '/providers/subscriptions'
@@ -412,13 +489,16 @@ export interface FileRouteTypes {
     | '/settings/auth'
     | '/settings/service-principals'
     | '/settings/users'
+    | '/traces/$traceId'
     | '/usage/budgets'
     | '/activity/'
     | '/clients/'
+    | '/privacy/'
     | '/providers/'
     | '/quotas/'
     | '/routing/'
     | '/settings/'
+    | '/traces/'
     | '/usage/'
     | '/routing/plans/$planId'
     | '/routing/plans/'
@@ -427,10 +507,12 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityRouteRoute: typeof ActivityRouteRouteWithChildren
+  PrivacyRouteRoute: typeof PrivacyRouteRouteWithChildren
   ProvidersRouteRoute: typeof ProvidersRouteRouteWithChildren
   QuotasRouteRoute: typeof QuotasRouteRouteWithChildren
   RoutingRouteRoute: typeof RoutingRouteRouteWithChildren
   SettingsRouteRoute: typeof SettingsRouteRouteWithChildren
+  TracesRouteRoute: typeof TracesRouteRouteWithChildren
   UsageRouteRoute: typeof UsageRouteRouteWithChildren
   AcceptRoute: typeof AcceptRoute
   AccountRoute: typeof AccountRoute
@@ -479,6 +561,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/providers': {
       id: '/providers'
       path: '/providers'
@@ -519,6 +608,13 @@ declare module '@tanstack/react-router' {
       path: '/setup'
       fullPath: '/setup'
       preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/traces': {
+      id: '/traces'
+      path: '/traces'
+      fullPath: '/traces'
+      preLoaderRoute: typeof TracesRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/usage': {
@@ -569,6 +665,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/clients/$bindingId'
       preLoaderRoute: typeof ClientsBindingIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/privacy/': {
+      id: '/privacy/'
+      path: '/'
+      fullPath: '/privacy/'
+      preLoaderRoute: typeof PrivacyIndexRouteImport
+      parentRoute: typeof PrivacyRouteRoute
+    }
+    '/privacy/sandbox': {
+      id: '/privacy/sandbox'
+      path: '/sandbox'
+      fullPath: '/privacy/sandbox'
+      preLoaderRoute: typeof PrivacySandboxRouteImport
+      parentRoute: typeof PrivacyRouteRoute
+    }
+    '/privacy/trace-policies': {
+      id: '/privacy/trace-policies'
+      path: '/trace-policies'
+      fullPath: '/privacy/trace-policies'
+      preLoaderRoute: typeof PrivacyTracePoliciesRouteImport
+      parentRoute: typeof PrivacyRouteRoute
     }
     '/providers/': {
       id: '/providers/'
@@ -654,6 +771,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsUsersRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/traces/': {
+      id: '/traces/'
+      path: '/'
+      fullPath: '/traces/'
+      preLoaderRoute: typeof TracesIndexRouteImport
+      parentRoute: typeof TracesRouteRoute
+    }
+    '/traces/$traceId': {
+      id: '/traces/$traceId'
+      path: '/$traceId'
+      fullPath: '/traces/$traceId'
+      preLoaderRoute: typeof TracesTraceIdRouteImport
+      parentRoute: typeof TracesRouteRoute
+    }
     '/usage/': {
       id: '/usage/'
       path: '/'
@@ -699,6 +830,22 @@ const ActivityRouteRouteChildren: ActivityRouteRouteChildren = {
 
 const ActivityRouteRouteWithChildren = ActivityRouteRoute._addFileChildren(
   ActivityRouteRouteChildren,
+)
+
+interface PrivacyRouteRouteChildren {
+  PrivacySandboxRoute: typeof PrivacySandboxRoute
+  PrivacyTracePoliciesRoute: typeof PrivacyTracePoliciesRoute
+  PrivacyIndexRoute: typeof PrivacyIndexRoute
+}
+
+const PrivacyRouteRouteChildren: PrivacyRouteRouteChildren = {
+  PrivacySandboxRoute: PrivacySandboxRoute,
+  PrivacyTracePoliciesRoute: PrivacyTracePoliciesRoute,
+  PrivacyIndexRoute: PrivacyIndexRoute,
+}
+
+const PrivacyRouteRouteWithChildren = PrivacyRouteRoute._addFileChildren(
+  PrivacyRouteRouteChildren,
 )
 
 interface ProvidersRouteRouteChildren {
@@ -769,6 +916,20 @@ const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(
   SettingsRouteRouteChildren,
 )
 
+interface TracesRouteRouteChildren {
+  TracesTraceIdRoute: typeof TracesTraceIdRoute
+  TracesIndexRoute: typeof TracesIndexRoute
+}
+
+const TracesRouteRouteChildren: TracesRouteRouteChildren = {
+  TracesTraceIdRoute: TracesTraceIdRoute,
+  TracesIndexRoute: TracesIndexRoute,
+}
+
+const TracesRouteRouteWithChildren = TracesRouteRoute._addFileChildren(
+  TracesRouteRouteChildren,
+)
+
 interface UsageRouteRouteChildren {
   UsageBudgetsRoute: typeof UsageBudgetsRoute
   UsageIndexRoute: typeof UsageIndexRoute
@@ -786,10 +947,12 @@ const UsageRouteRouteWithChildren = UsageRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRouteRoute: ActivityRouteRouteWithChildren,
+  PrivacyRouteRoute: PrivacyRouteRouteWithChildren,
   ProvidersRouteRoute: ProvidersRouteRouteWithChildren,
   QuotasRouteRoute: QuotasRouteRouteWithChildren,
   RoutingRouteRoute: RoutingRouteRouteWithChildren,
   SettingsRouteRoute: SettingsRouteRouteWithChildren,
+  TracesRouteRoute: TracesRouteRouteWithChildren,
   UsageRouteRoute: UsageRouteRouteWithChildren,
   AcceptRoute: AcceptRoute,
   AccountRoute: AccountRoute,

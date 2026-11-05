@@ -1,0 +1,134 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.group {
+  display: grid;
+  gap: 6px 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+}
+
+.detector {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.detectorRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hint {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  margin-left: 24px;
+}
+
+.actionSelect {
+  font-size: var(--text-xs);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.sample {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.mark {
+  border-radius: 3px;
+  padding: 0 2px;
+  outline: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+}
+
+.mark[data-action='mask'] {
+  background: var(--info-soft);
+}
+
+.mark[data-action='block'] {
+  background: var(--error-soft);
+}
+
+.mark[data-action='warn'] {
+  background: var(--warning-soft);
+}
+
+.mark[data-action='allow'] {
+  background: var(--success-soft);
+}
+
+.markLabel {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  vertical-align: super;
+  margin-left: 2px;
+}
+
+.twoCol {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+}
+
+.textarea {
+  font-family: var(--font-mono);
+  min-height: 180px;
+}
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.message {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-sunken);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.partText {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+}
+
+.snippet {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}

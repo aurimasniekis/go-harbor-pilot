@@ -7,6 +7,7 @@ import { Badge, Banner, Button, EmptyState, KeyValues, Panel, Skeleton, TableScr
 import { QueryError } from '@/components/states'
 import { BillingBadge } from '@/components/ResourceBadges'
 import { Replay } from '@/features/routing/Replay'
+import { PrivacySummaryPanel, TraceLink } from '@/features/privacy/PrivacySummaryPanel'
 import { CandidateTable, ExclusionTable, RuleTraceTable } from '@/features/routing/DecisionParts'
 import { ApiError } from '@/lib/api/client'
 import { requestQuery, resourceListQuery } from '@/lib/api/queries'
@@ -139,6 +140,7 @@ function RequestView() {
           {r.status === 'blocked' && (d.excluded?.length ?? 0) > 0 && ' — see Excluded candidates below for the reasons.'}
         </Banner>
       )}
+      <TraceLink requestId={r.id} />
       <div style={{ display: 'grid', gap: 'var(--space-4)', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
         <TrustedContext r={r} names={names} />
         <Panel title="Client claims (untrusted)" subtitle="Hints sent by the client. They are recorded for context and never authorize anything, raise limits or select accounts.">
@@ -190,6 +192,7 @@ function RequestView() {
           )}
         </Panel>
       </div>
+      <PrivacySummaryPanel privacy={r.privacy} />
       <Accounting ledger={r.ledger} names={names} />
     </>
   )

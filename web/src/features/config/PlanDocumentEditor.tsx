@@ -4,7 +4,9 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { Banner, Button, Tabs } from '@/components/ui'
 import { Checkbox, Dialog, MutationError, SelectField, TextField, formStyles as f } from '@/components/form'
 import { resourceListQuery } from '@/lib/api/queries'
-import type { AliasRes, FieldErrorDTO, ModelMapping, PlanDocument, ProviderRes } from '@/lib/api/types'
+import type { AliasRes, FieldErrorDTO, ModelMapping, PlanDocument, PrivacyPolicyRes, ProviderRes, TracePolicyRes } from '@/lib/api/types'
+import { Link } from '@tanstack/react-router'
+import { traceModes } from '@/features/privacy/privacy'
 import { EngineEditor } from '@/features/routing/EngineEditor'
 import { parseEngine, serializeEngine } from '@/features/routing/engine'
 import { billingClasses, capabilities, classifications, fallbackSteps, toInt, toggle } from './constants'
@@ -55,9 +57,15 @@ export function PlanDocumentEditor({ title, initial, note: initialNote, busy, er
   const [note, setNote] = useState(initialNote)
   const [engine, setEngine] = useState(() => parseEngine(initial.engine))
   const engineErrors = validationErrors.filter((e) => e.location.startsWith('body.document.engine'))
-  const [tab, setTab] = useState<'routing' | 'rules'>(engineErrors.length > 0 ? 'rules' : 'routing')
+  const privacyErrors = validationErrors.filter((e) => e.location.startsWith('body.document.privacy'))
+  const [tab, setTab] = useState<'routing' | 'rules' | 'privacy'>(engineErrors.length > 0 ? 'rules' : privacyErrors.length > 0 ? 'privacy' : 'routing')
+  const privacyPolicies = useQuery(resourceListQuery<PrivacyPolicyRes>('privacy-policies'))
+  const tracePolicies = useQuery(resourceListQuery<TracePolicyRes>('trace-policies'))
+  const priv = doc.privacy ?? { policy_id: '', trace_policy_id: '' }
+  const selectedTrace = (tracePolicies.data?.items ?? []).find((t) => t.id === priv.trace_policy_id)
   const save = () => {
     const out: PlanDocument = { ...doc }
+    if (!out.privacy?.policy_id && !out.privacy?.trace_policy_id) delete out.privacy
     const e = serializeEngine(engine)
     if (e) out.engine = e
     else delete out.engine
@@ -85,9 +93,32 @@ export function PlanDocumentEditor({ title, initial, note: initialNote, busy, er
         items={[
           { value: 'routing', label: 'Models and fallback' },
           { value: 'rules', label: 'Rules and tables', count: engine.rules.length + engine.tables.length },
+          { value: 'privacy', label: 'Privacy' },
         ]} />
       {tab === 'rules' ? (
         <EngineEditor value={engine} onChange={setEngine} errors={engineErrors} />
+      ) : tab === 'privacy' ? (
+        <>
+          <p className="secondary">
+            Masking and content capture are independent. Manage policies under <Link to="/privacy" style={{ textDecoration: 'underline' }}>Privacy</Link>.
+          </p>
+          {privacyErrors.map((e) => (
+            <Banner key={e.location} tone="error">{e.message}</Banner>
+          ))}
+          <div className={f.grid}>
+            <SelectField label="Masking policy" value={priv.policy_id ?? ''} onChange={(v) => setDoc({ ...doc, privacy: { ...priv, policy_id: v } })}
+              hint="Masks credentials and other sensitive values before requests leave the gateway."
+              options={[{ value: '', label: 'None — no outbound masking' }, ...(privacyPolicies.data?.items ?? []).map((x) => ({ value: x.id, label: x.name }))]} />
+            <SelectField label="Trace policy" value={priv.trace_policy_id ?? ''} onChange={(v) => setDoc({ ...doc, privacy: { ...priv, trace_policy_id: v } })}
+              hint="Captures short-lived, encrypted content. Off unless selected."
+              options={[{ value: '', label: 'None — no content capture' }, ...(tracePolicies.data?.items ?? []).map((x) => ({ value: x.id, label: x.name }))]} />
+          </div>
+          {selectedTrace && (
+            <Banner tone={selectedTrace.spec.mode === 'unredacted' ? 'warning' : 'info'}>
+              {traceModes.find((m) => m.value === selectedTrace.spec.mode)?.hint}
+            </Banner>
+          )}
+        </>
       ) : (
         <>
 

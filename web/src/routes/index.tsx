@@ -10,6 +10,7 @@ import type { Effective } from '@/lib/api/types'
 import { fmtDateTime } from '@/lib/format'
 import { ActivitySummaryPanel } from '@/features/activity/ActivityPanels'
 import { QuotaBudgetPanel } from '@/features/quota/OverviewPanel'
+import { BridgesPanel } from '@/features/config/BridgesPanel'
 
 export const Route = createFileRoute('/')({
   component: Overview,
@@ -144,6 +145,7 @@ function Overview() {
         {canActivity && <ActivitySummaryPanel />}
         {canUsage && <QuotaBudgetPanel />}
         {canConfig && <ConfigurationPanel eff={eff} />}
+        {canConfig && <BridgesPanel />}
         {isAdmin && (
           <Panel title="Getting started" subtitle="Secure access before connecting clients and providers.">
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>

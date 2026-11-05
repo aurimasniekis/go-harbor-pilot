@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { apiGet } from './client'
-import type { BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummary, ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
+import type { BridgeStatus, TraceContent, TraceHit, TraceMeta, BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummary, ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
 
 export const qk = {
   session: ['session'] as const,
@@ -89,6 +89,8 @@ export type ResourcePlural =
   | 'client-bindings'
   | 'quota-monitors'
   | 'budgets'
+  | 'privacy-policies'
+  | 'trace-policies'
 
 export const resourceKey = (plural: ResourcePlural) => ['resources', plural] as const
 
@@ -229,5 +231,47 @@ export const reconciliationQuery = (days: number) =>
 export const budgetStatusQuery = queryOptions({
   queryKey: ['budgets', 'status'],
   queryFn: ({ signal }) => apiGet<{ items: BudgetUsage[] }>('/budgets/status', undefined, signal),
+  refetchInterval: 60_000,
+})
+
+// ---------- privacy, traces and bridges ----------
+export interface TraceFilter {
+  request_id?: string
+  session_id?: string
+  binding_id?: string
+}
+
+export interface TraceList {
+  items: TraceMeta[]
+  dropped: number
+  over_quota: number
+}
+
+export const tracesQuery = (f: TraceFilter) =>
+  queryOptions({
+    queryKey: ['traces', 'list', f],
+    queryFn: ({ signal }) => apiGet<TraceList>('/traces', { limit: 200, ...f }, signal),
+  })
+
+export const traceQuery = (id: string) =>
+  queryOptions({
+    queryKey: ['traces', 'content', id],
+    queryFn: ({ signal }) => apiGet<TraceContent>(`/traces/${encodeURIComponent(id)}`, undefined, signal),
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+  })
+
+export const traceSearchQuery = (q: string) =>
+  queryOptions({
+    queryKey: ['traces', 'search', q],
+    queryFn: ({ signal }) => apiGet<{ items: TraceHit[] }>('/traces/search', { q, limit: 50 }, signal),
+    retry: false,
+    gcTime: 0,
+  })
+
+export const bridgesQuery = queryOptions({
+  queryKey: ['system', 'bridges'],
+  queryFn: ({ signal }) => apiGet<{ items: BridgeStatus[] }>('/system/bridges', undefined, signal),
   refetchInterval: 60_000,
 })
