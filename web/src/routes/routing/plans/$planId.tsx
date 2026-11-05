@@ -3,7 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, FilePlus2, History, Pencil, Rocket, ShieldCheck, Trash2 } from 'lucide-react'
 import { Badge, Banner, Button, KeyValues, Panel, Skeleton, TableScroll, type Tone } from '@/components/ui'
-import { MutationError, SelectField } from '@/components/form'
+import { MutationError, SelectField, ConfirmButton } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { ResourceBadges } from '@/components/ResourceBadges'
 import { PlanDocumentEditor, defaultDocument } from '@/features/config/PlanDocumentEditor'
@@ -215,21 +215,21 @@ function PlanDetail() {
                             onClick={() => setEditing({ version: v, doc: v.document, note: v.note, errors: report?.id === v.id ? report.r.errors : storedErrors(v) })}>
                             Edit
                           </Button>
-                          <Button size="small" variant="ghost" icon={Trash2} aria-label={`Discard draft v${v.version}`}
-                            onClick={() => window.confirm(`Discard draft v${v.version}?`) && discard.mutate(v.id)} />
+                          <ConfirmButton size="small" icon={Trash2} label={`Discard draft v${v.version}`} title={`Discard draft v${v.version}?`}
+                            message="The draft and its changes are deleted." confirmLabel="Discard" onConfirm={() => discard.mutate(v.id)} />
                         </>
                       )}
                       {v.status === 'draft' && canPublish && (
-                        <Button size="small" variant="primary" icon={Rocket} busy={publish.isPending}
-                          onClick={() => window.confirm(`Publish v${v.version}? It becomes active for every client using this plan.`) && publish.mutate(v.id)}>
+                        <ConfirmButton size="small" variant="primary" danger={false} icon={Rocket} busy={publish.isPending} title={`Publish v${v.version}?`}
+                          message="It becomes active immediately for every client using this plan." confirmLabel="Publish" onConfirm={() => publish.mutate(v.id)}>
                           Publish
-                        </Button>
+                        </ConfirmButton>
                       )}
                       {v.status === 'superseded' && canPublish && (
-                        <Button size="small" variant="ghost" icon={History} busy={rollback.isPending}
-                          onClick={() => window.confirm(`Roll back to v${v.version}? A new version copying it will be published.`) && rollback.mutate(v.id)}>
+                        <ConfirmButton size="small" danger={false} icon={History} busy={rollback.isPending} title={`Roll back to v${v.version}?`}
+                          message="A new version copying it is published and becomes active immediately." confirmLabel="Roll back" onConfirm={() => rollback.mutate(v.id)}>
                           Roll back
-                        </Button>
+                        </ConfirmButton>
                       )}
                     </td>
                   </tr>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, LogIn, LogOut } from 'lucide-react'
 import { Badge, Banner, Button, Panel, TableScroll, TierBadge } from '@/components/ui'
-import { Dialog, Field, MutationError, formStyles as f } from '@/components/form'
+import { Dialog, Field, MutationError, formStyles as f, ConfirmButton } from '@/components/form'
 import { QueryError } from '@/components/states'
 import { apiSend } from '@/lib/api/client'
 import { quotaLoginsQuery } from '@/lib/api/queries'
@@ -140,10 +140,11 @@ export function LoginPanel() {
                     <>
                       <Button size="small" icon={LogIn} onClick={() => setActive(l)}>{l.signed_in ? 'Sign in again' : 'Sign in'}</Button>{' '}
                       {l.signed_in && (
-                        <Button size="small" variant="ghost" icon={LogOut} busy={logout.isPending && logout.variables === l.monitor_id}
-                          onClick={() => window.confirm(`Remove the stored token for ${l.name}?`) && logout.mutate(l.monitor_id)}>
+                        <ConfirmButton size="small" icon={LogOut} busy={logout.isPending && logout.variables === l.monitor_id}
+                          title={`Sign out of ${l.name}?`} message="The stored sign-in token is removed. Quota tracking stops until someone signs in again."
+                          confirmLabel="Sign out" onConfirm={() => logout.mutate(l.monitor_id)}>
                           Sign out
-                        </Button>
+                        </ConfirmButton>
                       )}
                     </>
                   )}

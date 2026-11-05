@@ -1,8 +1,10 @@
 .field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   min-width: 0;
+}
+
+.field textarea,
+.field input:not([type='checkbox']):not([type='radio']) {
+  margin-top: 4px;
 }
 
 .label {
@@ -21,14 +23,24 @@
   color: var(--error-text);
 }
 
+/* Raw textareas inside <Field>, styled like Mantine inputs. */
 .textarea {
+  display: block;
+  width: 100%;
   min-height: 84px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+  padding: 8px 12px;
+  border-radius: var(--mantine-radius-md);
+  border: 1px solid var(--mantine-color-default-border);
   background: var(--surface-sunken);
   color: var(--text);
+  font-size: var(--mantine-font-size-sm);
+  line-height: 1.5;
   resize: vertical;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .grid {
@@ -51,57 +63,30 @@
   flex-wrap: wrap;
 }
 
-.dialog {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  color: var(--text);
-  padding: 0;
-  width: min(560px, calc(100vw - 32px));
-  max-height: calc(100vh - 48px);
-}
-
-.dialogWide {
-  width: min(880px, calc(100vw - 32px));
-}
-
-.dialog::backdrop {
-  background: var(--overlay);
-}
-
-.dialogHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--border);
+.dialogTitle {
+  font-size: var(--text-lg);
+  font-weight: 600;
 }
 
 .dialogBody {
-  padding: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  overflow-y: auto;
+  padding-top: var(--space-2);
+}
+
+.advanced {
+  margin-top: var(--space-1);
 }
 
 .secret {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px dashed var(--accent);
-  background: var(--surface-sunken);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
-.secret code {
+.secretValue {
   flex: 1;
   min-width: 0;
+  padding: 8px 10px;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+  border: 1px dashed var(--accent);
 }
 
 .authPage {

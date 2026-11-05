@@ -3,16 +3,17 @@ import { Badge, Banner, type Tone } from './ui'
 import type { ResourceMeta } from '@/lib/api/types'
 import { fmtDateTime } from '@/lib/format'
 
-/** Who manages a resource; Terraform-managed objects are highlighted. */
+/**
+ * Who manages a resource. Only Terraform ownership is worth a badge; UI, API
+ * and demo changes are the default and show nothing.
+ */
 export function ManagedByBadge({ managedBy }: { managedBy: string }) {
-  if (managedBy === 'terraform') {
-    return (
-      <Badge tone="purple" icon={Boxes} title="Managed by Terraform">
-        Terraform
-      </Badge>
-    )
-  }
-  return <Badge title={`Last changed via ${managedBy}`}>{managedBy}</Badge>
+  if (managedBy !== 'terraform') return null
+  return (
+    <Badge tone="purple" icon={Boxes} title="Managed by Terraform: edits here are reverted by the next apply.">
+      Terraform
+    </Badge>
+  )
 }
 
 export function DriftBadge({ r }: { r: Pick<ResourceMeta, 'drift_state' | 'drifted_at' | 'drifted_by'> }) {
@@ -28,8 +29,9 @@ export function DriftBadge({ r }: { r: Pick<ResourceMeta, 'drift_state' | 'drift
   )
 }
 
-/** Managed-by + drift badges for a list row. */
+/** Terraform + drift badges for a list row (nothing for the default case). */
 export function ResourceBadges({ r }: { r: ResourceMeta }) {
+  if (r.managed_by !== 'terraform' && r.drift_state !== 'drifted') return null
   return (
     <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
       <ManagedByBadge managedBy={r.managed_by} />
@@ -49,6 +51,8 @@ export function TerraformEditWarning({ r }: { r?: ResourceMeta | null }) {
   )
 }
 
+const classificationLabel: Record<string, string> = { official: 'Cloud', partial: 'Partial', unofficial: 'Unofficial', local: 'Local' }
+
 const classificationTone: Record<string, Tone> = { official: 'neutral', partial: 'info', unofficial: 'warning', local: 'purple' }
 
 export function ClassificationBadge({ value }: { value: string }) {
@@ -60,7 +64,7 @@ export function ClassificationBadge({ value }: { value: string }) {
   }
   return (
     <Badge tone={classificationTone[value] ?? 'neutral'} title={title[value]}>
-      {value || 'default'}
+      {classificationLabel[value] ?? (value || 'Default')}
     </Badge>
   )
 }

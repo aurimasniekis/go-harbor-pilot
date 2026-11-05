@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useId, useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   ActionIcon,
@@ -29,11 +29,27 @@ export function useCompact(): boolean {
  * The one header row of a page: title, an optional short context line, and
  * actions (time range, primary button) on the right.
  */
-export function PageHeader({ title, context, actions }: { title: ReactNode; context?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({ title, context, actions, info, breadcrumb }: {
+  title: ReactNode
+  context?: ReactNode
+  actions?: ReactNode
+  /** Help text shown in a tooltip beside the title. */
+  info?: ReactNode
+  /** Small line above the title (breadcrumbs). */
+  breadcrumb?: ReactNode
+}) {
   return (
     <div className={s.pageHeader}>
       <div className={s.pageTitle}>
-        <Title order={1}>{title}</Title>
+        {breadcrumb && (
+          <Text size="sm" c="dimmed" className={s.context}>
+            {breadcrumb}
+          </Text>
+        )}
+        <Group gap={6} wrap="nowrap" miw={0}>
+          <Title order={1}>{title}</Title>
+          {info && <InfoTip>{info}</InfoTip>}
+        </Group>
         {context && (
           <Text size="sm" c="dimmed" className={s.context}>
             {context}
@@ -76,11 +92,13 @@ export function Section({
   children: ReactNode
   id?: string
 }) {
+  const auto = useId()
+  const headingId = id ? `${id}-title` : auto
   return (
-    <section className={s.section} aria-labelledby={id}>
+    <section className={s.section} aria-labelledby={headingId} id={id}>
       <Group justify="space-between" gap="sm" wrap="wrap" className={s.sectionHead}>
         <Group gap={6} wrap="nowrap">
-          <Title order={2} id={id}>
+          <Title order={2} id={headingId}>
             {title}
           </Title>
           {info && <InfoTip>{info}</InfoTip>}

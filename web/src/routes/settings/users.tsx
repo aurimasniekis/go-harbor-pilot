@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { KeyRound, LogOut, Pencil, Trash2, UserPlus } from 'lucide-react'
 import { Badge, Button, EmptyState, Panel, TableScroll } from '@/components/ui'
-import { Checkbox, Dialog, MutationError, SecretOnce, SelectField, TextField, formStyles as f } from '@/components/form'
+import { Checkbox, Dialog, MutationError, SecretOnce, SelectField, TextField, formStyles as f, ConfirmButton } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { apiSend } from '@/lib/api/client'
 import { qk, sessionQuery, usersQuery } from '@/lib/api/queries'
@@ -90,8 +90,8 @@ function Users() {
                     <Button size="small" variant="ghost" icon={KeyRound} aria-label={`Issue password reset for ${u.email}`} onClick={() => reset.mutate(u.id)} />
                     <Button size="small" variant="ghost" icon={LogOut} aria-label={`Sign out ${u.email} everywhere`} onClick={() => revoke.mutate(u.id)} />
                     {u.id !== me?.id && (
-                      <Button size="small" variant="ghost" icon={Trash2} aria-label={`Delete ${u.email}`}
-                        onClick={() => window.confirm(`Delete ${u.email}? This cannot be undone.`) && del.mutate(u.id)} />
+                      <ConfirmButton size="small" icon={Trash2} label={`Delete ${u.email}`} title={`Remove ${u.email}?`}
+                        message="They are signed out everywhere and can no longer sign in. This cannot be undone." confirmLabel="Remove" onConfirm={() => del.mutate(u.id)} />
                     )}
                   </td>
                 </tr>

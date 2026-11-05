@@ -1,3 +1,4 @@
+import { Select } from '@mantine/core'
 import { useState } from 'react'
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react'
 import { Banner, Button } from '@/components/ui'
@@ -32,21 +33,25 @@ function DetectorGroup({ legend, items, selected, onSelected, actions, onActions
               <div className={p.detectorRow}>
                 <Checkbox label={d.label} checked={on} onChange={(v) => onSelected(toggle(selected, d.id, v))} />
                 {on && (
-                  <select
-                    className={p.actionSelect}
+                  <Select
+                    size="xs"
+                    w={110}
                     aria-label={`Action for ${d.label}`}
                     value={actions[d.id] ?? defaultAction}
-                    onChange={(e) => {
+                    allowDeselect={false}
+                    onChange={(v) => {
+                      if (!v) return
                       const next = { ...actions }
-                      if (e.target.value === defaultAction) delete next[d.id]
-                      else next[d.id] = e.target.value
+                      if (v === defaultAction) delete next[d.id]
+                      else next[d.id] = v
                       onActions(next)
                     }}
-                  >
-                    <option value="mask">mask</option>
-                    <option value="block">block</option>
-                    <option value="warn">warn</option>
-                  </select>
+                    data={[
+                      { value: 'mask', label: 'Mask' },
+                      { value: 'block', label: 'Block' },
+                      { value: 'warn', label: 'Warn' },
+                    ]}
+                  />
                 )}
               </div>
               {d.hint && <span className={p.hint}>{d.hint}</span>}

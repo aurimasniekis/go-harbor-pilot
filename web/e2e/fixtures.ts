@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from '@playwright/test'
+import { test as base, expect, type Locator, type Page } from '@playwright/test'
 
 const allowed = new WeakMap<Page, RegExp[]>()
 
@@ -34,7 +34,7 @@ export const DEMO_ADMIN = { email: 'admin@example.test', password: 'harbor-pilot
 export async function signIn(page: Page, who = DEMO_ADMIN): Promise<void> {
   await page.goto('/login')
   await page.getByLabel('Email').fill(who.email)
-  await page.getByLabel('Password').fill(who.password)
+  await page.getByLabel('Password', { exact: true }).fill(who.password)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await page.waitForURL((u) => !u.pathname.startsWith('/login'))
 }
@@ -46,3 +46,40 @@ export const ADMIN_PAGES = [
   '/compatibility', '/compatibility/watch', '/compatibility/work-items', '/events', '/events/catalog', '/events/destinations',
   '/notifications', '/notifications/rules', '/notifications/history', '/workspaces', '/settings/users', '/settings/service-principals', '/settings/auth', '/settings/audit', '/settings/system',
 ]
+
+/**
+ * Picks an option in a Mantine Select labelled `label` inside `scope`.
+ * `option` is the option value, or `{ label }` to match the visible text.
+ */
+export async function choose(
+  scope: Page | Locator,
+  label: string | RegExp,
+  option: string | { label: string | RegExp },
+  opts: { exact?: boolean } = {},
+): Promise<void> {
+  const page = isPage(scope) ? scope : scope.page()
+  // The label also names the (closed) listbox; target the input.
+  await scope.getByLabel(label, { exact: opts.exact }).and(scope.locator('input:not([type="hidden"])')).first().click()
+  const list = page.getByRole('listbox')
+  const opt =
+    typeof option === 'string'
+      ? list.locator(`[role="option"][value="${option}"]`)
+      : list.getByRole('option', { name: option.label, exact: typeof option.label === 'string' })
+  await opt.first().click()
+}
+
+function isPage(x: Page | Locator): x is Page {
+  return typeof (x as Page).goto === 'function'
+}
+
+/** Opens a row's "⋯" menu and runs an item ("Edit", "Delete", …). */
+export async function rowAction(page: Page, name: string, item: string): Promise<void> {
+  await page.getByRole('button', { name: `Actions for ${name}`, exact: true }).click()
+  await page.getByRole('menuitem', { name: new RegExp(`^${item}`) }).click()
+}
+
+/** Deletes a row through its menu and confirms. */
+export async function deleteRow(page: Page, name: string): Promise<void> {
+  await rowAction(page, name, 'Delete')
+  await page.getByRole('dialog').getByRole('button', { name: /^(Delete|Remove|Revoke|Discard)$/ }).click()
+}

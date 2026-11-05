@@ -1,10 +1,18 @@
+import { type ComponentPropsWithoutRef, type ReactNode, useId } from 'react'
 import {
-  type ButtonHTMLAttributes,
-  type KeyboardEvent,
-  type ReactNode,
-  useId,
-  useRef,
-} from 'react'
+  ActionIcon,
+  Alert,
+  Badge as MBadge,
+  Button as MButton,
+  Group,
+  Paper,
+  Skeleton as MSkeleton,
+  Stack,
+  Tabs as MTabs,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -14,7 +22,6 @@ import {
   HelpCircle,
   Info,
   KeyRound,
-  Loader2,
   type LucideIcon,
   OctagonAlert,
   PauseCircle,
@@ -24,24 +31,31 @@ import {
 import s from './ui.module.css'
 import type { Availability, Health, Tier } from '@/lib/api/types'
 import { fmtPercent, isKnown } from '@/lib/format'
+import { Empty, InfoTip as KitInfoTip, Fields } from '@/ui/kit'
+
+/*
+ * Shared primitives on Mantine. The exported API predates the Mantine
+ * rebuild; screens keep using it while each page is restructured.
+ */
 
 export type Tone = 'neutral' | 'success' | 'info' | 'warning' | 'error' | 'purple' | 'accent'
 
-const toneClass: Record<Tone, string | undefined> = {
-  neutral: s['tone-neutral'],
-  success: s['tone-success'],
-  info: s['tone-info'],
-  warning: s['tone-warning'],
-  error: s['tone-error'],
-  purple: s['tone-purple'],
-  accent: s['tone-accent'],
+/** Mantine palette name for a tone (see theme/theme.ts). */
+export const toneColor: Record<Tone, string> = {
+  neutral: 'gray',
+  success: 'green',
+  info: 'teal',
+  warning: 'yellow',
+  error: 'red',
+  purple: 'violet',
+  accent: 'blue',
 }
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ')
 }
 
-/** Badge always pairs color with an icon and a text label. */
+/** Badge pairs color with a text label (and optionally an icon). */
 export function Badge({ tone = 'neutral', icon: Icon, children, title }: {
   tone?: Tone
   icon?: LucideIcon
@@ -49,24 +63,24 @@ export function Badge({ tone = 'neutral', icon: Icon, children, title }: {
   title?: string
 }) {
   return (
-    <span className={cx(s.badge, toneClass[tone])} title={title}>
-      {Icon && <Icon size={12} aria-hidden="true" />}
+    <MBadge color={toneColor[tone]} title={title} size="sm" leftSection={Icon ? <Icon size={12} aria-hidden="true" /> : undefined} className={s.badge}>
       {children}
-    </span>
+    </MBadge>
   )
 }
 
 const healthMeta: Record<Health, { tone: Tone; icon: LucideIcon; label: string }> = {
-  healthy: { tone: 'success', icon: CheckCircle2, label: 'Healthy' },
+  healthy: { tone: 'success', icon: CheckCircle2, label: 'Checking normally' },
   degraded: { tone: 'warning', icon: AlertTriangle, label: 'Degraded' },
-  auth_failed: { tone: 'error', icon: KeyRound, label: 'Auth failed' },
-  stale: { tone: 'warning', icon: Clock3, label: 'Stale' },
-  error: { tone: 'error', icon: XCircle, label: 'Error' },
-  disabled: { tone: 'neutral', icon: PauseCircle, label: 'Disabled' },
-  pending: { tone: 'info', icon: CircleDashed, label: 'Pending' },
+  auth_failed: { tone: 'error', icon: KeyRound, label: 'Sign-in failed' },
+  stale: { tone: 'warning', icon: Clock3, label: 'Out of date' },
+  error: { tone: 'error', icon: XCircle, label: 'Check failing' },
+  disabled: { tone: 'neutral', icon: PauseCircle, label: 'Off' },
+  pending: { tone: 'info', icon: CircleDashed, label: 'Not checked yet' },
   unsupported: { tone: 'neutral', icon: CircleSlash, label: 'Unsupported' },
 }
 
+/** Tracking status of a quota monitor: credential and polling, not limits. */
 export function HealthBadge({ health, reason }: { health: Health; reason?: string }) {
   const m = healthMeta[health] ?? { tone: 'neutral' as Tone, icon: HelpCircle, label: health }
   return (
@@ -77,9 +91,9 @@ export function HealthBadge({ health, reason }: { health: Health; reason?: strin
 }
 
 const availMeta: Record<Availability, { tone: Tone; icon: LucideIcon; label: string }> = {
-  usable: { tone: 'success', icon: CheckCircle2, label: 'Usable' },
-  exhausted: { tone: 'error', icon: OctagonAlert, label: 'Exhausted' },
-  model_limited: { tone: 'warning', icon: AlertTriangle, label: 'Model limited' },
+  usable: { tone: 'success', icon: CheckCircle2, label: 'Available' },
+  exhausted: { tone: 'error', icon: OctagonAlert, label: 'Limit reached' },
+  model_limited: { tone: 'warning', icon: AlertTriangle, label: 'Some models limited' },
   unknown: { tone: 'neutral', icon: HelpCircle, label: 'Unknown' },
 }
 
@@ -95,7 +109,7 @@ export function AvailabilityBadge({ availability, reason }: { availability: Avai
 export function TierBadge({ tier }: { tier: Tier }) {
   switch (tier) {
     case 'demo':
-      return <Badge tone="purple" icon={Info}>Demo</Badge>
+      return null
     case 'unofficial':
       return (
         <Badge tone="warning" icon={AlertTriangle} title="Uses an undocumented provider endpoint; may break or conflict with provider terms.">
@@ -103,41 +117,64 @@ export function TierBadge({ tier }: { tier: Tier }) {
         </Badge>
       )
     case 'client_reported':
-      return <Badge tone="info" icon={Info}>Client reported</Badge>
+      return <Badge tone="info" icon={Info}>Reported by the tool</Badge>
     default:
-      return <Badge tone="neutral" icon={CheckCircle2}>Official</Badge>
+      return null
   }
 }
 
 type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger'
 
-export function Button({ variant = 'default', size, busy, icon: Icon, children, className, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & {
+const buttonVariant: Record<ButtonVariant, { variant: string; color?: string }> = {
+  default: { variant: 'default' },
+  primary: { variant: 'filled' },
+  ghost: { variant: 'subtle', color: 'gray' },
+  danger: { variant: 'light', color: 'red' },
+}
+
+/** Button; an icon without text renders an icon button (give it an aria-label). */
+export function Button({ variant = 'default', size, busy, icon: Icon, children, className, type = 'button', ...rest }: Omit<ComponentPropsWithoutRef<'button'>, 'color'> & {
   variant?: ButtonVariant
   size?: 'small'
   busy?: boolean
   icon?: LucideIcon
 }) {
+  const v = buttonVariant[variant]
+  if (!children && Icon) {
+    return (
+      <ActionIcon
+        type={type}
+        variant={variant === 'default' ? 'default' : v.variant}
+        color={v.color}
+        size={size === 'small' ? 'md' : 'lg'}
+        loading={busy}
+        className={className}
+        {...rest}
+      >
+        <Icon size={size === 'small' ? 14 : 16} aria-hidden="true" />
+      </ActionIcon>
+    )
+  }
   return (
-    <button
-      type="button"
+    <MButton
+      type={type}
+      variant={v.variant}
+      color={v.color}
+      size={size === 'small' ? 'compact-sm' : 'sm'}
+      loading={busy}
+      leftSection={Icon ? <Icon size={14} aria-hidden="true" /> : undefined}
+      className={className}
       {...rest}
-      aria-busy={busy || undefined}
-      className={cx(
-        s.button,
-        variant === 'primary' && s.primary,
-        variant === 'ghost' && s.ghost,
-        variant === 'danger' && s.danger,
-        size === 'small' && s.small,
-        !children && s.iconButton,
-        className,
-      )}
     >
-      {busy ? <Loader2 size={14} className={s.spin} aria-hidden="true" /> : Icon && <Icon size={14} aria-hidden="true" />}
       {children}
-    </button>
+    </MButton>
   )
 }
 
+/**
+ * A titled block. The subtitle is help text: it goes into an info tooltip
+ * next to the title instead of a paragraph.
+ */
 export function Panel({ title, subtitle, actions, children, className, bodyClassName, id }: {
   title?: ReactNode
   subtitle?: ReactNode
@@ -149,18 +186,24 @@ export function Panel({ title, subtitle, actions, children, className, bodyClass
 }) {
   const headingId = useId()
   return (
-    <section className={cx(s.panel, className)} aria-labelledby={title ? headingId : undefined} id={id}>
+    <Paper component="section" withBorder radius="md" className={cx(s.panel, className)} aria-labelledby={title ? headingId : undefined} id={id}>
       {(title || actions) && (
-        <header className={s.panelHeader}>
-          <div className={s.panelTitle}>
-            {title && <h2 id={headingId}>{title}</h2>}
-            {subtitle && <p>{subtitle}</p>}
-          </div>
-          {actions && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>{actions}</div>}
-        </header>
+        <Group justify="space-between" gap="sm" wrap="wrap" className={s.panelHeader}>
+          <Group gap={6} wrap="nowrap" miw={0}>
+            {title && (
+              <Title order={2} id={headingId}>
+                {title}
+              </Title>
+            )}
+            {subtitle && <KitInfoTip>{subtitle}</KitInfoTip>}
+          </Group>
+          {actions && <Group gap="xs">{actions}</Group>}
+        </Group>
       )}
-      <div className={cx(s.panelBody, bodyClassName)}>{children}</div>
-    </section>
+      <Stack gap="md" className={cx(s.panelBody, bodyClassName)}>
+        {children}
+      </Stack>
+    </Paper>
   )
 }
 
@@ -183,7 +226,7 @@ export function QuotaBar({ label, percent, stale, meta, srLabel }: {
       <div className={s.barLabel}>
         <span>{label}</span>
         <span className={s.barValue}>
-          {known ? `${fmtPercent(v, 0)} left` : 'Unknown'}
+          {known ? (v <= 0 ? 'Used up' : `${fmtPercent(v, 0)} left`) : 'Unknown'}
           {stale && known ? ' · stale' : ''}
         </span>
       </div>
@@ -191,8 +234,6 @@ export function QuotaBar({ label, percent, stale, meta, srLabel }: {
         className={s.barTrack}
         data-stale={stale ? 'true' : undefined}
         data-unknown={known ? undefined : 'true'}
-        // A meter needs a value; an unknown remaining is a labelled image
-        // instead, so assistive tech hears "unknown", never 0.
         {...(known
           ? {
               role: 'meter',
@@ -221,7 +262,7 @@ export function TableScroll({ label, children, style }: { label: string; childre
 }
 
 export function Skeleton({ width = '100%', height = 14, style }: { width?: number | string; height?: number | string; style?: React.CSSProperties }) {
-  return <span className={s.skeleton} style={{ width, height, ...style }} aria-hidden="true" />
+  return <MSkeleton width={width} height={height} style={style} radius="sm" />
 }
 
 export function EmptyState({ icon: Icon = Info, title, children, action }: {
@@ -231,14 +272,13 @@ export function EmptyState({ icon: Icon = Info, title, children, action }: {
   action?: ReactNode
 }) {
   return (
-    <div className={s.state}>
-      <Icon size={28} aria-hidden="true" />
-      <h3>{title}</h3>
-      {children && <p>{children}</p>}
-      {action}
-    </div>
+    <Empty icon={<Icon size={24} aria-hidden="true" />} title={title} action={action}>
+      {children}
+    </Empty>
   )
 }
+
+const bannerColor = { info: 'teal', warning: 'yellow', error: 'red', purple: 'violet' } as const
 
 export function Banner({ tone = 'info', icon: Icon = Info, children, role }: {
   tone?: 'info' | 'warning' | 'error' | 'purple'
@@ -247,14 +287,15 @@ export function Banner({ tone = 'info', icon: Icon = Info, children, role }: {
   role?: 'status' | 'alert'
 }) {
   return (
-    <div className={cx(s.banner, s[`banner-${tone}`])} role={role}>
-      <Icon size={16} aria-hidden="true" />
-      <div>{children}</div>
-    </div>
+    <Alert color={bannerColor[tone]} variant="light" icon={<Icon size={16} aria-hidden="true" />} role={role ?? "note"} radius="md" className={s.banner}>
+      <Text size="sm" component="div">
+        {children}
+      </Text>
+    </Alert>
   )
 }
 
-/** Accessible tabs/segmented control with arrow-key navigation. */
+/** Tabs (underlined) or a segmented pill row, with arrow-key navigation. */
 export function Tabs<T extends string>({ value, onChange, items, label, variant = 'tabs' }: {
   value: T
   onChange: (v: T) => void
@@ -262,49 +303,30 @@ export function Tabs<T extends string>({ value, onChange, items, label, variant 
   label: string
   variant?: 'tabs' | 'segmented'
 }) {
-  const refs = useRef<(HTMLButtonElement | null)[]>([])
-  const onKey = (e: KeyboardEvent<HTMLButtonElement>, idx: number) => {
-    const enabled = items.map((it, i) => (it.disabled ? -1 : i)).filter((i) => i >= 0)
-    const pos = enabled.indexOf(idx)
-    let next: number | undefined
-    if (e.key === 'ArrowRight') next = enabled[(pos + 1) % enabled.length]
-    else if (e.key === 'ArrowLeft') next = enabled[(pos - 1 + enabled.length) % enabled.length]
-    else if (e.key === 'Home') next = enabled[0]
-    else if (e.key === 'End') next = enabled[enabled.length - 1]
-    if (next !== undefined) {
-      e.preventDefault()
-      const item = items[next]
-      if (item) {
-        onChange(item.value)
-        refs.current[next]?.focus()
-      }
-    }
-  }
+  // Mantine tabs need a non-empty value; "" (often "all") travels as a sentinel.
+  const enc = (v: string) => (v === '' ? '\u0000all' : v)
   return (
-    <div role="tablist" aria-label={label} className={variant === 'tabs' ? s.tabs : s.segmented}>
-      {items.map((it, i) => {
-        const selected = it.value === value
-        return (
-          <button
+    <MTabs
+      value={enc(value)}
+      onChange={(v) => v !== null && onChange((v === '\u0000all' ? '' : v) as T)}
+      variant={variant === 'tabs' ? 'default' : 'pills'}
+      radius="md"
+      activateTabWithKeyboard
+      classNames={variant === 'segmented' ? { tab: s.segmentTab } : undefined}
+    >
+      <MTabs.List aria-label={label} className={variant === 'segmented' ? s.segmented : undefined}>
+        {items.map((it) => (
+          <MTabs.Tab
             key={it.value}
-            ref={(el) => {
-              refs.current[i] = el
-            }}
-            type="button"
-            role="tab"
-            aria-selected={selected}
-            tabIndex={selected ? 0 : -1}
+            value={enc(it.value)}
             disabled={it.disabled}
-            className={variant === 'tabs' ? s.tab : s.segment}
-            onClick={() => onChange(it.value)}
-            onKeyDown={(e) => onKey(e, i)}
+            rightSection={it.count !== undefined ? <span className={s.tabCount}>{it.count}</span> : undefined}
           >
             {it.label}
-            {it.count !== undefined && <span className={s.tabCount}>{it.count}</span>}
-          </button>
-        )
-      })}
-    </div>
+          </MTabs.Tab>
+        ))}
+      </MTabs.List>
+    </MTabs>
   )
 }
 
@@ -315,39 +337,26 @@ export function SearchInput({ value, onChange, placeholder, label }: {
   label: string
 }) {
   return (
-    <label className={s.searchWrap}>
-      <span className="visually-hidden">{label}</span>
-      <Search size={14} aria-hidden="true" />
-      <input
-        type="search"
-        className={s.input}
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </label>
+    <TextInput
+      type="search"
+      aria-label={label}
+      leftSection={<Search size={14} aria-hidden="true" />}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.currentTarget.value)}
+      w={260}
+      maw="100%"
+    />
   )
 }
 
 export function InfoTip({ text }: { text: string }) {
-  return (
-    <span className={s.tooltipTrigger} title={text} aria-label={text} role="img">
-      <HelpCircle size={13} aria-hidden="true" />
-    </span>
-  )
+  return <KitInfoTip>{text}</KitInfoTip>
 }
 
+/** Label/value pairs, stacked on phones. */
 export function KeyValues({ items }: { items: [ReactNode, ReactNode][] }) {
-  return (
-    <dl className={s.kv}>
-      {items.map(([k, v], i) => (
-        <div key={i} style={{ display: 'contents' }}>
-          <dt>{k}</dt>
-          <dd>{v}</dd>
-        </div>
-      ))}
-    </dl>
-  )
+  return <Fields items={items} cols={1} />
 }
 
 export const uiStyles = s

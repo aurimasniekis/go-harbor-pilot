@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
-import { allowConsoleError, expect, signIn, test } from './fixtures'
+import { allowConsoleError, expect, signIn, test, choose } from './fixtures'
 
 // The demo has no breakers or protocol changes, so this covers the empty
 // states, accessibility, and the plan editor's compatibility section
@@ -32,7 +32,7 @@ test('compatibility and Protocol Watch empty states', async ({ page }) => {
 
   await page.getByRole('link', { name: 'Work items' }).click()
   await expect(page.getByText('No work items', { exact: true })).toBeVisible()
-  await page.getByLabel('Status').selectOption('resolved')
+  await choose(page, 'Status', 'resolved')
   await expect(page).toHaveURL(/status=resolved/)
   await expect(page.getByText('No resolved work items')).toBeVisible()
   expect(await axeSerious(page)).toEqual([])
@@ -53,9 +53,9 @@ test('plan compatibility section validates passthrough losses', async ({ page })
 
   await page.getByRole('button', { name: 'New draft' }).click()
   d = page.getByRole('dialog')
-  await d.getByLabel('Default alias').selectOption({ label: 'coding/default' })
+  await choose(d, 'Default alias', { label: 'coding/default' })
   await d.getByRole('tab', { name: 'Compatibility' }).click()
-  await d.getByLabel('When a breaker is open').selectOption('passthrough')
+  await choose(d, 'When a breaker is open', 'passthrough')
   await expect(d.getByText(/Native passthrough always loses Detailed usage and Tool statistics/)).toBeVisible()
   expect(await axeSerious(page)).toEqual([])
 
@@ -66,7 +66,7 @@ test('plan compatibility section validates passthrough losses', async ({ page })
   await d.getByLabel('Detailed usage').check()
   await d.getByLabel('Tool statistics').check()
   await expect(d.getByText(/Native passthrough always loses/)).toHaveCount(0)
-  await d.getByLabel('Unknown usage').selectOption('estimate')
+  await choose(d, 'Unknown usage', 'estimate')
   await d.getByRole('button', { name: 'Save draft' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.getByRole('button', { name: 'Validate' }).first().click()
@@ -76,8 +76,8 @@ test('plan compatibility section validates passthrough losses', async ({ page })
   await page.getByRole('button', { name: 'Edit' }).click()
   d = page.getByRole('dialog')
   await d.getByRole('tab', { name: 'Compatibility' }).click()
-  await expect(d.getByLabel('When a breaker is open')).toHaveValue('passthrough')
+  await expect(d.getByLabel('When a breaker is open').and(d.locator('input'))).toHaveValue(/passthrough/i)
   await expect(d.getByLabel('Detailed usage')).toBeChecked()
-  await expect(d.getByLabel('Unknown usage')).toHaveValue('estimate')
+  await expect(d.getByLabel('Unknown usage').and(d.locator('input'))).toHaveValue(/estimat/i)
   await d.getByRole('button', { name: 'Cancel' }).click()
 })

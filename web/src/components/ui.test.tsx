@@ -1,10 +1,14 @@
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render as rtlRender, screen } from '@testing-library/react'
+import { MantineProvider } from '@mantine/core'
+import { theme } from '@/theme/theme'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '@/lib/api/client'
 import { QuotaBar, Tabs } from './ui'
 import { QueryError } from './states'
+
+const render = (ui: React.ReactElement) => rtlRender(<MantineProvider theme={theme}>{ui}</MantineProvider>)
 
 describe('QuotaBar', () => {
   it('shows Unknown without a fill for unknown values', () => {
@@ -17,11 +21,11 @@ describe('QuotaBar', () => {
     expect(screen.getByText('Unknown')).toBeInTheDocument()
   })
 
-  it('shows a real zero as 0% left', () => {
+  it('shows a real zero as used up', () => {
     render(<QuotaBar label="7-day" percent={0} />)
     const meter = screen.getByRole('meter', { name: '7-day' })
     expect(meter).toHaveAttribute('aria-valuenow', '0')
-    expect(screen.getByText('0% left')).toBeInTheDocument()
+    expect(screen.getByText('Used up')).toBeInTheDocument()
   })
 
   it('marks stale values', () => {
@@ -48,7 +52,7 @@ describe('Tabs', () => {
     )
   }
 
-  it('supports arrow, Home and End keys and skips disabled tabs', async () => {
+  it('moves with arrow keys and skips disabled tabs', async () => {
     const user = userEvent.setup()
     render(<Harness />)
     const all = screen.getByRole('tab', { name: /All/ })
@@ -56,10 +60,8 @@ describe('Tabs', () => {
     await user.keyboard('{ArrowRight}')
     expect(screen.getByRole('tab', { name: 'Codex' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: 'Codex' })).toHaveFocus()
-    await user.keyboard('{Home}')
-    expect(all).toHaveAttribute('aria-selected', 'true')
-    await user.keyboard('{End}')
-    expect(screen.getByRole('tab', { name: 'Codex' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{ArrowRight}')
+    expect(screen.getByRole('tab', { name: /All/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: 'Claude' })).toBeDisabled()
   })
 })

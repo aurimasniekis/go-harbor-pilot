@@ -1,4 +1,4 @@
-import { expect, signIn, test } from './fixtures'
+import { expect, signIn, test, choose } from './fixtures'
 
 // Statistics, harness setup guides and backups over the demo instance.
 
@@ -25,9 +25,9 @@ test('statistics break down activity by dimension', async ({ page }) => {
   await page.getByRole('tab', { name: 'Latency' }).click()
   await expect(page.getByRole('img', { name: 'latency per period' }).or(page.getByText('No requests in this range'))).toBeVisible()
 
-  await page.getByLabel('Group by').selectOption('intent')
+  await choose(page, 'Group by', 'intent')
   await expect(table.getByRole('columnheader', { name: 'Classifier runs' })).toBeVisible()
-  await page.getByLabel('Group by').selectOption('model')
+  await choose(page, 'Group by', 'model')
   await expect(table.getByRole('columnheader', { name: 'Model (served)' })).toBeVisible()
 })
 

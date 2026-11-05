@@ -1,3 +1,4 @@
+import { Select } from '@mantine/core'
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { FlaskConical, Play } from 'lucide-react'
@@ -161,12 +162,13 @@ export function Simulator({ planId, versions, accounts, defaultModel, accountNam
                         <td>{name}</td>
                         <td>{m.account && <BillingBadge value={m.account.spec.billing} />}</td>
                         <td>
-                          <select className={r.inlineSelect} aria-label={`Health for ${name}`} value={h.choice}
-                            onChange={(e) => setRow(m.accountId, { choice: e.target.value as HealthChoice })}>
-                            <option value="current">{healthMode === 'current' ? 'Current' : 'Assumed available'}</option>
-                            <option value="available">Available</option>
-                            <option value="unavailable">Unavailable</option>
-                          </select>
+                          <Select size="xs" w={170} aria-label={`Health for ${name}`} value={h.choice} allowDeselect={false}
+                            onChange={(v) => v && setRow(m.accountId, { choice: v as HealthChoice })}
+                            data={[
+                              { value: 'current', label: healthMode === 'current' ? 'Current' : 'Assumed available' },
+                              { value: 'available', label: 'Available' },
+                              { value: 'unavailable', label: 'Unavailable' },
+                            ]} />
                         </td>
                         <td>
                           <input className={r.inlineInput} type="number" min={0} max={100} step={1} aria-label={`Remaining quota percent for ${name}`}

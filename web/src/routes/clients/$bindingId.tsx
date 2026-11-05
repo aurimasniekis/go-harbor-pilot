@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { KeyRound, XCircle } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Badge, Button, Panel, Skeleton, TableScroll } from '@/components/ui'
-import { MutationError } from '@/components/form'
+import { MutationError, ConfirmButton } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { ResourceBadges } from '@/components/ResourceBadges'
 import { BindingForm } from '@/features/config/BindingForm'
@@ -78,10 +78,11 @@ function ClientDetail() {
                     <td>{fmtRelative(cr.last_used_at)}</td>
                     <td>
                       {!cr.revoked_at && canTokens && (
-                        <Button size="small" variant="ghost" icon={XCircle}
-                          onClick={() => window.confirm(`Revoke ${cr.name}? Its child credentials are revoked too.`) && revoke.mutate(cr.id)}>
+                        <ConfirmButton size="small" icon={XCircle} title={`Revoke ${cr.name}?`}
+                          message="Tools using this token stop working immediately. Tokens issued from it are revoked too." confirmLabel="Revoke"
+                          onConfirm={() => revoke.mutate(cr.id)}>
                           Revoke
-                        </Button>
+                        </ConfirmButton>
                       )}
                     </td>
                   </tr>

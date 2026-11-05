@@ -1,4 +1,4 @@
-import { expect, signIn, test } from './fixtures'
+import { expect, signIn, test, choose } from './fixtures'
 
 // The demo seeds no privacy or trace policies; this test creates them
 // through the UI and exercises the non-persisting rule sandbox.
@@ -19,7 +19,7 @@ test('privacy policy, rule sandbox and trace policy', async ({ page }) => {
   await d.getByRole('button', { name: 'Add rule' }).click()
   await d.getByLabel('Name', { exact: true }).nth(1).fill('prod_db')
   await d.getByLabel('Pattern', { exact: true }).fill('prod-db-[0-9]+')
-  await d.getByLabel('Action', { exact: true }).selectOption('block')
+  await choose(d, 'Action', 'block', { exact: true })
   await d.getByLabel('Restore originals into tool-call arguments (off by default)').check()
   await expect(d.getByText(/Restored tool arguments let the model pass your secrets/)).toBeVisible()
   await expect(d.getByRole('button', { name: 'Save policy' })).toBeDisabled()
@@ -31,8 +31,7 @@ test('privacy policy, rule sandbox and trace policy', async ({ page }) => {
   // Sandbox with the saved policy and a synthetic sample.
   await page.goto('/privacy/sandbox')
   await expect(page.getByText('Nothing you test here is stored or logged.')).toBeVisible()
-  const policySelect = page.getByLabel('Policy', { exact: true })
-  await policySelect.selectOption({ label: policy })
+  await choose(page, 'Policy', { label: policy }, { exact: true })
   await page.getByRole('button', { name: 'Use a synthetic sample' }).click()
   await page.getByRole('button', { name: 'Test', exact: true }).click()
   const masked = page.getByLabel('Masked preview')
@@ -42,7 +41,7 @@ test('privacy policy, rule sandbox and trace policy', async ({ page }) => {
   await expect(page.getByRole('cell', { name: /Anthropic API keys/ })).toBeVisible()
 
   // Unsaved policy: block rule blocks.
-  await policySelect.selectOption('unsaved')
+  await choose(page, 'Policy', { label: /Unsaved policy/ }, { exact: true })
   const def = page.getByLabel('Policy definition (JSON)')
   await def.fill(JSON.stringify({ required: true, rules: [{ name: 'prod_db', pattern: 'prod-db-[0-9]+', action: 'block' }] }))
   await page.getByLabel('Sample text').fill('connect to prod-db-7 now')
@@ -55,12 +54,12 @@ test('privacy policy, rule sandbox and trace policy', async ({ page }) => {
   d = page.getByRole('dialog')
   const trace = `trace-${suffix}`
   await d.getByLabel('Name', { exact: true }).fill(trace)
-  await d.getByLabel('Content mode').selectOption('unredacted')
+  await choose(d, 'Content mode', 'unredacted')
   await expect(d.getByText(/Unredacted capture stores original prompts/)).toBeVisible()
   const saveTrace = d.getByRole('button', { name: 'Save trace policy' })
   await expect(saveTrace).toBeDisabled()
-  await d.getByLabel('Content mode').selectOption('masked_full')
-  await d.getByLabel('Redaction policy').selectOption({ label: policy })
+  await choose(d, 'Content mode', 'masked_full')
+  await choose(d, 'Redaction policy', { label: policy })
   await d.getByLabel('Allow export (users with the traces.export grant can download content)').check()
   await saveTrace.click()
   await expect(page.getByRole('dialog')).toHaveCount(0)

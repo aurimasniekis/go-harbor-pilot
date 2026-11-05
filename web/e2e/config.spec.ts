@@ -1,4 +1,4 @@
-import { expect, signIn, test } from './fixtures'
+import { expect, signIn, test, choose } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // End-to-end configuration flow: provider → account (stored secret) → pool →
@@ -21,7 +21,7 @@ test('configure a provider through to an issued client credential', async ({ pag
   await page.getByRole('button', { name: 'Add provider' }).click()
   let d = await dialog(page)
   await d.getByLabel('Name', { exact: true }).fill(`openai-${suffix}`)
-  await d.getByLabel('Type').selectOption('openai')
+  await choose(d, 'Type', 'openai')
   await d.getByRole('button', { name: 'Add model' }).click()
   await d.getByLabel('Model id').fill('gpt-5')
   await d.getByLabel('tools', { exact: true }).check()
@@ -34,7 +34,7 @@ test('configure a provider through to an issued client credential', async ({ pag
   await page.getByRole('button', { name: 'Add account' }).click()
   d = await dialog(page)
   await d.getByLabel('Name', { exact: true }).fill(`openai-main-${suffix}`)
-  await d.getByLabel('Provider').selectOption({ label: `openai-${suffix} (openai)` })
+  await choose(d, 'Provider', { label: `openai-${suffix} (openai)` })
   await d.getByLabel('Credential', { exact: true }).fill(SECRET)
   await d.getByRole('button', { name: 'Save account' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -48,8 +48,8 @@ test('configure a provider through to an issued client credential', async ({ pag
   d = await dialog(page)
   await d.getByLabel('Name', { exact: true }).fill(`gpt-${suffix}`)
   await d.getByRole('button', { name: 'Add member' }).click()
-  await d.getByLabel('Account').selectOption({ label: `openai-main-${suffix}` })
-  await d.getByLabel('Model', { exact: true }).selectOption('gpt-5')
+  await choose(d, 'Account', { label: `openai-main-${suffix}` })
+  await choose(d, 'Model', 'gpt-5', { exact: true })
   await d.getByRole('button', { name: 'Save pool' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
 
@@ -58,7 +58,7 @@ test('configure a provider through to an issued client credential', async ({ pag
   await page.getByRole('button', { name: 'Add alias' }).click()
   d = await dialog(page)
   await d.getByLabel('Name', { exact: true }).fill(`coding/${suffix}`)
-  await d.getByLabel('Target pool').selectOption({ label: `gpt-${suffix}` })
+  await choose(d, 'Target pool', { label: `gpt-${suffix}` })
   await d.getByRole('button', { name: 'Save alias' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByText(`coding/${suffix}`).first()).toBeVisible()
@@ -75,12 +75,13 @@ test('configure a provider through to an issued client credential', async ({ pag
   d = await dialog(page)
   await d.getByRole('button', { name: 'Add mapping' }).click()
   await d.getByLabel('Requested model (exact or glob)').fill('gpt-*')
-  await d.getByLabel('Alias', { exact: true }).selectOption({ label: `coding/${suffix}` })
+  await choose(d, 'Alias', { label: `coding/${suffix}` }, { exact: true })
   await d.getByRole('button', { name: 'Save draft' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.getByRole('button', { name: 'Validate' }).first().click()
   await expect(page.getByText('Valid.')).toBeVisible()
   await page.getByRole('button', { name: 'Publish' }).click()
+  await page.getByRole('dialog', { name: /Publish v1/ }).getByRole('button', { name: 'Publish' }).click()
   await expect(page.getByText('v1').first()).toBeVisible()
   await expect(page.getByRole('cell', { name: 'published' })).toBeVisible()
 
@@ -89,8 +90,8 @@ test('configure a provider through to an issued client credential', async ({ pag
   await page.getByRole('button', { name: 'Add client' }).click()
   d = await dialog(page)
   await d.getByLabel('Name', { exact: true }).fill(`laptop-${suffix}`)
-  await d.getByLabel('Routing plan').selectOption({ label: `plan-${suffix}` })
-  await d.getByLabel('Expected harness').selectOption('claude_code')
+  await choose(d, 'Routing plan', { label: `plan-${suffix}` })
+  await choose(d, 'Expected harness', 'claude_code')
   await d.getByRole('button', { name: 'Save client' }).click()
   await page.waitForURL(/\/clients\/cbn_/)
   await page.getByRole('button', { name: 'Issue credential' }).first().click()

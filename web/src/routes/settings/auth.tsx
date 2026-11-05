@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FlaskConical, Pencil, Plus, Save, Trash2 } from 'lucide-react'
 import { z } from 'zod'
 import { Badge, Banner, Button, EmptyState, KeyValues, Panel, Skeleton, TableScroll } from '@/components/ui'
-import { Checkbox, Dialog, MutationError, SelectField, TextField, formStyles as f } from '@/components/form'
+import { Checkbox, Dialog, MutationError, SelectField, TextField, formStyles as f, ConfirmButton } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { apiGet, apiSend } from '@/lib/api/client'
 import { authSettingsQuery, oidcProvidersQuery, qk } from '@/lib/api/queries'
@@ -114,7 +114,8 @@ function Providers() {
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <Button size="small" variant="ghost" icon={FlaskConical} onClick={() => test.mutate(p.id)}>Test</Button>
                     <Button size="small" variant="ghost" icon={Pencil} aria-label={`Edit ${p.slug}`} onClick={() => setEditing(p)} />
-                    <Button size="small" variant="ghost" icon={Trash2} aria-label={`Delete ${p.slug}`} onClick={() => window.confirm(`Delete ${p.display_name}? Linked identities will be removed.`) && del.mutate(p.id)} />
+                    <ConfirmButton size="small" icon={Trash2} label={`Delete ${p.slug}`} title={`Delete ${p.display_name}?`}
+                      message="People who signed in with it lose that sign-in method." confirmLabel="Delete" onConfirm={() => del.mutate(p.id)} />
                   </td>
                 </tr>
               ))}

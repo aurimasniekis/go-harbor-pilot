@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bot, KeyRound, Pencil, Plus, Trash2, XCircle } from 'lucide-react'
 import { Badge, Button, EmptyState, Panel, TableScroll } from '@/components/ui'
-import { Checkbox, Dialog, MutationError, SecretOnce, TextField, formStyles as f } from '@/components/form'
+import { Checkbox, Dialog, MutationError, SecretOnce, TextField, formStyles as f, ConfirmButton } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { apiSend } from '@/lib/api/client'
 import { principalTokensQuery, principalsQuery, qk } from '@/lib/api/queries'
@@ -70,8 +70,8 @@ function Principals() {
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <Button size="small" variant="ghost" icon={KeyRound} onClick={() => setTokensFor(sp)}>Tokens</Button>
                     <Button size="small" variant="ghost" icon={Pencil} aria-label={`Edit ${sp.name}`} onClick={() => setEditing(sp)} />
-                    <Button size="small" variant="ghost" icon={Trash2} aria-label={`Delete ${sp.name}`}
-                      onClick={() => window.confirm(`Delete ${sp.name} and revoke all its tokens?`) && del.mutate(sp.id)} />
+                    <ConfirmButton size="small" icon={Trash2} label={`Delete ${sp.name}`} title={`Delete ${sp.name}?`}
+                      message="All of its API tokens are revoked immediately." confirmLabel="Delete" onConfirm={() => del.mutate(sp.id)} />
                   </td>
                 </tr>
               ))}

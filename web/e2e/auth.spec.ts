@@ -3,7 +3,7 @@ import { expect, signIn, test } from './fixtures'
 test('wrong password is rejected without revealing account existence', async ({ page }) => {
   await page.goto('/login')
   await page.getByLabel('Email').fill('nobody@example.test')
-  await page.getByLabel('Password').fill('not-the-password')
+  await page.getByLabel('Password', { exact: true }).fill('not-the-password')
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByRole('alert')).toContainText('invalid email or password')
 })

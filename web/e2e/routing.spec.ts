@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
-import { expect, signIn, test } from './fixtures'
+import { expect, signIn, test, choose } from './fixtures'
 
 // Routing engine UI against the synthetic demo: the simulator on the seeded
 // plan, and the rule / decision-table editor on a plan created here (drafts
@@ -26,7 +26,7 @@ test('simulator explains a synthetic request without contacting upstreams', asyn
 
   const sim = page.getByRole('region', { name: 'Simulator' })
   await sim.getByLabel('Requested model').fill('claude-sonnet-4')
-  await sim.getByLabel('Account health', { exact: true }).selectOption('assume_available')
+  await choose(sim, 'Account health', 'assume_available', { exact: true })
   await sim.getByRole('button', { name: 'Run simulation' }).click()
   const result = sim.getByRole('region', { name: 'Simulation result' })
   await expect(result.getByText('Simulation — no upstream was contacted.')).toBeVisible()
@@ -38,7 +38,8 @@ test('simulator explains a synthetic request without contacting upstreams', asyn
   await sim.getByText(/Account health overrides/).click()
   const firstHealth = sim.getByLabel(/^Health for /).first()
   const label = (await firstHealth.getAttribute('aria-label')) ?? ''
-  await firstHealth.selectOption('unavailable')
+  await firstHealth.click()
+  await page.getByRole('listbox').locator('[role="option"][value="unavailable"]').click()
   await sim.getByRole('button', { name: 'Run simulation' }).click()
   await expect(result.getByRole('region', { name: 'Simulated exclusions' }).getByText('simulated unavailable')).toBeVisible()
   expect(label).toMatch(/^Health for /)
@@ -62,7 +63,7 @@ test('rule builder and decision table are saved, validated and simulated', async
 
   await page.getByRole('button', { name: 'New draft' }).click()
   d = page.getByRole('dialog')
-  await d.getByLabel('Default alias').selectOption({ label: 'coding/default' })
+  await choose(d, 'Default alias', { label: 'coding/default' })
   await d.getByRole('tab', { name: /Rules and tables/ }).click()
 
   // A rule with an invalid expression shows the compiler error inline.
@@ -89,10 +90,10 @@ test('rule builder and decision table are saved, validated and simulated', async
   // A candidate-stage decision table.
   await d.getByRole('button', { name: 'Add decision table' }).click()
   const table = d.getByRole('listitem', { name: /^Table table-/ })
-  await table.getByLabel('Stage').selectOption('candidate')
+  await choose(table, 'Stage', 'candidate')
   await table.getByLabel('Input 1 expression').fill('candidate.account.billing')
   await table.getByLabel('Row 1 condition 1').fill("value == 'metered_api'")
-  await table.getByLabel('Action').selectOption('boost')
+  await choose(table, 'Action', 'boost')
   await table.getByLabel('Score change').fill('-5')
   await expect(table.getByText('OK').first()).toBeVisible()
   await d.getByLabel('Score expression (optional)').fill('candidate.native ? 1.0 : 0.0')
@@ -120,7 +121,7 @@ test('rule builder and decision table are saved, validated and simulated', async
   const sim = page.getByRole('region', { name: 'Simulator' })
   await expect(sim.getByLabel('Plan version')).toHaveValue(/.+/)
   await sim.getByLabel('Requested model').fill('anything')
-  await sim.getByLabel('Harness').selectOption('codex')
+  await choose(sim, 'Harness', 'codex')
   await sim.getByRole('button', { name: 'Run simulation' }).click()
   const result = sim.getByRole('region', { name: 'Simulation result' })
   await expect(result.getByText('Simulation — no upstream was contacted.')).toBeVisible()
@@ -128,7 +129,7 @@ test('rule builder and decision table are saved, validated and simulated', async
   await expect(result.getByText(/codex is not allowed on this plan/).first()).toBeVisible()
   await expect(result.getByRole('region', { name: 'Simulated rule evaluations' }).getByText('no-codex')).toBeVisible()
 
-  await sim.getByLabel('Harness').selectOption('claude_code')
+  await choose(sim, 'Harness', 'claude_code')
   await sim.getByRole('button', { name: 'Run simulation' }).click()
   await expect(result.getByText(/^First choice:/)).toBeVisible()
 })

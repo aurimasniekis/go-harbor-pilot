@@ -1,4 +1,4 @@
-import { allowConsoleError, expect, signIn, test } from './fixtures'
+import { allowConsoleError, expect, signIn, test, choose } from './fixtures'
 
 // The demo seeds no destinations, channels or rules. Every target here is
 // a closed local port, so nothing leaves the machine and sends fail fast.
@@ -20,7 +20,7 @@ test('event catalog and event log', async ({ page }) => {
   const log = page.getByRole('region', { name: 'Event log' })
   await log.getByRole('button', { name: /^Show envelope/ }).first().click()
   await expect(log.getByLabel('Event envelope')).toContainText('"schema_version"')
-  await page.getByLabel('Severity').selectOption('critical')
+  await choose(page, 'Severity', 'critical')
   await expect(log.getByRole('row').nth(1).or(page.getByText('No matching events'))).toBeVisible()
   for (const badge of await log.getByRole('row').locator('td:nth-child(3)').allTextContents()) expect(badge).toBe('critical')
 })
@@ -86,7 +86,7 @@ test('slack channel, test send, rule and history', async ({ page }) => {
   await page.getByRole('button', { name: 'Add channel' }).click()
   let d = page.getByRole('dialog')
   await d.getByLabel('Name', { exact: true }).fill(channel)
-  await d.getByLabel('Type').selectOption('slack')
+  await choose(d, 'Type', 'slack')
   await expect(d.getByRole('button', { name: 'Save channel' })).toBeDisabled()
   await d.getByLabel('Incoming webhook URL (write-only)').fill('http://127.0.0.1:9/services/T000/B000/synthetic')
   await d.getByLabel(/Quiet hours/).check()
@@ -130,7 +130,7 @@ test('slack channel, test send, rule and history', async ({ page }) => {
   // The failed test is in the history. Tests are one-shot: no replay is
   // offered (send a new test instead).
   await page.getByRole('link', { name: 'History' }).click()
-  await page.getByLabel('Status').selectOption('dead')
+  await choose(page, 'Status', 'dead')
   const failed = page.getByRole('row').filter({ hasText: 'Harbor Pilot test notification' }).filter({ hasText: channel })
   await expect(failed).toContainText('Failed')
   await expect(failed.getByRole('button', { name: /Replay notification/ })).toHaveCount(0)
