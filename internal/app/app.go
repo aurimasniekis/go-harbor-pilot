@@ -312,6 +312,7 @@ func (a *App) CoreAPI() []func(*api.API) {
 		func(ap *api.API) { authapi.Register(ap, a.Auth, a.DB) },
 		a.registerSystem,
 		a.registerAttention,
+		a.registerAccountChecks,
 		func(ap *api.API) {
 			cpapi.Register(ap, func() *controlplane.Service { return a.CP }, func() string { return a.Cfg.PublicOrigin() })
 		},

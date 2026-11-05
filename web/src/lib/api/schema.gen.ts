@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/account-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Latest connection test of each provider account */
+        get: operations["list-account-checks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/activity/requests": {
         parameters: {
             query?: never;
@@ -1283,6 +1300,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/provider-accounts/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test an account's connection and credential
+         * @description Lists the provider's models with the account's credential (no tokens are spent) and stores the result. CLI bridge accounts report whether a sign-in token is saved and the CLI is installed.
+         */
+        post: operations["test-provider-account"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/providers": {
         parameters: {
             query?: never;
@@ -2442,6 +2479,22 @@ export interface components {
             purpose: "invite" | "reset";
             token: string;
         };
+        AccountCheck: {
+            account_id: string;
+            /** Format: date-time */
+            checked_at: string;
+            /** Format: int64 */
+            http_status?: number;
+            /** Format: int64 */
+            latency_ms: number;
+            /** @description Plain-language explanation; never contains the credential. */
+            message: string;
+            /**
+             * @description ok: the provider accepted the credential; rejected: it refused it; unreachable: no answer; not_verified: CLI bridge accounts are confirmed by their first request.
+             * @enum {string}
+             */
+            status: "ok" | "rejected" | "unreachable" | "error" | "no_credential" | "not_verified";
+        };
         AccountHealthView: {
             account_id: string;
             available: boolean;
@@ -3592,9 +3645,12 @@ export interface components {
             items: components["schemas"]["BackupDTO"][];
         };
         ListOutBody1: {
-            items: components["schemas"]["LoginView"][];
+            items: components["schemas"]["AccountCheck"][];
         };
         ListOutBody2: {
+            items: components["schemas"]["LoginView"][];
+        };
+        ListOutBody3: {
             /**
              * Format: int64
              * @description Captures dropped because the writer was behind (since start).
@@ -5589,6 +5645,35 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "list-account-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListOutBody1"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-requests": {
         parameters: {
             query?: {
@@ -9332,6 +9417,37 @@ export interface operations {
             };
         };
     };
+    "test-provider-account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountCheck"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-providers": {
         parameters: {
             query?: {
@@ -9895,7 +10011,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ListOutBody1"];
+                    "application/json": components["schemas"]["ListOutBody2"];
                 };
             };
             /** @description Error */
@@ -11771,7 +11887,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ListOutBody2"];
+                    "application/json": components["schemas"]["ListOutBody3"];
                 };
             };
             /** @description Error */

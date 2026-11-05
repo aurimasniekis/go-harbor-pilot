@@ -103,6 +103,13 @@ func (u *Upstream) next() Reply {
 }
 
 func (u *Upstream) serve(w http.ResponseWriter, r *http.Request) {
+	// Model lists (credential checks) are answered without consuming the
+	// script or being captured as generation requests.
+	if r.Method == http.MethodGet && (strings.HasSuffix(r.URL.Path, "/models") || strings.HasSuffix(r.URL.Path, "/api/tags")) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":[{"id":"synthetic-model","object":"model"}],"models":[{"name":"synthetic-model"}]}`)
+		return
+	}
 	n := u.inflight.Add(1)
 	defer u.inflight.Add(-1)
 	for {

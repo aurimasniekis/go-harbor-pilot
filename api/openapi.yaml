@@ -62,6 +62,40 @@ components:
         - purpose
         - password
       type: object
+    AccountCheck:
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+        checked_at:
+          format: date-time
+          type: string
+        http_status:
+          format: int64
+          type: integer
+        latency_ms:
+          format: int64
+          type: integer
+        message:
+          description: Plain-language explanation; never contains the credential.
+          type: string
+        status:
+          description: "ok: the provider accepted the credential; rejected: it refused it; unreachable: no answer; not_verified: CLI bridge accounts are confirmed by their first request."
+          enum:
+            - ok
+            - rejected
+            - unreachable
+            - error
+            - no_credential
+            - not_verified
+          type: string
+      required:
+        - account_id
+        - checked_at
+        - status
+        - message
+        - latency_ms
+      type: object
     AccountHealthView:
       additionalProperties: false
       properties:
@@ -2810,12 +2844,22 @@ components:
       properties:
         items:
           items:
-            $ref: "#/components/schemas/LoginView"
+            $ref: "#/components/schemas/AccountCheck"
           type: array
       required:
         - items
       type: object
     ListOutBody2:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/LoginView"
+          type: array
+      required:
+        - items
+      type: object
+    ListOutBody3:
       additionalProperties: false
       properties:
         dropped:
@@ -7510,6 +7554,26 @@ info:
   version: dev
 openapi: 3.1.0
 paths:
+  /account-checks:
+    get:
+      operationId: list-account-checks
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListOutBody1"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Latest connection test of each provider account
+      tags:
+        - Provider accounts
+      x-permission: config.read
   /activity/requests:
     get:
       operationId: list-requests
@@ -11696,6 +11760,34 @@ paths:
       tags:
         - Provider accounts
       x-permission: config.read
+  /provider-accounts/{id}/test:
+    post:
+      description: Lists the provider's models with the account's credential (no tokens are spent) and stores the result. CLI bridge accounts report whether a sign-in token is saved and the CLI is installed.
+      operationId: test-provider-account
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountCheck"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Test an account's connection and credential
+      tags:
+        - Provider accounts
+      x-permission: config.write
   /providers:
     get:
       operationId: list-providers
@@ -12312,7 +12404,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ListOutBody1"
+                $ref: "#/components/schemas/ListOutBody2"
           description: OK
         default:
           content:
@@ -14289,7 +14381,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ListOutBody2"
+                $ref: "#/components/schemas/ListOutBody3"
           description: OK
         default:
           content:
