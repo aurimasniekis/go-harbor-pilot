@@ -26,15 +26,16 @@ test('compatibility and Protocol Watch empty states', async ({ page }) => {
 
   await page.getByRole('link', { name: 'Protocol changes' }).click()
   await expect(page.getByText('No protocol changes observed')).toBeVisible()
-  await expect(page.getByText(/not proof a field or event was removed/)).toBeVisible()
+  // The caveats about recency only show once there is something to qualify.
+  await expect(page.getByText(/not proof a field or event was removed/)).toHaveCount(0)
   await expect(page.getByText(/none dropped/)).toBeVisible()
   expect(await axeSerious(page)).toEqual([])
 
   await page.getByRole('link', { name: 'Follow-ups' }).click()
-  await expect(page.getByText('No work items', { exact: true })).toBeVisible()
+  await expect(page.getByText('No follow-ups', { exact: true })).toBeVisible()
   await choose(page, 'Status', 'resolved')
   await expect(page).toHaveURL(/status=resolved/)
-  await expect(page.getByText('No resolved work items')).toBeVisible()
+  await expect(page.getByText('No resolved follow-ups')).toBeVisible()
   expect(await axeSerious(page)).toEqual([])
 })
 

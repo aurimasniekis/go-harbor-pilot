@@ -1,7 +1,9 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useDebouncedValue } from '@mantine/hooks'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Drawer, Group, SegmentedControl, Select, Skeleton, Stack, Text, TextInput, Tooltip, UnstyledButton } from '@mantine/core'
+import { Button, Drawer, Group, Select, Skeleton, Stack, Text, TextInput, Tooltip, UnstyledButton } from '@mantine/core'
 import { CircleCheck, CircleX, Search, ShieldAlert, ShieldCheck, ShieldX } from 'lucide-react'
+import type { AuditSearch } from '@/routes/settings/audit'
 import { Banner } from '@/components/ui'
 import { MutationError } from '@/components/form'
 import { QueryError } from '@/components/states'
@@ -30,15 +32,25 @@ function clock(iso: string): string {
   return new Intl.DateTimeFormat('en-GB', { timeZone: getDisplayTimeZone(), hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date(iso))
 }
 
-/** Outcome as a small icon: success is quiet, denied and errors stand out. */
-function Outcome({ outcome }: { outcome: string }) {
+/** Outcome as an icon with a word; success is quiet, denied and errors stand out. */
+function Outcome({ outcome, quiet }: { outcome: string; quiet?: boolean }) {
   if (outcome === 'success') {
+    if (quiet) {
+      return (
+        <Tooltip label="Succeeded">
+          <span aria-label="Succeeded" role="img" style={{ color: 'var(--success)', display: 'inline-flex' }}>
+            <CircleCheck size={14} />
+          </span>
+        </Tooltip>
+      )
+    }
     return (
-      <Tooltip label="Succeeded">
-        <span aria-label="Succeeded" role="img" style={{ color: 'var(--success)', display: 'inline-flex' }}>
-          <CircleCheck size={14} />
-        </span>
-      </Tooltip>
+      <Group gap={4} wrap="nowrap" c="var(--success)" style={{ whiteSpace: 'nowrap' }}>
+        <CircleCheck size={14} aria-hidden="true" />
+        <Text size="sm" c="var(--text)">
+          Succeeded
+        </Text>
+      </Group>
     )
   }
   const denied = outcome === 'denied'
@@ -55,30 +67,47 @@ function Outcome({ outcome }: { outcome: string }) {
 const tone = (e: AuditEntry) => (e.outcome === 'denied' ? 'warning' : e.outcome === 'success' ? undefined : 'error')
 
 const ranges = [
-  { value: '1', label: '24h' },
-  { value: '7', label: '7d' },
-  { value: '30', label: '30d' },
-  { value: 'all', label: 'All' },
+  { value: '1', label: 'Last 24 hours' },
+  { value: '7', label: 'Last 7 days' },
+  { value: '30', label: 'Last 30 days' },
+  { value: 'all', label: 'All time' },
+]
+
+const outcomes = [
+  { value: '', label: 'Any outcome' },
+  { value: 'denied', label: 'Denied' },
+  { value: 'error', label: 'Failed' },
 ]
 
 /** Names of users, automation accounts and configuration objects by id. */
-function useNames(): Names {
+function useNames(): Names & { find: (text: string) => string[] } {
   const users = useQuery(usersQuery)
   const sps = useQuery(principalsQuery)
   const bindings = useQuery(resourceListQuery<ResourceMeta>('client-bindings'))
   const plans = useQuery(resourceListQuery<ResourceMeta>('routing-plans'))
   const accounts = useQuery(resourceListQuery<ResourceMeta>('provider-accounts'))
   const providers = useQuery(resourceListQuery<ResourceMeta>('providers'))
+  const channels = useQuery(resourceListQuery<ResourceMeta>('notification-channels'))
+  const rules = useQuery(resourceListQuery<ResourceMeta>('notification-rules'))
+  const relays = useQuery(resourceListQuery<ResourceMeta>('event-destinations'))
+  const workspaces = useQuery(resourceListQuery<ResourceMeta>('workspaces'))
+  const projects = useQuery(resourceListQuery<ResourceMeta>('projects'))
   return useMemo(() => {
     const m = new Map<string, string>()
     for (const u of users.data?.items ?? []) m.set(u.id, u.display_name || u.email)
     for (const p of sps.data?.items ?? []) m.set(p.id, p.name)
-    for (const list of [bindings, plans, accounts, providers]) for (const r of list.data?.items ?? []) m.set(r.id, r.name)
-    return { name: (id) => (id ? m.get(id) : undefined) }
-  }, [users.data, sps.data, bindings, plans, accounts, providers])
+    for (const list of [bindings, plans, accounts, providers, channels, rules, relays, workspaces, projects]) for (const r of list.data?.items ?? []) m.set(r.id, r.name)
+    return {
+      name: (id) => (id ? m.get(id) : undefined),
+      find: (text) => {
+        const t = text.toLowerCase()
+        return [...m].filter(([, n]) => n.toLowerCase().includes(t)).map(([id]) => id)
+      },
+    }
+  }, [users.data, sps.data, bindings, plans, accounts, providers, channels, rules, relays, workspaces, projects])
 }
 
-export function AuditLog() {
+export function AuditLog({ search, onSearch }: { search: AuditSearch; onSearch: (s: Partial<AuditSearch>) => void }) {
   const qc = useQueryClient()
   const compact = useCompact()
   const canAck = useCan('system.manage')
@@ -86,13 +115,24 @@ export function AuditLog() {
   const users = useQuery(usersQuery)
   const sps = useQuery(principalsQuery)
   const names = useNames()
-  const [group, setGroup] = useState<string | null>(null)
-  const [actor, setActor] = useState<string | null>(null)
-  const [outcome, setOutcome] = useState('all')
-  const [range, setRange] = useState('7')
-  const [text, setText] = useState('')
+  const group = search.what ?? null
+  const actor = search.who ?? null
+  const outcome = search.outcome ?? ''
+  const range = search.range ?? '7'
+  const [text, setText] = useState(search.q ?? '')
+  const [debounced] = useDebouncedValue(text.trim(), 300)
+  useEffect(() => {
+    if ((search.q ?? '') !== debounced) onSearch({ q: debounced || undefined })
+  }, [debounced]) // eslint-disable-line react-hooks/exhaustive-deps
   const [open, setOpen] = useState<AuditEntry | null>(null)
-  const filter = { action: group ?? undefined, actor_id: actor ?? undefined, outcome: outcome === 'all' ? undefined : outcome }
+  // Range start, rounded to the minute so the query key stays stable.
+  const since = useMemo(() => (range === 'all' ? undefined : new Date(Math.floor((serverNow() - Number(range) * 86_400_000) / 60_000) * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z')), [range])
+  // A search that names exactly one known person or object searches by its id,
+  // so "alice" finds what Alice did and what was done to her.
+  const q = search.q ?? ''
+  const matches = q ? names.find(q) : []
+  const serverQ = matches.length === 1 ? matches[0] : q || undefined
+  const filter = { action: group ?? undefined, actor_id: actor ?? undefined, outcome: outcome || undefined, since, q: serverQ }
   const log = useInfiniteQuery({
     queryKey: [...qk.audit, 'log', filter],
     initialPageParam: '',
@@ -107,16 +147,7 @@ export function AuditLog() {
     },
   })
 
-  // The time range and the text search apply to the loaded entries (the
-  // audit API filters by action, actor and outcome).
-  const since = range === 'all' ? 0 : serverNow() - Number(range) * 86_400_000
-  const q = text.trim().toLowerCase()
-  const all = (log.data?.pages ?? []).flatMap((p) => p.items ?? [])
-  const items = all
-    .filter((e) => new Date(e.at).getTime() >= since)
-    .map((e) => ({ e, text: sentence(e, names) }))
-    .filter((x) => !q || x.text.toLowerCase().includes(q) || x.e.action.includes(q))
-  const reachedRangeEnd = all.length > 0 && new Date(all[all.length - 1]!.at).getTime() < since
+  const items = (log.data?.pages ?? []).flatMap((p) => p.items ?? []).map((e) => ({ e, text: sentence(e, names) }))
 
   const groups: { day: string; rows: typeof items }[] = []
   for (const it of items) {
@@ -129,7 +160,7 @@ export function AuditLog() {
     ...(users.data?.items ?? []).map((u) => ({ value: u.id, label: u.display_name || u.email })),
     ...(sps.data?.items ?? []).map((p) => ({ value: p.id, label: `${p.name} (automation)` })),
   ]
-  const filtered = !!(group || actor || outcome !== 'all' || q)
+  const filtered = !!(group || actor || outcome || q)
 
   return (
     <Stack gap="md">
@@ -146,14 +177,23 @@ export function AuditLog() {
         </Banner>
       ))}
       <MutationError error={ack.error} />
-      <Group gap="xs" wrap="wrap" role="search" aria-label="Filter the audit log" className={s.toolbar}>
+      <Group gap="sm" wrap="wrap" align="flex-end" role="search" aria-label="Filter the audit log" className={s.toolbar}>
         <div className={s.search}>
-          <TextInput aria-label="Search the audit log" placeholder="Search" leftSection={<Search size={14} />} value={text} onChange={(e) => setText(e.currentTarget.value)} />
+          <TextInput label="Search" placeholder="Name, action or id" leftSection={<Search size={14} />} value={text} onChange={(e) => setText(e.currentTarget.value)} />
         </div>
-        <Select aria-label="Who" placeholder="Anyone" clearable searchable data={actors} value={actor} onChange={setActor} w={180} />
-        <Select aria-label="What" placeholder="Any action" clearable data={actionGroups} value={group} onChange={setGroup} w={200} />
-        <SegmentedControl aria-label="Outcome" size="sm" value={outcome} onChange={setOutcome} data={[{ value: 'all', label: 'All' }, { value: 'denied', label: 'Denied' }, { value: 'error', label: 'Failed' }]} />
-        <SegmentedControl aria-label="Time range" size="sm" value={range} onChange={setRange} data={ranges} />
+        <Select label="Who" placeholder="Anyone" clearable searchable data={actors} value={actor} onChange={(v) => onSearch({ who: v ?? undefined })} w={190}
+          comboboxProps={{ withinPortal: true }} />
+        <Select label="What" placeholder="Any action" clearable data={actionGroups} value={group} onChange={(v) => onSearch({ what: v ?? undefined })} w={210}
+          comboboxProps={{ withinPortal: true }} />
+        <Select label="Outcome" data={outcomes} value={outcome} allowDeselect={false} onChange={(v) => onSearch({ outcome: (v || undefined) as AuditSearch['outcome'] })} w={150}
+          comboboxProps={{ withinPortal: true }} />
+        <Select label="When" data={ranges} value={range} allowDeselect={false} onChange={(v) => onSearch({ range: v === '7' ? undefined : (v as AuditSearch['range']) })} w={160}
+          comboboxProps={{ withinPortal: true }} />
+        {filtered && (
+          <Button variant="subtle" size="sm" onClick={() => { setText(''); onSearch({ who: undefined, what: undefined, outcome: undefined, q: undefined }) }}>
+            Clear filters
+          </Button>
+        )}
       </Group>
 
       {log.isError ? (
@@ -177,7 +217,7 @@ export function AuditLog() {
                       </span>
                       {e.outcome !== 'success' && (
                         <span className={s.logMeta}>
-                          <Outcome outcome={e.outcome} />
+                          <Outcome outcome={e.outcome} quiet />
                         </span>
                       )}
                     </UnstyledButton>
@@ -221,7 +261,7 @@ export function AuditLog() {
                     </td>
                     <td>{text}</td>
                     <td>
-                      <Outcome outcome={e.outcome} />
+                      <Outcome outcome={e.outcome} quiet />
                     </td>
                   </tr>
                 ))}
@@ -234,9 +274,9 @@ export function AuditLog() {
         <Group justify="space-between" gap="xs">
           <Text size="xs" c="dimmed">
             Showing {items.length} {items.length === 1 ? 'entry' : 'entries'}
-            {!log.hasNextPage || reachedRangeEnd ? ' · that’s all in this range' : ''}
+            {!log.hasNextPage ? ' · that’s all in this range' : ''}
           </Text>
-          {log.hasNextPage && !reachedRangeEnd && (
+          {log.hasNextPage && (
             <Button variant="default" size="xs" loading={log.isFetchingNextPage} onClick={() => void log.fetchNextPage()}>
               Load more
             </Button>
@@ -269,10 +309,10 @@ function EntryDrawer({ e, names, onClose, compact }: { e: AuditEntry | null; nam
               ['Outcome', <Outcome outcome={e.outcome} />],
               ['Action', <code>{e.action}</code>],
               ...(e.target_kind || e.target_id
-                ? ([['Target', <Group gap={6} wrap="nowrap">{kindNoun[e.target_kind ?? ''] ?? e.target_kind}{e.target_id && <CopyText value={e.target_id} maw={220} />}</Group>]] as [string, React.ReactNode][])
+                ? ([['Target', <Group gap={6} wrap="nowrap">{kindNoun[e.target_kind ?? ''] ?? e.target_kind}{e.target_id && <CopyText value={e.target_id} maw="100%" />}</Group>]] as [string, React.ReactNode][])
                 : []),
-              ...(e.actor_id && e.actor_id !== 'system' ? ([['Actor id', <CopyText value={e.actor_id} maw={220} />]] as [string, React.ReactNode][]) : []),
-              ...(e.request_id ? ([['Request id', <CopyText value={e.request_id} maw={220} />]] as [string, React.ReactNode][]) : []),
+              ...(e.actor_id && e.actor_id !== 'system' ? ([['Actor id', <CopyText value={e.actor_id} maw="100%" />]] as [string, React.ReactNode][]) : []),
+              ...(e.request_id ? ([['Request id', <CopyText value={e.request_id} maw="100%" />]] as [string, React.ReactNode][]) : []),
               ...(e.ip ? ([['IP address', e.ip]] as [string, React.ReactNode][]) : []),
             ]}
           />

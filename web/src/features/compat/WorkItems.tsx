@@ -20,7 +20,7 @@ export function WorkStatusBadge({ s }: { s: string }) {
 export function WorkItemsPanel({ status, onStatus }: { status?: WorkStatus; onStatus: (s: WorkStatus | undefined) => void }) {
   const q = useQuery(workItemsQuery(status))
   return (
-    <Panel title="Work items" subtitle="One deduplicated item per observed change. Repeated observations add evidence instead of new items; resolved items reopen if the change returns.">
+    <Panel title="Follow-ups" subtitle="One follow-up per observed protocol change. Repeats add evidence instead of new items; resolved follow-ups reopen if the change returns.">
       <div className={c.filters}>
         <SelectField label="Status" value={status ?? ''} onChange={(v) => onStatus((v || undefined) as WorkStatus | undefined)}
           options={[{ value: '', label: 'All statuses' }, ...workStatuses.map((s) => ({ value: s.value as string, label: s.label }))]} />
@@ -30,11 +30,11 @@ export function WorkItemsPanel({ status, onStatus }: { status?: WorkStatus; onSt
       ) : !q.data ? (
         <TableSkeleton rows={4} />
       ) : q.data.items.length === 0 ? (
-        <EmptyState icon={ClipboardList} title={status ? `No ${statusLabel(status).toLowerCase()} work items` : 'No work items'}>
-          Work items are created automatically when Protocol Watch records a new change.
+        <EmptyState icon={ClipboardList} title={status ? `No ${statusLabel(status).toLowerCase()} follow-ups` : 'No follow-ups'}>
+          A follow-up is created automatically when Diagnostics records a new protocol change.
         </EmptyState>
       ) : (
-        <TableScroll label="Work items">
+        <TableScroll label="Follow-ups">
           <table className="data-table" style={{ width: '100%' }}>
             <thead>
               <tr>
@@ -133,7 +133,7 @@ function Triage({ w }: { w: WorkItem }) {
         </Field>
         {stale ? (
           <Banner tone="warning" role="alert">
-            This work item was changed by someone else since you opened it. Reload to see the latest version, then reapply your edits.{' '}
+            This follow-up was changed by someone else since you opened it. Reload to see the latest version, then reapply your edits.{' '}
             <Button size="small" icon={RefreshCw} onClick={() => void reload()}>Reload</Button>
           </Banner>
         ) : (

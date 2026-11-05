@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Archive, Plus } from 'lucide-react'
-import { Badge, Banner, Button, EmptyState, KeyValues, Panel, Skeleton, TableScroll } from '@/components/ui'
-import { Accordion, Stack, Text } from '@mantine/core'
-import { CopyText } from '@/ui/kit'
-import { Checkbox, Dialog, MutationError, formStyles as f } from '@/components/form'
+import { AlertTriangle, Archive, CheckCircle2, Copy, Download, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
+import { ActionIcon, Button as MButton, Group, Menu, Stack, Text, Tooltip } from '@mantine/core'
+import { useClipboard } from '@mantine/hooks'
+import { Badge, Banner, Button, EmptyState, Panel, Skeleton } from '@/components/ui'
+import { type Column, CopyText, DataTable, Fields } from '@/ui/kit'
+import { plural } from '@/ui/glossary'
+import { Advanced, Checkbox, ConfirmDialog, Dialog, MutationError, formStyles as f } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
-import { apiSend } from '@/lib/api/client'
+import { API, apiSend } from '@/lib/api/client'
 import { backupsQuery, metaQuery, systemStatusQuery } from '@/lib/api/queries'
 import type { Backup, BackupCreated } from '@/lib/api/types'
-import { fmtDateTime, fmtNumber, fmtRelative } from '@/lib/format'
+import { fmtDateTime, fmtRelative } from '@/lib/format'
 import { CodeBlock } from '@/features/harness/CodeBlock'
 import { BridgesPanel } from '@/features/config/BridgesPanel'
 
@@ -30,13 +32,20 @@ function fmtBytes(n: number): string {
   return `${v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`
 }
 
+/** "5 Nov 2026, 18:25" from a manifest time or a 20261105T182553.407Z name. */
+function backupWhen(b: Backup): string {
+  if (b.manifest?.created_at) return fmtDateTime(b.manifest.created_at)
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/.exec(b.name)
+  return m ? fmtDateTime(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`) : b.name
+}
+
 function SystemSettings() {
   const meta = useQuery(metaQuery)
   const status = useQuery(systemStatusQuery)
   return (
     <>
       {status.data && !status.data.secure_cookies && (
-        <Banner tone="warning">
+        <Banner tone="warning" icon={AlertTriangle}>
           Sign-in uses plain HTTP, so session cookies are not protected. Set <code>public_url</code> to an https address.
         </Banner>
       )}
@@ -47,17 +56,28 @@ function SystemSettings() {
         ) : !status.data || !meta.data ? (
           <Skeleton height={120} />
         ) : (
-          <KeyValues
-            items={[
-              ['Version', <CopyText value={meta.data.version} />],
-              ['Public URL', <CopyText value={meta.data.public_url || '—'} />],
-              ['Started', <span title={fmtDateTime(meta.data.started_at, { seconds: true })}>{fmtRelative(meta.data.started_at)}</span>],
-              ['Data directory', <CopyText value={status.data.data_dir} maw={360} />],
-              ['Database versions', <span className="num">{status.data.schema_version} · content {status.data.traces_schema_version}</span>],
-              ['Master key', <CopyText value={status.data.master_key_id} />],
-              ['Session cookies', status.data.secure_cookies ? 'Secure (https)' : <Badge tone="warning">Not secure (plain http)</Badge>],
-            ]}
-          />
+          <Stack gap="sm">
+            <Fields
+              cols={3}
+              items={[
+                ['Version', <CopyText value={meta.data.version} maw="100%" />],
+                ['Public URL', meta.data.public_url ? <CopyText value={meta.data.public_url} maw="100%" /> : <span className="muted">Not set</span>],
+                ['Started', <span title={fmtDateTime(meta.data.started_at, { seconds: true })}>{fmtRelative(meta.data.started_at)}</span>],
+                ['Data directory', <CopyText value={status.data.data_dir} maw="100%" />],
+                ['Master key', <CopyText value={status.data.master_key_id} maw="100%" />],
+                ['Session cookies', status.data.secure_cookies ? 'Secure (https)' : 'Not secure (plain http)'],
+              ]}
+            />
+            <Advanced label="Database schema versions">
+              <Fields
+                cols={2}
+                items={[
+                  ['Main database', <span className="mono">{status.data.schema_version}</span>],
+                  ['Captured content database', <span className="mono">{status.data.traces_schema_version}</span>],
+                ]}
+              />
+            </Advanced>
+          </Stack>
         )}
       </Panel>
       <BridgesPanel />
@@ -70,11 +90,12 @@ function Backups() {
   const list = useQuery(backupsQuery)
   const [open, setOpen] = useState(false)
   const [created, setCreated] = useState<BackupCreated | null>(null)
+  const [deleted, setDeleted] = useState<string | null>(null)
   const items = list.data?.items ?? []
   return (
     <Panel
       title="Backups"
-      subtitle="Consistent snapshots with checksums, taken while Harbor Pilot runs and written to the data directory. Copy them off the server; keep the master key separately."
+      subtitle="Consistent snapshots with checksums, taken while Harbor Pilot runs and kept in the data directory. Download them to keep a copy off the server; keep the master key separately."
       actions={
         <Button variant="primary" icon={Plus} onClick={() => setOpen(true)}>
           Take backup
@@ -82,9 +103,13 @@ function Backups() {
       }
     >
       {created && (
-        <Banner tone="info" role="status">
-          Backup written to <span className="mono">{created.path}</span>
-          {created.manifest.include_traces ? ' (including trace content).' : '.'}
+        <Banner tone="success" icon={CheckCircle2} role="status">
+          Backup taken{created.manifest.include_traces ? ', including captured content' : ''}. Download it from the list below to keep a copy off the server.
+        </Banner>
+      )}
+      {deleted && (
+        <Banner tone="success" icon={CheckCircle2} role="status">
+          Deleted the backup from {deleted}.
         </Banner>
       )}
       {list.isError ? (
@@ -96,26 +121,30 @@ function Backups() {
           Take one here, or run <code>harbor-pilot backup --out DIR</code> on the server.
         </EmptyState>
       ) : (
-        <BackupTable items={items} />
+        <BackupTable
+          items={items}
+          onDeleted={(b) => {
+            setCreated(null)
+            setDeleted(backupWhen(b))
+            void qc.invalidateQueries({ queryKey: backupsQuery.queryKey })
+          }}
+        />
       )}
-      <Accordion variant="separated" radius="md">
-        <Accordion.Item value="restore">
-          <Accordion.Control>How to restore</Accordion.Control>
-          <Accordion.Panel>
-            <Stack gap="sm">
-              <Text size="sm">
-                Restore runs on the server while Harbor Pilot is stopped. It checks the backup, checks that the configured master key can open its secrets,
-                and keeps the current files aside (<code>*.pre-restore-&lt;time&gt;</code>) before installing it. There is no restore button here on purpose.
-              </Text>
-              <CodeBlock code={'harbor-pilot backup verify DIR\nharbor-pilot restore --from DIR --yes'} label="Restore commands" />
-            </Stack>
-          </Accordion.Panel>
-        </Accordion.Item>
-      </Accordion>
+      <Stack gap={6}>
+        <Text size="sm" fw={600}>
+          How to restore
+        </Text>
+        <Text size="sm" c="dimmed">
+          Restore runs on the server while Harbor Pilot is stopped. It checks the backup and the master key, and keeps the current files aside
+          (<code>*.pre-restore-&lt;time&gt;</code>) before installing it. Unpack a downloaded archive into a directory first.
+        </Text>
+        <CodeBlock code={'harbor-pilot backup verify DIR\nharbor-pilot restore --from DIR --yes'} label="Restore commands" />
+      </Stack>
       <CreateBackupDialog
         open={open}
         onClose={() => setOpen(false)}
         onCreated={(r) => {
+          setDeleted(null)
           setCreated(r)
           setOpen(false)
           void qc.invalidateQueries({ queryKey: backupsQuery.queryKey })
@@ -125,68 +154,113 @@ function Backups() {
   )
 }
 
-function BackupTable({ items }: { items: Backup[] }) {
+function BackupTable({ items, onDeleted }: { items: Backup[]; onDeleted: (b: Backup) => void }) {
+  const [confirm, setConfirm] = useState<Backup | null>(null)
+  const clip = useClipboard({ timeout: 1500 })
+  const del = useMutation({
+    mutationFn: (b: Backup) => apiSend<void>('DELETE', `/system/backups/${encodeURIComponent(b.name)}`).then(() => b),
+    onSuccess: onDeleted,
+  })
+  const cols: Column<Backup>[] = [
+    {
+      id: 'when',
+      header: 'Taken',
+      mobile: 'title',
+      cell: (b) => (
+        <Stack gap={0}>
+          <Text size="sm" fw={500}>
+            {backupWhen(b)}
+          </Text>
+          {b.manifest && (
+            <Text size="xs" c="dimmed">
+              {fmtRelative(b.manifest.created_at)}
+            </Text>
+          )}
+        </Stack>
+      ),
+    },
+    {
+      id: 'includes',
+      header: 'Includes',
+      mobile: 'meta',
+      mobileLabel: 'Includes',
+      cell: (b) =>
+        !b.manifest ? (
+          <span className="muted">—</span>
+        ) : b.manifest.include_traces ? (
+          <Group gap={6} wrap="nowrap">
+            Configuration and data <Badge tone="warning">+ captured content</Badge>
+          </Group>
+        ) : (
+          'Configuration and data'
+        ),
+    },
+    { id: 'size', header: 'Size', align: 'right', mobile: 'meta', mobileLabel: 'Size', cell: (b) => (b.manifest ? fmtBytes((b.manifest.files ?? []).reduce((n, x) => n + x.bytes, 0)) : '—') },
+    {
+      id: 'status',
+      header: 'Status',
+      mobile: 'aside',
+      cell: (b) =>
+        b.intact ? (
+          <Badge tone="success">Verified</Badge>
+        ) : (
+          <Tooltip label={b.problem ?? 'The checksums do not match.'} multiline maw={320}>
+            <span>
+              <Badge tone="error">Damaged</Badge>
+            </span>
+          </Tooltip>
+        ),
+    },
+    {
+      id: 'actions',
+      header: <span className="visually-hidden">Actions</span>,
+      align: 'right',
+      mobile: 'actions',
+      cell: (b) => (
+        <Group gap={4} wrap="nowrap" justify="flex-end">
+          <MButton component="a" href={`${API}/system/backups/${encodeURIComponent(b.name)}/archive`} download variant="default" size="compact-sm"
+            leftSection={<Download size={14} aria-hidden="true" />} aria-label={`Download backup from ${backupWhen(b)}`}>
+            Download
+          </MButton>
+          <Menu position="bottom-end" withinPortal>
+            <Menu.Target>
+              <ActionIcon variant="subtle" color="gray" aria-label={`More actions for backup from ${backupWhen(b)}`}>
+                <MoreHorizontal size={16} />
+              </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item leftSection={<Copy size={14} />} onClick={() => clip.copy(b.path)}>
+                {clip.copied ? 'Copied' : 'Copy path on the server'}
+              </Menu.Item>
+              <Menu.Item leftSection={<Trash2 size={14} />} color="red" onClick={() => { del.reset(); setConfirm(b) }}>
+                Delete…
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        </Group>
+      ),
+    },
+  ]
   return (
-    <TableScroll label="Backup list">
-      <table className="data-table" style={{ width: '100%' }}>
-        <thead>
-          <tr>
-            <th>Backup</th>
-            <th>Created</th>
-            <th>State</th>
-            <th>Contents</th>
-            <th className="num">Size</th>
-            <th>Server version</th>
-            <th>Master key ids</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((b) => {
-            const m = b.manifest
-            const size = (m?.files ?? []).reduce((n, x) => n + x.bytes, 0)
-            return (
-              <tr key={b.name}>
-                <td>
-                  <span className="mono" title={b.path}>
-                    {b.name}
-                  </span>
-                </td>
-                <td>{m ? <span title={fmtDateTime(m.created_at, { seconds: true })}>{fmtRelative(m.created_at)}</span> : <span className="muted">—</span>}</td>
-                <td>
-                  {b.intact ? (
-                    <Badge tone="success">Verified</Badge>
-                  ) : (
-                    <span>
-                      <Badge tone="error">Damaged</Badge> <span className="secondary">{b.problem}</span>
-                    </span>
-                  )}
-                </td>
-                <td>
-                  {m ? (
-                    <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
-                      {(m.files ?? []).map((x) => (
-                        <Badge key={x.name} title={`schema ${x.schema_version} · sha256 ${x.sha256}`}>
-                          {x.name}
-                        </Badge>
-                      ))}
-                      {m.include_traces && <Badge tone="warning">trace content</Badge>}
-                    </span>
-                  ) : (
-                    <span className="muted">—</span>
-                  )}
-                </td>
-                <td className="num">{m ? fmtBytes(size) : '—'}</td>
-                <td className="mono">{m?.server_version || '—'}</td>
-                <td className="mono">{(m?.master_key_ids ?? []).join(', ') || '—'}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-      <p className="muted" style={{ fontSize: 'var(--text-sm)', marginTop: 8 }}>
-        {fmtNumber(items.length)} backup{items.length === 1 ? '' : 's'} in the data directory.
-      </p>
-    </TableScroll>
+    <>
+      <MutationError error={del.error} />
+      <DataTable label="Backup list" rows={items} columns={cols} rowKey={(b) => b.name} />
+      <Text size="xs" c="dimmed">
+        {plural(items.length, 'backup')} in the data directory. Server version, master key ids and checksums are in each backup's manifest.
+      </Text>
+      <ConfirmDialog
+        open={!!confirm}
+        title="Delete this backup?"
+        message={confirm ? `The backup from ${backupWhen(confirm)} is removed from the server. Copies you downloaded are not affected. This cannot be undone.` : ''}
+        confirmLabel="Delete backup"
+        danger
+        onConfirm={() => {
+          if (confirm) del.mutate(confirm)
+          setConfirm(null)
+        }}
+        onCancel={() => setConfirm(null)}
+      />
+    </>
   )
 }
 
@@ -212,10 +286,10 @@ function CreateBackupDialog({ open, onClose, onCreated }: { open: boolean; onClo
           The server keeps running. Configuration, ledger, activity, events and sealed secrets are included; secrets stay encrypted and need the
           same master key to restore.
         </p>
-        <Checkbox label="Include trace content (traces.db)" checked={traces} onChange={setTraces} />
+        <Checkbox label="Include captured content" description="Prompts and completions kept by your content capture rules (traces.db)." checked={traces} onChange={setTraces} />
         {traces && (
-          <Banner tone="warning" role="status">
-            The backup will contain encrypted trace content: prompts, completions and tool data under your trace policies. Anyone holding the
+          <Banner tone="warning" icon={AlertTriangle} role="status">
+            The backup will contain encrypted captured content: prompts, completions and tool data kept by your content capture rules. Anyone holding the
             backup and the master key can read it, and expiry in the live database does not reach copies. Store it accordingly.
           </Banner>
         )}

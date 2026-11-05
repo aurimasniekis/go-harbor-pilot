@@ -22,7 +22,12 @@ export function CoverageNote({ processed, dropped }: { processed: number; droppe
       </Banner>
     )
   }
-  return <p className="secondary">Coverage: {fmtCompact(processed)} observations processed since start, none dropped.</p>
+  if (processed === 0) return null
+  return (
+    <p className="secondary">
+      Coverage: {fmtCompact(processed)} {processed === 1 ? 'observation' : 'observations'} processed since the server started, none dropped.
+    </p>
+  )
 }
 
 /** The observed compatibility changelog. */
@@ -39,16 +44,18 @@ export function ChangesPanel() {
   return (
     <Panel title="Observed changes"
       subtitle="An observed compatibility changelog — not a provider release history. Structure only: content values are never recorded.">
-      <Banner tone="info">
-        “Not observed recently” means only that: it is not proof a field or event was removed. “Expected field absent” is reported with low
-        confidence for the same reason. Correlation with an incident is not causation.
-      </Banner>
+      {(q.data?.items.length ?? 0) > 0 && (
+        <Banner tone="info">
+          “Not observed recently” means only that: it is not proof a field or event was removed. “Expected field absent” is reported with low
+          confidence for the same reason. Correlation with an incident is not causation.
+        </Banner>
+      )}
       {q.data && <CoverageNote processed={q.data.processed} dropped={q.data.dropped} />}
       <div className={c.filters}>
         <SelectField label="Kind" value={kind} onChange={setKind}
           options={[{ value: '', label: 'All kinds' }, ...Object.entries(changeKinds).map(([value, label]) => ({ value, label }))]} />
         <SelectField label="Impact" value={impact} onChange={setImpact}
-          options={[{ value: '', label: 'All' }, { value: 'breaking', label: 'Breaking' }, { value: 'additive', label: 'Additive' }, { value: 'unknown', label: 'Unknown' }]} />
+          options={[{ value: '', label: 'Any impact' }, { value: 'breaking', label: 'Breaking' }, { value: 'additive', label: 'Additive' }, { value: 'unknown', label: 'Unknown' }]} />
       </div>
       {q.isError ? (
         <QueryError error={q.error} retry={() => void q.refetch()} />
@@ -114,7 +121,6 @@ export function ChangesPanel() {
           </table>
         </TableScroll>
       )}
-      <p className="muted">Adapter version and endpoint identity are recorded per change for later correlation.</p>
     </Panel>
   )
 }

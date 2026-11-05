@@ -22,7 +22,7 @@ export function BreakerState({ b }: { b: Breaker }) {
       <Badge tone={breakerTone[eff] ?? 'neutral'}>{breakerLabel[eff] ?? eff}</Badge>
       {b.override !== 'auto' && (
         <Badge tone="purple" title={b.override_reason ? `Reason: ${b.override_reason}` : undefined}>
-          {b.override === 'force_open' ? 'forced open' : 'forced closed'}
+          {b.override === 'force_open' ? 'paused by hand' : 'kept on by hand'}
         </Badge>
       )}
     </span>
@@ -40,9 +40,9 @@ export function PathLabel({ path }: { path: string }) {
 }
 
 const overrideOptions = [
-  { value: 'auto', label: 'Automatic (thresholds, cooldown, probes)' },
-  { value: 'force_open', label: 'Force open (stop normal routing on this path)' },
-  { value: 'force_closed', label: 'Force closed (ignore failures on this path)' },
+  { value: 'auto', label: 'Automatic: pause and resume on failures (default)' },
+  { value: 'force_open', label: 'Pause this path (breaker forced open)' },
+  { value: 'force_closed', label: 'Keep using this path (breaker forced closed)' },
 ] as const
 
 type Override = (typeof overrideOptions)[number]['value']
@@ -92,7 +92,7 @@ function ManageBreaker({ b, providerName, onClose }: { b: Breaker; providerName:
           <TextField label="Reason" value={reason} onChange={setReason} maxLength={500} required
             hint="Recorded in the audit log and shown with the breaker." error={reasonMissing && confirm === 'override' ? 'A reason is required' : undefined} />
           {override === 'force_closed' && override !== b.override && (
-            <Banner tone="warning">Forcing closed sends requests through the normal path even if the upstream is still incompatible.</Banner>
+            <Banner tone="warning">Requests keep going through this path even if the upstream is still incompatible.</Banner>
           )}
           {confirm === 'override' && !reasonMissing ? (
             <div className={c.confirm} role="group" aria-label="Confirm override">
