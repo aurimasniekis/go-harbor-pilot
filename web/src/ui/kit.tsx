@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from 'react'
+import { type ReactNode, useEffect, useId } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   ActionIcon,
@@ -64,7 +64,7 @@ export function Breadcrumbs({ items }: { items: Crumb[] }) {
   )
 }
 
-export function PageHeader({ title, context, actions, info, breadcrumb, crumbs }: {
+export function PageHeader({ title, context, actions, info, breadcrumb, crumbs, docTitle }: {
   title: ReactNode
   context?: ReactNode
   actions?: ReactNode
@@ -74,7 +74,18 @@ export function PageHeader({ title, context, actions, info, breadcrumb, crumbs }
   breadcrumb?: ReactNode
   /** Breadcrumb trail above the title; the current page is usually omitted (it is the title). */
   crumbs?: Crumb[]
+  /** Browser tab title when `title` is not plain text. */
+  docTitle?: string
 }) {
+  const tab = docTitle ?? (typeof title === 'string' ? title : undefined)
+  // Each page names the browser tab, so history and screen readers can tell pages apart.
+  useEffect(() => {
+    if (!tab) return
+    document.title = `${tab} · Harbor Pilot`
+    return () => {
+      document.title = 'Harbor Pilot'
+    }
+  }, [tab])
   return (
     <div className={s.pageHeader}>
       <div className={s.pageTitle}>
@@ -100,14 +111,19 @@ export function PageHeader({ title, context, actions, info, breadcrumb, crumbs }
 }
 
 /** Route tabs under a page header. Each tab is a link (deep-linkable). */
-export function LinkTabs({ label, items }: { label: string; items: { to: string; label: string; exact?: boolean; also?: (path: string) => boolean }[] }) {
+export function LinkTabs({ label, items, search }: {
+  label: string
+  items: { to: string; label: string; exact?: boolean; also?: (path: string) => boolean }[]
+  /** Query parameters to carry to every tab (shared filters such as a time range). */
+  search?: Record<string, unknown>
+}) {
   const path = useRouterState({ select: (r) => r.location.pathname.replace(/\/$/, '') || '/' })
   return (
     <nav aria-label={label} className={s.tabs}>
       {items.map((it) => {
         const active = it.also?.(path) || (it.exact ? path === it.to : path === it.to || path.startsWith(`${it.to}/`))
         return (
-          <Link key={it.to} to={it.to} className={s.tab} data-active={active || undefined} aria-current={active ? 'page' : undefined}>
+          <Link key={it.to} to={it.to} search={search as never} className={s.tab} data-active={active || undefined} aria-current={active ? 'page' : undefined}>
             {it.label}
           </Link>
         )
@@ -170,12 +186,14 @@ export interface StatProps {
   spark?: number[]
   info?: ReactNode
   to?: string
+  /** Query parameters for `to` (a filtered list). */
+  search?: Record<string, unknown>
 }
 
-export function Stat({ label, value, hint, tone = 'default', spark, info, to }: StatProps) {
+export function Stat({ label, value, hint, tone = 'default', spark, info, to, search }: StatProps) {
   const body = (
     <>
-      <Group gap={4} wrap="nowrap" className={s.statLabel}>
+      <Group gap={4} wrap="nowrap" align="center" h={18} className={s.statLabel}>
         <Text size="xs" c="dimmed" fw={500} truncate>
           {label}
         </Text>
@@ -194,7 +212,7 @@ export function Stat({ label, value, hint, tone = 'default', spark, info, to }: 
   )
   if (to) {
     return (
-      <Paper component={Link} to={to} withBorder p="sm" radius="md" className={`${s.stat} ${s.statLink}`}>
+      <Paper component={Link} to={to} search={search as never} withBorder p="sm" radius="md" className={`${s.stat} ${s.statLink}`}>
         {body}
       </Paper>
     )
@@ -269,8 +287,9 @@ export function StatusDot({ status, label }: { status: string; label?: ReactNode
 export function Unknown({ reason }: { reason: string }) {
   return (
     <Tooltip label={reason}>
-      <span className={s.unknown} aria-label={reason} tabIndex={0}>
-        —
+      <span className={s.unknown}>
+        <span aria-hidden>—</span>
+        <span className="visually-hidden">{reason}</span>
       </span>
     </Tooltip>
   )

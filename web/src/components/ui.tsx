@@ -245,10 +245,10 @@ export function EmptyState({ icon: Icon = Info, title, children, action }: {
   )
 }
 
-const bannerColor = { info: 'teal', warning: 'yellow', error: 'red', purple: 'violet' } as const
+const bannerColor = { info: 'teal', success: 'green', warning: 'yellow', error: 'red', purple: 'violet' } as const
 
 export function Banner({ tone = 'info', icon: Icon = Info, children, role }: {
-  tone?: 'info' | 'warning' | 'error' | 'purple'
+  tone?: 'info' | 'success' | 'warning' | 'error' | 'purple'
   icon?: LucideIcon
   children: ReactNode
   role?: 'status' | 'alert'
