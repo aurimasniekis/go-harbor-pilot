@@ -115,10 +115,16 @@ func validateDestination(v *Validator, s *DestinationSpec) {
 		u, err := url.Parse(s.PulseURL)
 		v.Check(err == nil && (u.Scheme == "nats" || u.Scheme == "tls") && u.Host != "", "spec.pulse_url", "must be a nats:// or tls:// URL")
 		for loc, ref := range map[string]string{"spec.creds_ref": s.CredsRef, "spec.ca_ref": s.CARef} {
-			if ref != "" {
-				v.Check(strings.HasPrefix(ref, "file:") && len(ref) > 5, loc, "must be file:/path")
-				checkSecretRef(v, loc, ref)
+			if ref == "" {
+				continue
 			}
+			// One message per field: the shape first, the reference policy
+			// only for a well-formed file reference.
+			if !strings.HasPrefix(ref, "file:/") || len(ref) <= 6 {
+				v.Fail(loc, "must be file:/absolute/path")
+				continue
+			}
+			checkSecretRef(v, loc, ref)
 		}
 	case "webhook":
 		checkHTTPURL(v, "spec.webhook_url", s.WebhookURL, s.AllowPrivateNetwork)

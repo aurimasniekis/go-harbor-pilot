@@ -370,8 +370,12 @@ func (e *Engine) deliver(ctx context.Context) {
 			e.setStatus(ctx, p.id, "dead", p.attempts, 0, "channel removed or disabled", now, 0)
 			continue
 		}
-		if p.attempts >= maxAttempts || now.Sub(p.created) > maxAge {
-			e.setStatus(ctx, p.id, "dead", p.attempts, 0, "dead-lettered: attempts or age exceeded", now, 0)
+		if p.attempts >= maxAttempts {
+			e.giveUp(ctx, p.id, fmt.Sprintf("gave up after %d attempts", p.attempts))
+			continue
+		}
+		if now.Sub(p.created) > maxAge {
+			e.giveUp(ctx, p.id, "gave up: too old to send")
 			continue
 		}
 		if ok, wait := e.limiter(ch).Allow(ch.ID); !ok {
@@ -400,6 +404,23 @@ func (e *Engine) deliver(ctx context.Context) {
 			e.setStatus(ctx, p.id, "dead", p.attempts+1, res.Status, res.Err, now, 0)
 		}
 	}
+}
+
+// credentialProblem explains why a channel's credential could not be used,
+// naming the reference (never a value) when one is configured.
+func credentialProblem(spec cp.ChannelSpec) string {
+	if spec.SecretRef != "" {
+		return "secret reference " + spec.SecretRef + " could not be read on the server; check that it is set"
+	}
+	return "no credential is saved for this channel; edit the channel and add it"
+}
+
+// giveUp marks a notification failed for good, keeping the last attempt's
+// status and error so the cause stays visible.
+func (e *Engine) giveUp(ctx context.Context, id, reason string) {
+	_, _ = e.DB.W.ExecContext(ctx, `UPDATE notifications SET status = 'dead',
+		last_error = CASE WHEN last_error IS NULL OR last_error = '' THEN ? ELSE last_error || ' (' || ? || ')' END WHERE id = ?`,
+		reason, reason, id)
 }
 
 func (e *Engine) setStatus(ctx context.Context, id, status string, attempts, code int, errText string, now time.Time, wait time.Duration) {
@@ -480,7 +501,7 @@ func truncateRunes(s string, n int) string {
 func (e *Engine) send(ctx context.Context, ch *cp.Res[cp.ChannelSpec], p pending) outbound.Result {
 	secret, err := e.Secret(ctx, ch.ID)
 	if err != nil && ch.Spec.Type != "webhook" {
-		return outbound.Result{Err: "channel credential is not configured"}
+		return outbound.Result{Err: credentialProblem(ch.Spec)}
 	}
 	text := p.title + "\n" + p.body
 	switch ch.Spec.Type {

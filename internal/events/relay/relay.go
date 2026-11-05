@@ -15,6 +15,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/rand/v2"
 	"net/http"
@@ -242,8 +243,12 @@ func (r *Relay) deliver(ctx context.Context, d *cp.Res[cp.DestinationSpec]) {
 		if x.next > now.UnixMilli() {
 			return // ordered: wait for the head of the queue
 		}
-		if x.attempts >= d.Spec.MaxAttempts || now.Sub(x.ev.OccurredAt) > time.Duration(d.Spec.MaxAgeHours)*time.Hour {
-			r.mark(ctx, x.id, "dead", x.attempts, 0, "dead-lettered: attempts or age exceeded", now)
+		if x.attempts >= d.Spec.MaxAttempts {
+			r.giveUp(ctx, x.id, fmt.Sprintf("gave up after %d attempts", x.attempts))
+			continue
+		}
+		if now.Sub(x.ev.OccurredAt) > time.Duration(d.Spec.MaxAgeHours)*time.Hour {
+			r.giveUp(ctx, x.id, fmt.Sprintf("gave up: older than %d hours", d.Spec.MaxAgeHours))
 			continue
 		}
 		claim, err := r.DB.W.ExecContext(ctx, `UPDATE event_deliveries SET status = 'sending', lease_until = ? WHERE id = ?
@@ -279,6 +284,14 @@ func (r *Relay) mark(ctx context.Context, id, status string, attempts, code int,
 	}
 	_, _ = r.DB.W.ExecContext(ctx, `UPDATE event_deliveries SET status = ?, attempts = ?, last_status = ?, last_error = ?, delivered_at = ? WHERE id = ?`,
 		status, attempts, nullInt(code), nullStr(errText), delivered, id)
+}
+
+// giveUp marks a delivery failed for good, keeping the last attempt's
+// HTTP status and error so the reason the receiver failed stays visible.
+func (r *Relay) giveUp(ctx context.Context, id, reason string) {
+	_, _ = r.DB.W.ExecContext(ctx, `UPDATE event_deliveries SET status = 'dead',
+		last_error = CASE WHEN last_error IS NULL OR last_error = '' THEN ? ELSE last_error || ' (' || ? || ')' END WHERE id = ?`,
+		reason, reason, id)
 }
 
 func (r *Relay) defer_(ctx context.Context, id string, attempts, code int, errText string, next time.Time) {
