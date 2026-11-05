@@ -191,12 +191,18 @@ export function QuotaBar({ label, percent, stale, meta, srLabel }: {
         className={s.barTrack}
         data-stale={stale ? 'true' : undefined}
         data-unknown={known ? undefined : 'true'}
-        role="meter"
-        aria-label={srLabel ?? (typeof label === 'string' ? label : 'Quota remaining')}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={known ? Math.round(v) : undefined}
-        aria-valuetext={known ? `${v.toFixed(0)} percent remaining${stale ? ', stale' : ''}` : 'Unknown'}
+        // A meter needs a value; an unknown remaining is a labelled image
+        // instead, so assistive tech hears "unknown", never 0.
+        {...(known
+          ? {
+              role: 'meter',
+              'aria-label': srLabel ?? (typeof label === 'string' ? label : 'Quota remaining'),
+              'aria-valuemin': 0,
+              'aria-valuemax': 100,
+              'aria-valuenow': Math.round(v),
+              'aria-valuetext': `${v.toFixed(0)} percent remaining${stale ? ', stale' : ''}`,
+            }
+          : { role: 'img', 'aria-label': `${srLabel ?? (typeof label === 'string' ? label : 'Quota remaining')}: unknown` })}
       >
         {known && <div className={s.barFill} data-level={level} style={{ width: `${v}%` }} />}
       </div>

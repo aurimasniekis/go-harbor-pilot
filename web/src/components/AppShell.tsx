@@ -5,6 +5,8 @@ import { useStore } from '@tanstack/react-store'
 import {
   Activity,
   Building2,
+  Coins,
+  Gauge,
   Laptop,
   LayoutDashboard,
   LogOut,
@@ -40,6 +42,8 @@ interface NavItem {
 export const nav: NavItem[] = [
   { to: '/', label: 'Overview', icon: LayoutDashboard, exact: true },
   { to: '/activity', label: 'Activity', icon: Activity, perm: 'activity.read' },
+  { to: '/quotas', label: 'Quotas', icon: Gauge, perm: 'usage.read' },
+  { to: '/usage', label: 'Usage & cost', icon: Coins, perm: 'usage.read' },
   { to: '/clients', label: 'Clients', icon: Laptop, perm: 'config.read' },
   { to: '/routing', label: 'Routing', icon: RouteIcon, perm: 'config.read' },
   { to: '/providers', label: 'Providers', icon: Server, perm: 'config.read' },

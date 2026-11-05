@@ -36,6 +36,8 @@ const costKindLabel: Record<string, string> = {
   estimated_api_charge: 'est. API charge',
   list_equivalent: 'list-price equivalent — not an invoice',
   actual_api_charge: 'actual API charge',
+  subscription_fee: 'subscription fee',
+  allocation: 'internal allocation of subscription fees',
   none: 'no cost',
 }
 

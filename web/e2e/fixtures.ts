@@ -30,5 +30,5 @@ export async function signIn(page: Page, who = DEMO_ADMIN): Promise<void> {
 /** Pages reachable from the navigation for an administrator. */
 export const ADMIN_PAGES = [
   '/', '/account', '/activity', '/activity/sessions', '/clients', '/routing', '/routing/plans', '/providers', '/providers/accounts', '/providers/subscriptions',
-  '/providers/pools', '/workspaces', '/settings/users', '/settings/service-principals', '/settings/auth', '/settings/audit',
+  '/providers/pools', '/quotas', '/quotas/monitors', '/usage', '/usage/budgets', '/workspaces', '/settings/users', '/settings/service-principals', '/settings/auth', '/settings/audit',
 ]

@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { apiGet } from './client'
-import type { ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
+import type { BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummary, ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
 
 export const qk = {
   session: ['session'] as const,
@@ -87,6 +87,8 @@ export type ResourcePlural =
   | 'model-aliases'
   | 'routing-plans'
   | 'client-bindings'
+  | 'quota-monitors'
+  | 'budgets'
 
 export const resourceKey = (plural: ResourcePlural) => ['resources', plural] as const
 
@@ -163,4 +165,69 @@ export const routingVariablesQuery = queryOptions({
   queryKey: ['routing', 'variables'],
   queryFn: ({ signal }) => apiGet<{ items: RoutingVariable[] }>('/routing/variables', undefined, signal),
   staleTime: Infinity,
+})
+
+// ---------- quota, usage and budgets ----------
+export const quotaBoardQuery = queryOptions({
+  queryKey: ['quota', 'board'],
+  queryFn: ({ signal }) => apiGet<QuotaBoard>('/quota/board', undefined, signal),
+  refetchInterval: 30_000,
+})
+
+export const quotaAdaptersQuery = queryOptions({
+  queryKey: ['quota', 'adapters'],
+  queryFn: ({ signal }) => apiGet<{ items: QuotaAdapter[] }>('/quota/adapters', undefined, signal),
+  staleTime: Infinity,
+})
+
+export const quotaLoginsQuery = queryOptions({
+  queryKey: ['quota', 'logins'],
+  queryFn: ({ signal }) => apiGet<{ items: QuotaLogin[] }>('/quota/logins', undefined, signal),
+})
+
+export const quotaHistoryQuery = (owner: string, bucket: string, hours: number) =>
+  queryOptions({
+    queryKey: ['quota', 'history', owner, bucket, hours],
+    queryFn: ({ signal }) => apiGet<{ points: HistoryPoint[] }>(`/quota/buckets/${encodeURIComponent(owner)}/history`, { bucket, hours }, signal),
+  })
+
+export const quotaForecastQuery = (owner: string, bucket: string) =>
+  queryOptions({
+    queryKey: ['quota', 'forecast', owner, bucket],
+    queryFn: ({ signal }) => apiGet<Forecast>(`/quota/buckets/${encodeURIComponent(owner)}/forecast`, { bucket }, signal),
+  })
+
+export interface UsageRange {
+  from: string
+  to: string
+}
+
+export const usageSummaryQuery = (r: UsageRange, groupBy: UsageGroupBy) =>
+  queryOptions({
+    queryKey: ['usage', 'summary', r, groupBy],
+    queryFn: ({ signal }) => apiGet<UsageSummary>('/usage/summary', { ...r, group_by: groupBy }, signal),
+  })
+
+export const usageSeriesQuery = (r: UsageRange, step: 'hour' | 'day') =>
+  queryOptions({
+    queryKey: ['usage', 'series', r, step],
+    queryFn: ({ signal }) => apiGet<{ from: string; to: string; step: string; points: UsagePoint[] }>('/usage/series', { ...r, step }, signal),
+  })
+
+export const externalUsageQuery = (days: number) =>
+  queryOptions({
+    queryKey: ['usage', 'external', days],
+    queryFn: ({ signal }) => apiGet<{ items: ExternalUsageRow[] }>('/usage/external', { days, breakdown: 'total' }, signal),
+  })
+
+export const reconciliationQuery = (days: number) =>
+  queryOptions({
+    queryKey: ['usage', 'reconciliation', days],
+    queryFn: ({ signal }) => apiGet<{ items: ReconciliationRow[] }>('/usage/reconciliation', { days }, signal),
+  })
+
+export const budgetStatusQuery = queryOptions({
+  queryKey: ['budgets', 'status'],
+  queryFn: ({ signal }) => apiGet<{ items: BudgetUsage[] }>('/budgets/status', undefined, signal),
+  refetchInterval: 60_000,
 })

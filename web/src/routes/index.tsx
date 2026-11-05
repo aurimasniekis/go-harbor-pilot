@@ -9,6 +9,7 @@ import { useCan } from '@/lib/session'
 import type { Effective } from '@/lib/api/types'
 import { fmtDateTime } from '@/lib/format'
 import { ActivitySummaryPanel } from '@/features/activity/ActivityPanels'
+import { QuotaBudgetPanel } from '@/features/quota/OverviewPanel'
 
 export const Route = createFileRoute('/')({
   component: Overview,
@@ -33,6 +34,8 @@ const kindLabels: Record<string, string> = {
   model_aliases: 'Model aliases',
   routing_plans: 'Routing plans',
   client_bindings: 'Clients',
+  quota_monitors: 'Quota monitors',
+  budgets: 'Budgets',
 }
 
 const kindRoute: Record<string, string> = {
@@ -45,6 +48,8 @@ const kindRoute: Record<string, string> = {
   model_alias: '/routing',
   routing_plan: '/routing/plans',
   client_binding: '/clients',
+  quota_monitor: '/quotas/monitors',
+  budget: '/usage/budgets',
 }
 
 function ConfigurationPanel({ eff }: { eff: UseQueryResult<Effective> }) {
@@ -105,6 +110,7 @@ function Overview() {
   const canConfig = useCan('config.read')
   const eff = useQuery({ ...effectiveQuery, enabled: canConfig })
   const canActivity = useCan('activity.read')
+  const canUsage = useCan('usage.read')
 
   return (
     <>
@@ -136,6 +142,7 @@ function Overview() {
           )}
         </Panel>
         {canActivity && <ActivitySummaryPanel />}
+        {canUsage && <QuotaBudgetPanel />}
         {canConfig && <ConfigurationPanel eff={eff} />}
         {isAdmin && (
           <Panel title="Getting started" subtitle="Secure access before connecting clients and providers.">

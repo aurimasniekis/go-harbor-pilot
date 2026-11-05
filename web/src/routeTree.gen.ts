@@ -15,10 +15,12 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as ActivityRouteRouteImport } from './routes/activity/route'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProvidersRouteRouteImport } from './routes/providers/route'
+import { Route as QuotasRouteRouteImport } from './routes/quotas/route'
 import { Route as RecoverRouteImport } from './routes/recover'
 import { Route as RoutingRouteRouteImport } from './routes/routing/route'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as SetupRouteImport } from './routes/setup'
+import { Route as UsageRouteRouteImport } from './routes/usage/route'
 import { Route as WorkspacesRouteImport } from './routes/workspaces'
 import { Route as ActivityIndexRouteImport } from './routes/activity/index'
 import { Route as ActivityRequestIdRouteImport } from './routes/activity/$requestId'
@@ -29,12 +31,16 @@ import { Route as ProvidersIndexRouteImport } from './routes/providers/index'
 import { Route as ProvidersAccountsRouteImport } from './routes/providers/accounts'
 import { Route as ProvidersPoolsRouteImport } from './routes/providers/pools'
 import { Route as ProvidersSubscriptionsRouteImport } from './routes/providers/subscriptions'
+import { Route as QuotasIndexRouteImport } from './routes/quotas/index'
+import { Route as QuotasMonitorsRouteImport } from './routes/quotas/monitors'
 import { Route as RoutingIndexRouteImport } from './routes/routing/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsAuditRouteImport } from './routes/settings/audit'
 import { Route as SettingsAuthRouteImport } from './routes/settings/auth'
 import { Route as SettingsServicePrincipalsRouteImport } from './routes/settings/service-principals'
 import { Route as SettingsUsersRouteImport } from './routes/settings/users'
+import { Route as UsageIndexRouteImport } from './routes/usage/index'
+import { Route as UsageBudgetsRouteImport } from './routes/usage/budgets'
 import { Route as RoutingPlansIndexRouteImport } from './routes/routing/plans/index'
 import { Route as RoutingPlansPlanIdRouteImport } from './routes/routing/plans/$planId'
 
@@ -68,6 +74,11 @@ const ProvidersRouteRoute = ProvidersRouteRouteImport.update({
   path: '/providers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const QuotasRouteRoute = QuotasRouteRouteImport.update({
+  id: '/quotas',
+  path: '/quotas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RecoverRoute = RecoverRouteImport.update({
   id: '/recover',
   path: '/recover',
@@ -86,6 +97,11 @@ const SettingsRouteRoute = SettingsRouteRouteImport.update({
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
   path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsageRouteRoute = UsageRouteRouteImport.update({
+  id: '/usage',
+  path: '/usage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WorkspacesRoute = WorkspacesRouteImport.update({
@@ -138,6 +154,16 @@ const ProvidersSubscriptionsRoute = ProvidersSubscriptionsRouteImport.update({
   path: '/subscriptions',
   getParentRoute: () => ProvidersRouteRoute,
 } as any)
+const QuotasIndexRoute = QuotasIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => QuotasRouteRoute,
+} as any)
+const QuotasMonitorsRoute = QuotasMonitorsRouteImport.update({
+  id: '/monitors',
+  path: '/monitors',
+  getParentRoute: () => QuotasRouteRoute,
+} as any)
 const RoutingIndexRoute = RoutingIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -169,6 +195,16 @@ const SettingsUsersRoute = SettingsUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const UsageIndexRoute = UsageIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => UsageRouteRoute,
+} as any)
+const UsageBudgetsRoute = UsageBudgetsRouteImport.update({
+  id: '/budgets',
+  path: '/budgets',
+  getParentRoute: () => UsageRouteRoute,
+} as any)
 const RoutingPlansIndexRoute = RoutingPlansIndexRouteImport.update({
   id: '/plans/',
   path: '/plans/',
@@ -184,8 +220,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRouteRouteWithChildren
   '/providers': typeof ProvidersRouteRouteWithChildren
+  '/quotas': typeof QuotasRouteRouteWithChildren
   '/routing': typeof RoutingRouteRouteWithChildren
   '/settings': typeof SettingsRouteRouteWithChildren
+  '/usage': typeof UsageRouteRouteWithChildren
   '/accept': typeof AcceptRoute
   '/account': typeof AccountRoute
   '/login': typeof LoginRoute
@@ -198,15 +236,19 @@ export interface FileRoutesByFullPath {
   '/providers/accounts': typeof ProvidersAccountsRoute
   '/providers/pools': typeof ProvidersPoolsRoute
   '/providers/subscriptions': typeof ProvidersSubscriptionsRoute
+  '/quotas/monitors': typeof QuotasMonitorsRoute
   '/settings/audit': typeof SettingsAuditRoute
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/usage/budgets': typeof UsageBudgetsRoute
   '/activity/': typeof ActivityIndexRoute
   '/clients/': typeof ClientsIndexRoute
   '/providers/': typeof ProvidersIndexRoute
+  '/quotas/': typeof QuotasIndexRoute
   '/routing/': typeof RoutingIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/usage/': typeof UsageIndexRoute
   '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
   '/routing/plans/': typeof RoutingPlansIndexRoute
 }
@@ -224,15 +266,19 @@ export interface FileRoutesByTo {
   '/providers/accounts': typeof ProvidersAccountsRoute
   '/providers/pools': typeof ProvidersPoolsRoute
   '/providers/subscriptions': typeof ProvidersSubscriptionsRoute
+  '/quotas/monitors': typeof QuotasMonitorsRoute
   '/settings/audit': typeof SettingsAuditRoute
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/usage/budgets': typeof UsageBudgetsRoute
   '/activity': typeof ActivityIndexRoute
   '/clients': typeof ClientsIndexRoute
   '/providers': typeof ProvidersIndexRoute
+  '/quotas': typeof QuotasIndexRoute
   '/routing': typeof RoutingIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/usage': typeof UsageIndexRoute
   '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
   '/routing/plans': typeof RoutingPlansIndexRoute
 }
@@ -241,8 +287,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRouteRouteWithChildren
   '/providers': typeof ProvidersRouteRouteWithChildren
+  '/quotas': typeof QuotasRouteRouteWithChildren
   '/routing': typeof RoutingRouteRouteWithChildren
   '/settings': typeof SettingsRouteRouteWithChildren
+  '/usage': typeof UsageRouteRouteWithChildren
   '/accept': typeof AcceptRoute
   '/account': typeof AccountRoute
   '/login': typeof LoginRoute
@@ -255,15 +303,19 @@ export interface FileRoutesById {
   '/providers/accounts': typeof ProvidersAccountsRoute
   '/providers/pools': typeof ProvidersPoolsRoute
   '/providers/subscriptions': typeof ProvidersSubscriptionsRoute
+  '/quotas/monitors': typeof QuotasMonitorsRoute
   '/settings/audit': typeof SettingsAuditRoute
   '/settings/auth': typeof SettingsAuthRoute
   '/settings/service-principals': typeof SettingsServicePrincipalsRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/usage/budgets': typeof UsageBudgetsRoute
   '/activity/': typeof ActivityIndexRoute
   '/clients/': typeof ClientsIndexRoute
   '/providers/': typeof ProvidersIndexRoute
+  '/quotas/': typeof QuotasIndexRoute
   '/routing/': typeof RoutingIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/usage/': typeof UsageIndexRoute
   '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
   '/routing/plans/': typeof RoutingPlansIndexRoute
 }
@@ -273,8 +325,10 @@ export interface FileRouteTypes {
     | '/'
     | '/activity'
     | '/providers'
+    | '/quotas'
     | '/routing'
     | '/settings'
+    | '/usage'
     | '/accept'
     | '/account'
     | '/login'
@@ -287,15 +341,19 @@ export interface FileRouteTypes {
     | '/providers/accounts'
     | '/providers/pools'
     | '/providers/subscriptions'
+    | '/quotas/monitors'
     | '/settings/audit'
     | '/settings/auth'
     | '/settings/service-principals'
     | '/settings/users'
+    | '/usage/budgets'
     | '/activity/'
     | '/clients/'
     | '/providers/'
+    | '/quotas/'
     | '/routing/'
     | '/settings/'
+    | '/usage/'
     | '/routing/plans/$planId'
     | '/routing/plans/'
   fileRoutesByTo: FileRoutesByTo
@@ -313,15 +371,19 @@ export interface FileRouteTypes {
     | '/providers/accounts'
     | '/providers/pools'
     | '/providers/subscriptions'
+    | '/quotas/monitors'
     | '/settings/audit'
     | '/settings/auth'
     | '/settings/service-principals'
     | '/settings/users'
+    | '/usage/budgets'
     | '/activity'
     | '/clients'
     | '/providers'
+    | '/quotas'
     | '/routing'
     | '/settings'
+    | '/usage'
     | '/routing/plans/$planId'
     | '/routing/plans'
   id:
@@ -329,8 +391,10 @@ export interface FileRouteTypes {
     | '/'
     | '/activity'
     | '/providers'
+    | '/quotas'
     | '/routing'
     | '/settings'
+    | '/usage'
     | '/accept'
     | '/account'
     | '/login'
@@ -343,15 +407,19 @@ export interface FileRouteTypes {
     | '/providers/accounts'
     | '/providers/pools'
     | '/providers/subscriptions'
+    | '/quotas/monitors'
     | '/settings/audit'
     | '/settings/auth'
     | '/settings/service-principals'
     | '/settings/users'
+    | '/usage/budgets'
     | '/activity/'
     | '/clients/'
     | '/providers/'
+    | '/quotas/'
     | '/routing/'
     | '/settings/'
+    | '/usage/'
     | '/routing/plans/$planId'
     | '/routing/plans/'
   fileRoutesById: FileRoutesById
@@ -360,8 +428,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityRouteRoute: typeof ActivityRouteRouteWithChildren
   ProvidersRouteRoute: typeof ProvidersRouteRouteWithChildren
+  QuotasRouteRoute: typeof QuotasRouteRouteWithChildren
   RoutingRouteRoute: typeof RoutingRouteRouteWithChildren
   SettingsRouteRoute: typeof SettingsRouteRouteWithChildren
+  UsageRouteRoute: typeof UsageRouteRouteWithChildren
   AcceptRoute: typeof AcceptRoute
   AccountRoute: typeof AccountRoute
   LoginRoute: typeof LoginRoute
@@ -416,6 +486,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProvidersRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/quotas': {
+      id: '/quotas'
+      path: '/quotas'
+      fullPath: '/quotas'
+      preLoaderRoute: typeof QuotasRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/recover': {
       id: '/recover'
       path: '/recover'
@@ -442,6 +519,13 @@ declare module '@tanstack/react-router' {
       path: '/setup'
       fullPath: '/setup'
       preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/usage': {
+      id: '/usage'
+      path: '/usage'
+      fullPath: '/usage'
+      preLoaderRoute: typeof UsageRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/workspaces': {
@@ -514,6 +598,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProvidersSubscriptionsRouteImport
       parentRoute: typeof ProvidersRouteRoute
     }
+    '/quotas/': {
+      id: '/quotas/'
+      path: '/'
+      fullPath: '/quotas/'
+      preLoaderRoute: typeof QuotasIndexRouteImport
+      parentRoute: typeof QuotasRouteRoute
+    }
+    '/quotas/monitors': {
+      id: '/quotas/monitors'
+      path: '/monitors'
+      fullPath: '/quotas/monitors'
+      preLoaderRoute: typeof QuotasMonitorsRouteImport
+      parentRoute: typeof QuotasRouteRoute
+    }
     '/routing/': {
       id: '/routing/'
       path: '/'
@@ -555,6 +653,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/users'
       preLoaderRoute: typeof SettingsUsersRouteImport
       parentRoute: typeof SettingsRouteRoute
+    }
+    '/usage/': {
+      id: '/usage/'
+      path: '/'
+      fullPath: '/usage/'
+      preLoaderRoute: typeof UsageIndexRouteImport
+      parentRoute: typeof UsageRouteRoute
+    }
+    '/usage/budgets': {
+      id: '/usage/budgets'
+      path: '/budgets'
+      fullPath: '/usage/budgets'
+      preLoaderRoute: typeof UsageBudgetsRouteImport
+      parentRoute: typeof UsageRouteRoute
     }
     '/routing/plans/': {
       id: '/routing/plans/'
@@ -607,6 +719,20 @@ const ProvidersRouteRouteWithChildren = ProvidersRouteRoute._addFileChildren(
   ProvidersRouteRouteChildren,
 )
 
+interface QuotasRouteRouteChildren {
+  QuotasMonitorsRoute: typeof QuotasMonitorsRoute
+  QuotasIndexRoute: typeof QuotasIndexRoute
+}
+
+const QuotasRouteRouteChildren: QuotasRouteRouteChildren = {
+  QuotasMonitorsRoute: QuotasMonitorsRoute,
+  QuotasIndexRoute: QuotasIndexRoute,
+}
+
+const QuotasRouteRouteWithChildren = QuotasRouteRoute._addFileChildren(
+  QuotasRouteRouteChildren,
+)
+
 interface RoutingRouteRouteChildren {
   RoutingIndexRoute: typeof RoutingIndexRoute
   RoutingPlansPlanIdRoute: typeof RoutingPlansPlanIdRoute
@@ -643,12 +769,28 @@ const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(
   SettingsRouteRouteChildren,
 )
 
+interface UsageRouteRouteChildren {
+  UsageBudgetsRoute: typeof UsageBudgetsRoute
+  UsageIndexRoute: typeof UsageIndexRoute
+}
+
+const UsageRouteRouteChildren: UsageRouteRouteChildren = {
+  UsageBudgetsRoute: UsageBudgetsRoute,
+  UsageIndexRoute: UsageIndexRoute,
+}
+
+const UsageRouteRouteWithChildren = UsageRouteRoute._addFileChildren(
+  UsageRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRouteRoute: ActivityRouteRouteWithChildren,
   ProvidersRouteRoute: ProvidersRouteRouteWithChildren,
+  QuotasRouteRoute: QuotasRouteRouteWithChildren,
   RoutingRouteRoute: RoutingRouteRouteWithChildren,
   SettingsRouteRoute: SettingsRouteRouteWithChildren,
+  UsageRouteRoute: UsageRouteRouteWithChildren,
   AcceptRoute: AcceptRoute,
   AccountRoute: AccountRoute,
   LoginRoute: LoginRoute,

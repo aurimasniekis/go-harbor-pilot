@@ -210,3 +210,30 @@ export interface ReplayResult {
   changed: boolean
   notes: string[]
 }
+
+// ---------- quota, usage and budgets ----------
+export type QuotaMonitorSpec = S['QuotaMonitorSpec']
+export type QuotaMonitorRes = S['ResourceQuotaMonitorSpec']
+export type BudgetSpec = S['BudgetSpec']
+export type BudgetRes = S['ResourceBudgetSpec']
+export type QuotaBoard = S['BoardBody']
+export type MonitorView = S['MonitorView']
+export type BucketView = S['BucketView']
+export type PollView = S['PollView']
+export type AccountQuotaView = S['AccountQuotaView']
+export type AccountHealthView = S['AccountHealthView']
+export type QuotaAdapter = S['AdapterView']
+export type QuotaLogin = S['LoginView']
+export type HistoryPoint = S['HistoryPoint']
+export type Forecast = S['QuotaForecast']
+export type ForecastPoint = S['Point']
+export type ExternalUsageRow = S['ExternalUsageRow']
+export type ReconciliationRow = S['ReconciliationRow']
+export type BudgetUsage = S['BudgetUsage']
+export type UsageSummary = S['UsageSummary']
+export type UsageGroup = S['UsageGroup']
+export type UsageTokens = S['UsageTokens']
+export type CostAmount = S['CostAmount']
+export type SubscriptionFee = S['SubscriptionFee']
+export type UsagePoint = S['UsagePoint']
+export type UsageGroupBy = 'account' | 'provider' | 'model' | 'binding' | 'project' | 'workspace' | 'billing'

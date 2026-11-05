@@ -93,5 +93,11 @@ export function EChart({ option, height = 320, ariaLabel }: { option: EChartsOpt
     animated.current = true
   }, [option])
 
-  return <div ref={ref} role="img" aria-label={ariaLabel} style={{ width: '100%', height }} />
+  // ECharts' aria component writes its own description onto the chart root,
+  // so the accessible name lives on a wrapper it does not touch.
+  return (
+    <div role="img" aria-label={ariaLabel}>
+      <div ref={ref} style={{ width: '100%', height }} />
+    </div>
+  )
 }

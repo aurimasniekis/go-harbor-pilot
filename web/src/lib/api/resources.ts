@@ -20,8 +20,15 @@ export function useSaveResource<S, R = unknown>(plural: ResourcePlural) {
       existing
         ? apiSend<R>('PUT', `/${plural}/${encodeURIComponent(existing.id)}`, body, { ifMatch: existing.revision })
         : apiSend<R>('POST', `/${plural}`, body),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['resources'] }),
+    onSuccess: () => invalidateAfterWrite(qc, plural),
   })
+}
+
+/** Resource writes also change derived views (quota board, budgets, sign-in list). */
+function invalidateAfterWrite(qc: ReturnType<typeof useQueryClient>, plural: ResourcePlural) {
+  void qc.invalidateQueries({ queryKey: ['resources'] })
+  if (plural === 'quota-monitors' || plural === 'provider-accounts') void qc.invalidateQueries({ queryKey: ['quota'] })
+  if (plural === 'budgets') void qc.invalidateQueries({ queryKey: ['budgets'] })
 }
 
 export function useDeleteResource(plural: ResourcePlural) {
@@ -29,7 +36,7 @@ export function useDeleteResource(plural: ResourcePlural) {
   return useMutation({
     mutationFn: ({ id, revision }: { id: string; revision: number }) =>
       apiSend<void>('DELETE', `/${plural}/${encodeURIComponent(id)}`, undefined, { ifMatch: revision }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['resources'] }),
+    onSuccess: () => invalidateAfterWrite(qc, plural),
   })
 }
 

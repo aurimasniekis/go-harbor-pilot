@@ -9,10 +9,11 @@ import { QueryError } from './states'
 describe('QuotaBar', () => {
   it('shows Unknown without a fill for unknown values', () => {
     render(<QuotaBar label="5-hour" percent={null} />)
-    const meter = screen.getByRole('meter', { name: '5-hour' })
-    expect(meter).toHaveAttribute('aria-valuetext', 'Unknown')
-    expect(meter).not.toHaveAttribute('aria-valuenow')
-    expect(meter).toHaveAttribute('data-unknown', 'true')
+    // An unknown value is not a meter (a meter requires a value).
+    expect(screen.queryByRole('meter')).toBeNull()
+    const bar = screen.getByRole('img', { name: '5-hour: unknown' })
+    expect(bar).not.toHaveAttribute('aria-valuenow')
+    expect(bar).toHaveAttribute('data-unknown', 'true')
     expect(screen.getByText('Unknown')).toBeInTheDocument()
   })
 

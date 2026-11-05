@@ -1445,6 +1445,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/bridges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** CLI bridge availability */
+        get: operations["list-bridges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/system/status": {
         parameters: {
             query?: never;
@@ -1952,6 +1969,16 @@ export interface components {
             /** @description Rate-limit state derived from gateway responses. */
             observed_accounts: components["schemas"]["AccountQuotaView"][];
         };
+        BridgeStatus: {
+            binary: string;
+            enabled: boolean;
+            kind: string;
+            last_error?: string;
+            version: string;
+        };
+        BridgesOutBody: {
+            items: components["schemas"]["BridgeStatus"][];
+        };
         BucketView: {
             currency?: string;
             exhausted: boolean;
@@ -1978,7 +2005,7 @@ export interface components {
             reset_semantics: string;
             scope: string;
             /** @enum {string} */
-            source: "adapter" | "response_headers";
+            source: "adapter" | "response_headers" | "cli_event";
             /** Format: date-time */
             source_time: string | null;
             stale: boolean;
@@ -2096,7 +2123,8 @@ export interface components {
         };
         CapabilityInfo: {
             note?: string;
-            status: string;
+            /** @enum {string} */
+            status: "supported" | "partial" | "unsupported" | "unknown";
         };
         CompleteInBody: {
             /** @description The code (or redirected URL) shown after approval. */
@@ -2548,6 +2576,8 @@ export interface components {
             name: string;
             poll: components["schemas"]["PollView"];
             tier: string;
+            /** @description The monitor authenticates with an in-app sign-in token. */
+            uses_login: boolean;
         };
         OIDCLoginOption: {
             display_name: string;
@@ -2834,6 +2864,30 @@ export interface components {
             stream_idle_timeout_seconds: number;
             /** @enum {string} */
             type: "anthropic" | "openai" | "gemini" | "openai_compatible" | "ollama" | "claude_code" | "codex";
+        };
+        QuotaForecast: {
+            caveats: string[];
+            confidence: string;
+            downtime: components["schemas"]["Interval"][];
+            events: components["schemas"]["Event"][];
+            /** Format: date-time */
+            exhaustion_at: string | null;
+            exhausts_before_reset: boolean;
+            /** Format: double */
+            limit: number | null;
+            method: string;
+            /** Format: date-time */
+            next_reset_at: string | null;
+            points: components["schemas"]["Point"][];
+            rate: components["schemas"]["Rate"];
+            /** Format: double */
+            restored_amount: number | null;
+            stale: boolean;
+            /** Format: date-time */
+            start: string;
+            /** Format: double */
+            start_value: number;
+            unavailable_reason: string | null;
         };
         QuotaMonitorSpec: {
             access_token_ref?: string;
@@ -3389,30 +3443,6 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
             updated_by: string;
-        };
-        Result: {
-            caveats: string[];
-            confidence: string;
-            downtime: components["schemas"]["Interval"][];
-            events: components["schemas"]["Event"][];
-            /** Format: date-time */
-            exhaustion_at: string | null;
-            exhausts_before_reset: boolean;
-            /** Format: double */
-            limit: number | null;
-            method: string;
-            /** Format: date-time */
-            next_reset_at: string | null;
-            points: components["schemas"]["Point"][];
-            rate: components["schemas"]["Rate"];
-            /** Format: double */
-            restored_amount: number | null;
-            stale: boolean;
-            /** Format: date-time */
-            start: string;
-            /** Format: double */
-            start_value: number;
-            unavailable_reason: string | null;
         };
         RevisionDTO: {
             actor_id: string;
@@ -6629,7 +6659,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Result"];
+                    "application/json": components["schemas"]["QuotaForecast"];
                 };
             };
             /** @description Error */
@@ -8128,6 +8158,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-bridges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BridgesOutBody"];
                 };
             };
             /** @description Error */
