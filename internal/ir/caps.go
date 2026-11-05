@@ -168,13 +168,3 @@ func ObserveTools(r *Request) ToolObservation {
 	}
 	return o
 }
-
-// HasRejects reports whether any loss blocks sending without approval.
-func HasRejects(ls []Loss) bool {
-	for _, l := range ls {
-		if l.Severity == LossReject {
-			return true
-		}
-	}
-	return false
-}

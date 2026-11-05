@@ -66,6 +66,7 @@ type PlanDocument struct {
 	Restrictions   PlanRestrictions `json:"restrictions"`
 	Fallback       FallbackPolicy   `json:"fallback"`
 	Privacy        PlanPrivacy      `json:"privacy" required:"false"`
+	Compatibility  PlanCompat       `json:"compatibility" required:"false"`
 	// Engine holds routing-engine sections (rules, decision tables, ranking,
 	// privacy, compatibility); validated by the engine at compile time.
 	Engine json.RawMessage `json:"engine,omitempty"`
@@ -90,6 +91,17 @@ func NormalizeDocument(d *PlanDocument) {
 	}
 	if d.Fallback.MaxAttempts == 0 {
 		d.Fallback.MaxAttempts = 3
+	}
+	c := &d.Compatibility
+	if c.OnBreakerOpen == "" {
+		c.OnBreakerOpen = "fail"
+	}
+	c.AllowedLosses = SortedUnique(c.AllowedLosses)
+	if c.UnknownUsage == "" {
+		c.UnknownUsage = "record"
+	}
+	if c.UnenforceableBudget == "" {
+		c.UnenforceableBudget = "block"
 	}
 	if len(bytes.TrimSpace(d.Engine)) == 0 || string(bytes.TrimSpace(d.Engine)) == "null" {
 		d.Engine = nil
@@ -160,7 +172,41 @@ func ValidateDocument(d *PlanDocument) []FieldError {
 	if slices.Contains(d.Fallback.Steps, StepWait) && d.Fallback.WaitMaxSeconds == 0 {
 		fail("fallback.wait_max_seconds", "must be positive when the wait step is used")
 	}
+	c := d.Compatibility
+	if c.OnBreakerOpen != "fail" && c.OnBreakerOpen != "passthrough" {
+		fail("compatibility.on_breaker_open", "must be fail or passthrough")
+	}
+	for _, l := range c.AllowedLosses {
+		if !slices.Contains(DegradableFeatures, l) {
+			fail("compatibility.allowed_losses", "unknown feature "+l)
+		}
+	}
+	if c.OnBreakerOpen == "passthrough" && (!slices.Contains(c.AllowedLosses, "detailed_usage") || !slices.Contains(c.AllowedLosses, "tool_statistics")) {
+		fail("compatibility.allowed_losses", "native passthrough always loses detailed_usage and tool_statistics; list both to authorize it")
+	}
+	if c.UnknownUsage != "record" && c.UnknownUsage != "estimate" {
+		fail("compatibility.unknown_usage", "must be record or estimate")
+	}
+	if c.UnenforceableBudget != "block" && c.UnenforceableBudget != "allow" {
+		fail("compatibility.unenforceable_budget", "must be block or allow")
+	}
 	return out
+}
+
+// DegradableFeatures may be pre-authorized for loss during degradation.
+var DegradableFeatures = []string{"masking", "detailed_usage", "intent_inspection", "tool_statistics", "traces"}
+
+// PlanCompat is a plan's degradation policy.
+type PlanCompat struct {
+	// OnBreakerOpen chooses what happens to a candidate whose compatibility
+	// breaker is open: skip it (fail over) or use native passthrough.
+	OnBreakerOpen string `json:"on_breaker_open" required:"false" enum:"fail,passthrough"`
+	// AllowedLosses pre-authorizes features that may be lost while degraded.
+	AllowedLosses []string `json:"allowed_losses" required:"false" doc:"masking, detailed_usage, intent_inspection, tool_statistics, traces."`
+	// UnknownUsage: record the attempt as unknown usage, or estimate it.
+	UnknownUsage string `json:"unknown_usage" required:"false" enum:"record,estimate"`
+	// UnenforceableBudget: block passthrough when a blocking budget applies.
+	UnenforceableBudget string `json:"unenforceable_budget" required:"false" enum:"block,allow"`
 }
 
 // ValidateDocumentRefs checks references against a snapshot.

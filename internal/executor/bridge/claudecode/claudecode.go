@@ -727,7 +727,7 @@ func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credential
 	if err != nil {
 		return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrInvalidRequest, Message: err.Error()}}
 	}
-	if ir.HasRejects(losses) && !req.AllowLosses {
+	if ir.HasReject(losses) && !req.AllowLosses {
 		return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrUnsupported, Message: "the request needs features the CLI bridge cannot provide"}}
 	}
 	effort := ""

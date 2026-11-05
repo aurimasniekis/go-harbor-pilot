@@ -18,7 +18,7 @@ import (
 
 // attempt runs one candidate. It returns delivered=true once a response
 // (success or in-band failure after output began) has been written.
-func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx, cand *routing.Candidate, attID string, n int, step, rsvID string) (bool, *executor.AttemptError) {
+func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx, cand *routing.Candidate, attID string, n int, step, rsvID string, mode attemptMode) (bool, *executor.AttemptError) {
 	rc.started++
 	snap := rc.snap
 	acc := snap.Accounts[cand.AccountID]
@@ -32,6 +32,7 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 	g.Tel.Attempt(ar)
 
 	fail := func(ae *executor.AttemptError) (bool, *executor.AttemptError) {
+		g.recordCompat(rc, cand, mode, ae.Err)
 		now := g.Clock.Now()
 		d := now.Sub(started).Milliseconds()
 		ar.FinishedAt, ar.DurationMs = &now, &d
@@ -76,7 +77,7 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 		secret = s
 	}
 	target := executor.Target{Provider: prov, Account: acc, Model: cand.Model, ModelSpec: cand.ModelSpec}
-	ereq := executor.Request{IR: rc.ir, Inbound: rc.inbound, RawBody: rc.raw, RequestID: rc.id, ClientHeader: rc.header}
+	ereq := executor.Request{IR: rc.ir, Inbound: rc.inbound, RawBody: rc.raw, RequestID: rc.id, ClientHeader: rc.header, Passthrough: mode.passthrough}
 	res, aerr := g.executorFor(prov.Spec.Type).Execute(ctx, target, secret, ereq, rc.ir.Stream)
 	if g.ObserveResponse != nil {
 		if aerr != nil {
@@ -95,7 +96,10 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 		g.Observe(Observation{At: started, Direction: "request", Protocol: rc.inbound, ProviderID: prov.ID, Mode: res.Mode, Losses: res.Losses,
 			Harness: rc.harness.Name, HarnessVer: rc.harness.Version})
 	}
-	fi := &finalInfo{cand: *cand, mode: res.Mode, losses: res.Losses}
+	fi := &finalInfo{cand: *cand, mode: res.Mode, losses: append(res.Losses, mode.losses...), compat: mode}
+	if res.RawStream != nil {
+		return g.deliverRaw(ctx, w, rc, res, fi, &ar, started, rsvID)
+	}
 	if res.Response != nil {
 		return g.deliverComplete(ctx, w, rc, res, fi, &ar, started, rsvID)
 	}

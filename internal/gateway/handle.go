@@ -336,6 +336,16 @@ func (g *Gateway) dispatch(ctx context.Context, w http.ResponseWriter, rc *reqCt
 				continue
 			}
 		}
+		mode, ok, cerr := g.compatMode(rc, &cand)
+		if !ok {
+			lastErr = cerr
+			rc.outcome.Attempts = append(rc.outcome.Attempts, AttemptOutcome{Candidate: cand, Err: lastErr, Step: step + ":compat_open"})
+			prev = &cand
+			continue
+		}
+		if mode.passthrough {
+			rc.trace = nil // unsafe content capture is suspended
+		}
 		attID := ids.New(ids.Attempt)
 		ao := AttemptOutcome{ID: attID, Candidate: cand, Step: step}
 		lease := 12 * time.Minute
@@ -369,7 +379,7 @@ func (g *Gateway) dispatch(ctx context.Context, w http.ResponseWriter, rc *reqCt
 			g.Metrics.ReservationsTotal.WithLabelValues("taken").Inc()
 		}
 		rc.current = &ao
-		delivered, aerr := g.attempt(ctx, w, rc, &cand, attID, len(rc.outcome.Attempts)+1, step, rsv.ID)
+		delivered, aerr := g.attempt(ctx, w, rc, &cand, attID, len(rc.outcome.Attempts)+1, step, rsv.ID, mode)
 		rc.current = nil
 		if delivered {
 			// finish (called from delivery) recorded this attempt as final.
@@ -426,6 +436,11 @@ func (g *Gateway) finish(ctx context.Context, rc *reqCtx, status string, e *ir.E
 	g.Tel.Request(rc.rec)
 	if final != nil {
 		g.finishTrace(rc, final.usage)
+		var perr *ir.Error
+		if e != nil && e.Kind == ir.ErrProtocol {
+			perr = e
+		}
+		g.recordCompat(rc, &final.cand, final.compat, perr)
 	}
 	if g.Metrics != nil {
 		g.Metrics.GatewayRequests.WithLabelValues(string(rc.inbound), status).Inc()
@@ -448,6 +463,7 @@ type finalInfo struct {
 	toolCalls   int
 	losses      []ir.Loss
 	bytesOut    int64
+	compat      attemptMode
 }
 
 // reserveEstimate prices the worst case of an attempt (input estimated at

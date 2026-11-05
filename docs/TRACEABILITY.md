@@ -125,27 +125,27 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R11.2 | Mask, block, warn and allow actions with precedence | 8 | contract-tested | precedence block > allow > mask > warn, allow never overrides block (TestPrecedence, TestPrivacyBlockRule) |
 | R11.3 | Placeholder properties (stable, isolated, unpredictable, chunk- and escape-safe, not applied to sealed parts) | 8 | contract-tested | HPSEC_ placeholders: random 100-bit, collision-checked, stable per binding+session scope, isolated across scopes, JSON-aware masking, chunk-boundary restoration, sealed parts untouched, memory-only bounded vault (TestMaskRequestPlaceholders, TestRestorerAcrossChunks) |
 | R11.4 | Tool-argument restoration off by default; anti-exfiltration | 8 | contract-tested | tool-argument restoration off by default; per-tool and per-field allowlists; never into URLs to unlisted hosts (TestToolArgRestorationIsGuarded) |
-| R11.5 | Masking failure blocks unless explicitly allowed | 8 | in-progress | masking errors block when the policy is required unless allow_unmasked_fallback (gateway/privacy.go); passthrough guard and scenario J land with Phase 9 |
+| R11.5 | Masking failure blocks unless explicitly allowed | 8 | contract-tested | masking errors block when required unless allow_unmasked_fallback (gateway/privacy.go); passthrough refused under required masking (TestScenarioJ) |
 | R11.6 | Rule sandbox; per-request summaries | 8 | contract-tested | POST /privacy/sandbox (nothing stored or logged); per-request summaries in activity (TestPrivacyBlockRule, TestScenarioF) |
 
 ## §12 Passthrough and circuit breakers
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R12.1 | Translated, native inspected and native passthrough modes | 9 | planned | |
-| R12.2 | Pre-authorized feature loss; no silent weakening | 9 | planned | scenario H |
-| R12.3 | Failure classification; scoped breakers; half-open; manual override | 9 | planned | |
-| R12.4 | Inbound incompatibility detection; no replay or splicing | 9 | planned | |
-| R12.5 | Degradation shown in UI; durable transition events | 9–10 | planned | |
+| R12.1 | Translated, native inspected and native passthrough modes | 9 | contract-tested | executor modes translated, native, passthrough; gateway deliverRaw forwards bytes with auth, destination selection, credential isolation, transport limits and basic telemetry (TestScenarioH) |
+| R12.2 | Pre-authorized feature loss; no silent weakening | 9 | contract-tested | plan compatibility.allowed_losses pre-authorizes masking, detailed_usage, intent_inspection, tool_statistics, traces; passthrough needs detailed_usage and tool_statistics listed; traces suspended; unknown_usage and unenforceable_budget policies (TestScenarioH, TestScenarioJ) |
+| R12.3 | Failure classification; scoped breakers; half-open; manual override | 9 | contract-tested | compat.Classify separates compatibility from auth, rate limit, outage, client and capability failures; breakers per provider and protocol path with window threshold, cooldown backoff, single half-open probe, manual override, operator-triggered live canary (TestClassify, TestBreakerLifecycle) |
+| R12.4 | Inbound incompatibility detection; no replay or splicing | 9 | contract-tested | reject-severity translation losses refuse before dispatch; executed attempts are never replayed and streams are never spliced: a request is entirely inspected or entirely passthrough (TestScenarioH) |
+| R12.5 | Degradation shown in UI; durable transition events | 9–10 | in-progress | durable compat.breaker.{opened,half_opened,closed} events; GET /compat/degradations lists open breakers with each plan's action and losses; UI banner pending |
 
 ## §13 Protocol Watch
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R13.1 | Tracked change kinds and metadata | 9 | planned | |
-| R13.2 | Absence semantics; confidence | 9 | planned | |
-| R13.3 | Deduplicated work items with status workflow | 9 | planned | scenario I |
-| R13.4 | Bounded observer that never stalls | 9 | planned | |
-| R13.5 | Sanitized fingerprints; tool schemas separated; no raw dumps | 9 | planned | |
-| R13.6 | Fixture creation from synthetic data; no automatic replay of real prompts | 9 | planned | |
+| R13.1 | Tracked change kinds and metadata | 9 | contract-tested | protocol_changes: new_event, new_field, new_enum_value, type_change, expected_absent, unsupported_sequence, schema_rejection, parse_failure, restored; direction, protocol, provider, adapter version, client harness/version, first/last seen, count, confidence, impact; coverage counters |
+| R13.2 | Absence semantics; confidence | 9 | implemented | expected_absent findings are low confidence and labelled as not proof of removal; recency current / not_observed_recently derived from last_seen |
+| R13.3 | Deduplicated work items with status workflow | 9 | contract-tested | one work item per change fingerprint; repeated observations add evidence and routes; resolved items reopen, ignored stay ignored; status workflow and issue/commit/release refs via PATCH with If-Match (TestScenarioH part I) |
+| R13.4 | Bounded observer that never stalls | 9 | contract-tested | bounded 1024-signal queue, drops counted, passthrough samples capped at 256 KiB and taken after forwarding (deliverRaw) |
+| R13.5 | Sanitized fingerprints; tool schemas separated; no raw dumps | 9 | contract-tested | structure-only fingerprints, dynamic and id-like keys normalized, tool schemas and arguments excluded, rejection messages stripped of values (TestFingerprintSanitization; scenario I asserts no content stored) |
+| R13.6 | Fixture creation from synthetic data; no automatic replay of real prompts | 9 | contract-tested | fixtures generated from structural diffs with placeholder values and a review flag; probes use synthetic canary prompts only on explicit operator request |
 
 ## §14 Events and notifications
 | ID | Requirement | Phase | Status | Evidence |
@@ -208,9 +208,9 @@ This matrix maps every requirement in the product brief to the phase, package an
 | E | No over-allocation of concurrent reservations | 4 | planned | scenario_e |
 | F | Masked secret absent upstream and from persistence | 8 | contract-tested | internal/acceptance/privacy_test.go TestScenarioF_MaskedSecretAbsentUpstreamAndPersistence |
 | G | Expired traces unreadable and unsearchable | 8 | contract-tested | internal/acceptance/privacy_test.go TestScenarioG_ExpiredTracesUnreadableAndUnsearchable |
-| H | Drift activates approved passthrough with no splice | 9 | planned | scenario_h |
-| I | Protocol Watch dedupes a sanitized change | 9 | planned | scenario_i |
-| J | Required privacy blocks raw fallback | 8 | planned | scenario_j |
+| H | Drift activates approved passthrough with no splice | 9 | contract-tested | internal/acceptance/compat_test.go TestScenarioH_DriftActivatesApprovedPassthrough |
+| I | Protocol Watch dedupes a sanitized change | 9 | contract-tested | internal/acceptance/compat_test.go TestScenarioH_DriftActivatesApprovedPassthrough (Protocol Watch assertions) |
+| J | Required privacy blocks raw fallback | 8 | contract-tested | internal/acceptance/compat_test.go TestScenarioJ_RequiredPrivacyBlocksRawFallback |
 | K | Pulse or notification outage does not block requests | 10 | planned | scenario_k |
 | L | Terraform lifecycle | 14 | planned | TF acceptance |
 | M | Restart and restore integrity | 13 | planned | scenario_m |

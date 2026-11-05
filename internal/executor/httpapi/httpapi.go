@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
@@ -51,6 +52,24 @@ type Executor struct {
 	// AllowedPrivate lets tests and explicitly configured local endpoints
 	// reach private networks (in addition to per-provider authorization).
 	AllowedPrivate []netip.Prefix
+	// Sample receives a bounded raw copy of one in SampleEvery healthy
+	// streams (Protocol Watch baseline learning). It must not block.
+	Sample      func(p ir.Protocol, providerID string, raw []byte)
+	SampleEvery int64
+	sampled     atomic.Int64
+}
+
+// limitedBuffer keeps at most max bytes.
+type limitedBuffer struct {
+	b   []byte
+	max int
+}
+
+func (l *limitedBuffer) Write(p []byte) (int, error) {
+	if room := l.max - len(l.b); room > 0 {
+		l.b = append(l.b, p[:min(len(p), room)]...)
+	}
+	return len(p), nil
 }
 
 // New creates an executor.
@@ -243,10 +262,21 @@ func (e *Executor) Execute(ctx context.Context, t executor.Target, cred credenti
 	var serr error
 	var unknownMu sync.Mutex
 	var unknown []string
+	var sample *limitedBuffer
+	var src io.Reader = body2
+	if every := e.SampleEvery; e.Sample != nil && every > 0 && e.sampled.Add(1)%every == 1 {
+		sample = &limitedBuffer{max: 64 << 10}
+		src = io.TeeReader(body2, sample)
+	}
 	go func() {
 		defer close(events)
 		defer resp.Body.Close()
-		rd := wire.NewSSEReader(body2, e.Limits.MaxEventBytes)
+		defer func() {
+			if sample != nil && serr == nil && len(sample.b) > 0 {
+				e.Sample(up, t.Provider.ID, sample.b)
+			}
+		}()
+		rd := wire.NewSSEReader(src, e.Limits.MaxEventBytes)
 		dec := protocol.NewDecoder(up)
 		for {
 			ev, err := rd.Next()

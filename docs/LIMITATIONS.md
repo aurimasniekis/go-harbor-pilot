@@ -39,6 +39,9 @@ This file is kept current alongside the implementation. Each entry is one of:
 - **Masking boundary (design).** Masking inspects text, tool arguments (JSON-aware), tool results and exposed reasoning. Images and documents are not inspected; they are counted in the request's masking summary. Opaque provider state is never inspected or rewritten. Masking is defense in depth: tools running on the user's machine are outside the gateway's outbound boundary.
 - **Placeholder lifetime (design).** Placeholder mappings live only in memory. After a restart, or after 24 hours idle, a placeholder the model repeats is returned to the client unchanged.
 
+- **Passthrough telemetry (design).** In passthrough, usage is read best-effort from the raw stream; tool calls, intent signals in responses and traces are not available. Passthrough does not avoid provider-side flags or restrictions.
+- **Protocol Watch is an observed changelog (design).** It reports what this gateway observed, not provider release history. Absent fields are reported with low confidence and are not proof of removal. The learned baseline lives in memory and is re-seeded at start.
+
 ## Pending
 
 Pending items are tracked per requirement in TRACEABILITY.md (status `planned` or `in-progress`).

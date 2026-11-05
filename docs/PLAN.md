@@ -12,8 +12,8 @@ Source of truth for sequencing. Status per phase is updated as work lands; requi
 | 5 | Routing engine, decision tables, simulator, publish workflow, failover (scenarios C, D) | done |
 | 6 | Quotas, budgets, forecasting (migrated adapters, header-derived observations) | done |
 | 7 | CLI bridges (Claude Code, Codex) | done (live runs blocked on credentials and the codex binary) |
-| 8 | Privacy masking and short-lived traces (scenarios F, G, J) | in-progress (backend done; UI pending; scenario J with Phase 9) |
-| 9 | Compatibility breakers, passthrough, Protocol Watch (scenarios H, I) | planned |
+| 8 | Privacy masking and short-lived traces (scenarios F, G, J) | done |
+| 9 | Compatibility breakers, passthrough, Protocol Watch (scenarios H, I) | in-progress (backend done; UI pending) |
 | 10 | Events (outbox, Pulse, webhooks) and notifications (scenario K) | planned |
 | 11 | Intents, statistics, SpaceMan integration, Why-this-route (scenario N) | planned |
 | 12 | Harness setup tooling and operational CLI | planned |

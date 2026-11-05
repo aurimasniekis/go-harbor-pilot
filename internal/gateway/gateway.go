@@ -19,6 +19,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/accounting"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/compat"
 	cp "github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/executor"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/executor/httpapi"
@@ -73,6 +74,10 @@ type Gateway struct {
 	Privacy *privacy.Service
 	// Traces stores short-lived content captures (nil = disabled).
 	Traces *traces.Service
+	// Compat holds compatibility breakers; Watch records protocol changes
+	// (both optional).
+	Compat *compat.Manager
+	Watch  *compat.Watch
 	// ObserveResponse receives upstream response headers for quota
 	// observations (must not block).
 	ObserveResponse func(accountID, providerType, model string, h http.Header)

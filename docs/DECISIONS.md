@@ -211,3 +211,14 @@ Verified against `claude` 2.1.318 with a synthetic upstream (see `docs/contracts
 - Overlapping detections merge into one span carrying the strongest action. Precedence is block > allow > mask > warn: an allow rule exempts a whole span from mask and warn, never from block.
 - Placeholders are `HPSEC_` followed by 20 random base32 characters. They are stable for the same value within one binding and session (or credential when no session is known) and differ across scopes. The mapping is memory-only (24-hour idle expiry, 200,000 entries); after a restart, placeholders the model echoes can no longer be restored.
 - Trace redaction is independent: it replaces spans with irreversible `[redacted:<rule>]` markers.
+
+## D-031: Compatibility breakers and passthrough
+
+- Breakers are keyed by provider and protocol path (`<inbound>><upstream>`). Only compatibility failures count: unparseable upstream output and schema rejections. Static capability mismatches, authentication errors, rate limits and outages do not.
+- Defaults: three failures within five minutes open a breaker; it stays open for two minutes, doubling after each failed probe up to one hour. In half-open state exactly one request at a time runs in normal mode; two consecutive successes close the breaker. Operators can force a breaker open or closed, or run a live canary (one minimal synthetic request) that closes it on success.
+- While a breaker is open, a plan either skips the candidate (`on_breaker_open: fail`) or uses native passthrough (`passthrough`). Passthrough needs a native upstream and losses pre-authorized in the plan. Required masking without `allow_unmasked_fallback`, or a blocking budget under `unenforceable_budget: block`, refuses passthrough. Trace capture is suspended in passthrough.
+- A request is served entirely in one mode; a stream is never spliced across modes, and an executed attempt is never replayed.
+
+## D-032: Protocol Watch baseline
+
+The structural baseline is seeded from this build's own protocol encoders, then extended by sampling one in twenty healthy upstream streams (64 KiB each). Passthrough samples (256 KiB) are compared with it. Findings are fingerprinted by kind, direction, protocol, provider, path and adapter version, and each fingerprint has one work item.

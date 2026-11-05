@@ -31,6 +31,9 @@ type Reply struct {
 	Headers map[string]string
 	// Echo replies with the text of the last user message.
 	Echo bool
+	// Raw is written verbatim as the response body (SSE when it starts with
+	// "event:" or "data:", JSON otherwise); used to simulate protocol drift.
+	Raw string
 }
 
 // Upstream is a scripted synthetic provider (an http.Handler).
@@ -126,6 +129,16 @@ func (u *Upstream) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	for k, v := range rep.Headers {
 		w.Header().Set(k, v)
+	}
+	if rep.Raw != "" {
+		ct := "application/json"
+		if strings.HasPrefix(rep.Raw, "event:") || strings.HasPrefix(rep.Raw, "data:") {
+			ct = "text/event-stream"
+		}
+		w.Header().Set("Content-Type", ct)
+		w.WriteHeader(200)
+		_, _ = io.WriteString(w, rep.Raw)
+		return
 	}
 	if rep.Status >= 400 {
 		if rep.RetryAfter > 0 {

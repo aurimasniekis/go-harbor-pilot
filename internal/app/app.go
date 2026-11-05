@@ -25,6 +25,8 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/api"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth/authapi"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/compat"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/compat/compatapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/config"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/controlplane/cpapi"
@@ -93,6 +95,8 @@ type App struct {
 	Privacy *privacy.Service
 	// TraceSvc stores short-lived trace content in traces.db.
 	TraceSvc *traces.Service
+	Compat   *compat.Manager
+	Watch    *compat.Watch
 	Budgets  *accounting.Budgets
 	Started  time.Time
 
@@ -180,6 +184,29 @@ func New(ctx context.Context, o Options) (*App, error) {
 	a.TraceSvc = traces.New(a.Traces, a.Keyring, a.Clock, a.Log)
 	a.Gateway.Traces = a.TraceSvc
 	a.AddBackground(a.TraceSvc.Run)
+	if a.Compat, err = compat.NewManager(ctx, a.DB, a.Clock, compat.Options{}); err != nil {
+		return fail(err)
+	}
+	a.Watch = compat.NewWatch(a.DB, a.Clock, a.Log)
+	a.Compat.OnTransition = func(b compat.Breaker, from, to string) {
+		if to == compat.Closed && from != compat.Closed {
+			_, up, _ := strings.Cut(b.Path, ">")
+			a.Watch.Observe(compat.Signal{Direction: "response", Protocol: ir.Protocol(up), ProviderID: b.ProviderID, Route: b.Key,
+				Action: map[string]any{"restored": true, "path": b.Path, "from": from}})
+		}
+	}
+	a.Gateway.Compat, a.Gateway.Watch = a.Compat, a.Watch
+	a.Gateway.Observe = func(o gateway.Observation) {
+		if len(o.Unknown) > 0 {
+			a.Watch.Observe(compat.Signal{Direction: o.Direction, Protocol: o.Protocol, ProviderID: o.ProviderID, Harness: o.Harness,
+				HarnessVer: o.HarnessVer, Unknown: o.Unknown})
+		}
+	}
+	a.Gateway.HTTP.Sample = func(p ir.Protocol, providerID string, raw []byte) {
+		a.Watch.Observe(compat.Signal{Protocol: p, ProviderID: providerID, Raw: raw, Learn: true})
+	}
+	a.Gateway.HTTP.SampleEvery = 20
+	a.AddBackground(a.Watch.Run)
 	a.AddBackground(func(ctx context.Context) {
 		t := time.NewTicker(10 * time.Minute)
 		defer t.Stop()
@@ -271,6 +298,13 @@ func (a *App) CoreAPI() []func(*api.API) {
 					return a.Gateway.AccountHealth(id)
 				}, Origin: func() string { return a.Cfg.PublicOrigin() }})
 			usageapi.Register(ap, usageapi.Deps{DB: func() *store.DB { return a.DB }, Snapshot: func() *controlplane.Snapshot { return a.CP.Snapshot() }, Clock: a.clock()})
+		},
+		func(ap *api.API) {
+			compatapi.Register(ap, compatapi.Deps{Compat: func() *compat.Manager { return a.Compat }, Watch: func() *compat.Watch { return a.Watch },
+				Snapshot: func() *controlplane.Snapshot { return a.CP.Snapshot() }, Main: func() *store.DB { return a.DB },
+				Probe: func(ctx context.Context, providerID, path string) (*ir.Error, error) {
+					return a.Gateway.Probe(ctx, providerID, path)
+				}})
 		},
 		func(ap *api.API) {
 			tracesapi.Register(ap, tracesapi.Deps{Traces: func() *traces.Service { return a.TraceSvc }, Main: func() *store.DB { return a.DB },

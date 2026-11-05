@@ -597,6 +597,70 @@ components:
         - account_health
         - dropped_observations
       type: object
+    BrOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Breaker"
+          type: array
+      required:
+        - items
+      type: object
+    Breaker:
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+        last_class:
+          type: string
+        last_reason:
+          type: string
+        opened_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        override:
+          enum:
+            - auto
+            - force_open
+            - force_closed
+          type: string
+        override_reason:
+          type: string
+        path:
+          type: string
+        provider_id:
+          type: string
+        recent_failures:
+          format: int64
+          type: integer
+        retry_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        state:
+          enum:
+            - closed
+            - open
+            - half_open
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - key
+        - provider_id
+        - path
+        - state
+        - override
+        - opened_at
+        - retry_at
+        - recent_failures
+        - updated_at
+      type: object
     BridgeStatus:
       additionalProperties: false
       properties:
@@ -1006,6 +1070,94 @@ components:
       required:
         - status
       type: object
+    ChOutBody:
+      additionalProperties: false
+      properties:
+        dropped:
+          description: Signals dropped under pressure; coverage is reduced when non-zero.
+          format: int64
+          type: integer
+        items:
+          items:
+            $ref: "#/components/schemas/Change"
+          type: array
+        processed:
+          format: int64
+          type: integer
+      required:
+        - items
+        - processed
+        - dropped
+      type: object
+    Change:
+      additionalProperties: false
+      properties:
+        adapter_version:
+          type: string
+        client_harness:
+          type: string
+        client_version:
+          type: string
+        confidence:
+          enum:
+            - high
+            - medium
+            - low
+          type: string
+        count:
+          format: int64
+          type: integer
+        detail: {}
+        direction:
+          type: string
+        endpoint:
+          type: string
+        first_seen:
+          format: date-time
+          type: string
+        id:
+          type: string
+        impact:
+          enum:
+            - breaking
+            - additive
+            - unknown
+          type: string
+        kind:
+          type: string
+        last_seen:
+          format: date-time
+          type: string
+        path:
+          type: string
+        protocol:
+          type: string
+        provider_id:
+          type: string
+        recency:
+          enum:
+            - current
+            - not_observed_recently
+          type: string
+      required:
+        - id
+        - kind
+        - direction
+        - protocol
+        - provider_id
+        - endpoint
+        - adapter_version
+        - client_harness
+        - client_version
+        - path
+        - detail
+        - confidence
+        - impact
+        - first_seen
+        - last_seen
+        - count
+        - recency
+      type: object
     CompleteInBody:
       additionalProperties: false
       properties:
@@ -1300,6 +1452,29 @@ components:
         - notes
         - rules
         - mode
+      type: object
+    DegOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Degradation"
+          type: array
+      required:
+        - items
+      type: object
+    Degradation:
+      additionalProperties: false
+      properties:
+        breaker:
+          $ref: "#/components/schemas/Breaker"
+        plans:
+          items:
+            $ref: "#/components/schemas/PlanEffect"
+          type: array
+      required:
+        - breaker
+        - plans
       type: object
     DraftRequest:
       additionalProperties: false
@@ -2602,6 +2777,29 @@ components:
         - provisioning
         - enabled
       type: object
+    OvInBody:
+      additionalProperties: false
+      properties:
+        override:
+          enum:
+            - auto
+            - force_open
+            - force_closed
+          type: string
+        path:
+          description: <inbound>><upstream>, e.g. anthropic_messages>anthropic_messages.
+          type: string
+        provider_id:
+          type: string
+        reason:
+          maxLength: 500
+          type: string
+      required:
+        - provider_id
+        - path
+        - override
+        - reason
+      type: object
     PageAuditEntryDTO:
       additionalProperties: false
       properties:
@@ -2877,9 +3075,35 @@ components:
             - viewer
           type: string
       type: object
+    PlanCompat:
+      additionalProperties: false
+      properties:
+        allowed_losses:
+          description: masking, detailed_usage, intent_inspection, tool_statistics, traces.
+          items:
+            type: string
+          type: array
+        on_breaker_open:
+          enum:
+            - fail
+            - passthrough
+          type: string
+        unenforceable_budget:
+          enum:
+            - block
+            - allow
+          type: string
+        unknown_usage:
+          enum:
+            - record
+            - estimate
+          type: string
+      type: object
     PlanDocument:
       additionalProperties: false
       properties:
+        compatibility:
+          $ref: "#/components/schemas/PlanCompat"
         default_alias_id:
           description: Alias for requests whose model matches no mapping and no alias name; empty = reject.
           type: string
@@ -2903,6 +3127,29 @@ components:
         - default_alias_id
         - restrictions
         - fallback
+      type: object
+    PlanEffect:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+            - fail
+            - passthrough
+          type: string
+        losses:
+          description: Features lost while degraded (pre-authorized by the plan).
+          items:
+            type: string
+          type: array
+        name:
+          type: string
+        plan_id:
+          type: string
+      required:
+        - plan_id
+        - name
+        - action
+        - losses
       type: object
     PlanPrivacy:
       additionalProperties: false
@@ -3178,6 +3425,33 @@ components:
         - name
         - pattern
         - action
+      type: object
+    ProbeInBody:
+      additionalProperties: false
+      properties:
+        path:
+          type: string
+        provider_id:
+          type: string
+      required:
+        - provider_id
+        - path
+      type: object
+    ProbeOutBody:
+      additionalProperties: false
+      properties:
+        breaker:
+          $ref: "#/components/schemas/Breaker"
+        error:
+          type: string
+        result:
+          enum:
+            - succeeded
+            - failed
+          type: string
+      required:
+        - breaker
+        - result
       type: object
     ProjectSpec:
       additionalProperties: false
@@ -5653,6 +5927,16 @@ components:
       required:
         - items
       type: object
+    WiOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/WorkItem"
+          type: array
+      required:
+        - items
+      type: object
     WindowSpec:
       additionalProperties: false
       properties:
@@ -5679,6 +5963,104 @@ components:
         - name
         - seconds
         - unit
+      type: object
+    WorkItem:
+      additionalProperties: false
+      properties:
+        action:
+          description: Action taken (e.g. passthrough activated) and features lost.
+        change_id:
+          type: string
+        commit_ref:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        diff:
+          description: Sanitized structural diff (no content values).
+        evidence:
+          description: Request ids; their content may already have expired.
+          items:
+            type: string
+          type: array
+        fixture: {}
+        fixture_reviewed:
+          type: boolean
+        id:
+          type: string
+        issue_url:
+          type: string
+        notes:
+          type: string
+        release_ref:
+          type: string
+        revision:
+          format: int64
+          type: integer
+        routes:
+          items:
+            type: string
+          type: array
+        status:
+          enum:
+            - new
+            - acknowledged
+            - investigating
+            - fix_available
+            - verified
+            - resolved
+            - ignored
+          type: string
+        title:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - change_id
+        - title
+        - diff
+        - evidence
+        - routes
+        - action
+        - status
+        - issue_url
+        - commit_ref
+        - release_ref
+        - fixture_reviewed
+        - notes
+        - revision
+        - created_at
+        - updated_at
+      type: object
+    WorkUpdate:
+      additionalProperties: false
+      properties:
+        commit_ref:
+          maxLength: 200
+          type: string
+        fixture_reviewed:
+          type: boolean
+        issue_url:
+          maxLength: 500
+          type: string
+        notes:
+          maxLength: 4000
+          type: string
+        release_ref:
+          maxLength: 200
+          type: string
+        status:
+          enum:
+            - new
+            - acknowledged
+            - investigating
+            - fix_available
+            - verified
+            - resolved
+            - ignored
+          type: string
       type: object
     WorkspaceSpec:
       additionalProperties: false
@@ -7396,6 +7778,99 @@ paths:
       tags:
         - Client bindings
       x-permission: config.read
+  /compat/breakers:
+    get:
+      operationId: list-breakers
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Compatibility breakers
+      tags:
+        - Compatibility
+      x-permission: config.read
+  /compat/breakers/override:
+    post:
+      operationId: override-breaker
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OvInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Breaker"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Force a breaker open or closed
+      tags:
+        - Compatibility
+      x-permission: compat.manage
+  /compat/breakers/probe:
+    post:
+      description: Sends one minimal synthetic request through the normal (inspected) path using an account of the provider. This is an explicitly authorized live canary; it consumes a few tokens and never replays client content.
+      operationId: probe-breaker
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProbeInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Run a live canary on an open breaker
+      tags:
+        - Compatibility
+      x-permission: compat.manage
+  /compat/degradations:
+    get:
+      operationId: list-degradations
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DegOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Routes currently degraded and the features lost
+      tags:
+        - Compatibility
+      x-permission: config.read
   /config/effective:
     get:
       operationId: get-effective-config
@@ -8553,6 +9028,171 @@ paths:
       tags:
         - Projects
       x-permission: config.read
+  /protocol-watch/changes:
+    get:
+      description: An observed compatibility changelog, not an authoritative provider release history. Absence is not proof of removal.
+      operationId: list-protocol-changes
+      parameters:
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 500
+            minimum: 0
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Observed protocol changes
+      tags:
+        - Protocol Watch
+      x-permission: config.read
+  /protocol-watch/work-items:
+    get:
+      operationId: list-work-items
+      parameters:
+        - explode: false
+          in: query
+          name: status
+          schema:
+            enum:
+              - new
+              - acknowledged
+              - investigating
+              - fix_available
+              - verified
+              - resolved
+              - ignored
+              - ""
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WiOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Protocol work items
+      tags:
+        - Protocol Watch
+      x-permission: config.read
+  /protocol-watch/work-items/{id}:
+    get:
+      operationId: get-work-item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkItem"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a work item
+      tags:
+        - Protocol Watch
+      x-permission: config.read
+    patch:
+      operationId: update-work-item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkUpdate"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkItem"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Triage a work item
+      tags:
+        - Protocol Watch
+      x-permission: compat.manage
+  /protocol-watch/work-items/{id}/fixture:
+    post:
+      description: Uses placeholder values only; mark it reviewed before use.
+      operationId: generate-work-item-fixture
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkItem"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Generate a synthetic fixture from the structural diff
+      tags:
+        - Protocol Watch
+      x-permission: compat.manage
   /provider-accounts:
     get:
       operationId: list-provider-accounts

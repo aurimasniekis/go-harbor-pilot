@@ -265,6 +265,7 @@ type PlanOpts struct {
 	AllowPaidFallback bool
 	PrivacyPolicy     string
 	TracePolicy       string
+	Compatibility     map[string]any
 }
 
 // Plan creates and publishes a routing plan.
@@ -286,7 +287,13 @@ func (e *Env) Plan(name string, o PlanOpts) string {
 		"schema_version": 1, "model_mappings": maps, "default_alias_id": o.DefaultAlias,
 		"restrictions": map[string]any{"allowed_provider_ids": []string{}, "denied_provider_ids": []string{}, "allowed_billing": []string{}, "allowed_classifications": []string{}, "required_capabilities": []string{}},
 		"fallback":     map[string]any{"steps": o.Steps, "max_attempts": o.MaxAttempts, "allow_paid_fallback": o.AllowPaidFallback, "wait_max_seconds": 0},
-		"privacy":      map[string]any{"policy_id": o.PrivacyPolicy, "trace_policy_id": o.TracePolicy}}}, &draft)
+		"privacy":      map[string]any{"policy_id": o.PrivacyPolicy, "trace_policy_id": o.TracePolicy},
+		"compatibility": func() map[string]any {
+			if o.Compatibility == nil {
+				return map[string]any{}
+			}
+			return o.Compatibility
+		}()}}, &draft)
 	e.Admin.MustDo(200, "POST", "/api/v1/routing-plans/"+plan.ID+"/versions/"+draft.ID+"/publish", nil, nil)
 	return plan.ID
 }
