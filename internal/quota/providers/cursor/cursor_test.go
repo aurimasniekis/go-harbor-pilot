@@ -85,7 +85,7 @@ func cfg(base string, opts map[string]any, key string) providers.AccountConfig {
 }
 
 func newAdapter() *Adapter {
-	return New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{})})
+	return New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true})})
 }
 
 func amount(t *testing.T, s string) money.Amount {

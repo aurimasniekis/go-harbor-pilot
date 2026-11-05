@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/money"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/netpolicy"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/domain"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/providers"
 )
@@ -68,7 +69,7 @@ type parsed struct {
 	u       *url.URL
 	timeout time.Duration
 	specs   []domain.BucketSpec
-	policy  providers.SSRFPolicy
+	policy  netpolicy.Policy
 }
 
 // Adapter is the generic adapter.
@@ -76,13 +77,14 @@ type Adapter struct {
 	mu      sync.Mutex
 	clients map[string]*providers.HTTPClient
 	// transportFor builds the guarded transport (overridable in tests).
-	transportFor func(p providers.SSRFPolicy) http.RoundTripper
+	transportFor func(p netpolicy.Policy) http.RoundTripper
 }
 
 // New creates the adapter.
 func New() *Adapter {
-	return &Adapter{clients: map[string]*providers.HTTPClient{}, transportFor: func(p providers.SSRFPolicy) http.RoundTripper {
-		return providers.GuardedTransport(p)
+	return &Adapter{clients: map[string]*providers.HTTPClient{}, transportFor: func(p netpolicy.Policy) http.RoundTripper {
+		return netpolicy.Transport(p, netpolicy.TransportOptions{DialTimeout: 10 * time.Second, TLSHandshakeTimeout: 10 * time.Second,
+			ResponseHeaderTimeout: 15 * time.Second, MaxIdleConnsPerHost: 4})
 	}}
 }
 
@@ -157,7 +159,7 @@ func parse(cfg providers.AccountConfig) (*parsed, error) {
 		}
 		p.timeout = d
 	}
-	p.policy = providers.SSRFPolicy{AllowPrivate: o.AllowPrivateNetwork}
+	p.policy = netpolicy.Policy{AllowPrivate: o.AllowPrivateNetwork || cfg.AllowPrivateNetwork}
 	for _, c := range o.AllowedCIDRs {
 		pre, err := netip.ParsePrefix(c)
 		if err != nil {

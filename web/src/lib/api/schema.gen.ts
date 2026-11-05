@@ -4182,6 +4182,8 @@ export interface components {
             acknowledge_terms_risk?: boolean;
             /** @description Quota adapter id; see GET /api/v1/quota/adapters. */
             adapter: string;
+            /** @description Permit private or loopback endpoints for this monitor. Cloud metadata addresses stay blocked. */
+            allow_private_network?: boolean;
             api_key_ref?: string;
             enabled: boolean;
             /**

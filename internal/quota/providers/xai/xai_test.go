@@ -101,7 +101,7 @@ func cfg(base string, opts map[string]any, key string) providers.AccountConfig {
 }
 
 func adapter() providers.Adapter {
-	return New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{})})
+	return New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true})})
 }
 
 func bucket(t *testing.T, res *providers.FetchResult, key string) domain.BucketObservation {

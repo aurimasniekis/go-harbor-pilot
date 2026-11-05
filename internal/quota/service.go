@@ -149,7 +149,7 @@ func (s *Service) validateMonitor(v *cp.Validator, m *cp.QuotaMonitorSpec) {
 		placeholder[f.Name] = credentials.NewSecret("placeholder")
 	}
 	cfg := providers.AccountConfig{Account: domain.Account{ID: "validation", ProviderID: info.ID, Enabled: true, Tier: info.Tier, Demo: info.Tier == domain.TierDemo},
-		Options: m.Options, Credentials: credentials.NewBundle(placeholder)}
+		Options: m.Options, Credentials: credentials.NewBundle(placeholder), AllowPrivateNetwork: m.AllowPrivateNetwork}
 	if err := a.Validate(cfg); err != nil {
 		if pe := providers.AsError(err); pe.Kind == domain.ErrConfiguration {
 			v.Fail("spec.options", pe.Message)
@@ -234,8 +234,9 @@ func (s *Service) syncTargets(ctx context.Context) {
 		cfg := providers.AccountConfig{
 			Account: domain.Account{ID: domain.AccountID(m.ID), ProviderID: info.ID, Alias: m.Name, Enabled: true, Tier: info.Tier,
 				SharedScopeID: m.Spec.SharedScopeID, Demo: info.Tier == domain.TierDemo},
-			Options:     m.Spec.Options,
-			Credentials: s.resolveCredentials(ctx, m.ID),
+			Options:             m.Spec.Options,
+			Credentials:         s.resolveCredentials(ctx, m.ID),
+			AllowPrivateNetwork: m.Spec.AllowPrivateNetwork,
 		}
 		targets = append(targets, polling.Target{Config: cfg, Adapter: a, Interval: iv, Generation: m.Revision})
 	}

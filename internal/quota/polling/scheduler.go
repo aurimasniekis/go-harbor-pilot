@@ -395,7 +395,7 @@ func (s *Scheduler) poll(ctx context.Context, id domain.AccountID) {
 	s.mu.Unlock()
 
 	start := s.clk.Now()
-	fctx, cancel := context.WithTimeout(ctx, s.opt.FetchTimeout)
+	fctx, cancel := context.WithTimeout(providers.WithPrivateNetwork(ctx, target.Config.AllowPrivateNetwork), s.opt.FetchTimeout)
 	res, err := target.Adapter.Fetch(fctx, providers.FetchRequest{Config: target.Config, Now: start})
 	cancel()
 	end := s.clk.Now()

@@ -22,6 +22,9 @@ type AccountConfig struct {
 	Options map[string]any
 	// Credentials are resolved secrets. Never log them.
 	Credentials credentials.Bundle
+	// AllowPrivateNetwork permits private and loopback endpoints (the
+	// monitor's allow_private_network); metadata addresses stay blocked.
+	AllowPrivateNetwork bool
 }
 
 // FetchRequest asks an adapter for the current state of an account.

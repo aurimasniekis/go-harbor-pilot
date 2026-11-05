@@ -110,8 +110,8 @@ func TestGenericSSRFBlocked(t *testing.T) {
 			}
 			_, err := New().Fetch(context.Background(), providers.FetchRequest{Config: cfg(o)})
 			var pe *providers.Error
-			if !errors.As(err, &pe) || pe.Kind != domain.ErrConfiguration || !strings.Contains(pe.Message, "SSRF") {
-				t.Fatalf("expected SSRF block, got %v", err)
+			if !errors.As(err, &pe) || pe.Kind != domain.ErrConfiguration || !strings.Contains(pe.Message, "outbound network policy") {
+				t.Fatalf("expected a policy block, got %v", err)
 			}
 		})
 	}

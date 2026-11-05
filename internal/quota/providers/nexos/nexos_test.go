@@ -72,7 +72,7 @@ var now = time.Date(2026, 10, 17, 11, 30, 0, 0, time.UTC)
 func TestNexosFetch(t *testing.T) {
 	srv := server(t, nil)
 	defer srv.Close()
-	a := New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{})})
+	a := New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true})})
 	c := cfg(srv.URL, map[string]any{"company_id": "co-1", "key_uuid": "11111111-1111-4111-8111-111111111111", "pricing_currency": "USD"}, "team-test-key")
 	if err := a.Validate(c); err != nil {
 		t.Fatal(err)
@@ -134,7 +134,7 @@ func TestNexosFetch(t *testing.T) {
 func TestNexosGroupForbiddenIsNote(t *testing.T) {
 	srv := server(t, map[string]int{"group": http.StatusForbidden})
 	defer srv.Close()
-	a := New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{})})
+	a := New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true})})
 	res, err := a.Fetch(context.Background(), providers.FetchRequest{Config: cfg(srv.URL, nil, "team-test-key"), Now: now})
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +163,7 @@ func TestNexosErrors(t *testing.T) {
 			}
 			srv := server(t, st)
 			defer srv.Close()
-			a := New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{})})
+			a := New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true})})
 			_, err := a.Fetch(context.Background(), providers.FetchRequest{Config: cfg(srv.URL, nil, tt.key), Now: now})
 			pe := providers.AsError(err)
 			if pe == nil || pe.Kind != tt.want {

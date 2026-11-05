@@ -27,6 +27,10 @@ type QuotaMonitorSpec struct {
 	// endpoints (tier unofficial).
 	AcknowledgeTermsRisk bool   `json:"acknowledge_terms_risk" required:"false" doc:"Required for unofficial adapters, which use undocumented endpoints that may break or conflict with provider terms."`
 	SharedScopeID        string `json:"shared_scope_id" required:"false" doc:"Monitors drawing on the same provider quota share an id so capacity is not double counted."`
+	// AllowPrivateNetwork lets the adapter reach private and loopback
+	// endpoints (self-hosted gateways, local tests). Metadata addresses stay
+	// blocked.
+	AllowPrivateNetwork bool `json:"allow_private_network" required:"false" doc:"Permit private or loopback endpoints for this monitor. Cloud metadata addresses stay blocked."`
 	// ExhaustedBelow is the remaining fraction at or below which a global
 	// bucket marks the linked account unavailable for routing.
 	ExhaustedBelow float64 `json:"exhausted_below" required:"false" minimum:"0" maximum:"1" doc:"Remaining fraction at or below which the linked account is treated as exhausted. 0 = only when fully used."`
@@ -41,10 +45,7 @@ func validateQuotaMonitor(v *Validator, s *QuotaMonitorSpec) {
 	v.Check(s.Adapter != "", "spec.adapter", "is required")
 	for loc, ref := range map[string]string{"spec.api_key_ref": s.APIKeyRef, "spec.management_key_ref": s.ManagementKeyRef,
 		"spec.access_token_ref": s.AccessTokenRef, "spec.service_account_ref": s.ServiceAccountRef} {
-		if ref != "" {
-			kind, val, ok := strings.Cut(ref, ":")
-			v.Check(ok && val != "" && (kind == "env" || kind == "file"), loc, "must be env:NAME or file:/path")
-		}
+		checkSecretRef(v, loc, ref)
 	}
 	if s.SharedScopeID != "" {
 		v.Check(refKeyRE.MatchString(s.SharedScopeID), "spec.shared_scope_id", "must be a lowercase identifier")

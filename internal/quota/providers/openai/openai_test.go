@@ -57,7 +57,7 @@ func TestAdminFetch(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	a := NewAdmin(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{})})
+	a := NewAdmin(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true})})
 	c := providers.AccountConfig{Account: domain.Account{ID: "oa", ProviderID: AdminID}, Options: map[string]any{"base_url": srv.URL},
 		Credentials: credentials.NewBundle(map[string]credentials.Secret{"api_key": credentials.NewSecret("sk-admin-synthetic")})}
 	res, err := a.Fetch(context.Background(), providers.FetchRequest{Config: c, Now: now})
@@ -113,7 +113,7 @@ func TestCodexFetchFromAuthJSON(t *testing.T) {
 	defer srv.Close()
 	files := &providers.FileReader{}
 	files.SetRoots([]string{dir})
-	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{}), Files: files}
+	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true}), Files: files}
 	a := NewCodex(deps, oauthflow.New(deps.HTTP, func() time.Time { return now }))
 	c := providers.AccountConfig{Account: domain.Account{ID: "codex", ProviderID: CodexID},
 		Options: map[string]any{"credentials_file": p, "usage_url": srv.URL}}
@@ -145,7 +145,7 @@ func TestCodexExpiredAccessToken(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(dir, "auth.json"), []byte(fmt.Sprintf(`{"tokens":{"access_token":%q,"account_id":"a"}}`, access)), 0o600)
 	files := &providers.FileReader{}
 	files.SetRoots([]string{dir})
-	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{}), Files: files}
+	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true}), Files: files}
 	a := NewCodex(deps, oauthflow.New(deps.HTTP, func() time.Time { return now }))
 	_, err := a.Fetch(context.Background(), providers.FetchRequest{Config: providers.AccountConfig{Account: domain.Account{ID: "x"},
 		Options: map[string]any{"credentials_file": filepath.Join(dir, "auth.json")}}, Now: now})

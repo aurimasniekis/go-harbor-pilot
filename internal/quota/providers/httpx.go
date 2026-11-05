@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/netpolicy"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/domain"
 )
 
@@ -25,17 +26,42 @@ type HTTPOptions struct {
 	Timeout   time.Duration
 	MaxBody   int64
 	UserAgent string
-	// Transport overrides the transport (tests, SSRF-guarded dialer).
+	// Transport overrides the transport for every request (tests, or an
+	// adapter-specific guarded transport). When nil, requests go through the
+	// outbound network policy: public destinations only, or also private
+	// ones for contexts marked with WithPrivateNetwork.
 	Transport http.RoundTripper
 	// MaxRedirects; 0 disables redirects entirely.
 	MaxRedirects int
+	// AllowPrivate lets every request reach private and loopback endpoints
+	// (adapter tests against local fakes). Production clients leave it off
+	// and opt in per monitor with WithPrivateNetwork.
+	AllowPrivate bool
 }
 
 // HTTPClient is a hardened JSON HTTP client for adapters.
 type HTTPClient struct {
 	c         *http.Client
+	private   *http.Client // nil when a fixed transport was supplied
 	maxBody   int64
 	userAgent string
+}
+
+// ErrDestinationBlocked is the outbound policy's refusal.
+var ErrDestinationBlocked = netpolicy.ErrDestinationBlocked
+
+type privateNetKey struct{}
+
+// WithPrivateNetwork marks a context whose requests may reach private and
+// loopback destinations (a monitor's allow_private_network). Metadata and
+// link-local addresses stay blocked.
+func WithPrivateNetwork(ctx context.Context, allow bool) context.Context {
+	return context.WithValue(ctx, privateNetKey{}, allow)
+}
+
+func allowsPrivate(ctx context.Context) bool {
+	v, _ := ctx.Value(privateNetKey{}).(bool)
+	return v
 }
 
 // NewHTTPClient builds a client. Redirects are only followed to the same
@@ -50,21 +76,9 @@ func NewHTTPClient(o HTTPOptions) *HTTPClient {
 	if o.UserAgent == "" {
 		o.UserAgent = "harbor-pilot"
 	}
-	tr := o.Transport
-	if tr == nil {
-		tr = &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			DialContext:           (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ResponseHeaderTimeout: 15 * time.Second,
-			MaxIdleConns:          32,
-			IdleConnTimeout:       90 * time.Second,
-			ForceAttemptHTTP2:     true,
-		}
-	}
 	maxRedirects := o.MaxRedirects
-	return &HTTPClient{
-		c: &http.Client{
+	mk := func(tr http.RoundTripper) *http.Client {
+		return &http.Client{
 			Timeout:   o.Timeout,
 			Transport: tr,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -76,10 +90,20 @@ func NewHTTPClient(o HTTPOptions) *HTTPClient {
 				}
 				return nil
 			},
-		},
-		maxBody:   o.MaxBody,
-		userAgent: o.UserAgent,
+		}
 	}
+	hc := &HTTPClient{maxBody: o.MaxBody, userAgent: o.UserAgent}
+	if o.Transport != nil {
+		hc.c = mk(o.Transport)
+		return hc
+	}
+	// Environment proxies are disabled by the policy transport, so the
+	// destination check cannot be bypassed.
+	to := netpolicy.TransportOptions{DialTimeout: 10 * time.Second, TLSHandshakeTimeout: 10 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second, MaxIdleConnsPerHost: 8}
+	hc.c = mk(netpolicy.Transport(netpolicy.Policy{AllowPrivate: o.AllowPrivate}, to))
+	hc.private = mk(netpolicy.Transport(netpolicy.Policy{AllowPrivate: true}, to))
+	return hc
 }
 
 var errRedirectRefused = errors.New("redirect refused")
@@ -142,7 +166,11 @@ func (c *HTTPClient) Do(ctx context.Context, r Request) (*Response, error) {
 	} else if r.Body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := c.c.Do(req)
+	client := c.c
+	if c.private != nil && allowsPrivate(ctx) {
+		client = c.private
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, classifyTransportError(ctx, err)
 	}
@@ -202,7 +230,7 @@ func classifyTransportError(ctx context.Context, err error) *Error {
 		return WrapError(domain.ErrConfiguration, "provider redirected to another origin; refused", err)
 	}
 	if errors.Is(err, ErrDestinationBlocked) {
-		return WrapError(domain.ErrConfiguration, "destination address is blocked by SSRF policy", err)
+		return WrapError(domain.ErrConfiguration, "destination address is blocked by the outbound network policy (private and local endpoints need allow_private_network on the monitor)", err)
 	}
 	if ctx.Err() != nil {
 		if errors.Is(ctx.Err(), context.Canceled) {

@@ -164,7 +164,7 @@ func newEnv(t *testing.T) *env {
 		Options:     map[string]any{"project_id": "example-project", "quotas_base_url": srv.URL, "monitoring_base_url": srv.URL},
 		Credentials: credentials.NewBundle(map[string]credentials.Secret{"service_account": credentials.NewSecret(string(sa))}),
 	}
-	a := New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{})})
+	a := New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true})})
 	return &env{g: g, srv: srv, a: a, cfg: cfg, key: pemKey}
 }
 

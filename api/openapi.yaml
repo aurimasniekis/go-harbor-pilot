@@ -4359,6 +4359,9 @@ components:
         adapter:
           description: Quota adapter id; see GET /api/v1/quota/adapters.
           type: string
+        allow_private_network:
+          description: Permit private or loopback endpoints for this monitor. Cloud metadata addresses stay blocked.
+          type: boolean
         api_key_ref:
           type: string
         enabled:

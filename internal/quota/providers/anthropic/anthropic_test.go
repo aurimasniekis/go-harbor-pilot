@@ -68,7 +68,7 @@ func TestSubscriptionFetchFromMountedFile(t *testing.T) {
 	root, _ := filepath.Abs(filepath.Join("..", "..", "..", "..", "testdata", "quota", "anthropic"))
 	files := &providers.FileReader{}
 	files.SetRoots([]string{root})
-	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{}), Files: files}
+	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true}), Files: files}
 	a := NewSubscription(deps, oauthflow.New(deps.HTTP, func() time.Time { return now }))
 	c := subCfg(map[string]any{"token_source": "file", "credentials_file": filepath.Join(root, "claude_credentials.json"), "usage_url": srv.URL}, nil)
 	if err := a.Validate(c); err != nil {
@@ -108,7 +108,7 @@ func TestSubscriptionExpiredFileIsAuthError(t *testing.T) {
 	_ = os.WriteFile(p, []byte(`{"claudeAiOauth":{"accessToken":"x","expiresAt":1000}}`), 0o600)
 	files := &providers.FileReader{}
 	files.SetRoots([]string{dir})
-	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{}), Files: files}
+	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true}), Files: files}
 	a := NewSubscription(deps, oauthflow.New(deps.HTTP, func() time.Time { return now }))
 	_, err := a.Fetch(context.Background(), providers.FetchRequest{Config: subCfg(map[string]any{"credentials_file": p, "usage_url": "https://127.0.0.1:1"}, nil), Now: now})
 	pe := providers.AsError(err)
@@ -141,7 +141,7 @@ func TestSubscriptionLoginRefreshesAndRotates(t *testing.T) {
 	}}}
 	holder := &providers.TokenHolder{}
 	holder.Set(store)
-	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{}), Tokens: holder}
+	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true}), Tokens: holder}
 	a := NewSubscription(deps, oauthflow.New(deps.HTTP, func() time.Time { return now }))
 	c := subCfg(map[string]any{"token_source": "login", "usage_url": usageSrv.URL, "token_url": tokenSrv.URL}, nil)
 	for range 2 {
@@ -159,7 +159,7 @@ func TestSubscriptionLoginRefreshesAndRotates(t *testing.T) {
 }
 
 func TestSubscriptionLoginRequiresStore(t *testing.T) {
-	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{}), Tokens: &providers.TokenHolder{}}
+	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true}), Tokens: &providers.TokenHolder{}}
 	a := NewSubscription(deps, oauthflow.New(deps.HTTP, func() time.Time { return now }))
 	_, err := a.Fetch(context.Background(), providers.FetchRequest{Config: subCfg(map[string]any{"token_source": "login"}, nil), Now: now})
 	if pe := providers.AsError(err); pe.Kind != domain.ErrConfiguration {
@@ -193,7 +193,7 @@ func TestAdminFetch(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	a := NewAdmin(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{})})
+	a := NewAdmin(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true})})
 	c := providers.AccountConfig{
 		Account: domain.Account{ID: "org", ProviderID: AdminID}, Options: map[string]any{"base_url": srv.URL},
 		Credentials: credentials.NewBundle(map[string]credentials.Secret{"api_key": credentials.NewSecret("sk-ant-admin01-synthetic")}),

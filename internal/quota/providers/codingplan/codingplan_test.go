@@ -67,7 +67,7 @@ func cfg(base string) providers.AccountConfig {
 }
 
 func deps() providers.Deps {
-	return providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{})}
+	return providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true})}
 }
 
 func fetch(t *testing.T, a providers.Adapter, base string) (*providers.FetchResult, error) {

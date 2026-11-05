@@ -99,7 +99,7 @@ func cfg(base string, opts map[string]any, key string) providers.AccountConfig {
 }
 
 func adapter() providers.Adapter {
-	return New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{})})
+	return New(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true})})
 }
 
 func amt(t *testing.T, s string) money.Amount {

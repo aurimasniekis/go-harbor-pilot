@@ -38,7 +38,7 @@ func serve(t *testing.T, routes map[string]string) *httptest.Server {
 func TestDeepSeek(t *testing.T) {
 	srv := serve(t, map[string]string{"/user/balance": `{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"110.05","granted_balance":"10.00","topped_up_balance":"100.05"}]}`})
 	defer srv.Close()
-	res, err := NewDeepSeek(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{})}).Fetch(context.Background(),
+	res, err := NewDeepSeek(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true})}).Fetch(context.Background(),
 		providers.FetchRequest{Config: cfg(srv.URL, map[string]string{"api_key": "k"}), Now: now})
 	if err != nil {
 		t.Fatal(err)
@@ -52,7 +52,7 @@ func TestDeepSeek(t *testing.T) {
 func TestMoonshot(t *testing.T) {
 	srv := serve(t, map[string]string{"/v1/users/me/balance": `{"code":0,"data":{"available_balance":49.58894,"voucher_balance":46.58893,"cash_balance":-3.00001},"status":true}`})
 	defer srv.Close()
-	res, err := NewMoonshot(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{})}).Fetch(context.Background(),
+	res, err := NewMoonshot(providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true})}).Fetch(context.Background(),
 		providers.FetchRequest{Config: cfg(srv.URL, map[string]string{"api_key": "k"}), Now: now})
 	if err != nil {
 		t.Fatal(err)
@@ -68,7 +68,7 @@ func TestOpenRouter(t *testing.T) {
 		"/api/v1/credits": `{"data":{"total_credits":100,"total_usage":40}}`,
 	})
 	defer srv.Close()
-	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{})}
+	deps := providers.Deps{HTTP: providers.NewHTTPClient(providers.HTTPOptions{AllowPrivate: true})}
 	res, err := NewOpenRouter(deps, oauthflow.New(deps.HTTP, time.Now)).Fetch(context.Background(),
 		providers.FetchRequest{Config: cfg(srv.URL, map[string]string{"api_key": "k", "management_key": "m"}), Now: now})
 	if err != nil {
