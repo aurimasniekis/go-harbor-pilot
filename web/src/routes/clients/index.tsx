@@ -1,96 +1,138 @@
 import { useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { Button, Group, Stack, Text } from '@mantine/core'
 import { BookOpen, Laptop, Plus } from 'lucide-react'
-import { PageHeader } from '@/components/PageHeader'
-import { Badge, Button, EmptyState, Panel, TableScroll, uiStyles } from '@/components/ui'
-import { Dialog } from '@/components/form'
+import { Badge } from '@/components/ui'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { ResourceBadges } from '@/components/ResourceBadges'
-import { BindingForm } from '@/features/config/BindingForm'
-import { harnesses } from '@/features/config/constants'
-import { credentialsQuery, resourceListQuery } from '@/lib/api/queries'
+import { AddClientDialog } from '@/features/config/BindingForm'
+import { groupCost, useClientStats } from '@/features/clients/clients'
+import { resourceListQuery } from '@/lib/api/queries'
 import { byId } from '@/lib/api/resources'
-import type { BindingRes, PlanRes, ProjectRes } from '@/lib/api/types'
+import type { BindingRes, PlanRes } from '@/lib/api/types'
 import { useCan } from '@/lib/session'
+import { type Column, DataTable, Empty, PageHeader } from '@/ui/kit'
+import { harnessName, money, short } from '@/ui/fmt'
 
 export const Route = createFileRoute('/clients/')({
   component: Clients,
 })
 
-function CredentialCount({ id }: { id: string }) {
-  const q = useQuery(credentialsQuery(id))
-  if (!q.data) return <span className="muted">…</span>
-  const active = q.data.items.filter((c) => !c.revoked_at).length
-  return <span className="num">{active}</span>
-}
-
 function Clients() {
   const navigate = useNavigate()
   const list = useQuery(resourceListQuery<BindingRes>('client-bindings'))
   const plans = byId(useQuery(resourceListQuery<PlanRes>('routing-plans')).data?.items)
-  const projects = byId(useQuery(resourceListQuery<ProjectRes>('projects')).data?.items)
+  const { byClient } = useClientStats()
   const canWrite = useCan('config.write')
   const [creating, setCreating] = useState(false)
   const items = list.data?.items ?? []
+  const active = items.filter((b) => (byClient[b.id]?.requests ?? 0) > 0).length
+  const off = items.filter((b) => !b.spec.enabled).length
+
+  const cols: Column<BindingRes>[] = [
+    {
+      id: 'client',
+      header: 'Client',
+      mobile: 'title',
+      cell: (b) => (
+        <Stack gap={0} miw={0}>
+          <Group gap={6} wrap="nowrap" miw={0}>
+            <Link to="/clients/$bindingId" params={{ bindingId: b.id }} onClick={(e) => e.stopPropagation()}>
+              <Text size="sm" fw={500} truncate component="span">
+                {b.spec.display_name || b.name}
+              </Text>
+            </Link>
+            <ResourceBadges r={b} />
+          </Group>
+          <Text size="xs" c="dimmed" truncate>
+            {harnessName[b.spec.expected_harness] ?? 'Any tool'}
+            {b.spec.display_name ? ` · ${b.name}` : ''}
+          </Text>
+        </Stack>
+      ),
+    },
+    { id: 'plan', header: 'Routing plan', mobile: 'meta', cell: (b) => plans[b.spec.plan_id]?.spec.display_name || plans[b.spec.plan_id]?.name || '—' },
+    {
+      id: 'requests',
+      header: 'Requests 24h',
+      align: 'right',
+      mobile: 'aside',
+      cell: (b) => <span className="num">{short(byClient[b.id]?.requests ?? 0)}</span>,
+    },
+    {
+      id: 'errors',
+      header: 'Failed 24h',
+      align: 'right',
+      mobile: 'meta',
+      cell: (b) => {
+        const e = (byClient[b.id]?.errors ?? 0) + (byClient[b.id]?.blocked ?? 0)
+        return e ? <Text size="sm" c="var(--error-text)" className="num" span>{e} failed</Text> : <Text size="sm" c="dimmed" span>—</Text>
+      },
+    },
+    {
+      id: 'cost',
+      header: 'Cost 24h',
+      align: 'right',
+      mobile: 'meta',
+      cell: (b) => {
+        const c = groupCost(byClient[b.id])
+        return c ? <span className="num">{money(c.amount, c.currency)}</span> : <Text size="sm" c="dimmed" span>—</Text>
+      },
+    },
+    { id: 'status', header: '', mobile: 'meta', width: 60, cell: (b) => (b.spec.enabled ? null : <Badge>Off</Badge>) },
+  ]
+
   return (
-    <>
+    <Stack gap="lg">
       <PageHeader
         title="Clients"
-        subtitle="A client binding connects a harness or application to a routing plan, project, limits and telemetry policy. Clients authenticate with gateway credentials."
+        info="Tools and apps that send requests through Harbor Pilot. Each client has a routing plan, limits and its own access tokens."
         actions={
-          <Link to="/clients/setup" className={uiStyles.button}>
-            <BookOpen size={14} aria-hidden="true" /> Harness setup
-          </Link>
+          <>
+            <Button component={Link} to="/clients/setup" variant="default" leftSection={<BookOpen size={14} />}>
+              Set up a tool
+            </Button>
+            {canWrite && (
+              <Button leftSection={<Plus size={14} />} onClick={() => setCreating(true)}>
+                Add client
+              </Button>
+            )}
+          </>
         }
       />
-      <Panel title="Client bindings" actions={canWrite && <Button variant="primary" icon={Plus} onClick={() => setCreating(true)}>Add client</Button>}>
-        {list.isError ? (
-          <QueryError error={list.error} retry={() => void list.refetch()} />
-        ) : !list.data ? (
-          <TableSkeleton />
-        ) : items.length === 0 ? (
-          <EmptyState icon={Laptop} title="No clients yet">Add a client, pick its routing plan, then issue a gateway credential.</EmptyState>
-        ) : (
-          <TableScroll label="Client bindings">
-            <table className="data-table" style={{ width: '100%' }}>
-              <thead>
-                <tr>
-                  <th>Client</th>
-                  <th>Plan</th>
-                  <th>Project</th>
-                  <th>Harness</th>
-                  <th>Status</th>
-                  <th>Active credentials</th>
-                  <th>Managed by</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((b) => (
-                  <tr key={b.id}>
-                    <td>
-                      <Link to="/clients/$bindingId" params={{ bindingId: b.id }} className="mono">{b.name}</Link>
-                      {b.spec.display_name && <div className="muted">{b.spec.display_name}</div>}
-                    </td>
-                    <td className="mono">{plans[b.spec.plan_id]?.name ?? b.spec.plan_id}</td>
-                    <td className="mono">{b.spec.project_id ? projects[b.spec.project_id]?.name ?? b.spec.project_id : <span className="muted">—</span>}</td>
-                    <td>{harnesses.find((h) => h.value === b.spec.expected_harness)?.label ?? b.spec.expected_harness}</td>
-                    <td>{b.spec.enabled ? <Badge tone="success">enabled</Badge> : <Badge>disabled</Badge>}</td>
-                    <td><CredentialCount id={b.id} /></td>
-                    <td><ResourceBadges r={b} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        )}
-      </Panel>
-      <Dialog open={creating} wide title="Add client" onClose={() => setCreating(false)}>
-        {creating && (
-          <BindingForm binding={null} onCancel={() => setCreating(false)}
-            onSaved={(b) => { setCreating(false); void navigate({ to: '/clients/$bindingId', params: { bindingId: b.id } }) }} />
-        )}
-      </Dialog>
-    </>
+      {list.data && items.length > 0 && (
+        <Text size="sm" c="dimmed">
+          {items.length} {items.length === 1 ? 'client' : 'clients'} · {active} active in the last 24 hours{off ? ` · ${off} off` : ''}
+        </Text>
+      )}
+      {list.isError ? (
+        <QueryError error={list.error} retry={() => void list.refetch()} />
+      ) : !list.data ? (
+        <TableSkeleton />
+      ) : (
+        <DataTable
+          label="Client list"
+          rows={items}
+          columns={cols}
+          rowKey={(b) => b.id}
+          onRow={(b) => void navigate({ to: '/clients/$bindingId', params: { bindingId: b.id } })}
+          empty={
+            <Empty icon={<Laptop size={22} />} title="No clients yet" action={canWrite && <Button onClick={() => setCreating(true)}>Add client</Button>}>
+              A client is a tool or app that sends requests. Add one, then set the tool up with its access token.
+            </Empty>
+          }
+        />
+      )}
+      {creating && (
+        <AddClientDialog
+          onClose={() => setCreating(false)}
+          onCreated={(b) => {
+            setCreating(false)
+            void navigate({ to: '/clients/$bindingId', params: { bindingId: b.id }, search: { token: true } })
+          }}
+        />
+      )}
+    </Stack>
   )
 }

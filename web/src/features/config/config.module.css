@@ -89,3 +89,61 @@
 .step span {
   flex: 1;
 }
+
+/* Selectable option cards (tool, provider type). */
+.toolCard {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  color: var(--text);
+  text-align: left;
+}
+
+.toolCard:hover {
+  border-color: var(--border-strong);
+}
+
+.toolCard[data-selected] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.toolIcon {
+  display: inline-flex;
+  color: var(--accent-text);
+  margin-top: 2px;
+}
+
+/* Settings form: title and help left, fields right; stacked on phones. */
+.settingsSection {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+  gap: var(--space-4) var(--space-6);
+}
+
+@media (max-width: 48em) {
+  .settingsSection {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* One save for the whole form, kept in view while there are changes. */
+.saveBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+.saveBar[data-dirty] {
+  border-top-color: var(--accent);
+}

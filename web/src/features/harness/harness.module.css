@@ -57,3 +57,23 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
   gap: var(--space-4);
 }
+
+/* Numbered setup steps. */
+.stepBlock {
+  display: flex;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.stepNum {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}

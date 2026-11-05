@@ -34,7 +34,7 @@ test('statistics break down activity by dimension', async ({ page }) => {
 test('harness setup guides fill in commands without a token', async ({ page }) => {
   await signIn(page)
   await page.goto('/clients')
-  await page.getByRole('link', { name: 'Harness setup' }).click()
+  await page.getByRole('link', { name: 'Set up a tool' }).click()
   await expect(page.getByRole('heading', { name: 'Harness setup', level: 1 })).toBeVisible()
 
   await page.getByLabel('Harbor Pilot URL').fill('https://hp.example.test/')

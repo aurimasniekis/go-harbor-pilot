@@ -85,19 +85,19 @@ test('configure a provider through to an issued client credential', async ({ pag
   await expect(page.getByText('v1').first()).toBeVisible()
   await expect(page.getByRole('cell', { name: 'published' })).toBeVisible()
 
-  // Client binding → credential.
+  // Client → access token (the token dialog opens right after creating).
   await page.goto('/clients')
   await page.getByRole('button', { name: 'Add client' }).click()
   d = await dialog(page)
   await d.getByLabel('Name', { exact: true }).fill(`laptop-${suffix}`)
+  await expect(d.getByLabel('Short name')).toHaveValue(`laptop-${suffix}`)
+  await d.getByRole('radio', { name: /Claude Code/ }).click()
   await choose(d, 'Routing plan', { label: `plan-${suffix}` })
-  await choose(d, 'Expected harness', 'claude_code')
-  await d.getByRole('button', { name: 'Save client' }).click()
+  await d.getByRole('button', { name: 'Create client and token' }).click()
   await page.waitForURL(/\/clients\/cbn_/)
-  await page.getByRole('button', { name: 'Issue credential' }).first().click()
-  d = await dialog(page)
-  await d.getByLabel('Credential name').fill('laptop')
-  await d.getByRole('button', { name: 'Issue credential' }).click()
+  d = page.getByRole('dialog', { name: 'Create access token' })
+  await d.getByLabel('Token name').fill('laptop')
+  await d.getByRole('button', { name: 'Create token' }).click()
   const token = (await page.getByTestId('secret-value').textContent()) ?? ''
   expect(token).toMatch(/^hpk_[a-z2-7]{8}_[A-Za-z0-9_-]{43}$/)
   await expect(page.getByTestId('snippet-claude-code')).toContainText('ANTHROPIC_BASE_URL=')

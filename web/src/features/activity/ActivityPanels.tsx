@@ -1,11 +1,13 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle } from 'lucide-react'
-import { Badge, Banner, KeyValues, Panel, Skeleton, TableScroll } from '@/components/ui'
+import { Group, Stack, Text } from '@mantine/core'
+import { Badge, Banner, KeyValues, Panel, Skeleton } from '@/components/ui'
 import { QueryError } from '@/components/states'
 import { activitySummaryQuery, requestsQuery } from '@/lib/api/queries'
 import { fmtDateTime, fmtRelative } from '@/lib/format'
-import { CostKindLabel, HarnessBadge, Ms, StatusBadge, TokenValue } from './bits'
+import { CostKindLabel, Ms, StatusBadge, TokenValue } from './bits'
+import s from './activity.module.css'
 
 function Counts({ m }: { m: Record<string, number> }) {
   const entries = Object.entries(m).sort((a, b) => b[1] - a[1])
@@ -82,60 +84,47 @@ export function ActivitySummaryPanel() {
   )
 }
 
-/** Most recent requests of one client binding. */
+/** Most recent requests of one client: one line each. */
 export function RecentRequestsPanel({ bindingId }: { bindingId: string }) {
-  const q = useQuery(requestsQuery({ binding_id: bindingId, limit: 10 }))
+  const q = useQuery(requestsQuery({ binding_id: bindingId, limit: 8 }))
+  const items = q.data?.items ?? []
   return (
-    <Panel
-      title="Recent requests"
-      subtitle="The latest requests made with this client's credentials."
-      actions={<Link to="/activity" search={{ binding_id: bindingId }}>All requests</Link>}
-    >
+    <Stack gap="sm">
+      <Group justify="space-between" gap="xs">
+        <Text size="sm" fw={600}>
+          Latest requests
+        </Text>
+        <Link to="/activity" search={{ binding_id: bindingId }}>
+          See all in Requests
+        </Link>
+      </Group>
       {q.isError ? (
         <QueryError error={q.error} retry={() => void q.refetch()} />
       ) : !q.data ? (
         <Skeleton height={80} />
-      ) : (q.data.items ?? []).length === 0 ? (
-        <p className="secondary">No requests yet.</p>
+      ) : items.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          No requests yet. Set up a tool with an access token to see them here.
+        </Text>
       ) : (
-        <TableScroll label="Recent requests">
-          <table className="data-table" style={{ width: '100%' }}>
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Harness</th>
-                <th>Model</th>
-                <th>Status</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(q.data.items ?? []).map((r) => (
-                <tr key={r.id}>
-                  <td title={fmtDateTime(r.created_at, { seconds: true })}>
-                    <Link to="/activity/$requestId" params={{ requestId: r.id }}>
-                      {fmtRelative(r.created_at)}
-                    </Link>
-                  </td>
-                  <td>
-                    <HarnessBadge h={r.harness} />
-                  </td>
-                  <td className="mono">
-                    {r.requested_model}
-                    {r.final_model && <span className="muted"> → {r.final_model}</span>}
-                  </td>
-                  <td>
-                    <StatusBadge status={r.status} />
-                  </td>
-                  <td>
-                    <Ms v={r.duration_ms} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableScroll>
+        <ul className={s.recent} aria-label="Latest requests">
+          {items.map((r) => (
+            <li key={r.id}>
+              <Link to="/activity/$requestId" params={{ requestId: r.id }} className={s.recentRow}>
+                <span className={s.recentModel}>
+                  {r.requested_model || 'unknown model'}
+                  {r.final_model && r.final_model !== r.requested_model && <span className="muted"> → {r.final_model}</span>}
+                </span>
+                <span className={s.recentMeta}>
+                  {r.status !== 'ok' && <StatusBadge status={r.status} />}
+                  <Ms v={r.duration_ms} />
+                  <span title={fmtDateTime(r.created_at, { seconds: true })}>{fmtRelative(r.created_at)}</span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
-    </Panel>
+    </Stack>
   )
 }
