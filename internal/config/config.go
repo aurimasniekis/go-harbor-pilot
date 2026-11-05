@@ -28,6 +28,7 @@ type Config struct {
 	Security Security `yaml:"security"`
 	Log      Log      `yaml:"log"`
 	Demo     Demo     `yaml:"demo"`
+	Bridges  Bridges  `yaml:"bridges"`
 }
 
 // Server settings.
@@ -66,6 +67,27 @@ type Log struct {
 }
 
 // Demo settings.
+// Bridges configures CLI bridge executors.
+type Bridges struct {
+	ClaudeCode BridgeCLI `yaml:"claude_code"`
+	Codex      BridgeCLI `yaml:"codex"`
+}
+
+// BridgeCLI configures one CLI bridge.
+type BridgeCLI struct {
+	// Binary is the CLI path; empty means the name on PATH.
+	Binary string `yaml:"binary"`
+	// Disabled turns the bridge off even when the binary is present.
+	Disabled bool `yaml:"disabled"`
+	// MaxProcesses and MaxPerAccount bound concurrent CLI processes.
+	MaxProcesses  int `yaml:"max_processes"`
+	MaxPerAccount int `yaml:"max_per_account"`
+	// IdleTimeout ends parked processes waiting for a follow-up turn;
+	// ToolTimeout ends processes waiting for client tool results.
+	IdleTimeout time.Duration `yaml:"idle_timeout"`
+	ToolTimeout time.Duration `yaml:"tool_timeout"`
+}
+
 type Demo struct {
 	Enabled bool `yaml:"enabled"`
 	// Clock freezes time (RFC 3339) for deterministic demo output.
@@ -121,6 +143,8 @@ func Load(path string, env func(string) string, f Flags) (Config, error) {
 	setStr(&c.Server.PublicURL, "HP_PUBLIC_URL")
 	setStr(&c.Security.MasterKeyFile, "HP_MASTER_KEY_FILE")
 	setStr(&c.Log.Level, "HP_LOG_LEVEL")
+	setStr(&c.Bridges.ClaudeCode.Binary, "HP_CLAUDE_BINARY")
+	setStr(&c.Bridges.Codex.Binary, "HP_CODEX_BINARY")
 	if f.Listen != "" {
 		c.Server.Listen = f.Listen
 	}

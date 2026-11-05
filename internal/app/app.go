@@ -62,6 +62,9 @@ type Options struct {
 	QuotaTransport http.RoundTripper
 	// QuotaScheduler tunes quota polling (tests).
 	QuotaScheduler polling.Options
+	// BridgeEnv is appended to CLI bridge environments (tests point the CLI
+	// at a synthetic upstream).
+	BridgeEnv []string
 }
 
 // App is the running application.
@@ -84,14 +87,18 @@ type App struct {
 	Budgets *accounting.Budgets
 	Started time.Time
 
-	unlock   func()
-	bgWG     sync.WaitGroup
-	bg       []func(ctx context.Context)
-	routes   []func(r chi.Router)
-	apiRegs  []func(a *api.API)
-	ready    bool
-	readyMu  sync.RWMutex
-	metricsT credentials.Secret
+	unlock  func()
+	closers []func()
+
+	bridgeMu     sync.Mutex
+	bridgeStatus []*BridgeStatus
+	bgWG         sync.WaitGroup
+	bg           []func(ctx context.Context)
+	routes       []func(r chi.Router)
+	apiRegs      []func(a *api.API)
+	ready        bool
+	readyMu      sync.RWMutex
+	metricsT     credentials.Secret
 }
 
 // New wires the application.
@@ -155,6 +162,7 @@ func New(ctx context.Context, o Options) (*App, error) {
 		Metrics: a.Metrics, Limits: gateway.DefaultLimits}
 	a.Gateway.AfterRequest = gateway.NewTransitions(a.DB.W).After
 	a.Gateway.HealthOf = a.Quota.Health
+	a.setupBridges(o)
 	a.Gateway.ObserveResponse = a.Quota.ObserveResponse
 	a.AddBackground(a.Quota.Run)
 	a.AddBackground(a.Acct.Run)
@@ -270,6 +278,9 @@ func (a *App) AddAPI(fn func(a *api.API)) { a.apiRegs = append(a.apiRegs, fn) }
 
 // Close releases resources.
 func (a *App) Close() {
+	for _, c := range a.closers {
+		c()
+	}
 	if a.Traces != nil {
 		_ = a.Traces.Close()
 	}

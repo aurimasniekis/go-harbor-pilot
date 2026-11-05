@@ -83,7 +83,7 @@ const (
 
 // CapabilityInfo describes one capability of an adapter.
 type CapabilityInfo struct {
-	Status CapabilityStatus `json:"status"`
+	Status CapabilityStatus `json:"status" enum:"supported,partial,unsupported,unknown"`
 	Note   string           `json:"note,omitempty"`
 }
 

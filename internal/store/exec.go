@@ -20,7 +20,7 @@ func Query[T any](ctx context.Context, q Execer, scan func(*sql.Rows) (T, error)
 		return nil, err
 	}
 	defer rows.Close()
-	var out []T
+	out := []T{}
 	for rows.Next() {
 		v, err := scan(rows)
 		if err != nil {

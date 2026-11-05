@@ -50,4 +50,20 @@ func (a *App) registerSystem(ap *api.API) {
 		return &statusOut{Body: StatusDTO{SchemaVersion: v, TracesSchemaVersion: tv, MasterKeyID: a.Keyring.CurrentID(),
 			DataDir: a.Cfg.Server.DataDir, SecureCookies: a.Cfg.SecureCookies()}}, nil
 	})
+	type bridgesOut struct {
+		Body struct {
+			Items []BridgeStatus `json:"items"`
+		}
+	}
+	api.Register(ap, api.Op{ID: "list-bridges", Method: http.MethodGet, Path: "/system/bridges", Summary: "CLI bridge availability",
+		Tags: []string{"System"}, Permission: auth.PermConfigRead}, func(ctx context.Context, _ *struct{}) (*bridgesOut, error) {
+		out := &bridgesOut{}
+		out.Body.Items = []BridgeStatus{}
+		a.bridgeMu.Lock()
+		for _, b := range a.bridgeStatus {
+			out.Body.Items = append(out.Body.Items, *b)
+		}
+		a.bridgeMu.Unlock()
+		return out, nil
+	})
 }

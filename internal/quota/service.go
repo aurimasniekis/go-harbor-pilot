@@ -163,6 +163,15 @@ func (s *Service) Run(ctx context.Context) {
 		s.o.Log.Error("quota.load.failed", "error", err.Error())
 	}
 	s.syncTargets(ctx)
+	if s.o.Demo {
+		// The demo may run on a frozen clock, under which scheduled polls
+		// never come due; poll every demo monitor once at startup.
+		if snap := s.o.CP.Snapshot(); snap != nil {
+			for id := range snap.Monitors {
+				s.Refresh(id)
+			}
+		}
+	}
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() { defer wg.Done(); s.sched.Run(ctx) }()

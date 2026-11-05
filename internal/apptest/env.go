@@ -32,29 +32,45 @@ type Env struct {
 	stop  context.CancelFunc
 }
 
+// Setup is what options may change before the app starts.
+type Setup struct {
+	Config *config.Config
+	App    *app.Options
+}
+
 // Option customizes the environment before the app starts.
-type Option func(*config.Config)
+type Option func(*Setup)
+
+// WithBridgeEnv appends environment variables to CLI bridge processes.
+func WithBridgeEnv(env ...string) Option {
+	return func(s *Setup) { s.App.BridgeEnv = append(s.App.BridgeEnv, env...) }
+}
+
+// WithConfig changes the bootstrap configuration.
+func WithConfig(fn func(*config.Config)) Option { return func(s *Setup) { fn(s.Config) } }
 
 // New starts an app with a fresh data directory and a signed-in admin.
 func New(t testing.TB, opts ...Option) *Env {
 	t.Helper()
 	cfg := config.Defaults()
 	cfg.Server.DataDir = t.TempDir()
-	for _, o := range opts {
-		o(&cfg)
-	}
 	srv := httptest.NewUnstartedServer(nil)
 	cfg.Server.PublicURL = "http://" + srv.Listener.Addr().String()
 	cfg.Server.Listen = srv.Listener.Addr().String()
 	key := crypto.GenerateKEKString()
-	a, err := app.New(context.Background(), app.Options{Config: cfg, Version: "test", Log: slog.New(slog.DiscardHandler),
+	ao := app.Options{Version: "test", Log: slog.New(slog.DiscardHandler),
 		QuotaScheduler: polling.Options{Tick: 20 * time.Millisecond, ManualMinInterval: time.Millisecond, BackoffBase: time.Second},
 		Env: func(k string) string {
 			if k == "HP_MASTER_KEY" {
 				return key
 			}
 			return ""
-		}})
+		}}
+	for _, o := range opts {
+		o(&Setup{Config: &cfg, App: &ao})
+	}
+	ao.Config = cfg
+	a, err := app.New(context.Background(), ao)
 	if err != nil {
 		t.Fatal(err)
 	}

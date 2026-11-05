@@ -12,6 +12,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/analytics"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/domain"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/forecasting"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/oauthflow"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/polling"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/store"
 )
@@ -73,6 +74,7 @@ type MonitorView struct {
 	Tier             string       `json:"tier"`
 	AccountID        string       `json:"account_id"`
 	Enabled          bool         `json:"enabled"`
+	UsesLogin        bool         `json:"uses_login" doc:"The monitor authenticates with an in-app sign-in token."`
 	Health           string       `json:"health" enum:"healthy,degraded,auth_failed,stale,error,disabled,pending,unsupported"`
 	MaskedIdentifier *string      `json:"masked_identifier"`
 	Poll             PollView     `json:"poll"`
@@ -96,6 +98,9 @@ func (s *Service) Board() ([]MonitorView, []AccountQuotaView) {
 		for _, m := range snap.Monitors {
 			v := MonitorView{ID: m.ID, Name: m.Name, Adapter: m.Spec.Adapter, AccountID: m.Spec.AccountID, Enabled: m.Spec.Enabled,
 				Buckets: s.board.buckets(m.ID, now)}
+			if src, _ := m.Spec.Options["token_source"].(string); src == oauthflow.ModeLogin {
+				v.UsesLogin = true
+			}
 			var info domain.ProviderInfo
 			if a, ok := s.reg.Get(domain.ProviderID(m.Spec.Adapter)); ok {
 				info = a.Info()
@@ -127,7 +132,7 @@ func (s *Service) Board() ([]MonitorView, []AccountQuotaView) {
 	var owners []string
 	for owner, bs := range s.board.owners {
 		for _, b := range bs {
-			if b.source == sourceHeaders {
+			if b.source == sourceHeaders || b.source == sourceCLI {
 				owners = append(owners, owner)
 			}
 			break
@@ -194,18 +199,18 @@ func (s *Service) History(ctx context.Context, owner, bucket string, since time.
 }
 
 // Forecast projects a bucket's remaining capacity from its history.
-func (s *Service) Forecast(ctx context.Context, owner, bucket string) (forecasting.Result, error) {
+func (s *Service) Forecast(ctx context.Context, owner, bucket string) (forecasting.QuotaForecast, error) {
 	now := s.o.Clock.Now()
 	s.board.mu.RLock()
 	st, ok := s.board.owners[owner][bucket]
 	staleAfter := s.board.staleAfter(st)
 	s.board.mu.RUnlock()
 	if !ok {
-		return forecasting.Result{}, ErrUnknownBucket
+		return forecasting.QuotaForecast{}, ErrUnknownBucket
 	}
 	hist, err := s.History(ctx, owner, bucket, now.Add(-14*24*time.Hour))
 	if err != nil {
-		return forecasting.Result{}, err
+		return forecasting.QuotaForecast{}, err
 	}
 	pts := make([]analytics.Point, 0, len(hist))
 	for _, h := range hist {

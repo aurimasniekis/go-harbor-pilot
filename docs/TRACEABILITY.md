@@ -18,7 +18,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 |---|---|---|---|---|---|
 | R2.1 | Multi-provider, multi-account gateway | 4–5 | gateway, executor, routing | implemented | gateway, routing, executor/httpapi; acceptance A/B/E |
 | R2.2 | Harness integrations and protocol translation | 4, 12 | protocol, harness | in-progress | protocol adapters contract-tested; harness tooling Phase 12 |
-| R2.3 | API, subscription (CLI bridge) and local executors | 4, 7 | executor | in-progress | HTTP API + local executors; CLI bridges Phase 7 |
+| R2.3 | API, subscription (CLI bridge) and local executors | 4, 7 | executor | in-progress | HTTP API + local executors; Claude Code bridge contract-tested with the real CLI (bridge/claudecode); Codex bridge next |
 | R2.4 | Explainable Expr routing plans and decision tables | 5 | routing | in-progress | routing/engine.go (rules, decision tables, score), routingapi; TestEngineRules; editor UI pending |
 | R2.5 | Quota monitoring, account switching, budgets, attribution | 5–6 | quota, accounting | contract-tested | quota monitors feed routing health (TestQuotaMonitorDrivesRouting), account switching (scenario C), budgets enforced in reservations (TestBudgetBlocksMeteredSpend), ledger attribution by workspace/project/binding |
 | R2.6 | Consumer-neutral identity via tokens and base URLs | 3–4 | controlplane, gateway | implemented | gateway auth by hpk_ token + base URL; acceptance A |
@@ -73,7 +73,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R6.5 | No invented reasoning; opaque state never turned into text | 4 | contract-tested | TestAnthropicToChatTranslation/TestResponsesNativeAndForeign assert no leak of sealed state |
 | R6.6 | Explicit-policy rejection or downgrade; unknown extensions preserved | 4, 9 | implemented | ir.Loss severities; executor rejects LossReject unless AllowLosses |
 | R6.7 | Capability-qualified compatibility matrix | 4+ | in-progress | COMPATIBILITY.md |
-| R6.8 | Bridge isolation: no shared credential rewrite | 7 | planned | |
+| R6.8 | Bridge isolation: no shared credential rewrite | 7 | contract-tested | per-account CLAUDE_CONFIG_DIR/HOME, per-process work dir, setup-token only in the child env, built-in tools disabled, client tools via per-process loopback MCP token (bridge/claudecode tests) |
 
 ## §7 Providers, quotas, accounting
 | ID | Requirement | Phase | Status | Evidence |

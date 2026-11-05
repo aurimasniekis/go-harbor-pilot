@@ -79,8 +79,8 @@ type Interval struct {
 	To   *time.Time `json:"to"`
 }
 
-// Result is a forecast.
-type Result struct {
+// QuotaForecast is a forecast.
+type QuotaForecast struct {
 	Start               time.Time         `json:"start"`
 	StartValue          float64           `json:"start_value"`
 	Limit               *float64          `json:"limit"`
@@ -99,8 +99,8 @@ type Result struct {
 	Unavailable         *string           `json:"unavailable_reason"`
 }
 
-func unavailable(reason string) Result {
-	return Result{Unavailable: &reason, Confidence: domain.ConfidenceNone, Caveats: []string{}, Points: []Point{}, Events: []Event{}, Downtime: []Interval{}}
+func unavailable(reason string) QuotaForecast {
+	return QuotaForecast{Unavailable: &reason, Confidence: domain.ConfidenceNone, Caveats: []string{}, Points: []Point{}, Events: []Event{}, Downtime: []Interval{}}
 }
 
 // ResetSchedule returns the known reset times in (start, end].
@@ -129,7 +129,7 @@ func resetSchedule(spec domain.BucketSpec, last analytics.Point, start, end time
 }
 
 // Forecast projects a bucket. pts is the observation history (any order).
-func Forecast(spec domain.BucketSpec, pts []analytics.Point, now time.Time, rate *Rate, o Options) Result {
+func Forecast(spec domain.BucketSpec, pts []analytics.Point, now time.Time, rate *Rate, o Options) QuotaForecast {
 	o.defaults()
 	prep := analytics.Prepare(pts)
 	if len(prep.Points) == 0 {
@@ -151,7 +151,7 @@ func Forecast(spec domain.BucketSpec, pts []analytics.Point, now time.Time, rate
 		l := *last.Limit
 		limit = &l
 	}
-	res := Result{Start: last.T, StartValue: v0, Limit: limit, Rate: rate, Method: MethodEventSimulation,
+	res := QuotaForecast{Start: last.T, StartValue: v0, Limit: limit, Rate: rate, Method: MethodEventSimulation,
 		Confidence: rate.Confidence, Caveats: []string{}, Points: []Point{}, Events: []Event{}, Downtime: []Interval{}}
 	if o.StaleAfter > 0 && now.Sub(last.T) > o.StaleAfter {
 		res.Stale = true
@@ -307,8 +307,8 @@ func round(v float64) float64 { return math.Round(v*1000) / 1000 }
 
 // MarshalJSON emits empty lists instead of null so clients never have to
 // guard list fields.
-func (r Result) MarshalJSON() ([]byte, error) {
-	type plain Result
+func (r QuotaForecast) MarshalJSON() ([]byte, error) {
+	type plain QuotaForecast
 	p := plain(r)
 	p.Points, p.Events, p.Downtime, p.Caveats = nonNil(p.Points), nonNil(p.Events), nonNil(p.Downtime), nonNil(p.Caveats)
 	return json.Marshal(p)

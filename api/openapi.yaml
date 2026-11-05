@@ -597,6 +597,35 @@ components:
         - account_health
         - dropped_observations
       type: object
+    BridgeStatus:
+      additionalProperties: false
+      properties:
+        binary:
+          type: string
+        enabled:
+          type: boolean
+        kind:
+          type: string
+        last_error:
+          type: string
+        version:
+          type: string
+      required:
+        - kind
+        - enabled
+        - binary
+        - version
+      type: object
+    BridgesOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/BridgeStatus"
+          type: array
+      required:
+        - items
+      type: object
     BucketView:
       additionalProperties: false
       properties:
@@ -655,6 +684,7 @@ components:
           enum:
             - adapter
             - response_headers
+            - cli_event
           type: string
         source_time:
           format: date-time
@@ -958,6 +988,11 @@ components:
         note:
           type: string
         status:
+          enum:
+            - supported
+            - partial
+            - unsupported
+            - unknown
           type: string
       required:
         - status
@@ -2126,6 +2161,9 @@ components:
           $ref: "#/components/schemas/PollView"
         tier:
           type: string
+        uses_login:
+          description: The monitor authenticates with an in-app sign-in token.
+          type: boolean
       required:
         - id
         - name
@@ -2134,6 +2172,7 @@ components:
         - tier
         - account_id
         - enabled
+        - uses_login
         - health
         - masked_identifier
         - poll
@@ -2883,6 +2922,83 @@ components:
         - request_timeout_seconds
         - stream_idle_timeout_seconds
         - models
+      type: object
+    QuotaForecast:
+      additionalProperties: false
+      properties:
+        caveats:
+          items:
+            type: string
+          type: array
+        confidence:
+          type: string
+        downtime:
+          items:
+            $ref: "#/components/schemas/Interval"
+          type: array
+        events:
+          items:
+            $ref: "#/components/schemas/Event"
+          type: array
+        exhaustion_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        exhausts_before_reset:
+          type: boolean
+        limit:
+          format: double
+          type:
+            - number
+            - "null"
+        method:
+          type: string
+        next_reset_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        points:
+          items:
+            $ref: "#/components/schemas/Point"
+          type: array
+        rate:
+          $ref: "#/components/schemas/Rate"
+        restored_amount:
+          format: double
+          type:
+            - number
+            - "null"
+        stale:
+          type: boolean
+        start:
+          format: date-time
+          type: string
+        start_value:
+          format: double
+          type: number
+        unavailable_reason:
+          type:
+            - string
+            - "null"
+      required:
+        - start
+        - start_value
+        - limit
+        - points
+        - events
+        - exhaustion_at
+        - next_reset_at
+        - restored_amount
+        - exhausts_before_reset
+        - downtime
+        - rate
+        - method
+        - confidence
+        - stale
+        - caveats
+        - unavailable_reason
       type: object
     QuotaMonitorSpec:
       additionalProperties: false
@@ -4084,83 +4200,6 @@ components:
         - created_by
         - updated_by
         - config_revision
-      type: object
-    Result:
-      additionalProperties: false
-      properties:
-        caveats:
-          items:
-            type: string
-          type: array
-        confidence:
-          type: string
-        downtime:
-          items:
-            $ref: "#/components/schemas/Interval"
-          type: array
-        events:
-          items:
-            $ref: "#/components/schemas/Event"
-          type: array
-        exhaustion_at:
-          format: date-time
-          type:
-            - string
-            - "null"
-        exhausts_before_reset:
-          type: boolean
-        limit:
-          format: double
-          type:
-            - number
-            - "null"
-        method:
-          type: string
-        next_reset_at:
-          format: date-time
-          type:
-            - string
-            - "null"
-        points:
-          items:
-            $ref: "#/components/schemas/Point"
-          type: array
-        rate:
-          $ref: "#/components/schemas/Rate"
-        restored_amount:
-          format: double
-          type:
-            - number
-            - "null"
-        stale:
-          type: boolean
-        start:
-          format: date-time
-          type: string
-        start_value:
-          format: double
-          type: number
-        unavailable_reason:
-          type:
-            - string
-            - "null"
-      required:
-        - start
-        - start_value
-        - limit
-        - points
-        - events
-        - exhaustion_at
-        - next_reset_at
-        - restored_amount
-        - exhausts_before_reset
-        - downtime
-        - rate
-        - method
-        - confidence
-        - stale
-        - caveats
-        - unavailable_reason
       type: object
     RevisionDTO:
       additionalProperties: false
@@ -8368,7 +8407,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Result"
+                $ref: "#/components/schemas/QuotaForecast"
           description: OK
         default:
           content:
@@ -9896,6 +9935,26 @@ paths:
       summary: Revision history of a Subscription entitlement
       tags:
         - Subscription entitlements
+      x-permission: config.read
+  /system/bridges:
+    get:
+      operationId: list-bridges
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgesOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: CLI bridge availability
+      tags:
+        - System
       x-permission: config.read
   /system/status:
     get:

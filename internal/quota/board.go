@@ -63,7 +63,7 @@ func (b *board) reindexLocked() {
 	}
 	for owner, bs := range b.owners {
 		for _, s := range bs {
-			if s.source == sourceHeaders {
+			if s.source == sourceHeaders || s.source == sourceCLI {
 				add(s.accountID, owner)
 			}
 			break
@@ -145,8 +145,11 @@ func (b *board) exhausted(owner string, now time.Time) map[string]bucketState {
 }
 
 func (b *board) staleAfter(s bucketState) time.Duration {
-	if s.source == sourceHeaders {
+	switch s.source {
+	case sourceHeaders:
 		return headerFreshness
+	case sourceCLI:
+		return cliFreshness
 	}
 	if l, ok := b.links[s.owner]; ok && l.staleAfter > 0 {
 		return l.staleAfter
@@ -173,7 +176,7 @@ func (b *board) health(accountID string, now time.Time) routing.Health {
 				continue
 			}
 			fresh++
-			if s.source == sourceAdapter && isExhausted(s, l.exhaustedBelow, now) && h.Available {
+			if (s.source == sourceAdapter || s.source == sourceCLI) && isExhausted(s, l.exhaustedBelow, now) && h.Available {
 				h.Available = false
 				h.Reason = "quota exhausted: " + label(s)
 				h.Until = s.obs.ResetAt
@@ -213,7 +216,7 @@ type BucketView struct {
 	ResetSemantics    string     `json:"reset_semantics"`
 	Global            bool       `json:"global"`
 	Official          bool       `json:"official"`
-	Source            string     `json:"source" enum:"adapter,response_headers"`
+	Source            string     `json:"source" enum:"adapter,response_headers,cli_event"`
 	Limit             *float64   `json:"limit"`
 	Used              *float64   `json:"used"`
 	Remaining         *float64   `json:"remaining"`
@@ -250,7 +253,7 @@ func (b *board) viewLocked(s bucketState, now time.Time) BucketView {
 		RemainingAmount: amountStr(o.RemainingAmount), ResetAt: o.ResetAt, SourceTime: o.SourceTime, ObservedAt: s.observedAt,
 		Quality: string(o.Quality), Stale: now.Sub(s.observedAt) > b.staleAfter(s)}
 	v.ResetPassed = o.ResetAt != nil && !o.ResetAt.After(now)
-	v.Exhausted = s.source == sourceAdapter && isExhausted(s, l.exhaustedBelow, now)
+	v.Exhausted = (s.source == sourceAdapter || s.source == sourceCLI) && isExhausted(s, l.exhaustedBelow, now)
 	return v
 }
 

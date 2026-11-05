@@ -15,9 +15,13 @@ import (
 const (
 	sourceAdapter = "adapter"
 	sourceHeaders = "response_headers"
+	sourceCLI     = "cli_event"
 	// headerFreshness bounds how long a response-derived rate-limit
 	// observation is considered current (these windows are short).
 	headerFreshness = 2 * time.Minute
+	// cliFreshness bounds CLI-reported subscription windows, which update
+	// on every bridged request.
+	cliFreshness = 30 * time.Minute
 )
 
 type headerObs struct {
@@ -192,4 +196,68 @@ func modelSuffix(model string) string {
 		return ""
 	}
 	return ":model:" + model
+}
+
+// CLIWindow is one subscription window reported by a CLI bridge.
+type CLIWindow struct {
+	Name        string // five_hour | seven_day | seven_day_overage_included | ...
+	Utilization float64
+	ResetsAt    time.Time
+	Status      string // allowed | allowed_warning | rejected
+}
+
+var cliWindows = map[string]struct {
+	label  string
+	window time.Duration
+}{
+	"five_hour":                  {"5-hour window", 5 * time.Hour},
+	"seven_day":                  {"7-day window", 7 * 24 * time.Hour},
+	"seven_day_opus":             {"7-day window (Opus)", 7 * 24 * time.Hour},
+	"seven_day_sonnet":           {"7-day window (Sonnet)", 7 * 24 * time.Hour},
+	"seven_day_overage_included": {"7-day window (overage included)", 7 * 24 * time.Hour},
+}
+
+// ObserveCLI records subscription windows reported by a CLI bridge for a
+// provider account. A rejected window marks the account exhausted until its
+// reset. These observations come from the vendor CLI on each request and
+// are trusted like provider-reported quota.
+func (s *Service) ObserveCLI(accountID string, windows []CLIWindow) {
+	if accountID == "" || len(windows) == 0 {
+		return
+	}
+	now := s.o.Clock.Now()
+	states := make([]bucketState, 0, len(windows))
+	for _, w := range windows {
+		meta, ok := cliWindows[w.Name]
+		if !ok {
+			meta.label, meta.window = w.Name, 0
+		}
+		used := w.Utilization * 100
+		if used < 0 {
+			used = 0
+		}
+		rem := 100 - used
+		if rem < 0 {
+			rem = 0
+		}
+		if w.Status == "rejected" {
+			rem = 0
+		}
+		limit := 100.0
+		o := domain.BucketObservation{Spec: domain.BucketSpec{Key: "cli:" + w.Name, Label: meta.label, Scope: domain.ScopeAccount,
+			Kind: domain.KindFixedWindow, Unit: domain.UnitPercent, Window: meta.window, ResetSemantics: domain.ResetProviderTimestamp,
+			Global: w.Name == "five_hour" || w.Name == "seven_day", Official: false},
+			Limit: &limit, Used: &used, Remaining: &rem, Quality: domain.QualityProviderReported, Source: sourceCLI, SourceTime: &now}
+		if !w.ResetsAt.IsZero() {
+			r := w.ResetsAt
+			o.ResetAt = &r
+		}
+		states = append(states, bucketState{owner: accountID, accountID: accountID, source: sourceCLI, obs: o, observedAt: now})
+	}
+	s.board.mergeOwner(accountID, states)
+	select {
+	case s.headerQ <- headerObs{accountID: accountID, states: states}:
+	default:
+		droppedHeaderObs.Add(1)
+	}
 }

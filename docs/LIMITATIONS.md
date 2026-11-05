@@ -30,6 +30,9 @@ This file is kept current alongside the implementation. Each entry is one of:
 - **Response-derived rate limits are short-lived (design).** Header observations are fresh for two minutes, are not kept as history, and are dropped (and counted on the quota board) when the writer queue is full. They inform `candidate.health.remaining` but never mark an account exhausted; a 429 cooldown does that.
 - **Budgets count settled ledger costs plus in-flight estimates (design).** The in-flight estimate prices input at four characters per token and output at the requested maximum. A budget can therefore block slightly early, never late, within one writer transaction.
 
+- **Claude Code bridge fidelity (design).** Through the CLI the model sees a system prompt prefixed with the CLI's own identity line and an environment note, and client tools appear to it with an `mcp__client__` prefix (names are mapped back for the client). Sampling parameters, stop sequences, output limits and forced tool choice are not passed. Each is recorded as an approximate loss on the attempt. Provider-executed tools (web search and similar) are not available through the bridge.
+- **Bridge processes are local state (design).** A parked CLI process holds a conversation between a tool call and its result. A restart loses parked processes; the next request resumes from the transcript with a recorded loss.
+
 ## Pending
 
 Pending items are tracked per requirement in TRACEABILITY.md (status `planned` or `in-progress`).

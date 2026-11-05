@@ -189,3 +189,12 @@ Delivery is at-least-once.
 - A `budget` resource limits spend for a scope (global, workspace, project, binding, account) per day, week or month in one currency. Only the cost categories it lists count; by default estimated and actual API charges, never subscription list-equivalent values.
 - Budgets are checked inside the reservation transaction, so concurrent requests cannot overshoot together. Threshold events are written to the outbox once per period.
 - OAuth tokens from in-app sign-in are sealed with the master key in `quota_oauth_tokens`; the file-based token store of the source project is not carried over.
+
+## D-028: Claude Code bridge conversation model
+
+Verified against `claude` 2.1.318 with a synthetic upstream (see `docs/contracts/harness-wire-facts.md` §1.3):
+
+- Multi-message stream-json input does not reproduce a conversation (each user line is a separate model call and ordering is not preserved). The bridge therefore writes the history as a session transcript and starts the CLI with `--resume`; the final user turn goes to stdin.
+- After a client tool call the CLI is parked on its blocked MCP `tools/call` (matched exactly by `_meta["claudecode/toolUseId"]`). The client's tool result answers that call and the same process continues. A plain follow-up turn is written to an idle process's stdin. Processes are matched by account, model, system prompt, tool set and a fingerprint of the conversation.
+- When no process holds a tool call (restart, eviction, timeout), the history including the tool result is resumed and the CLI is asked to continue. The CLI inserts its own "No response requested." marker in that case; the attempt records an approximate `tool_continuation` loss.
+- CLI retries are disabled (`CLAUDE_CODE_MAX_RETRIES=0`) so upstream errors surface immediately and the gateway's failover policy decides. Compaction, CLAUDE.md loading, auto memory and tool search are disabled; the client owns its context.

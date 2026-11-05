@@ -77,6 +77,23 @@ Bridge consequences (inferred, verified live in Phase 7):
 - `-p` silently ignores invalid settings files. The bridge therefore passes settings explicitly and verifies
   the effective behaviour in a startup self-test.
 
+### 1.3 Observed with a synthetic upstream (2026-11-05, 2.1.318)
+
+These were observed by running the real binary with `ANTHROPIC_BASE_URL` pointed at a local synthetic upstream, an isolated `HOME`/`CLAUDE_CONFIG_DIR`, and fake credentials. No real account or network was used.
+
+| Fact | Observation |
+|---|---|
+| Auth header | `CLAUDE_CODE_OAUTH_TOKEN` is sent as `Authorization: Bearer …` with `anthropic-beta` including `oauth-2025-04-20`; `ANTHROPIC_API_KEY` is sent as `x-api-key`. |
+| Request path | `POST /v1/messages?beta=true`, `User-Agent: claude-cli/2.1.318 (external, sdk-cli)`, `X-Claude-Code-Session-Id`, `x-app: cli`. |
+| System prompt | `--system-prompt` text is sent after a billing marker block and an identity line; the CLI also appends an environment note as a `system`-role message. |
+| stream-json output | `system/init`, `system/status`, `stream_event` (Anthropic SSE events with `--include-partial-messages`), full `assistant`/`user` messages, `rate_limit_event`, and a final `result`. |
+| Multi-line stdin | each `user` line triggers a model call; injected `assistant` lines are reordered. Not usable for history. |
+| `--resume` with a synthesized transcript | entries `{type, uuid, parentUuid, sessionId, cwd, message}` under `CLAUDE_CONFIG_DIR/projects/<cwd with non-alphanumerics as '-'>/<id>.jsonl` replay exactly, including `tool_use`/`tool_result`. A transcript ending in an unanswered `tool_use` is repaired with an "interrupted" result; one ending in a user turn gets an assistant "No response requested." inserted. |
+| MCP over HTTP | handshake: `server/discover` probe (method-not-found is fine), `initialize`, `notifications/initialized`, `GET` (405 is fine), `tools/list`. Tools appear to the model as `mcp__<server>__<name>`. `tools/call` carries `_meta["claudecode/toolUseId"]` and blocks the turn until answered. |
+| Tool execution timing | the CLI executes a tool right after the assistant message completes and then calls the model again; with `--allowedTools mcp__client` the call reaches the MCP server and blocks. |
+| Errors | an upstream error produces an `assistant` line with `error` (`rate_limit`, `authentication_failed`, …) and `api_error_status`, then a `result` with `is_error: true`, `terminal_reason: api_error` and, for subscription limits, `api_error: usage_limit_reached`. |
+| `rate_limit_event` | `{status, resetsAt, rateLimitType, utilization?, unifiedWindows: {five_hour, seven_day, seven_day_overage_included: {utilization, resetsAt, status}}}`, derived from `anthropic-ratelimit-unified-*` response headers; emitted for OAuth (setup-token) auth only. |
+
 ## 2. Codex (not installed; doc-claim)
 
 | Item | Value |

@@ -135,7 +135,7 @@ func Register(a *api.API, d Deps) {
 		Owner  string `path:"owner"`
 		Bucket string `query:"bucket" required:"true" maxLength:"200"`
 	}
-	type fcOut struct{ Body forecasting.Result }
+	type fcOut struct{ Body forecasting.QuotaForecast }
 	api.Register(a, api.Op{ID: "quota-forecast", Method: http.MethodGet, Path: "/quota/buckets/{owner}/forecast", Summary: "Forecast a quota bucket",
 		Description: "Projects remaining capacity from recent burn. Forecasts are estimates with a stated confidence; unknown values are never assumed.",
 		Tags:        tags, Permission: auth.PermUsageRead}, func(ctx context.Context, in *fcIn) (*fcOut, error) {

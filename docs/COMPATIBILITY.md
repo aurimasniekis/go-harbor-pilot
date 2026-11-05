@@ -53,7 +53,7 @@ Sealed reasoning state only crosses within the same family. Every other pair dow
 | Gemini API | HTTP | API key | Cloud Quotas (monitor) | official | implemented (adapter contract-tested); live: blocked | protocol_test.go |
 | OpenAI-compatible (OpenRouter, DeepSeek, xAI, Together, Moonshot, …) | HTTP | API key | balance endpoints | partial (per server) | contract-tested; live: blocked | acceptance B |
 | Ollama / vLLM / llama.cpp / LM Studio | local HTTP (OpenAI-compatible endpoint) | none or key | n/a | local | contract-tested (synthetic); live: not run | demo traffic |
-| Claude Code bridge | CLI | `CLAUDE_CODE_OAUTH_TOKEN` (setup-token) per account | stream-json rate-limit events | official binary, subscription | planned | |
+| Claude Code bridge | CLI | `CLAUDE_CODE_OAUTH_TOKEN` (setup-token) per account | `rate_limit_event` (5-hour / 7-day windows) | official binary, subscription | contract-tested against the real `claude` 2.1.318 binary with a synthetic upstream (2026-11-05); live with a real setup-token: blocked (credentials) | bridge/claudecode tests, TestClaudeCodeBridgeThroughGateway, TestClaudeCodeBridgeExhaustionFailsOver |
 | Codex bridge | CLI | per-account `CODEX_HOME` login | CLI-reported | official binary, subscription | planned | |
 | Direct subscription token replay / client impersonation | — | — | — | unsupported (D-001) | unsupported | DECISIONS D-001 |
 
