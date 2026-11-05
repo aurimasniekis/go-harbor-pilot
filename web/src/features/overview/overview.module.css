@@ -1,13 +1,20 @@
+/* A wrapping row: cards share the width, and a card that wraps onto its
+   own line stretches across it instead of leaving a gap. */
 .grid {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-4);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
-  align-items: start;
+  align-items: stretch;
+}
+
+.grid > * {
+  flex: 1 1 340px;
+  min-width: 0;
 }
 
 .counts {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
   gap: var(--space-2);
 }
 
@@ -139,8 +146,11 @@ a.count:hover {
   margin-top: 2px;
 }
 
-.wide {
-  grid-column: 1 / -1;
+/* Rows are separate grids so each row's cards share its full width. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .configBody {

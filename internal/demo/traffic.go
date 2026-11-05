@@ -27,9 +27,11 @@ type Upstreams struct {
 // NewUpstreams creates deterministic synthetic providers.
 func NewUpstreams() *Upstreams {
 	u := &Upstreams{Anthropic: synthetic.New("anthropic"), OpenAI: synthetic.New("openai"), Local: synthetic.New("openai")}
-	u.Anthropic.Default = synthetic.Reply{Text: "[synthetic] I reviewed the change and it looks correct.", InputTok: 1800, OutputTok: 240, CacheRead: 12000}
-	u.OpenAI.Default = synthetic.Reply{Text: "[synthetic] Done.", InputTok: 900, OutputTok: 120, CacheRead: 2000}
-	u.Local.Default = synthetic.Reply{Text: "[synthetic] Local model answer.", InputTok: 400, OutputTok: 80}
+	// Delays give the activity views realistic time-to-first-token figures.
+	u.Anthropic.Default = synthetic.Reply{Text: "[synthetic] I reviewed the change and it looks correct.", InputTok: 1800, OutputTok: 240, CacheRead: 12000,
+		Delay: 420 * time.Millisecond}
+	u.OpenAI.Default = synthetic.Reply{Text: "[synthetic] Done.", InputTok: 900, OutputTok: 120, CacheRead: 2000, Delay: 260 * time.Millisecond}
+	u.Local.Default = synthetic.Reply{Text: "[synthetic] Local model answer.", InputTok: 400, OutputTok: 80, Delay: 90 * time.Millisecond}
 	return u
 }
 
@@ -110,6 +112,18 @@ func SeedConfig(ctx context.Context, svc *cp.Service, origin string) (Tokens, er
 	alLocal := s.create(cp.AliasDef, "local/private", cp.AliasSpec{Description: "Never leaves the workstation", PoolID: pLocal}, nil)
 	plan := s.create(cp.PlanDef, "team-default", cp.PlanSpec{DisplayName: "Team default", Description: "Synthetic plan with paid fallback allowed"}, nil)
 	private := s.create(cp.PlanDef, "private-only", cp.PlanSpec{DisplayName: "Private only", Description: "Local models only"}, nil)
+	// Privacy and trace policies for the private plan: mask secrets and
+	// personal data, keep masked traces for three days.
+	privacy := s.create(cp.PrivacyPolicyDef, "mask-secrets", cp.PrivacyPolicySpec{Description: "Mask credentials and personal data before dispatch",
+		PersonalData: []string{"email", "phone"}, RestoreInResponses: true}, nil)
+	traces := s.create(cp.TracePolicyDef, "three-day-masked", cp.TracePolicySpec{Mode: cp.TraceMaskedFull, Retention: "3d"}, nil)
+	// Event and notification routing. Everything is disabled: the demo
+	// never contacts an outside endpoint.
+	s.create(cp.DestinationDef, "audit-webhook", cp.DestinationSpec{Type: "webhook", Enabled: false, WebhookURL: "https://hooks.example.test/harbor-pilot",
+		Filter: cp.EventFilter{Events: []string{"routing.*", "quota.*", "budget.*"}, MinSeverity: "info"}}, nil)
+	ops := s.create(cp.ChannelDef, "ops-webhook", cp.ChannelSpec{Type: "webhook", Enabled: false, WebhookURL: "https://hooks.example.test/ops"}, nil)
+	s.create(cp.RuleDef, "quota-and-budget-alerts", cp.NotificationRuleSpec{Enabled: false, ChannelIDs: []string{ops}, Recovery: true, CooldownSeconds: 1800,
+		Filter: cp.EventFilter{Events: []string{"quota.*", "budget.*", "provider.account.*"}, MinSeverity: "warning"}}, nil)
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -131,6 +145,7 @@ func SeedConfig(ctx context.Context, svc *cp.Service, origin string) (Tokens, er
 		return nil, err
 	}
 	if err := publish(private, cp.PlanDocument{DefaultAliasID: alLocal, Restrictions: cp.PlanRestrictions{AllowedClassifications: []string{"local"}},
+		Privacy:  cp.PlanPrivacy{PolicyID: privacy, TracePolicyID: traces},
 		Fallback: cp.FallbackPolicy{Steps: []string{cp.StepStop}, MaxAttempts: 1}}); err != nil {
 		return nil, err
 	}

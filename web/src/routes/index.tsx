@@ -85,7 +85,7 @@ const kindRoute: Record<string, string> = {
 
 function ConfigurationPanel({ eff }: { eff: UseQueryResult<Effective> }) {
   return (
-    <Panel title="Configuration" subtitle="The active compiled configuration served by the gateway." className={o.wide}>
+    <Panel title="Configuration" subtitle="The active compiled configuration served by the gateway.">
       {eff.isError ? (
         <QueryError error={eff.error} retry={() => void eff.refetch()} />
       ) : !eff.data ? (
@@ -160,50 +160,54 @@ function Overview() {
         title="Overview"
         subtitle="Harbor Pilot connects coding agents to models and subscriptions, routes each request through explicit policies, and explains what happened."
       />
-      <div className={o.grid}>
-        {canActivity && <ActivitySummaryPanel />}
-        {canUsage && <QuotaBudgetPanel />}
-        <Panel title="This instance">
-          {meta.isError ? (
-            <QueryError error={meta.error} retry={() => void meta.refetch()} />
-          ) : !meta.data ? (
-            <Skeleton height={80} />
-          ) : (
-            <KeyValues
-              items={[
-                ['Version', <span className="mono">{meta.data.version}</span>],
-                ['Public URL', <span className="ident">{meta.data.public_url}</span>],
-                ['Started', fmtDateTime(meta.data.started_at)],
-                ['Signed in as', <>{session.data?.user?.email ?? session.data?.principal_kind} <Badge>{session.data?.role ?? 'service'}</Badge></>],
-                ...(system.data
-                  ? ([
-                      ['harbor.db schema', <span className="mono num">{system.data.schema_version}</span>],
-                      ['traces.db schema', <span className="mono num">{system.data.traces_schema_version}</span>],
-                      ['Master key', <span className="ident">{system.data.master_key_id}</span>],
-                    ] as [React.ReactNode, React.ReactNode][])
-                  : []),
-              ]}
-            />
-          )}
-        </Panel>
-        {canConfig && <ConfigurationPanel eff={eff} />}
-        {canConfig && <BridgesPanel />}
-        {isAdmin && (
-          <Panel title="Getting started" subtitle="Secure access before connecting clients and providers.">
-            <ul className={o.steps}>
-              <Step done>Create the first administrator</Step>
-              <Step done={(users.data?.items?.length ?? 0) > 1}>
-                <Link to="/settings/users">Invite operators and viewers</Link>
-              </Step>
-              <Step done={(sso.data?.items?.length ?? 0) > 0}>
-                <Link to="/settings/auth">Connect single sign-on</Link> (optional)
-              </Step>
-              <Step done={(principals.data?.items?.length ?? 0) > 0}>
-                <Link to="/settings/service-principals">Create a service principal for Terraform or CI</Link> (optional)
-              </Step>
-            </ul>
+      <div className={o.stack}>
+        <div className={o.grid}>
+          {canActivity && <ActivitySummaryPanel />}
+          {canUsage && <QuotaBudgetPanel />}
+          <Panel title="This instance">
+            {meta.isError ? (
+              <QueryError error={meta.error} retry={() => void meta.refetch()} />
+            ) : !meta.data ? (
+              <Skeleton height={80} />
+            ) : (
+              <KeyValues
+                items={[
+                  ['Version', <span className="mono">{meta.data.version}</span>],
+                  ['Public URL', <span className="ident">{meta.data.public_url}</span>],
+                  ['Started', fmtDateTime(meta.data.started_at)],
+                  ['Signed in as', <>{session.data?.user?.email ?? session.data?.principal_kind} <Badge>{session.data?.role ?? 'service'}</Badge></>],
+                  ...(system.data
+                    ? ([
+                        ['harbor.db schema', <span className="mono num">{system.data.schema_version}</span>],
+                        ['traces.db schema', <span className="mono num">{system.data.traces_schema_version}</span>],
+                        ['Master key', <span className="ident">{system.data.master_key_id}</span>],
+                      ] as [React.ReactNode, React.ReactNode][])
+                    : []),
+                ]}
+              />
+            )}
           </Panel>
-        )}
+        </div>
+        {canConfig && <ConfigurationPanel eff={eff} />}
+        <div className={o.grid}>
+          {canConfig && <BridgesPanel />}
+          {isAdmin && (
+            <Panel title="Getting started" subtitle="Secure access before connecting clients and providers.">
+              <ul className={o.steps}>
+                <Step done>Create the first administrator</Step>
+                <Step done={(users.data?.items?.length ?? 0) > 1}>
+                  <Link to="/settings/users">Invite operators and viewers</Link>
+                </Step>
+                <Step done={(sso.data?.items?.length ?? 0) > 0}>
+                  <Link to="/settings/auth">Connect single sign-on</Link> (optional)
+                </Step>
+                <Step done={(principals.data?.items?.length ?? 0) > 0}>
+                  <Link to="/settings/service-principals">Create a service principal for Terraform or CI</Link> (optional)
+                </Step>
+              </ul>
+            </Panel>
+          )}
+        </div>
       </div>
     </>
   )

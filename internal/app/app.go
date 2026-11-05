@@ -128,7 +128,7 @@ func New(ctx context.Context, o Options) (*App, error) {
 		o.Env = os.Getenv
 	}
 	c := o.Config
-	a := &App{Cfg: c, Version: o.Version, Log: o.Log, Metrics: observability.NewMetrics(), Started: time.Now()}
+	a := &App{Cfg: c, Version: o.Version, Log: o.Log, Metrics: observability.NewMetrics()}
 	a.Clock = clock.Real{}
 	if c.Demo.Clock != "" {
 		t, _ := time.Parse(time.RFC3339, c.Demo.Clock)
@@ -137,6 +137,9 @@ func New(ctx context.Context, o Options) (*App, error) {
 	if o.Clock != nil {
 		a.Clock = o.Clock
 	}
+	// Uptime is reported against the same clock as server time (frozen in
+	// demo mode).
+	a.Started = a.Clock.Now()
 	unlock, err := lockDataDir(c.Server.DataDir)
 	if err != nil {
 		return nil, err

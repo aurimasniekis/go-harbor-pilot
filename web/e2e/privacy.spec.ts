@@ -68,10 +68,11 @@ test('privacy policy, rule sandbox and trace policy', async ({ page }) => {
   await expect(row).toContainText('Masked full trace')
   await expect(row).toContainText(policy)
 
-  // Traces: empty list; content search explains the grant.
+  // Traces: the demo's private plan captures masked traces, listed as
+  // metadata; content search explains the grant.
   await page.goto('/traces')
   await expect(page.getByRole('heading', { name: 'Traces', level: 1 })).toBeVisible()
-  await expect(page.getByText('No live traces')).toBeVisible()
+  await expect(page.getByText('No live traces').or(page.locator('table tbody tr').first())).toBeVisible()
   await expect(page.getByText('Searching trace content needs an explicit grant')).toBeVisible()
 
   // Clean up through the list (the browser confirm is accepted above).
