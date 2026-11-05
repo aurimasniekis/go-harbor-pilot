@@ -329,3 +329,60 @@ button.card:hover {
   border: 1px dashed var(--border);
   border-radius: var(--radius-lg);
 }
+
+/* Clickable cards are divs (so row actions inside are real buttons). */
+.card[data-clickable] {
+  cursor: pointer;
+}
+
+.card[data-clickable]:hover {
+  background: var(--surface-raised);
+}
+
+.card[data-clickable]:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.metaLabel {
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
+.crumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--mantine-font-size-sm);
+  color: var(--text-muted);
+}
+
+.crumbs li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.crumbs li + li::before {
+  content: '/';
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.crumbs a {
+  color: var(--text-muted);
+}
+
+.crumbs a:hover {
+  color: var(--text);
+}
+
+.crumbs [aria-current='page'] {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}

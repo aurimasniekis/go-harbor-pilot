@@ -29,19 +29,57 @@ export function useCompact(): boolean {
  * The one header row of a page: title, an optional short context line, and
  * actions (time range, primary button) on the right.
  */
-export function PageHeader({ title, context, actions, info, breadcrumb }: {
+export interface Crumb {
+  label?: ReactNode
+  to?: string
+  params?: Record<string, string>
+}
+
+/**
+ * Breadcrumb trail. Items without a label (an object still loading) are
+ * left out, so the trail never ends in a bare separator.
+ */
+export function Breadcrumbs({ items }: { items: Crumb[] }) {
+  const shown = items.filter((c) => c.label !== undefined && c.label !== null && c.label !== '')
+  if (shown.length === 0) return null
+  return (
+    <nav aria-label="Breadcrumb" className={s.crumbs}>
+      <ol>
+        {shown.map((c, i) => {
+          const last = i === shown.length - 1
+          return (
+            <li key={i}>
+              {c.to && !last ? (
+                <Link to={c.to} params={c.params as never}>
+                  {c.label}
+                </Link>
+              ) : (
+                <span aria-current={last ? 'page' : undefined}>{c.label}</span>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    </nav>
+  )
+}
+
+export function PageHeader({ title, context, actions, info, breadcrumb, crumbs }: {
   title: ReactNode
   context?: ReactNode
   actions?: ReactNode
   /** Help text shown in a tooltip beside the title. */
   info?: ReactNode
-  /** Small line above the title (breadcrumbs). */
+  /** Small line above the title (prefer `crumbs`). */
   breadcrumb?: ReactNode
+  /** Breadcrumb trail above the title; the current page is usually omitted (it is the title). */
+  crumbs?: Crumb[]
 }) {
   return (
     <div className={s.pageHeader}>
       <div className={s.pageTitle}>
-        {breadcrumb && (
+        {crumbs && <Breadcrumbs items={crumbs} />}
+        {breadcrumb && !crumbs && (
           <Text size="sm" c="dimmed" className={s.context}>
             {breadcrumb}
           </Text>
@@ -287,9 +325,27 @@ export interface Column<T> {
    * `aside` (first line, right), `line` (own line), `meta` (joined muted
    * line) or `hidden`.
    */
-  mobile?: 'title' | 'aside' | 'line' | 'meta' | 'hidden'
+  mobile?: 'title' | 'aside' | 'line' | 'meta' | 'actions' | 'hidden'
+  /**
+   * Label shown before the value in a phone card's meta line. Defaults to
+   * the header for right-aligned (numeric) columns; false hides it.
+   */
+  mobileLabel?: string | false
   /** Show the column only on phones (card) or only in the table. */
   only?: 'mobile' | 'desktop'
+}
+
+/**
+ * True when a click inside a row came from something with its own action
+ * (a button, link, input or a menu rendered in a portal), so the row must
+ * not navigate.
+ */
+export function isInnerAction(e: React.MouseEvent<HTMLElement>): boolean {
+  const target = e.target as Node
+  if (!e.currentTarget.contains(target)) return true // from a portal (menu, popover)
+  const el = target instanceof Element ? target : target.parentElement
+  const hit = el?.closest('a, button, input, select, textarea, label, [role="menuitem"], [role="checkbox"], [role="switch"], [data-row-action]')
+  return !!hit && hit !== e.currentTarget && e.currentTarget.contains(hit)
 }
 
 /**
@@ -304,6 +360,7 @@ export function DataTable<T>({
   label,
   sticky = true,
   empty,
+  fixed,
 }: {
   rows: T[]
   columns: Column<T>[]
@@ -312,6 +369,8 @@ export function DataTable<T>({
   label: string
   sticky?: boolean
   empty?: ReactNode
+  /** Fixed column widths, so several tables of the same kind line up. */
+  fixed?: boolean
 }) {
   const compact = useCompact()
   if (rows.length === 0 && empty) return <>{empty}</>
@@ -321,6 +380,9 @@ export function DataTable<T>({
     const aside = columns.filter((c) => c.mobile === 'aside')
     const lines = columns.filter((c) => c.mobile === 'line')
     const meta = columns.filter((c) => c.mobile === 'meta' || c.mobile === undefined)
+    const actions = columns.filter((c) => c.mobile === 'actions')
+    const metaLabel = (c: Column<T>) =>
+      c.mobileLabel === false ? undefined : (c.mobileLabel ?? (c.align === 'right' && typeof c.header === 'string' ? c.header : undefined))
     return (
       <div role="region" aria-label={label}>
         <ul className={s.cards}>
@@ -329,7 +391,14 @@ export function DataTable<T>({
               <>
                 <div className={s.cardTop}>
                   <div className={s.cardTitle}>{title.map((c) => <span key={c.id}>{c.cell(r)}</span>)}</div>
-                  <div className={s.cardAside}>{aside.map((c) => <span key={c.id}>{c.cell(r)}</span>)}</div>
+                  <div className={s.cardAside}>
+                    {aside.map((c) => <span key={c.id}>{c.cell(r)}</span>)}
+                    {actions.map((c) => (
+                      <span key={c.id} data-row-action>
+                        {c.cell(r)}
+                      </span>
+                    ))}
+                  </div>
                 </div>
                 {lines.map((c) => (
                   <div key={c.id} className={s.cardLine}>
@@ -338,9 +407,15 @@ export function DataTable<T>({
                 ))}
                 {meta.length > 0 && (
                   <div className={s.cardMeta}>
-                    {meta.map((c) => (
-                      <span key={c.id}>{c.cell(r)}</span>
-                    ))}
+                    {meta.map((c) => {
+                      const l = metaLabel(c)
+                      return (
+                        <span key={c.id}>
+                          {l && <span className={s.metaLabel}>{l} </span>}
+                          {c.cell(r)}
+                        </span>
+                      )
+                    })}
                   </div>
                 )}
               </>
@@ -348,9 +423,25 @@ export function DataTable<T>({
             return (
               <li key={rowKey(r)}>
                 {onRow ? (
-                  <UnstyledButton className={s.card} onClick={() => onRow(r)}>
+                  // A focusable card rather than a <button>, so row actions
+                  // inside it stay valid, separate buttons.
+                  <div
+                    className={s.card}
+                    data-clickable
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      if (!isInnerAction(e)) onRow(r)
+                    }}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+                        e.preventDefault()
+                        onRow(r)
+                      }
+                    }}
+                  >
                     {content}
-                  </UnstyledButton>
+                  </div>
                 ) : (
                   <div className={s.card}>{content}</div>
                 )}
@@ -364,7 +455,7 @@ export function DataTable<T>({
   columns = columns.filter((c) => c.only !== 'mobile')
   return (
     <div role="region" aria-label={label} className={s.tableWrap}>
-      <Table stickyHeader={sticky} className={s.table} data-clickable={onRow ? true : undefined}>
+      <Table stickyHeader={sticky} className={s.table} data-clickable={onRow ? true : undefined} layout={fixed ? 'fixed' : undefined}>
         <Table.Thead>
           <Table.Tr>
             {columns.map((c) => (
@@ -378,12 +469,18 @@ export function DataTable<T>({
           {rows.map((r) => (
             <Table.Tr
               key={rowKey(r)}
-              onClick={onRow ? () => onRow(r) : undefined}
+              onClick={
+                onRow
+                  ? (e) => {
+                      if (!isInnerAction(e)) onRow(r)
+                    }
+                  : undefined
+              }
               tabIndex={onRow ? 0 : undefined}
               onKeyDown={
                 onRow
                   ? (e) => {
-                      if (e.key === 'Enter') onRow(r)
+                      if (e.key === 'Enter' && e.target === e.currentTarget) onRow(r)
                     }
                   : undefined
               }
