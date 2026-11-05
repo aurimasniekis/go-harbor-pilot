@@ -38,7 +38,12 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, *S
 	email = strings.ToLower(strings.TrimSpace(email))
 	ipKey := "ip:" + reqmeta.RateKey(reqmeta.From(ctx).IP)
 	acctKey := "acct:" + email
-	if d := s.throttled(ctx, acctKey, ipKey); d > 0 {
+	// Reserve the attempt as a failure before verifying, atomically with
+	// the lockout check, so parallel guesses cannot all pass the check
+	// before any failure is recorded. A successful login gives it back.
+	if d, err := s.reserveAttempt(ctx, acctKey, ipKey); err != nil {
+		return "", nil, err
+	} else if d > 0 {
 		VerifyDummy(password)
 		return "", nil, &ThrottledError{RetryAfter: d}
 	}
@@ -48,15 +53,14 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, *S
 	}
 	if u == nil || hash == "" || u.Disabled {
 		VerifyDummy(password)
-		s.recordFailure(ctx, acctKey, ipKey)
 		return "", nil, ErrInvalidCredentials
 	}
 	ok, rehash := VerifyPassword(hash, password)
 	if !ok {
-		s.recordFailure(ctx, acctKey, ipKey)
 		return "", nil, ErrInvalidCredentials
 	}
 	s.clearFailures(ctx, acctKey)
+	s.releaseAttempt(ctx, ipKey)
 	if rehash {
 		if h, err := HashPassword(password); err == nil {
 			_, _ = s.db.W.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, h, u.ID)
@@ -66,39 +70,56 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, *S
 	return s.CreateSession(ctx, s.db.W, u.ID, "password", "", false)
 }
 
-func (s *Service) throttled(ctx context.Context, keys ...string) time.Duration {
-	now := s.nowMS()
-	var worst time.Duration
-	for _, k := range keys {
-		var until int64
-		err := s.db.R.QueryRowContext(ctx, `SELECT blocked_until FROM login_throttle WHERE key = ?`, k).Scan(&until)
-		if err == nil && until > now {
-			worst = max(worst, time.Duration(until-now)*time.Millisecond)
+// reserveAttempt checks the lockout of every key and, when none is locked,
+// records one more failure on each, in a single write transaction (the
+// writer connection serializes these). It returns the remaining lockout
+// when any key is locked.
+func (s *Service) reserveAttempt(ctx context.Context, keys ...string) (time.Duration, error) {
+	now := s.clock.Now()
+	var locked time.Duration
+	err := s.db.Tx(ctx, func(tx *sql.Tx) error {
+		type row struct{ failures, last, until int64 }
+		rows := make([]row, len(keys))
+		for i, k := range keys {
+			err := tx.QueryRowContext(ctx, `SELECT failures, last_failure_at, blocked_until FROM login_throttle WHERE key = ?`, k).
+				Scan(&rows[i].failures, &rows[i].last, &rows[i].until)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			if rows[i].until > now.UnixMilli() {
+				locked = max(locked, time.Duration(rows[i].until-now.UnixMilli())*time.Millisecond)
+			}
 		}
-	}
-	return worst
+		if locked > 0 {
+			return nil
+		}
+		for i, k := range keys {
+			failures := rows[i].failures
+			if now.Sub(time.UnixMilli(rows[i].last)) > throttleDecay {
+				failures = 0
+			}
+			failures++
+			var until int64
+			if failures > throttleFree {
+				d := time.Second << min(failures-throttleFree-1, 20)
+				until = now.Add(min(d, throttleMax)).UnixMilli()
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO login_throttle(key, failures, last_failure_at, blocked_until) VALUES (?, ?, ?, ?)
+				ON CONFLICT(key) DO UPDATE SET failures = excluded.failures, last_failure_at = excluded.last_failure_at, blocked_until = excluded.blocked_until`,
+				k, failures, now.UnixMilli(), until); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return locked, err
 }
 
-func (s *Service) recordFailure(ctx context.Context, keys ...string) {
-	now := s.clock.Now()
-	for _, k := range keys {
-		var failures, last int64
-		err := s.db.W.QueryRowContext(ctx, `SELECT failures, last_failure_at FROM login_throttle WHERE key = ?`, k).Scan(&failures, &last)
-		if errors.Is(err, sql.ErrNoRows) || (err == nil && now.Sub(time.UnixMilli(last)) > throttleDecay) {
-			failures = 0
-		} else if err != nil {
-			continue
-		}
-		failures++
-		var until int64
-		if failures > throttleFree {
-			d := time.Second << min(failures-throttleFree-1, 20)
-			until = now.Add(min(d, throttleMax)).UnixMilli()
-		}
-		_, _ = s.db.W.ExecContext(ctx, `INSERT INTO login_throttle(key, failures, last_failure_at, blocked_until) VALUES (?, ?, ?, ?)
-			ON CONFLICT(key) DO UPDATE SET failures = excluded.failures, last_failure_at = excluded.last_failure_at, blocked_until = excluded.blocked_until`,
-			k, failures, now.UnixMilli(), until)
-	}
+// releaseAttempt returns a reservation after a successful login, so
+// legitimate sign-ins from a shared address do not accumulate.
+func (s *Service) releaseAttempt(ctx context.Context, key string) {
+	_, _ = s.db.W.ExecContext(ctx, `UPDATE login_throttle SET failures = MAX(failures - 1, 0),
+		blocked_until = CASE WHEN failures - 1 <= ? THEN 0 ELSE blocked_until END WHERE key = ?`, throttleFree, key)
 }
 
 func (s *Service) clearFailures(ctx context.Context, key string) {
@@ -321,8 +342,10 @@ func (s *Service) CheckPassword(ctx context.Context, userID, password string) er
 	if err != nil {
 		return err
 	}
-	key := "acct:" + u.Email
-	if d := s.throttled(ctx, key); d > 0 {
+	key := "acct:" + strings.ToLower(u.Email)
+	if d, err := s.reserveAttempt(ctx, key); err != nil {
+		return err
+	} else if d > 0 {
 		VerifyDummy(password)
 		return &ThrottledError{RetryAfter: d}
 	}
@@ -331,8 +354,8 @@ func (s *Service) CheckPassword(ctx context.Context, userID, password string) er
 		return err
 	}
 	if ok, _ := VerifyPassword(hash, password); !ok {
-		s.recordFailure(ctx, key)
 		return ErrInvalidCredentials
 	}
+	s.releaseAttempt(ctx, key)
 	return nil
 }

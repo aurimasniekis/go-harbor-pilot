@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -236,6 +237,52 @@ func TestParseToken(t *testing.T) {
 	for _, bad := range []string{"", "hpk_abc", "xyz_aaaaaaaa_" + g.Secret, "hpk_AAAAAAAA_" + g.Secret} {
 		if _, _, _, err := ParseToken(bad); err == nil {
 			t.Fatalf("accepted %q", bad)
+		}
+	}
+}
+
+// Parallel wrong guesses cannot all pass the lockout check before any
+// failure is recorded: at most the free attempts plus one get evaluated.
+func TestLoginThrottleHoldsUnderParallelGuesses(t *testing.T) {
+	f := newFixture(t)
+	f.createUser(t, "a@example.test", RoleViewer, "correct-password")
+	const n = 25
+	results := make(chan error, n)
+	var wg sync.WaitGroup
+	for range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _, err := f.svc.Login(f.ctx, "a@example.test", "wrong-password!")
+			results <- err
+		}()
+	}
+	wg.Wait()
+	close(results)
+	evaluated, throttled := 0, 0
+	for err := range results {
+		var te *ThrottledError
+		switch {
+		case errors.As(err, &te):
+			throttled++
+		case errors.Is(err, ErrInvalidCredentials):
+			evaluated++
+		default:
+			t.Fatalf("unexpected error %v", err)
+		}
+	}
+	if evaluated > throttleFree+1 || throttled == 0 {
+		t.Fatalf("%d guesses evaluated, %d throttled (at most %d may be evaluated)", evaluated, throttled, throttleFree+1)
+	}
+}
+
+// A successful sign-in returns its reservation on the shared address.
+func TestLoginSuccessDoesNotAccumulateAddressFailures(t *testing.T) {
+	f := newFixture(t)
+	f.createUser(t, "a@example.test", RoleViewer, "correct-password")
+	for range throttleFree * 3 {
+		if _, _, err := f.svc.Login(f.ctx, "a@example.test", "correct-password"); err != nil {
+			t.Fatalf("successful sign-ins were throttled: %v", err)
 		}
 	}
 }
