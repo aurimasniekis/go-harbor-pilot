@@ -8,26 +8,30 @@
  * - Optimistic concurrency: pass the object's revision as `ifMatch`.
  */
 
-export class ApiError extends Error {
-  readonly status: number
-  readonly code: string
-  readonly requestId: string | undefined
-  readonly details: unknown
+import { ApiError } from './apiError'
+import { fieldErrorMap, fieldProblems } from './errors'
 
-  constructor(status: number, code: string, message: string, requestId?: string, details?: unknown) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-    this.code = code
-    this.requestId = requestId
-    this.details = details
-  }
-}
+export { ApiError }
 
 let csrfToken: string | undefined
 
 export function setCsrfToken(token: string | undefined): void {
   csrfToken = token
+}
+
+let onUnauthenticated: (() => void) | undefined
+
+/**
+ * Called when the API reports that the session ended (401) on anything but
+ * the session probe itself; the session module re-reads the session so the
+ * app returns to the sign-in page.
+ */
+export function setUnauthenticatedHandler(fn: (() => void) | undefined): void {
+  onUnauthenticated = fn
+}
+
+function sessionEnded(path: string, status: number): void {
+  if (status === 401 && path !== '/session') onUnauthenticated?.()
 }
 
 type Query = Record<string, string | number | boolean | undefined | null>
@@ -61,7 +65,10 @@ export async function apiGet<T>(path: string, query?: Query, signal?: AbortSigna
     headers: { Accept: 'application/json' },
     signal,
   })
-  if (!res.ok) throw await parseError(res)
+  if (!res.ok) {
+    sessionEnded(path, res.status)
+    throw await parseError(res)
+  }
   return (await res.json()) as T
 }
 
@@ -106,18 +113,23 @@ export async function apiSend<T>(
       res = await send()
       if (!res.ok) err = await parseError(res)
     }
-    if (!res.ok) throw err
+    if (!res.ok) {
+      sessionEnded(path, res.status)
+      throw err
+    }
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
 }
 
-/** Field errors from a validation_failed envelope, keyed by location. */
+/**
+ * Field errors from a validation_failed envelope, keyed by full location
+ * (body.spec.base_url), with plain-language messages.
+ */
 export function fieldErrors(err: unknown): Record<string, string> {
   const out: Record<string, string> = {}
-  if (err instanceof ApiError && err.details && typeof err.details === 'object') {
-    const fields = (err.details as { fields?: { location?: string; message?: string }[] }).fields ?? []
-    for (const f of fields) if (f.location) out[f.location] = f.message ?? 'invalid'
-  }
+  for (const p of fieldProblems(err)) out[p.location] = p.message
   return out
 }
+
+export { fieldErrorMap }

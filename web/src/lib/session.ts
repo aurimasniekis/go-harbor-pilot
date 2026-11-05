@@ -1,15 +1,23 @@
 import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiSend, setCsrfToken } from './api/client'
+import { apiSend, setCsrfToken, setUnauthenticatedHandler } from './api/client'
 import { qk, sessionQuery } from './api/queries'
 import type { Session } from './api/types'
 
 /** Keeps the in-memory CSRF token in sync with the session. */
 export function useSessionSync(): Session | undefined {
-  const { data } = useQuery(sessionQuery)
+  const qc = useQueryClient()
+  // Re-read the session whenever the tab regains focus, so a tab that was
+  // idle while the user signed in elsewhere has the current CSRF token
+  // before it saves anything.
+  const { data } = useQuery({ ...sessionQuery, refetchOnWindowFocus: 'always' })
   useEffect(() => {
     setCsrfToken(data?.csrf_token)
   }, [data?.csrf_token])
+  useEffect(() => {
+    setUnauthenticatedHandler(() => void qc.invalidateQueries({ queryKey: qk.session }))
+    return () => setUnauthenticatedHandler(undefined)
+  }, [qc])
   return data
 }
 

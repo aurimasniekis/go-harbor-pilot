@@ -67,12 +67,30 @@ describe('Tabs', () => {
 })
 
 describe('QueryError', () => {
-  it('shows the message, request id and a retry button', async () => {
+  it('explains a server failure in plain words with a reference and a retry button', async () => {
     const retry = vi.fn()
     render(<QueryError error={new ApiError(500, 'internal', 'internal server error', 'req-123')} retry={retry} />)
-    expect(screen.getByText('Could not load data')).toBeInTheDocument()
-    expect(screen.getByText(/internal server error \(request req-123\)/)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(screen.getByText('Could not load this')).toBeInTheDocument()
+    expect(screen.getByText(/The server could not complete this/)).toBeInTheDocument()
+    expect(screen.getByText('Reference req-123')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(retry).toHaveBeenCalledOnce()
+  })
+
+  it('treats a missing object as not found, not as a transient error', () => {
+    render(<QueryError error={new ApiError(404, 'not_found', 'object not found', 'req-9')} retry={() => {}} />)
+    expect(screen.getByText('Not found')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+  })
+})
+
+describe('remainingPercent', () => {
+  it('uses one "remaining" convention and keeps unknown unknown', async () => {
+    const { remainingPercent } = await import('./ui')
+    expect(remainingPercent({ remaining_fraction: 0.25 })).toBe(25)
+    expect(remainingPercent({ used: 30, limit: 40 })).toBe(25)
+    expect(remainingPercent({ remaining: 10, limit: 40 })).toBe(25)
+    expect(remainingPercent({ used: null, limit: null })).toBeNull()
+    expect(remainingPercent({ remaining_fraction: 0 })).toBe(0)
   })
 })

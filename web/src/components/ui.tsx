@@ -160,6 +160,24 @@ export function Panel({ title, subtitle, actions, children, className, bodyClass
  * Quota progress bar. `percent` is remaining percent (0–100) or null for
  * unknown; unknown renders a hatched track and the word "Unknown", never 0%.
  */
+/**
+ * Percent of a quota window still available, the one convention for every
+ * quota bar (Home, Limits, account drawers): prefer the remaining fraction,
+ * else derive it from used and limit. null when unknown, never 0.
+ */
+export function remainingPercent(b: { remaining_fraction?: number | null; used?: number | null; limit?: number | null; remaining?: number | null }): number | null {
+  if (b.remaining_fraction !== null && b.remaining_fraction !== undefined) return b.remaining_fraction * 100
+  if (b.limit && b.limit > 0) {
+    if (b.remaining !== null && b.remaining !== undefined) return (b.remaining / b.limit) * 100
+    if (b.used !== null && b.used !== undefined) return ((b.limit - b.used) / b.limit) * 100
+  }
+  return null
+}
+
+/**
+ * A quota window bar. `percent` is what is LEFT (see remainingPercent); the
+ * fill shrinks and turns amber then red as the window runs out.
+ */
 export function QuotaBar({ label, percent, stale, meta, srLabel }: {
   label: ReactNode
   percent: number | null | undefined

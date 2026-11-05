@@ -1,11 +1,17 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { Stack } from '@mantine/core'
-import { AlertOctagon, Lock } from 'lucide-react'
+import { Stack, Text } from '@mantine/core'
+import { AlertOctagon, Lock, SearchX } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { ApiError } from '@/lib/api/client'
+import { summarizeError } from '@/lib/api/errors'
 import { Button, EmptyState, Skeleton } from './ui'
 
-export function QueryError({ error, retry }: { error: unknown; retry?: () => void }) {
+export function QueryError({ error, retry, back }: {
+  error: unknown
+  retry?: () => void
+  /** Where to go when the object no longer exists (404). */
+  back?: { label: string; to: string }
+}) {
   if (error instanceof ApiError && error.status === 401) {
     return (
       <EmptyState icon={Lock} title="Sign in required" action={<Link to="/login">Sign in</Link>}>
@@ -13,12 +19,22 @@ export function QueryError({ error, retry }: { error: unknown; retry?: () => voi
       </EmptyState>
     )
   }
-  const msg = error instanceof Error ? error.message : 'Unexpected error'
-  const rid = error instanceof ApiError ? error.requestId : undefined
+  if (error instanceof ApiError && error.status === 404) {
+    return (
+      <EmptyState icon={SearchX} title="Not found" action={back && <Link to={back.to}>{back.label}</Link>}>
+        It may have been deleted or renamed.
+      </EmptyState>
+    )
+  }
+  const s = summarizeError(error)
   return (
-    <EmptyState icon={AlertOctagon} title="Could not load data" action={retry && <Button onClick={retry}>Retry</Button>}>
-      {msg}
-      {rid ? ` (request ${rid})` : ''}
+    <EmptyState icon={AlertOctagon} title="Could not load this" action={retry && <Button onClick={retry}>Try again</Button>}>
+      {s.title}
+      {s.requestId && (
+        <Text size="xs" c="dimmed" mt={4}>
+          Reference {s.requestId}
+        </Text>
+      )}
     </EmptyState>
   )
 }
