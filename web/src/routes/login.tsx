@@ -1,5 +1,5 @@
 import { Button as MButton, Group, Paper, Stack, Title } from '@mantine/core'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { KeyRound, LogIn, ShipWheel } from 'lucide-react'
@@ -24,6 +24,9 @@ export function safeNext(next: string | undefined): string {
 }
 
 export function AuthCard({ title, children }: { title: string; children: React.ReactNode }) {
+  useEffect(() => {
+    document.title = title === 'Harbor Pilot' ? 'Sign in · Harbor Pilot' : `${title} · Harbor Pilot`
+  }, [title])
   return (
     <main id="main" className={f.authPage}>
       <Paper component="section" withBorder radius="lg" p="xl" w="min(420px, 100%)" aria-labelledby="auth-title">
@@ -39,6 +42,18 @@ export function AuthCard({ title, children }: { title: string; children: React.R
       </Paper>
     </main>
   )
+}
+
+/** Plain sentence for a failed password sign-in (null when there is none). */
+export function loginErrorMessage(err: unknown): string | null {
+  if (!err) return null
+  if (!(err instanceof ApiError)) return 'Sign-in failed. Check your connection and try again.'
+  if (err.status === 429) return 'Too many attempts. Wait a minute and try again.'
+  if (err.code === 'invalid_credentials') {
+    return /disabled/i.test(err.message) ? 'Password sign-in is turned off. Use single sign-on.' : 'Email or password is incorrect.'
+  }
+  const m = err.message.trim()
+  return m ? m.charAt(0).toUpperCase() + m.slice(1) + (/[.!?]$/.test(m) ? '' : '.') : 'Sign-in failed.'
 }
 
 /**
@@ -70,22 +85,14 @@ function Login() {
   const [password, setPassword] = useState('')
 
   if (session.data?.authenticated) {
-    void navigate({ to: safeNext(next), replace: true })
+    void navigate({ href: safeNext(next), replace: true })
   }
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    login.mutate({ email, password }, { onSuccess: () => void navigate({ to: safeNext(next) }) })
+    login.mutate({ email, password }, { onSuccess: () => void navigate({ href: safeNext(next) }) })
   }
-  const err = login.error
-  const msg =
-    err instanceof ApiError
-      ? err.status === 429
-        ? 'Too many attempts. Wait and try again.'
-        : err.message
-      : err
-        ? 'Sign-in failed.'
-        : null
+  const msg = loginErrorMessage(login.error)
   const providers = session.data?.oidc_providers ?? []
 
   return (

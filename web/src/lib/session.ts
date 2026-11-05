@@ -69,9 +69,16 @@ export function useLogout() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: () => apiSend<Session>('DELETE', '/session'),
+    // Show the signed-out state at once so the pages (and their polling) unmount.
+    onSuccess: (s) => qc.setQueryData(qk.session, s),
     onSettled: () => {
       setCsrfToken(undefined)
-      void qc.invalidateQueries()
+      // Drop signed-in data instead of refetching it: a refetch now only
+      // returns 401s. The session query decides where the user goes next.
+      const signedIn = (q: { queryKey: readonly unknown[] }) => q.queryKey[0] !== qk.session[0]
+      void qc.invalidateQueries({ queryKey: qk.session })
+      // Once the pages have unmounted, forget their data so the next user never sees it.
+      setTimeout(() => qc.removeQueries({ predicate: signedIn, type: 'inactive' }), 0)
     },
   })
 }

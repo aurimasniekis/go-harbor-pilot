@@ -29,6 +29,8 @@ function Root() {
   const session = useSessionSync()
   const meta = useQuery(metaQuery)
   const pathname = useRouterState({ select: (r) => r.location.pathname })
+  // Path, query and hash, so a deep link survives the sign-in detour.
+  const href = useRouterState({ select: (r) => r.location.href })
   if (meta.data?.server_time) setServerTime(meta.data.server_time)
 
   if (PUBLIC_PATHS.includes(pathname)) {
@@ -36,7 +38,7 @@ function Root() {
   }
   if (!session) return null
   if (!session.authenticated) {
-    return <Navigate to="/login" search={{ next: pathname }} replace />
+    return <Navigate to="/login" search={{ next: href }} replace />
   }
   return (
     <Shell>
