@@ -650,6 +650,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/privacy-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Privacy policys */
+        get: operations["list-privacy-policies"];
+        put?: never;
+        /** Create a Privacy policy */
+        post: operations["create-privacy_policy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy-policies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Privacy policy */
+        get: operations["get-privacy_policy"];
+        /** Replace a Privacy policy */
+        put: operations["replace-privacy_policy"];
+        post?: never;
+        /** Delete a Privacy policy */
+        delete: operations["delete-privacy_policy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy-policies/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Privacy policy */
+        get: operations["history-privacy_policy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy/sandbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test masking rules on sample text
+         * @description Nothing is stored or logged. Use synthetic samples where possible.
+         */
+        post: operations["test-privacy-policy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects": {
         parameters: {
             query?: never;
@@ -1479,6 +1553,133 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trace-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Trace policys */
+        get: operations["list-trace-policies"];
+        put?: never;
+        /** Create a Trace policy */
+        post: operations["create-trace_policy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trace-policies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Trace policy */
+        get: operations["get-trace_policy"];
+        /** Replace a Trace policy */
+        put: operations["replace-trace_policy"];
+        post?: never;
+        /** Delete a Trace policy */
+        delete: operations["delete-trace_policy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trace-policies/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Trace policy */
+        get: operations["history-trace_policy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/traces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List live traces (metadata only) */
+        get: operations["list-traces"];
+        put?: never;
+        post?: never;
+        /** Delete traces of a request or session */
+        delete: operations["delete-traces"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/traces/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search redacted trace text */
+        get: operations["search-traces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/traces/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read trace content */
+        get: operations["get-trace"];
+        put?: never;
+        post?: never;
+        /** Delete a trace */
+        delete: operations["delete-trace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/traces/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download trace content
+         * @description Allowed only when the trace policy permits export. Exports are generated on demand and never cached.
+         */
+        get: operations["export-trace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/usage/external": {
         parameters: {
             query?: never;
@@ -2078,6 +2279,10 @@ export interface components {
             /** Format: double */
             warn_at: number;
         };
+        BulkOutBody: {
+            /** Format: int64 */
+            deleted: number;
+        };
         Bundle: {
             api_version: string;
             /** Format: int64 */
@@ -2134,6 +2339,26 @@ export interface components {
         CompleteOutBody: {
             refresh: string;
             status: string;
+        };
+        Content: {
+            binding_id: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            id: string;
+            /** @enum {string} */
+            mode: "masked_diagnostic" | "masked_full" | "unredacted";
+            plan_id: string;
+            policy_id: string;
+            request_id: string;
+            sections: {
+                [key: string]: unknown;
+            };
+            session_id: string;
+            /** Format: int64 */
+            size_bytes: number;
+            truncated: boolean;
         };
         CostAmount: {
             amount: string;
@@ -2356,6 +2581,14 @@ export interface components {
             location: string;
             message: string;
         };
+        Finding: {
+            action: string;
+            /** Format: int64 */
+            end: number;
+            rule: string;
+            /** Format: int64 */
+            start: number;
+        };
         GrantsInBody: {
             grants: ("traces.content.read" | "traces.content.unredacted" | "traces.export")[];
         };
@@ -2409,6 +2642,26 @@ export interface components {
             /** Format: double */
             used: number | null;
         };
+        Hit: {
+            binding_id: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            id: string;
+            /** @enum {string} */
+            mode: "masked_diagnostic" | "masked_full" | "unredacted";
+            plan_id: string;
+            policy_id: string;
+            request_id: string;
+            sections: string[];
+            session_id: string;
+            /** Format: int64 */
+            size_bytes: number;
+            /** @description Excerpt of redacted text. */
+            snippet: string;
+            truncated: boolean;
+        };
         IdentityDTO: {
             issuer: string;
             /** Format: date-time */
@@ -2443,6 +2696,13 @@ export interface components {
             config_revision: number;
             dry_run: boolean;
             warnings: string[];
+        };
+        InBody: {
+            /** @description Or test an unsaved policy definition. */
+            policy?: components["schemas"]["PrivacyPolicySpec"];
+            /** @description Test a saved policy (including its configured secret values). */
+            policy_id?: string;
+            text: string;
         };
         Interval: {
             /** Format: date-time */
@@ -2506,6 +2766,19 @@ export interface components {
         ListOutBody: {
             items: components["schemas"]["LoginView"][];
         };
+        ListOutBody1: {
+            /**
+             * Format: int64
+             * @description Captures dropped because the writer was behind (since start).
+             */
+            dropped: number;
+            items: components["schemas"]["Meta"][];
+            /**
+             * Format: int64
+             * @description Captures skipped by per-plan quotas (since start).
+             */
+            over_quota: number;
+        };
         LoginInBody: {
             email: string;
             password: string;
@@ -2521,6 +2794,24 @@ export interface components {
             obtained_at: string | null;
             signed_in: boolean;
             tier: string;
+        };
+        Meta: {
+            binding_id: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            id: string;
+            /** @enum {string} */
+            mode: "masked_diagnostic" | "masked_full" | "unredacted";
+            plan_id: string;
+            policy_id: string;
+            request_id: string;
+            sections: string[];
+            session_id: string;
+            /** Format: int64 */
+            size_bytes: number;
+            truncated: boolean;
         };
         MetaDTO: {
             api_version: string;
@@ -2700,6 +2991,11 @@ export interface components {
             /** @description Present when more items are available. */
             next_cursor?: string;
         };
+        PageResourcePrivacyPolicySpec: {
+            items: components["schemas"]["ResourcePrivacyPolicySpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
         PageResourceProjectSpec: {
             items: components["schemas"]["ResourceProjectSpec"][];
             /** @description Present when more items are available. */
@@ -2712,6 +3008,11 @@ export interface components {
         };
         PageResourceQuotaMonitorSpec: {
             items: components["schemas"]["ResourceQuotaMonitorSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageResourceTracePolicySpec: {
+            items: components["schemas"]["ResourceTracePolicySpec"][];
             /** @description Present when more items are available. */
             next_cursor?: string;
         };
@@ -2751,9 +3052,16 @@ export interface components {
             engine?: unknown;
             fallback: components["schemas"]["FallbackPolicy"];
             model_mappings: components["schemas"]["ModelMapping"][];
+            privacy?: components["schemas"]["PlanPrivacy"];
             restrictions: components["schemas"]["PlanRestrictions"];
             /** Format: int64 */
             schema_version: number;
+        };
+        PlanPrivacy: {
+            /** @description Privacy (masking) policy; empty = no outbound masking. */
+            policy_id?: string;
+            /** @description Trace policy; empty = no content capture. */
+            trace_policy_id?: string;
         };
         PlanRestrictions: {
             /** @description Subset of metered_api, subscription, free, local; empty = any. */
@@ -2825,6 +3133,42 @@ export interface components {
              * @enum {string}
              */
             strategy: "ordered" | "weighted" | "reset_soonest" | "least_used" | "round_robin" | "";
+        };
+        PrivacyAllowRule: {
+            detectors?: string[];
+            name: string;
+            /** @description RE2; a detection whose text matches this pattern entirely is allowed. */
+            pattern: string;
+        };
+        PrivacyPolicySpec: {
+            allow?: components["schemas"]["PrivacyAllowRule"][];
+            /** @description Availability-first: dispatch unmasked when masking cannot run (recorded on the request). */
+            allow_unmasked_fallback?: boolean;
+            description?: string;
+            /** @description Per-detector action override (mask, block, warn). Built-ins default to mask. */
+            detector_actions?: {
+                [key: string]: string;
+            };
+            detectors?: string[];
+            /** @description Optional personal-data detectors: email, phone, credit_card, iban, ip_address. */
+            personal_data?: string[];
+            required: boolean;
+            /** @description Replace placeholders in text returned to the same client. */
+            restore_in_responses?: boolean;
+            rules?: components["schemas"]["PrivacyRule"][];
+            secret_values_ref?: string;
+            /** @description Heuristic detectors (warn only): high_entropy. */
+            supplementary?: string[];
+            tool_arg_restore?: components["schemas"]["ToolArgRestore"];
+        };
+        PrivacyRule: {
+            /** @enum {string} */
+            action: "mask" | "block" | "warn";
+            /** Format: int64 */
+            group?: number;
+            name: string;
+            /** @description RE2 regular expression. */
+            pattern: string;
         };
         ProjectSpec: {
             description: string;
@@ -3016,6 +3360,8 @@ export interface components {
             plan_id: string;
             /** Format: int64 */
             plan_version: number | null;
+            /** @description Masking summary: rule names and counts, never values. */
+            privacy: unknown;
             project_id: string;
             requested_model: string;
             required_capabilities: string[];
@@ -3312,6 +3658,39 @@ export interface components {
             updated_at: string;
             updated_by: string;
         };
+        ResourcePrivacyPolicySpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["PrivacyPolicySpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
         ResourceProjectSpec: {
             /** Format: int64 */
             config_revision: number;
@@ -3411,6 +3790,39 @@ export interface components {
             updated_at: string;
             updated_by: string;
         };
+        ResourceTracePolicySpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["TracePolicySpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
         ResourceWorkspaceSpec: {
             /** Format: int64 */
             config_revision: number;
@@ -3461,6 +3873,22 @@ export interface components {
         RollbackRequest: {
             /** @description A previously published version to restore. */
             version_id: string;
+        };
+        RuleCount: {
+            action: string;
+            /** Format: int64 */
+            count: number;
+            rule: string;
+        };
+        SandboxResult: {
+            /** @description Detections with byte offsets into the sample (values are not echoed). */
+            findings: components["schemas"]["Finding"][];
+            /** @description The sample as an upstream provider would receive it. */
+            masked: string;
+            summary: components["schemas"]["Summary"];
+        };
+        SearchOutBody: {
+            items: components["schemas"]["Hit"][];
         };
         SecretInfo: {
             /** @description Short non-reversible fingerprint to detect changes. */
@@ -3615,6 +4043,24 @@ export interface components {
             /** @description Share of the fee that falls in the range. */
             prorated: string;
         };
+        Summary: {
+            /** Format: int64 */
+            allowed: number;
+            blocked: boolean;
+            /** Format: int64 */
+            masked: number;
+            policy_id: string;
+            rules: components["schemas"]["RuleCount"][];
+            /**
+             * Format: int64
+             * @description Binary parts (images, documents) the detectors cannot read.
+             */
+            uninspected_parts: number;
+            /** @description Masking could not run and the policy permitted unmasked dispatch. */
+            unmasked_fallback: boolean;
+            /** Format: int64 */
+            warned: number;
+        };
         TestOutBody: {
             claims: {
                 [key: string]: unknown;
@@ -3635,6 +4081,12 @@ export interface components {
             /** Format: int64 */
             reasoning: number | null;
         };
+        ToolArgRestore: {
+            allowed_hosts?: string[];
+            enabled: boolean;
+            fields?: string[];
+            tools?: string[];
+        };
         Trace: {
             account_id?: string;
             effect?: string;
@@ -3646,6 +4098,31 @@ export interface components {
             /** Format: int64 */
             row?: number;
             stage: string;
+        };
+        TracePolicySpec: {
+            /** @description Permit users with traces.export to download trace content. */
+            allow_export?: boolean;
+            /**
+             * Format: int64
+             * @description Used when retention is custom; at most 30 days.
+             */
+            custom_ttl_seconds?: number;
+            /** Format: int64 */
+            max_total_bytes?: number;
+            /** Format: int64 */
+            max_trace_bytes?: number;
+            /** @enum {string} */
+            mode: "off" | "masked_diagnostic" | "masked_full" | "unredacted";
+            redaction_policy_id?: string;
+            /** @enum {string} */
+            retention: "24h" | "3d" | "7d" | "custom";
+            /**
+             * Format: double
+             * @description Fraction of requests captured; 0 = all.
+             */
+            sample_rate?: number;
+            sections?: string[];
+            unredacted_until?: string;
         };
         UnlinkInBody: {
             issuer: string;
@@ -3848,6 +4325,14 @@ export interface components {
             };
             spec: components["schemas"]["PoolSpec"];
         };
+        WriteBodyPrivacyPolicySpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["PrivacyPolicySpec"];
+        };
         WriteBodyProjectSpec: {
             name: string;
             /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
@@ -3871,6 +4356,14 @@ export interface components {
                 [key: string]: string | null;
             };
             spec: components["schemas"]["QuotaMonitorSpec"];
+        };
+        WriteBodyTracePolicySpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["TracePolicySpec"];
         };
         WriteBodyWorkspaceSpec: {
             name: string;
@@ -5725,6 +6218,250 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-privacy-policies": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourcePrivacyPolicySpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-privacy_policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyPrivacyPolicySpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePrivacyPolicySpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-privacy_policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePrivacyPolicySpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-privacy_policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyPrivacyPolicySpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePrivacyPolicySpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-privacy_policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-privacy_policy": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "test-privacy-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SandboxResult"];
                 };
             };
             /** @description Error */
@@ -8216,6 +8953,408 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusDTO"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-trace-policies": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourceTracePolicySpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-trace_policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyTracePolicySpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceTracePolicySpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-trace_policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceTracePolicySpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-trace_policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyTracePolicySpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceTracePolicySpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-trace_policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-trace_policy": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-traces": {
+        parameters: {
+            query?: {
+                request_id?: string;
+                session_id?: string;
+                binding_id?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListOutBody1"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-traces": {
+        parameters: {
+            query?: {
+                request_id?: string;
+                session_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "search-traces": {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-trace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Content"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-trace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "export-trace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Content-Disposition"?: string;
+                    "Content-Type"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
                 };
             };
             /** @description Error */

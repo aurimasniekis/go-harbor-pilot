@@ -45,6 +45,7 @@ const (
 	Event            = "evt"
 	Delivery         = "dlv"
 	Trace            = "trc"
+	TraceKey         = "tky"
 	ProtocolChange   = "pch"
 	WorkItem         = "wki"
 	Audit            = "aud"

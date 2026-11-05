@@ -123,6 +123,7 @@ type RequestDetail struct {
 	ToolNames         []string          `json:"tool_names"`
 	Losses            json.RawMessage   `json:"losses"`
 	Decision          json.RawMessage   `json:"decision"`
+	Privacy           json.RawMessage   `json:"privacy" doc:"Masking summary: rule names and counts, never values."`
 	BytesOut          int64             `json:"bytes_out"`
 	AttemptList       []AttemptDTO      `json:"attempt_list"`
 	Ledger            []LedgerDTO       `json:"ledger"`
@@ -343,13 +344,13 @@ func loadDetail(ctx context.Context, q store.Execer, id string) (*RequestDetail,
 	if !found {
 		return nil, sql.ErrNoRows
 	}
-	var refs, claims, caps, names, losses, decision string
+	var refs, claims, caps, names, losses, decision, priv string
 	var cred, ws, sconf, hconf, hver, res, plan, emsg sql.NullString
 	var pver sql.NullInt64
 	if err := q.QueryRowContext(ctx, `SELECT credential_id, workspace_id, trusted_refs, claims, session_confidence, harness_confidence, harness_version,
-		resolution, plan_id, plan_version, required_caps, error_message, tools_offered, tool_results, tool_result_errors, tool_names, losses, decision, bytes_out
+		resolution, plan_id, plan_version, required_caps, error_message, tools_offered, tool_results, tool_result_errors, tool_names, losses, decision, bytes_out, privacy
 		FROM requests WHERE id = ?`, id).Scan(&cred, &ws, &refs, &claims, &sconf, &hconf, &hver, &res, &plan, &pver, &caps, &emsg,
-		&d.ToolsOffered, &d.ToolResults, &d.ToolResultErrors, &names, &losses, &decision, &d.BytesOut); err != nil {
+		&d.ToolsOffered, &d.ToolResults, &d.ToolResultErrors, &names, &losses, &decision, &d.BytesOut, &priv); err != nil {
 		return nil, err
 	}
 	d.CredentialID, d.WorkspaceID, d.SessionConfidence, d.HarnessConfidence, d.HarnessVersion = cred.String, ws.String, sconf.String, hconf.String, hver.String
@@ -371,7 +372,7 @@ func loadDetail(ctx context.Context, q store.Execer, id string) (*RequestDetail,
 	if d.ToolNames == nil {
 		d.ToolNames = []string{}
 	}
-	d.Losses, d.Decision = json.RawMessage(losses), json.RawMessage(decision)
+	d.Losses, d.Decision, d.Privacy = json.RawMessage(losses), json.RawMessage(decision), json.RawMessage(priv)
 	d.AttemptList, err = store.Query(ctx, q, func(r *sql.Rows) (AttemptDTO, error) {
 		var a AttemptDTO
 		var started int64

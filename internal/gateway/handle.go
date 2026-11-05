@@ -19,12 +19,14 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/ids"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/observability"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/reqmeta"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/privacy"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/anthropic"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/gemini"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/openaichat"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/openairesponses"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/routing"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/telemetry"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/traces"
 )
 
 // Outcome summarizes a finished logical request (for events and tests).
@@ -72,7 +74,17 @@ type reqCtx struct {
 	outcome   Outcome
 	// current is the attempt being delivered, recorded as final by finish.
 	current *AttemptOutcome
-	started int // upstream attempts started
+	// privacy is the masking policy applied to ir; unmasked keeps the
+	// client's original request (never sent upstream, never persisted
+	// except in explicitly authorized unredacted traces).
+	privacy   *privacy.Policy
+	privScope string
+	unmasked  *ir.Request
+	// trace collects content for short-lived traces (nil = not captured).
+	trace       *traces.Capture
+	traceEvents []ir.Event
+	traceResp   *ir.Response
+	started     int // upstream attempts started
 }
 
 func (g *Gateway) handler(p ir.Protocol) http.HandlerFunc {
@@ -243,6 +255,12 @@ func (g *Gateway) serve(w http.ResponseWriter, r *http.Request, p ir.Protocol, p
 		return
 	}
 
+	// Outbound masking (after routing, before anything leaves the gateway).
+	if !g.applyPrivacy(ctx, w, rc) {
+		return
+	}
+	g.startTrace(ctx, rc)
+
 	// 7–9. Reserve, dispatch, reconcile with policy-controlled failover.
 	g.dispatch(ctx, w, rc, dec)
 }
@@ -406,6 +424,9 @@ func (g *Gateway) finish(ctx context.Context, rc *reqCtx, status string, e *ir.E
 	}
 	rc.outcome.Status = status
 	g.Tel.Request(rc.rec)
+	if final != nil {
+		g.finishTrace(rc, final.usage)
+	}
 	if g.Metrics != nil {
 		g.Metrics.GatewayRequests.WithLabelValues(string(rc.inbound), status).Inc()
 		g.Metrics.GatewayDuration.WithLabelValues(string(rc.inbound)).Observe(float64(d) / 1000)

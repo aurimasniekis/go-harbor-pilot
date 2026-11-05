@@ -26,10 +26,12 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/clock"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/observability"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/ratelimit"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/privacy"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/routing"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/store"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/telemetry"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/traces"
 )
 
 // Limits bound gateway work.
@@ -67,6 +69,10 @@ type Gateway struct {
 	// Observe receives unknown upstream events and translation losses for
 	// Protocol Watch (must not block).
 	Observe func(o Observation)
+	// Privacy masks outbound content per plan policy (nil = disabled).
+	Privacy *privacy.Service
+	// Traces stores short-lived content captures (nil = disabled).
+	Traces *traces.Service
 	// ObserveResponse receives upstream response headers for quota
 	// observations (must not block).
 	ObserveResponse func(accountID, providerType, model string, h http.Header)

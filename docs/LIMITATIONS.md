@@ -36,6 +36,9 @@ This file is kept current alongside the implementation. Each entry is one of:
 - **Codex bridge history (design).** The CLI runs one turn per process. Turns the bridge served continue the CLI thread with `codex exec resume`; a conversation seen for the first time is replayed to the CLI as text, recorded as an approximate `history_replay` loss. The CLI may also run its own built-in tools (shell in a read-only sandbox, web search); those are not forwarded to the client.
 - **Codex sign-in refresh (design).** The account's `auth.json` is seeded from the stored credential once and refreshed in place by the CLI, so one process per account runs at a time by default (`bridges.codex.max_per_account`).
 
+- **Masking boundary (design).** Masking inspects text, tool arguments (JSON-aware), tool results and exposed reasoning. Images and documents are not inspected; they are counted in the request's masking summary. Opaque provider state is never inspected or rewritten. Masking is defense in depth: tools running on the user's machine are outside the gateway's outbound boundary.
+- **Placeholder lifetime (design).** Placeholder mappings live only in memory. After a restart, or after 24 hours idle, a placeholder the model repeats is returned to the client unchanged.
+
 ## Pending
 
 Pending items are tracked per requirement in TRACEABILITY.md (status `planned` or `in-progress`).

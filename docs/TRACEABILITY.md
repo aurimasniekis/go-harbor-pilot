@@ -112,21 +112,21 @@ This matrix maps every requirement in the product brief to the phase, package an
 ## §10 Traces
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R10.1 | Metadata and content configured independently; four content modes | 8 | planned | |
-| R10.2 | 24h, 3d and 7d presets plus a bounded custom TTL; off by default | 8 | planned | |
-| R10.3 | Expiry enforced at read; bounded deletion; index removal; quotas; truncation flags | 8 | planned | scenario G |
-| R10.4 | Encryption, access control, audit, excluded from backups, export policy | 8 | planned | |
-| R10.5 | Physical-deletion limits documented; crypto-erasure defined | 8 | in-progress | LIMITATIONS, D-013 |
+| R10.1 | Metadata and content configured independently; four content modes | 8 | implemented | trace_policy kind (off, masked_diagnostic, masked_full, time-boxed unredacted); request metadata recorded independently in activity |
+| R10.2 | 24h, 3d and 7d presets plus a bounded custom TTL; off by default | 8 | contract-tested | retention 24h/3d/7d/custom (1h–30d), default off (normalizeTrace); TestScenarioG uses custom 1h |
+| R10.3 | Expiry enforced at read; bounded deletion; index removal; quotas; truncation flags | 8 | contract-tested | read-time expiry (Get/List/Search filter expires_at), bounded batch sweep removing rows, parts and FTS entries; per-plan byte quota and per-trace truncation flags (traces.write); TestScenarioG |
+| R10.4 | Encryption, access control, audit, excluded from backups, export policy | 8 | contract-tested | AES-GCM per (policy, expiry-day) DEK wrapped by the master key; traces.content.read / .unredacted / .export / .delete grants; audited read, search, export and delete; export only when the policy allows; TestScenarioF |
+| R10.5 | Physical-deletion limits documented; crypto-erasure defined | 8 | implemented | LIMITATIONS physical erasure; D-013, D-029 key partitioning and destruction |
 
 ## §11 Masking
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R11.1 | Deterministic detectors, custom rules, optional PII detection | 8 | planned | |
-| R11.2 | Mask, block, warn and allow actions with precedence | 8 | planned | |
-| R11.3 | Placeholder properties (stable, isolated, unpredictable, chunk- and escape-safe, not applied to sealed parts) | 8 | planned | |
-| R11.4 | Tool-argument restoration off by default; anti-exfiltration | 8 | planned | |
-| R11.5 | Masking failure blocks unless explicitly allowed | 8 | planned | scenario J |
-| R11.6 | Rule sandbox; per-request summaries | 8 | planned | |
+| R11.1 | Deterministic detectors, custom rules, optional PII detection | 8 | contract-tested | internal/privacy detectors: private keys, cloud/API tokens, secret assignments, credential URLs, configured secret values, custom RE2 rules, optional personal data, entropy (warn only); TestDetectors |
+| R11.2 | Mask, block, warn and allow actions with precedence | 8 | contract-tested | precedence block > allow > mask > warn, allow never overrides block (TestPrecedence, TestPrivacyBlockRule) |
+| R11.3 | Placeholder properties (stable, isolated, unpredictable, chunk- and escape-safe, not applied to sealed parts) | 8 | contract-tested | HPSEC_ placeholders: random 100-bit, collision-checked, stable per binding+session scope, isolated across scopes, JSON-aware masking, chunk-boundary restoration, sealed parts untouched, memory-only bounded vault (TestMaskRequestPlaceholders, TestRestorerAcrossChunks) |
+| R11.4 | Tool-argument restoration off by default; anti-exfiltration | 8 | contract-tested | tool-argument restoration off by default; per-tool and per-field allowlists; never into URLs to unlisted hosts (TestToolArgRestorationIsGuarded) |
+| R11.5 | Masking failure blocks unless explicitly allowed | 8 | in-progress | masking errors block when the policy is required unless allow_unmasked_fallback (gateway/privacy.go); passthrough guard and scenario J land with Phase 9 |
+| R11.6 | Rule sandbox; per-request summaries | 8 | contract-tested | POST /privacy/sandbox (nothing stored or logged); per-request summaries in activity (TestPrivacyBlockRule, TestScenarioF) |
 
 ## §12 Passthrough and circuit breakers
 | ID | Requirement | Phase | Status | Evidence |
@@ -206,8 +206,8 @@ This matrix maps every requirement in the product brief to the phase, package an
 | C | Exhaustion leads to failover and one switch event | 5 | contract-tested | internal/acceptance/routing_test.go TestScenarioC_ExhaustionFailoverOneSwitchEvent |
 | D | Unapproved paid fallback blocked | 5 | contract-tested | internal/acceptance/routing_test.go TestScenarioD_UnapprovedPaidFallbackBlocked |
 | E | No over-allocation of concurrent reservations | 4 | planned | scenario_e |
-| F | Masked secret absent upstream and from persistence | 8 | planned | scenario_f |
-| G | Expired traces unreadable and unsearchable | 8 | planned | scenario_g |
+| F | Masked secret absent upstream and from persistence | 8 | contract-tested | internal/acceptance/privacy_test.go TestScenarioF_MaskedSecretAbsentUpstreamAndPersistence |
+| G | Expired traces unreadable and unsearchable | 8 | contract-tested | internal/acceptance/privacy_test.go TestScenarioG_ExpiredTracesUnreadableAndUnsearchable |
 | H | Drift activates approved passthrough with no splice | 9 | planned | scenario_h |
 | I | Protocol Watch dedupes a sanitized change | 9 | planned | scenario_i |
 | J | Required privacy blocks raw fallback | 8 | planned | scenario_j |

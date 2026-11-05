@@ -227,6 +227,8 @@ func Register(a *api.API, svc func() *cp.Service, publicOrigin func() string) {
 	RegisterKind(a, svc, cp.BindingDef)
 	RegisterKind(a, svc, cp.QuotaMonitorDef)
 	RegisterKind(a, svc, cp.BudgetDef)
+	RegisterKind(a, svc, cp.PrivacyPolicyDef)
+	RegisterKind(a, svc, cp.TracePolicyDef)
 	registerVersions(a, svc)
 	registerCredentials(a, svc, publicOrigin)
 	registerConfig(a, svc)

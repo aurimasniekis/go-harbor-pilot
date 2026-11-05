@@ -65,6 +65,7 @@ type PlanDocument struct {
 	DefaultAliasID string           `json:"default_alias_id" doc:"Alias for requests whose model matches no mapping and no alias name; empty = reject."`
 	Restrictions   PlanRestrictions `json:"restrictions"`
 	Fallback       FallbackPolicy   `json:"fallback"`
+	Privacy        PlanPrivacy      `json:"privacy" required:"false"`
 	// Engine holds routing-engine sections (rules, decision tables, ranking,
 	// privacy, compatibility); validated by the engine at compile time.
 	Engine json.RawMessage `json:"engine,omitempty"`
@@ -166,6 +167,12 @@ func ValidateDocument(d *PlanDocument) []FieldError {
 func ValidateDocumentRefs(s *Snapshot, d *PlanDocument) []FieldError {
 	var out []FieldError
 	fail := func(loc, msg string) { out = append(out, FieldError{Location: "body.document." + loc, Message: msg}) }
+	if id := d.Privacy.PolicyID; id != "" && s.Privacy[id] == nil {
+		fail("privacy.policy_id", "unknown privacy policy "+id)
+	}
+	if id := d.Privacy.TracePolicyID; id != "" && s.TracePols[id] == nil {
+		fail("privacy.trace_policy_id", "unknown trace policy "+id)
+	}
 	for i, m := range d.ModelMappings {
 		if _, ok := s.Aliases[m.AliasID]; m.AliasID != "" && !ok {
 			fail(fmt.Sprintf("model_mappings[%d].alias_id", i), "unknown model alias "+m.AliasID)

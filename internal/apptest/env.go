@@ -18,6 +18,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/app"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/config"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/clock"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/crypto"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/polling"
 )
@@ -45,6 +46,9 @@ type Option func(*Setup)
 func WithBridgeEnv(env ...string) Option {
 	return func(s *Setup) { s.App.BridgeEnv = append(s.App.BridgeEnv, env...) }
 }
+
+// WithClock replaces the application clock.
+func WithClock(c clock.Clock) Option { return func(s *Setup) { s.App.Clock = c } }
 
 // WithConfig changes the bootstrap configuration.
 func WithConfig(fn func(*config.Config)) Option { return func(s *Setup) { fn(s.Config) } }
@@ -259,6 +263,8 @@ type PlanOpts struct {
 	Steps             []string
 	MaxAttempts       int
 	AllowPaidFallback bool
+	PrivacyPolicy     string
+	TracePolicy       string
 }
 
 // Plan creates and publishes a routing plan.
@@ -279,7 +285,8 @@ func (e *Env) Plan(name string, o PlanOpts) string {
 	e.Admin.MustDo(201, "POST", "/api/v1/routing-plans/"+plan.ID+"/versions", map[string]any{"note": "test", "document": map[string]any{
 		"schema_version": 1, "model_mappings": maps, "default_alias_id": o.DefaultAlias,
 		"restrictions": map[string]any{"allowed_provider_ids": []string{}, "denied_provider_ids": []string{}, "allowed_billing": []string{}, "allowed_classifications": []string{}, "required_capabilities": []string{}},
-		"fallback":     map[string]any{"steps": o.Steps, "max_attempts": o.MaxAttempts, "allow_paid_fallback": o.AllowPaidFallback, "wait_max_seconds": 0}}}, &draft)
+		"fallback":     map[string]any{"steps": o.Steps, "max_attempts": o.MaxAttempts, "allow_paid_fallback": o.AllowPaidFallback, "wait_max_seconds": 0},
+		"privacy":      map[string]any{"policy_id": o.PrivacyPolicy, "trace_policy_id": o.TracePolicy}}}, &draft)
 	e.Admin.MustDo(200, "POST", "/api/v1/routing-plans/"+plan.ID+"/versions/"+draft.ID+"/publish", nil, nil)
 	return plan.ID
 }
@@ -395,4 +402,23 @@ func (e *Env) Eventually(cond func() bool, what string) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	e.T.Fatalf("timed out waiting for %s", what)
+}
+
+// GrantTraceAccess gives the signed-in admin explicit trace-content grants.
+func (e *Env) GrantTraceAccess(perms ...string) {
+	e.T.Helper()
+	if len(perms) == 0 {
+		perms = []string{"traces.content.read", "traces.export"}
+	}
+	var me struct {
+		User struct {
+			ID string `json:"id"`
+		} `json:"user"`
+	}
+	e.Admin.MustDo(200, "GET", "/api/v1/session", nil, &me)
+	var u struct {
+		Revision int64 `json:"revision"`
+	}
+	e.Admin.MustDo(200, "GET", "/api/v1/users/"+me.User.ID, nil, &u)
+	e.Admin.MustDo(200, "PUT", "/api/v1/users/"+me.User.ID+"/grants", map[string]any{"grants": perms}, nil, "If-Match", fmt.Sprintf(`"r%d"`, u.Revision))
 }

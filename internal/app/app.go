@@ -39,6 +39,8 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/netpolicy"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/observability"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/reqmeta"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/privacy"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/privacy/privacyapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/polling"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/quotaapi"
@@ -47,6 +49,8 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/store"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/telemetry"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/telemetry/activityapi"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/traces"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/traces/tracesapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/web"
 	"github.com/aurimasniekis/go-harbor-pilot/migrations"
 )
@@ -62,6 +66,8 @@ type Options struct {
 	QuotaTransport http.RoundTripper
 	// QuotaScheduler tunes quota polling (tests).
 	QuotaScheduler polling.Options
+	// Clock overrides the application clock (tests).
+	Clock clock.Clock
 	// BridgeEnv is appended to CLI bridge environments (tests point the CLI
 	// at a synthetic upstream).
 	BridgeEnv []string
@@ -84,8 +90,11 @@ type App struct {
 	Tel     *telemetry.Writer
 	Gateway *gateway.Gateway
 	Quota   *quota.Service
-	Budgets *accounting.Budgets
-	Started time.Time
+	Privacy *privacy.Service
+	// TraceSvc stores short-lived trace content in traces.db.
+	TraceSvc *traces.Service
+	Budgets  *accounting.Budgets
+	Started  time.Time
 
 	unlock  func()
 	closers []func()
@@ -112,6 +121,9 @@ func New(ctx context.Context, o Options) (*App, error) {
 	if c.Demo.Clock != "" {
 		t, _ := time.Parse(time.RFC3339, c.Demo.Clock)
 		a.Clock = clock.Frozen{At: t}
+	}
+	if o.Clock != nil {
+		a.Clock = o.Clock
 	}
 	unlock, err := lockDataDir(c.Server.DataDir)
 	if err != nil {
@@ -162,6 +174,24 @@ func New(ctx context.Context, o Options) (*App, error) {
 		Metrics: a.Metrics, Limits: gateway.DefaultLimits}
 	a.Gateway.AfterRequest = gateway.NewTransitions(a.DB.W).After
 	a.Gateway.HealthOf = a.Quota.Health
+	a.Privacy = privacy.NewService(a.CP, a.Clock.Now)
+	a.Gateway.Privacy = a.Privacy
+	controlplane.TraceNow = a.Clock.Now
+	a.TraceSvc = traces.New(a.Traces, a.Keyring, a.Clock, a.Log)
+	a.Gateway.Traces = a.TraceSvc
+	a.AddBackground(a.TraceSvc.Run)
+	a.AddBackground(func(ctx context.Context) {
+		t := time.NewTicker(10 * time.Minute)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				a.Privacy.Vault.Sweep()
+			}
+		}
+	})
 	a.setupBridges(o)
 	a.Gateway.ObserveResponse = a.Quota.ObserveResponse
 	a.AddBackground(a.Quota.Run)
@@ -241,6 +271,13 @@ func (a *App) CoreAPI() []func(*api.API) {
 					return a.Gateway.AccountHealth(id)
 				}, Origin: func() string { return a.Cfg.PublicOrigin() }})
 			usageapi.Register(ap, usageapi.Deps{DB: func() *store.DB { return a.DB }, Snapshot: func() *controlplane.Snapshot { return a.CP.Snapshot() }, Clock: a.clock()})
+		},
+		func(ap *api.API) {
+			tracesapi.Register(ap, tracesapi.Deps{Traces: func() *traces.Service { return a.TraceSvc }, Main: func() *store.DB { return a.DB },
+				Snapshot: func() *controlplane.Snapshot { return a.CP.Snapshot() }})
+		},
+		func(ap *api.API) {
+			privacyapi.Register(ap, func() *privacy.Service { return a.Privacy }, func() *controlplane.Snapshot { return a.CP.Snapshot() })
 		},
 		func(ap *api.API) {
 			activityapi.Register(ap, func() *store.DB { return a.DB }, func() int64 {

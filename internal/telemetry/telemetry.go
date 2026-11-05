@@ -69,6 +69,7 @@ type RequestRecord struct {
 	ToolNames         []string
 	Losses            any
 	Decision          any
+	Privacy           any
 	BytesOut          int64
 	ClientIP          string
 	UserAgent         string
@@ -289,8 +290,8 @@ func (w *Writer) write(ctx context.Context, batch []item) error {
 					requested_model, alias_id, resolution, plan_id, plan_version, required_caps, status, error_kind, error_message, stop_reason,
 					ttft_ms, duration_ms, attempt_count, final_account_id, final_provider_id, final_model, mode, input_tokens, output_tokens,
 					cache_read_tokens, cache_write_tokens, reasoning_tokens, usage_source, cost_e10, currency, cost_kind, tools_offered, tool_calls,
-					tool_results, tool_result_errors, tool_names, losses, decision, bytes_out, client_ip, user_agent)
-					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+					tool_results, tool_result_errors, tool_names, losses, decision, bytes_out, client_ip, user_agent, privacy)
+					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 					ON CONFLICT(id) DO UPDATE SET finished_at=excluded.finished_at, workspace_id=excluded.workspace_id, project_id=excluded.project_id,
 					session_id=excluded.session_id, session_confidence=excluded.session_confidence, alias_id=excluded.alias_id, resolution=excluded.resolution,
 					plan_id=excluded.plan_id, plan_version=excluded.plan_version, required_caps=excluded.required_caps, status=excluded.status,
@@ -301,7 +302,7 @@ func (w *Writer) write(ctx context.Context, batch []item) error {
 					reasoning_tokens=excluded.reasoning_tokens, usage_source=excluded.usage_source, cost_e10=excluded.cost_e10, currency=excluded.currency,
 					cost_kind=excluded.cost_kind, tools_offered=excluded.tools_offered, tool_calls=excluded.tool_calls, tool_results=excluded.tool_results,
 					tool_result_errors=excluded.tool_result_errors, tool_names=excluded.tool_names, losses=excluded.losses, decision=excluded.decision,
-					bytes_out=excluded.bytes_out`,
+					bytes_out=excluded.bytes_out, privacy=excluded.privacy`,
 					r.ID, r.CreatedAt.UnixMilli(), ms(r.FinishedAt), ns(r.BindingID), ns(r.CredentialID), ns(r.WorkspaceID), ns(r.ProjectID),
 					jsOr(r.TrustedRefs, "{}"), jsOr(r.Claims, "{}"), ns(r.SessionID), nonEmpty(r.SessionConfidence, "unknown"), ns(r.Harness),
 					ns(r.HarnessConfidence), ns(r.HarnessVersion), r.InboundProtocol, b2i(r.Stream), ns(r.RequestedModel), ns(r.AliasID),
@@ -309,7 +310,7 @@ func (w *Writer) write(ctx context.Context, batch []item) error {
 					ns(r.StopReason), i64(r.TTFTms), i64(r.DurationMs), r.AttemptCount, ns(r.FinalAccountID), ns(r.FinalProviderID), ns(r.FinalModel),
 					ns(r.Mode), i64(r.InputTokens), i64(r.OutputTokens), i64(r.CacheReadTokens), i64(r.CacheWriteTokens), i64(r.ReasoningTokens),
 					ns(r.UsageSource), i64(r.CostE10), ns(r.Currency), ns(r.CostKind), r.ToolsOffered, r.ToolCalls, r.ToolResults, r.ToolResultErrors,
-					jsOr(r.ToolNames, "[]"), jsOr(r.Losses, "[]"), jsOr(r.Decision, "{}"), r.BytesOut, ns(r.ClientIP), ns(r.UserAgent)); err != nil {
+					jsOr(r.ToolNames, "[]"), jsOr(r.Losses, "[]"), jsOr(r.Decision, "{}"), r.BytesOut, ns(r.ClientIP), ns(r.UserAgent), jsOr(r.Privacy, "{}")); err != nil {
 					return err
 				}
 			case it.att != nil:

@@ -88,6 +88,8 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 	if aerr != nil {
 		return fail(aerr)
 	}
+	g.teeTrace(ctx, rc, res)
+	g.restore(ctx, rc, res)
 	ar.Mode = string(res.Mode)
 	if g.Observe != nil && len(res.Losses) > 0 {
 		g.Observe(Observation{At: started, Direction: "request", Protocol: rc.inbound, ProviderID: prov.ID, Mode: res.Mode, Losses: res.Losses,

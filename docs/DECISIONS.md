@@ -198,3 +198,16 @@ Verified against `claude` 2.1.318 with a synthetic upstream (see `docs/contracts
 - After a client tool call the CLI is parked on its blocked MCP `tools/call` (matched exactly by `_meta["claudecode/toolUseId"]`). The client's tool result answers that call and the same process continues. A plain follow-up turn is written to an idle process's stdin. Processes are matched by account, model, system prompt, tool set and a fingerprint of the conversation.
 - When no process holds a tool call (restart, eviction, timeout), the history including the tool result is resumed and the CLI is asked to continue. The CLI inserts its own "No response requested." marker in that case; the attempt records an approximate `tool_continuation` loss.
 - CLI retries are disabled (`CLAUDE_CODE_MAX_RETRIES=0`) so upstream errors surface immediately and the gateway's failover policy decides. Compaction, CLAUDE.md loading, auto memory and tool search are disabled; the client owns its context.
+
+## D-029: Trace key partitioning
+
+- One data key per (trace policy, UTC expiry day). It is wrapped by the master key (`trace-key:<bucket>` as associated data) and stored in `trace_keys`; its `expires_at` is the end of that day.
+- Each section of a trace is sealed separately with AES-GCM, using `<trace id>|<section>` as associated data.
+- Reads check `expires_at` first, so an expired trace is unreadable even before the sweep. The sweep deletes expired traces, their parts and their search entries in batches of 500, then destroys bucket keys with no live trace. Once a key row is gone, any ciphertext left in free pages, the WAL or a backup that did not capture the key row cannot be decrypted.
+- The search index (FTS5) only receives text redacted by the trace's redaction policy, even for unredacted traces.
+
+## D-030: Masking precedence and placeholders
+
+- Overlapping detections merge into one span carrying the strongest action. Precedence is block > allow > mask > warn: an allow rule exempts a whole span from mask and warn, never from block.
+- Placeholders are `HPSEC_` followed by 20 random base32 characters. They are stable for the same value within one binding and session (or credential when no session is known) and differ across scopes. The mapping is memory-only (24-hour idle expiry, 200,000 entries); after a restart, placeholders the model echoes can no longer be restored.
+- Trace redaction is independent: it replaces spans with irreversible `[redacted:<rule>]` markers.

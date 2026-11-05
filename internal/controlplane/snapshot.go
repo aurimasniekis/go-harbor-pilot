@@ -56,6 +56,8 @@ type Snapshot struct {
 	Bindings     map[string]*Res[BindingSpec]
 	Monitors     map[string]*Res[QuotaMonitorSpec]
 	Budgets      map[string]*Res[BudgetSpec]
+	Privacy      map[string]*Res[PrivacyPolicySpec]
+	TracePols    map[string]*Res[TracePolicySpec]
 
 	// AliasPool maps alias id to the pool id it ultimately resolves to.
 	AliasPool map[string]string
@@ -93,7 +95,8 @@ func Compile(ctx context.Context, q store.Execer, now time.Time) (*Snapshot, err
 		Accounts: map[string]*Res[AccountSpec]{}, Entitlements: map[string]*Res[EntitlementSpec]{}, Pools: map[string]*Res[PoolSpec]{},
 		Aliases: map[string]*Res[AliasSpec]{}, AliasByName: map[string]*Res[AliasSpec]{}, Plans: map[string]*PlanView{},
 		Bindings: map[string]*Res[BindingSpec]{}, AliasPool: map[string]string{}, AliasChain: map[string][]string{}, Ext: map[string]any{},
-		Monitors: map[string]*Res[QuotaMonitorSpec]{}, Budgets: map[string]*Res[BudgetSpec]{}}
+		Monitors: map[string]*Res[QuotaMonitorSpec]{}, Budgets: map[string]*Res[BudgetSpec]{},
+		Privacy: map[string]*Res[PrivacyPolicySpec]{}, TracePols: map[string]*Res[TracePolicySpec]{}}
 	if err := q.QueryRowContext(ctx, `SELECT COALESCE(MAX(revision), 0) FROM config_revisions`).Scan(&s.ConfigRevision); err != nil {
 		return nil, err
 	}
@@ -137,6 +140,10 @@ func Compile(ctx context.Context, q store.Execer, now time.Time) (*Snapshot, err
 			derr = put(s.Monitors, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindBudget:
 			derr = put(s.Budgets, x.id, x.name, x.rev, x.managedBy, raw)
+		case KindPrivacyPolicy:
+			derr = put(s.Privacy, x.id, x.name, x.rev, x.managedBy, raw)
+		case KindTracePolicy:
+			derr = put(s.TracePols, x.id, x.name, x.rev, x.managedBy, raw)
 		default:
 			if h, ok := extraKinds[x.kind]; ok {
 				derr = h(s, x.id, x.name, x.rev, x.managedBy, raw)

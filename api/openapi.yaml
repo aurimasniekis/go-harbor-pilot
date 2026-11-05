@@ -874,6 +874,15 @@ components:
         - projected_spend_e10
         - state
       type: object
+    BulkOutBody:
+      additionalProperties: false
+      properties:
+        deleted:
+          format: int64
+          type: integer
+      required:
+        - deleted
+      type: object
     Bundle:
       additionalProperties: false
       properties:
@@ -1021,6 +1030,55 @@ components:
       required:
         - status
         - refresh
+      type: object
+    Content:
+      additionalProperties: false
+      properties:
+        binding_id:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        expires_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        mode:
+          enum:
+            - masked_diagnostic
+            - masked_full
+            - unredacted
+          type: string
+        plan_id:
+          type: string
+        policy_id:
+          type: string
+        request_id:
+          type: string
+        sections:
+          additionalProperties: {}
+          type: object
+        session_id:
+          type: string
+        size_bytes:
+          format: int64
+          type: integer
+        truncated:
+          type: boolean
+      required:
+        - sections
+        - id
+        - request_id
+        - binding_id
+        - session_id
+        - plan_id
+        - policy_id
+        - mode
+        - created_at
+        - expires_at
+        - size_bytes
+        - truncated
       type: object
     CostAmount:
       additionalProperties: false
@@ -1596,6 +1654,25 @@ components:
         - location
         - message
       type: object
+    Finding:
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+        end:
+          format: int64
+          type: integer
+        rule:
+          type: string
+        start:
+          format: int64
+          type: integer
+      required:
+        - rule
+        - action
+        - start
+        - end
+      type: object
     GrantsInBody:
       additionalProperties: false
       properties:
@@ -1742,6 +1819,60 @@ components:
         - remaining
         - reset_at
       type: object
+    Hit:
+      additionalProperties: false
+      properties:
+        binding_id:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        expires_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        mode:
+          enum:
+            - masked_diagnostic
+            - masked_full
+            - unredacted
+          type: string
+        plan_id:
+          type: string
+        policy_id:
+          type: string
+        request_id:
+          type: string
+        sections:
+          items:
+            type: string
+          type: array
+        session_id:
+          type: string
+        size_bytes:
+          format: int64
+          type: integer
+        snippet:
+          description: Excerpt of redacted text.
+          type: string
+        truncated:
+          type: boolean
+      required:
+        - snippet
+        - id
+        - request_id
+        - binding_id
+        - session_id
+        - plan_id
+        - policy_id
+        - mode
+        - created_at
+        - expires_at
+        - size_bytes
+        - truncated
+        - sections
+      type: object
     IdentityDTO:
       additionalProperties: false
       properties:
@@ -1831,6 +1962,21 @@ components:
         - actions
         - warnings
         - config_revision
+      type: object
+    InBody:
+      additionalProperties: false
+      properties:
+        policy:
+          $ref: "#/components/schemas/PrivacyPolicySpec"
+          description: Or test an unsaved policy definition.
+        policy_id:
+          description: Test a saved policy (including its configured secret values).
+          type: string
+        text:
+          maxLength: 262144
+          type: string
+      required:
+        - text
       type: object
     Interval:
       additionalProperties: false
@@ -1974,6 +2120,26 @@ components:
       required:
         - items
       type: object
+    ListOutBody1:
+      additionalProperties: false
+      properties:
+        dropped:
+          description: Captures dropped because the writer was behind (since start).
+          format: int64
+          type: integer
+        items:
+          items:
+            $ref: "#/components/schemas/Meta"
+          type: array
+        over_quota:
+          description: Captures skipped by per-plan quotas (since start).
+          format: int64
+          type: integer
+      required:
+        - items
+        - dropped
+        - over_quota
+      type: object
     LoginInBody:
       additionalProperties: false
       properties:
@@ -2021,6 +2187,56 @@ components:
         - expires_at
         - obtained_at
         - instructions
+      type: object
+    Meta:
+      additionalProperties: false
+      properties:
+        binding_id:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        expires_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        mode:
+          enum:
+            - masked_diagnostic
+            - masked_full
+            - unredacted
+          type: string
+        plan_id:
+          type: string
+        policy_id:
+          type: string
+        request_id:
+          type: string
+        sections:
+          items:
+            type: string
+          type: array
+        session_id:
+          type: string
+        size_bytes:
+          format: int64
+          type: integer
+        truncated:
+          type: boolean
+      required:
+        - id
+        - request_id
+        - binding_id
+        - session_id
+        - plan_id
+        - policy_id
+        - mode
+        - created_at
+        - expires_at
+        - size_bytes
+        - truncated
+        - sections
       type: object
     MetaDTO:
       additionalProperties: false
@@ -2516,6 +2732,19 @@ components:
       required:
         - items
       type: object
+    PageResourcePrivacyPolicySpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourcePrivacyPolicySpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
     PageResourceProjectSpec:
       additionalProperties: false
       properties:
@@ -2548,6 +2777,19 @@ components:
         items:
           items:
             $ref: "#/components/schemas/ResourceQuotaMonitorSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageResourceTracePolicySpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourceTracePolicySpec"
           type: array
         next_cursor:
           description: Present when more items are available.
@@ -2648,6 +2890,8 @@ components:
           items:
             $ref: "#/components/schemas/ModelMapping"
           type: array
+        privacy:
+          $ref: "#/components/schemas/PlanPrivacy"
         restrictions:
           $ref: "#/components/schemas/PlanRestrictions"
         schema_version:
@@ -2659,6 +2903,16 @@ components:
         - default_alias_id
         - restrictions
         - fallback
+      type: object
+    PlanPrivacy:
+      additionalProperties: false
+      properties:
+        policy_id:
+          description: Privacy (masking) policy; empty = no outbound masking.
+          type: string
+        trace_policy_id:
+          description: Trace policy; empty = no content capture.
+          type: string
       type: object
     PlanRestrictions:
       additionalProperties: false
@@ -2836,6 +3090,94 @@ components:
         - strategy
         - affinity
         - members
+      type: object
+    PrivacyAllowRule:
+      additionalProperties: false
+      properties:
+        detectors:
+          items:
+            type: string
+          type: array
+        name:
+          type: string
+        pattern:
+          description: RE2; a detection whose text matches this pattern entirely is allowed.
+          type: string
+      required:
+        - name
+        - pattern
+      type: object
+    PrivacyPolicySpec:
+      additionalProperties: false
+      properties:
+        allow:
+          items:
+            $ref: "#/components/schemas/PrivacyAllowRule"
+          type: array
+        allow_unmasked_fallback:
+          description: "Availability-first: dispatch unmasked when masking cannot run (recorded on the request)."
+          type: boolean
+        description:
+          maxLength: 1000
+          type: string
+        detector_actions:
+          additionalProperties:
+            type: string
+          description: Per-detector action override (mask, block, warn). Built-ins default to mask.
+          type: object
+        detectors:
+          items:
+            type: string
+          type: array
+        personal_data:
+          description: "Optional personal-data detectors: email, phone, credit_card, iban, ip_address."
+          items:
+            type: string
+          type: array
+        required:
+          type: boolean
+        restore_in_responses:
+          description: Replace placeholders in text returned to the same client.
+          type: boolean
+        rules:
+          items:
+            $ref: "#/components/schemas/PrivacyRule"
+          type: array
+        secret_values_ref:
+          type: string
+        supplementary:
+          description: "Heuristic detectors (warn only): high_entropy."
+          items:
+            type: string
+          type: array
+        tool_arg_restore:
+          $ref: "#/components/schemas/ToolArgRestore"
+      required:
+        - required
+      type: object
+    PrivacyRule:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+            - mask
+            - block
+            - warn
+          type: string
+        group:
+          format: int64
+          maximum: 9
+          minimum: 0
+          type: integer
+        name:
+          type: string
+        pattern:
+          description: RE2 regular expression.
+          type: string
+      required:
+        - name
+        - pattern
+        - action
       type: object
     ProjectSpec:
       additionalProperties: false
@@ -3267,6 +3609,8 @@ components:
           type:
             - integer
             - "null"
+        privacy:
+          description: "Masking summary: rule names and counts, never values."
         project_id:
           type: string
         requested_model:
@@ -3337,6 +3681,7 @@ components:
         - tool_names
         - losses
         - decision
+        - privacy
         - bytes_out
         - attempt_list
         - ledger
@@ -3933,6 +4278,73 @@ components:
         - updated_by
         - config_revision
       type: object
+    ResourcePrivacyPolicySpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/PrivacyPolicySpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
     ResourceProjectSpec:
       additionalProperties: false
       properties:
@@ -4134,6 +4546,73 @@ components:
         - updated_by
         - config_revision
       type: object
+    ResourceTracePolicySpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/TracePolicySpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
     ResourceWorkspaceSpec:
       additionalProperties: false
       properties:
@@ -4245,6 +4724,49 @@ components:
           type: string
       required:
         - version_id
+      type: object
+    RuleCount:
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+        count:
+          format: int64
+          type: integer
+        rule:
+          type: string
+      required:
+        - rule
+        - action
+        - count
+      type: object
+    SandboxResult:
+      additionalProperties: false
+      properties:
+        findings:
+          description: Detections with byte offsets into the sample (values are not echoed).
+          items:
+            $ref: "#/components/schemas/Finding"
+          type: array
+        masked:
+          description: The sample as an upstream provider would receive it.
+          type: string
+        summary:
+          $ref: "#/components/schemas/Summary"
+      required:
+        - findings
+        - masked
+        - summary
+      type: object
+    SearchOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Hit"
+          type: array
+      required:
+        - items
       type: object
     SecretInfo:
       additionalProperties: false
@@ -4607,6 +5129,43 @@ components:
         - prorated
         - currency
       type: object
+    Summary:
+      additionalProperties: false
+      properties:
+        allowed:
+          format: int64
+          type: integer
+        blocked:
+          type: boolean
+        masked:
+          format: int64
+          type: integer
+        policy_id:
+          type: string
+        rules:
+          items:
+            $ref: "#/components/schemas/RuleCount"
+          type: array
+        uninspected_parts:
+          description: Binary parts (images, documents) the detectors cannot read.
+          format: int64
+          type: integer
+        unmasked_fallback:
+          description: Masking could not run and the policy permitted unmasked dispatch.
+          type: boolean
+        warned:
+          format: int64
+          type: integer
+      required:
+        - policy_id
+        - masked
+        - warned
+        - allowed
+        - blocked
+        - uninspected_parts
+        - unmasked_fallback
+        - rules
+      type: object
     TestOutBody:
       additionalProperties: false
       properties:
@@ -4660,6 +5219,26 @@ components:
         - cache_write
         - reasoning
       type: object
+    ToolArgRestore:
+      additionalProperties: false
+      properties:
+        allowed_hosts:
+          items:
+            type: string
+          type: array
+        enabled:
+          type: boolean
+        fields:
+          items:
+            type: string
+          type: array
+        tools:
+          items:
+            type: string
+          type: array
+      required:
+        - enabled
+      type: object
     Trace:
       additionalProperties: false
       properties:
@@ -4687,6 +5266,58 @@ components:
         - kind
         - stage
         - matched
+      type: object
+    TracePolicySpec:
+      additionalProperties: false
+      properties:
+        allow_export:
+          description: Permit users with traces.export to download trace content.
+          type: boolean
+        custom_ttl_seconds:
+          description: Used when retention is custom; at most 30 days.
+          format: int64
+          minimum: 0
+          type: integer
+        max_total_bytes:
+          format: int64
+          minimum: 0
+          type: integer
+        max_trace_bytes:
+          format: int64
+          maximum: 16777216
+          minimum: 0
+          type: integer
+        mode:
+          enum:
+            - "off"
+            - masked_diagnostic
+            - masked_full
+            - unredacted
+          type: string
+        redaction_policy_id:
+          type: string
+        retention:
+          enum:
+            - 24h
+            - 3d
+            - 7d
+            - custom
+          type: string
+        sample_rate:
+          description: Fraction of requests captured; 0 = all.
+          format: double
+          maximum: 1
+          minimum: 0
+          type: number
+        sections:
+          items:
+            type: string
+          type: array
+        unredacted_until:
+          type: string
+      required:
+        - mode
+        - retention
       type: object
     UnlinkInBody:
       additionalProperties: false
@@ -5202,6 +5833,26 @@ components:
         - name
         - spec
       type: object
+    WriteBodyPrivacyPolicySpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/PrivacyPolicySpec"
+      required:
+        - name
+        - spec
+      type: object
     WriteBodyProjectSpec:
       additionalProperties: false
       properties:
@@ -5258,6 +5909,26 @@ components:
           type: object
         spec:
           $ref: "#/components/schemas/QuotaMonitorSpec"
+      required:
+        - name
+        - spec
+      type: object
+    WriteBodyTracePolicySpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/TracePolicySpec"
       required:
         - name
         - spec
@@ -7364,6 +8035,278 @@ paths:
       summary: Revision history of a Pool
       tags:
         - Pools
+      x-permission: config.read
+  /privacy-policies:
+    get:
+      operationId: list-privacy-policies
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourcePrivacyPolicySpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Privacy policys
+      tags:
+        - Privacy policys
+      x-permission: config.read
+    post:
+      operationId: create-privacy_policy
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyPrivacyPolicySpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePrivacyPolicySpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Privacy policy
+      tags:
+        - Privacy policys
+      x-permission: secrets.write
+  /privacy-policies/{id}:
+    delete:
+      operationId: delete-privacy_policy
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Privacy policy
+      tags:
+        - Privacy policys
+      x-permission: config.write
+    get:
+      operationId: get-privacy_policy
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePrivacyPolicySpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Privacy policy
+      tags:
+        - Privacy policys
+      x-permission: config.read
+    put:
+      operationId: replace-privacy_policy
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyPrivacyPolicySpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePrivacyPolicySpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Privacy policy
+      tags:
+        - Privacy policys
+      x-permission: secrets.write
+  /privacy-policies/{id}/history:
+    get:
+      operationId: history-privacy_policy
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Privacy policy
+      tags:
+        - Privacy policys
+      x-permission: config.read
+  /privacy/sandbox:
+    post:
+      description: Nothing is stored or logged. Use synthetic samples where possible.
+      operationId: test-privacy-policy
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SandboxResult"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Test masking rules on sample text
+      tags:
+        - Privacy
       x-permission: config.read
   /projects:
     get:
@@ -9976,6 +10919,448 @@ paths:
       tags:
         - System
       x-permission: system.manage
+  /trace-policies:
+    get:
+      operationId: list-trace-policies
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourceTracePolicySpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Trace policys
+      tags:
+        - Trace policys
+      x-permission: config.read
+    post:
+      operationId: create-trace_policy
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyTracePolicySpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceTracePolicySpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Trace policy
+      tags:
+        - Trace policys
+      x-permission: config.write
+  /trace-policies/{id}:
+    delete:
+      operationId: delete-trace_policy
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Trace policy
+      tags:
+        - Trace policys
+      x-permission: config.write
+    get:
+      operationId: get-trace_policy
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceTracePolicySpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Trace policy
+      tags:
+        - Trace policys
+      x-permission: config.read
+    put:
+      operationId: replace-trace_policy
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyTracePolicySpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceTracePolicySpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Trace policy
+      tags:
+        - Trace policys
+      x-permission: config.write
+  /trace-policies/{id}/history:
+    get:
+      operationId: history-trace_policy
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Trace policy
+      tags:
+        - Trace policys
+      x-permission: config.read
+  /traces:
+    delete:
+      operationId: delete-traces
+      parameters:
+        - explode: false
+          in: query
+          name: request_id
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: session_id
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete traces of a request or session
+      tags:
+        - Traces
+      x-permission: traces.delete
+    get:
+      operationId: list-traces
+      parameters:
+        - explode: false
+          in: query
+          name: request_id
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: session_id
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: binding_id
+          schema:
+            maxLength: 64
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 500
+            minimum: 0
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListOutBody1"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List live traces (metadata only)
+      tags:
+        - Traces
+      x-permission: traces.metadata.read
+  /traces/search:
+    get:
+      operationId: search-traces
+      parameters:
+        - explode: false
+          in: query
+          name: q
+          required: true
+          schema:
+            maxLength: 200
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            format: int64
+            maximum: 100
+            minimum: 0
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Search redacted trace text
+      tags:
+        - Traces
+      x-permission: traces.content.read
+  /traces/{id}:
+    delete:
+      operationId: delete-trace
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a trace
+      tags:
+        - Traces
+      x-permission: traces.delete
+    get:
+      operationId: get-trace
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Content"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Read trace content
+      tags:
+        - Traces
+      x-permission: traces.content.read
+  /traces/{id}/export:
+    get:
+      description: Allowed only when the trace policy permits export. Exports are generated on demand and never cached.
+      operationId: export-trace
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                contentEncoding: base64
+                type: string
+          description: OK
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Type:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Download trace content
+      tags:
+        - Traces
+      x-permission: traces.export
   /usage/external:
     get:
       operationId: external-usage

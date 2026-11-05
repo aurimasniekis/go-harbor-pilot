@@ -29,6 +29,8 @@ type Reply struct {
 	CacheRead  int64
 	// Headers are extra response headers (e.g. rate-limit headers).
 	Headers map[string]string
+	// Echo replies with the text of the last user message.
+	Echo bool
 }
 
 // Upstream is a scripted synthetic provider (an http.Handler).
@@ -112,6 +114,9 @@ func (u *Upstream) serve(w http.ResponseWriter, r *http.Request) {
 	u.Requests = append(u.Requests, Captured{Path: r.URL.Path + "?" + r.URL.RawQuery, Header: r.Header.Clone(), Body: body, Raw: string(raw)})
 	u.mu.Unlock()
 	rep := u.next()
+	if rep.Echo {
+		rep.Text = lastUserText(body)
+	}
 	if rep.Delay > 0 {
 		select {
 		case <-time.After(rep.Delay):
@@ -312,4 +317,40 @@ func splitN(s string, n int) []string {
 		out = append(out, s[i:end])
 	}
 	return out
+}
+
+// lastUserText extracts the last user message text from Anthropic, Chat or
+// Responses bodies.
+func lastUserText(body map[string]any) string {
+	var text string
+	collect := func(c any) string {
+		switch v := c.(type) {
+		case string:
+			return v
+		case []any:
+			var out string
+			for _, it := range v {
+				m, _ := it.(map[string]any)
+				if t, ok := m["text"].(string); ok {
+					out += t
+				}
+			}
+			return out
+		}
+		return ""
+	}
+	for _, key := range []string{"messages", "input"} {
+		if arr, ok := body[key].([]any); ok {
+			for _, it := range arr {
+				m, _ := it.(map[string]any)
+				if m["role"] == "user" {
+					text = collect(m["content"])
+				}
+			}
+		}
+		if s, ok := body[key].(string); ok {
+			text = s
+		}
+	}
+	return text
 }
