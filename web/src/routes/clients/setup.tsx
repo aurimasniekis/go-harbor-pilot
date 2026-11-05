@@ -141,7 +141,16 @@ function HarnessSetup() {
                 never into a configuration file.
               </Text>
               <div>
-                <Button leftSection={<KeyRound size={14} />} disabled={!binding || !canTokens} onClick={() => setIssuing(true)}>
+                <Button
+                  leftSection={<KeyRound size={14} />}
+                  disabled={!binding || !canTokens}
+                  onClick={() => setIssuing(true)}
+                  maw="100%"
+                  h="auto"
+                  mih={36}
+                  py={6}
+                  styles={{ label: { whiteSpace: 'normal', textAlign: 'left' } }}
+                >
                   Create an access token{binding ? ` for ${binding.spec.display_name || binding.name}` : ''}
                 </Button>
                 {!canTokens && (
