@@ -67,6 +67,9 @@ func WithBridgeEnv(env ...string) Option {
 // WithPulse replaces how the event relay connects to Pulse.
 func WithPulse(c relay.PulseConnector) Option { return func(s *Setup) { s.App.PulseConnector = c } }
 
+// WithLog routes application logs to l (tests that inspect log output).
+func WithLog(l *slog.Logger) Option { return func(s *Setup) { s.App.Log = l } }
+
 // WithDataDir reuses a data directory (restart and restore tests).
 func WithDataDir(dir string) Option { return func(s *Setup) { s.Config.Server.DataDir = dir } }
 

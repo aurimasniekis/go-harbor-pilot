@@ -59,6 +59,7 @@ func (g *Gateway) Probe(ctx context.Context, providerID, path string) (*ir.Error
 	reqID := ids.New(ids.Request)
 	res, aerr := g.executorFor(prov.Spec.Type).Execute(ctx, t, secret, executor.Request{IR: req, Inbound: ir.Protocol(inbound), RequestID: reqID}, true)
 	if aerr != nil {
+		executor.ScrubError(aerr.Err, secret)
 		return aerr.Err, nil
 	}
 	defer res.Cancel()

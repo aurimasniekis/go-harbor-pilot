@@ -87,6 +87,7 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 		}
 	}
 	if aerr != nil {
+		executor.ScrubError(aerr.Err, secret)
 		return fail(aerr)
 	}
 	g.teeTrace(ctx, rc, res)
@@ -103,7 +104,7 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 	if res.Response != nil {
 		return g.deliverComplete(ctx, w, rc, res, fi, &ar, started, rsvID)
 	}
-	return g.deliverStream(ctx, w, rc, res, fi, &ar, started, rsvID, fail)
+	return g.deliverStream(ctx, w, rc, res, fi, &ar, started, rsvID, fail, secret)
 }
 
 func runRef(refs map[string]string) string {
@@ -172,7 +173,7 @@ func (g *Gateway) deliverComplete(ctx context.Context, w http.ResponseWriter, rc
 }
 
 func (g *Gateway) deliverStream(ctx context.Context, w http.ResponseWriter, rc *reqCtx, res *executor.Result, fi *finalInfo, ar *telemetry.AttemptRecord,
-	started time.Time, rsvID string, fail func(*executor.AttemptError) (bool, *executor.AttemptError)) (bool, *executor.AttemptError) {
+	started time.Time, rsvID string, fail func(*executor.AttemptError) (bool, *executor.AttemptError), secret credentials.Secret) (bool, *executor.AttemptError) {
 	defer res.Cancel()
 	sw := wire.NewSSEWriter(w)
 	headersSent := false
@@ -323,6 +324,7 @@ loop:
 	ar.FinishedAt, ar.DurationMs, ar.TTFTms = &now, &d, fi.ttft
 	ar.Status = status
 	if streamErr != nil {
+		executor.ScrubError(streamErr, secret)
 		ar.ErrorKind, ar.ErrorMessage, ar.Executed = string(streamErr.Kind), truncate(streamErr.Message, 300), true
 	}
 	ar.InputTokens, ar.OutputTokens = fi.usage.UncachedInput(), fi.usage.OutputTokens
