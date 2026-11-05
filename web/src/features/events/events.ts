@@ -88,3 +88,34 @@ export function fmtSeconds(s: number | undefined): string {
   if (s % 60 === 0) return `${s / 60} min`
   return `${s} s`
 }
+
+const eventTopic: [RegExp, string][] = [
+  [/^quota\./, 'quota'],
+  [/^budget\./, 'budget'],
+  [/^provider\.account\./, 'account'],
+  [/^provider\./, 'provider'],
+  [/^compat\./, 'protocol'],
+  [/^protocol\./, 'protocol change'],
+  [/^routing\./, 'routing'],
+  [/^access\./, 'access'],
+  [/^policy\./, 'plan publishing'],
+  [/^config\./, 'configuration'],
+]
+
+/** "Quota, budget and account warnings" from event patterns and severity. */
+export function eventsPhrase(events: string[] | undefined, minSeverity: string | undefined): string {
+  const topics = [...new Set((events ?? []).map((e) => eventTopic.find(([re]) => re.test(e))?.[1] ?? e))]
+  const sev = minSeverity === 'critical' ? 'critical problems' : minSeverity === 'warning' ? 'warnings' : 'events'
+  if (topics.length === 0) return minSeverity === 'warning' || minSeverity === 'critical' ? `All ${sev}` : 'Every event'
+  const list = topics.length === 1 ? topics[0]! : `${topics.slice(0, -1).join(', ')} and ${topics[topics.length - 1]}`
+  return `${list.charAt(0).toUpperCase()}${list.slice(1)} ${sev}`
+}
+
+/** "at most once per 30 min · also when resolved" */
+export function noisePhrase(cooldown: number | undefined, group: number | undefined, recovery: boolean | undefined): string {
+  const parts: string[] = []
+  if (cooldown) parts.push(`at most once per ${fmtSeconds(cooldown)}`)
+  if (group) parts.push(`repeats grouped for ${fmtSeconds(group)}`)
+  if (recovery) parts.push('also when resolved')
+  return parts.join(' · ')
+}

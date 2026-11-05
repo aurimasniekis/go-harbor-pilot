@@ -1,7 +1,10 @@
+import { Anchor, Text } from '@mantine/core'
+import { EnabledSwitch } from '@/features/config/ResourceList'
+import { eventsPhrase } from '@/features/events/events'
 import { useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, History, Pencil, RotateCcw } from 'lucide-react'
+import { CheckCircle2, History, Pencil, RotateCcw } from 'lucide-react'
 import { Badge, Banner, Button, EmptyState, KeyValues, Panel, Skeleton, TableScroll, Tabs, type Tone } from '@/components/ui'
 import { MutationError, TextField } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
@@ -60,21 +63,27 @@ function DestinationDetail() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <Link to="/events/destinations" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <ArrowLeft size={14} aria-hidden="true" /> All destinations
-        </Link>
-      </div>
-      <Panel title={d ? <span className="mono">{d.name}</span> : 'Destination'} subtitle={d ? (d.spec.type === 'pulse' ? 'Pulse relay' : 'Signed webhook') : undefined}
+      <Text size="sm">
+        <Anchor component={Link} to="/notifications" c="dimmed">
+          Alerts
+        </Anchor>{' '}
+        <Text span c="dimmed">
+          /
+        </Text>{' '}
+        <Anchor component={Link} to="/events/destinations" c="dimmed">
+          Event relays
+        </Anchor>
+      </Text>
+      <Panel title={d ? <span className="mono">{d.name}</span> : 'Destination'} subtitle={d ? (d.spec.type === 'pulse' ? 'Pulse relay' : 'Signed webhook relay') : undefined}
         actions={d && canWrite && <Button icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>}>
         {!d ? (
           <Skeleton height={100} />
         ) : (
           <KeyValues
             items={[
-              ['State', d.spec.enabled ? <Badge tone="success">Enabled</Badge> : <Badge>Disabled</Badge>],
+              ['Status', <EnabledSwitch plural="event-destinations" r={d} />],
               ['Target', <span className="ident">{d.spec.type === 'pulse' ? d.spec.pulse_url : d.spec.webhook_url}</span>],
-              ['Events', <span className="ident">{(d.spec.filter?.events ?? []).join(', ') || 'All events'}{d.spec.filter?.min_severity && d.spec.filter.min_severity !== 'info' ? ` (${d.spec.filter.min_severity} and above)` : ''}</span>],
+              ['Events', eventsPhrase(d.spec.filter?.events, d.spec.filter?.min_severity)],
               ...(Object.keys(d.spec.filter?.subjects ?? {}).length
                 ? ([['Subjects', <span className="ident">{Object.entries(d.spec.filter?.subjects ?? {}).map(([k, v]) => `${k}=${v}`).join(' ')}</span>]] as [React.ReactNode, React.ReactNode][])
                 : []),

@@ -1,27 +1,20 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router'
-import { PageHeader } from '@/components/PageHeader'
-import { SubNav } from '@/components/SubNav'
+import { createFileRoute, Outlet, useRouterState } from '@tanstack/react-router'
+import { Stack } from '@mantine/core'
+import { AlertsHeader } from '@/features/alerts/AlertsHeader'
+import { SettingsHeader } from '@/features/settings/SettingsHeader'
 
 export const Route = createFileRoute('/events')({
   component: EventsLayout,
 })
 
+/** Event relays belong to Alerts; the event stream and catalog to Settings. */
 function EventsLayout() {
+  const path = useRouterState({ select: (r) => r.location.pathname })
+  if (/^\/events\/destinations\/[^/]+/.test(path)) return <Outlet />
   return (
-    <>
-      <PageHeader
-        title="Events"
-        subtitle="Domain events Harbor Pilot records for state transitions (account switches, quota windows, budgets, breakers), and the destinations that relay them."
-      />
-      <SubNav
-        label="Events sections"
-        items={[
-          { to: '/events', label: 'Event log', exact: true },
-          { to: '/events/catalog', label: 'Catalog' },
-          { to: '/events/destinations', label: 'Destinations' },
-        ]}
-      />
+    <Stack gap="lg">
+      {path.startsWith('/events/destinations') ? <AlertsHeader /> : <SettingsHeader />}
       <Outlet />
-    </>
+    </Stack>
   )
 }

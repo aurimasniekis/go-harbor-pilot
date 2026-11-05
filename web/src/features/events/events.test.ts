@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { globMatches, matchingKinds, patternSuggestions } from './events'
+import { globMatches, matchingKinds, patternSuggestions, eventsPhrase, noisePhrase } from './events'
 import type { EventKindInfo } from '@/lib/api/types'
 
 const k = (name: string, severity: string): EventKindInfo => ({ name, severity, type: '', subject: '', description: '', subjects: [], data: [] })
@@ -21,5 +21,19 @@ describe('event filters', () => {
   it('suggests names and area wildcards', () => {
     expect(patternSuggestions(catalog)).toContain('quota.*')
     expect(patternSuggestions(catalog)).toContain('routing.account.switched')
+  })
+})
+
+describe('eventsPhrase', () => {
+  it('turns patterns into plain topics', () => {
+    expect(eventsPhrase(['quota.*', 'budget.*', 'provider.account.*'], 'warning')).toBe('Quota, budget and account warnings')
+    expect(eventsPhrase([], 'info')).toBe('Every event')
+    expect(eventsPhrase(['compat.breaker.*'], 'critical')).toBe('Protocol critical problems')
+  })
+})
+
+describe('noisePhrase', () => {
+  it('reads as one line', () => {
+    expect(noisePhrase(1800, 0, true)).toBe('at most once per 30 min · also when resolved')
   })
 })

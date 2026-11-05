@@ -1,4 +1,4 @@
-import { allowConsoleError, expect, signIn, test, choose } from './fixtures'
+import { allowConsoleError, choose, expect, signIn, test } from './fixtures'
 
 // The demo seeds no destinations, channels or rules. Every target here is
 // a closed local port, so nothing leaves the machine and sends fail fast.
@@ -6,7 +6,7 @@ import { allowConsoleError, expect, signIn, test, choose } from './fixtures'
 test('event catalog and event log', async ({ page }) => {
   await signIn(page)
   await page.goto('/events/catalog')
-  await expect(page.getByRole('heading', { name: 'Events', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible()
   const kinds = page.getByRole('list', { name: 'Event kinds' })
   const exhausted = kinds.getByRole('listitem').filter({ hasText: 'quota.window.exhausted' })
   await expect(exhausted).toContainText('A monitored global quota window reached its exhaustion threshold.')
@@ -16,22 +16,25 @@ test('event catalog and event log', async ({ page }) => {
   await expect(kinds.getByRole('listitem').filter({ hasText: 'quota.window.exhausted' })).toHaveCount(0)
 
   await page.goto('/events')
-  await expect(page.getByRole('heading', { name: 'Event log' })).toBeVisible()
-  const log = page.getByRole('region', { name: 'Event log' })
-  await log.getByRole('button', { name: /^Show envelope/ }).first().click()
-  await expect(log.getByLabel('Event envelope')).toContainText('"schema_version"')
-  await choose(page, 'Severity', 'critical')
-  await expect(log.getByRole('row').nth(1).or(page.getByText('No matching events'))).toBeVisible()
-  for (const badge of await log.getByRole('row').locator('td:nth-child(3)').allTextContents()) expect(badge).toBe('critical')
+  const log = page.getByRole('region', { name: 'Event log' }).or(page.getByText('No problems recorded'))
+  await expect(log).toBeVisible()
+  // All events, including configuration changes (collapsed in groups).
+  await page.locator('label').filter({ hasText: /^All$/ }).click()
+  const stream = page.getByRole('region', { name: 'Event log' })
+  await stream.getByRole('button', { name: /configuration changes/ }).first().click()
+  await stream.getByRole('button', { name: /^Show envelope/ }).first().click()
+  await expect(stream.getByLabel('Event envelope')).toContainText('"schema_version"')
+  // Problems hides informational events.
+  await page.locator('label').filter({ hasText: /^Problems$/ }).click()
+  await expect(page.locator('li[data-severity="info"]')).toHaveCount(0)
 })
 
 test('webhook destination with replay controls', async ({ page }) => {
-  page.on('dialog', (dl) => void dl.accept())
   await signIn(page)
   const name = `hook-${Date.now().toString(36)}`
 
   await page.goto('/events/destinations')
-  await page.getByRole('button', { name: 'Add destination' }).click()
+  await page.getByRole('button', { name: 'Add event relay' }).click()
   const d = page.getByRole('dialog')
   await d.getByLabel('Name', { exact: true }).fill(name)
   await d.getByLabel('Webhook URL').fill('http://127.0.0.1:9/')
@@ -50,9 +53,9 @@ test('webhook destination with replay controls', async ({ page }) => {
   await d.getByRole('button', { name: 'Save destination' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
 
-  await page.getByRole('link', { name, exact: true }).click()
+  await page.getByRole('row', { name: new RegExp(name) }).click()
   await expect(page).toHaveURL(/\/events\/destinations\/dst_/)
-  await expect(page.getByRole('link', { name: 'All destinations' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Event relays' })).toBeVisible()
   await expect(page.getByText('http://127.0.0.1:9/')).toBeVisible()
   await expect(page.getByText('Signed', { exact: true })).toBeVisible()
   await expect(page.getByRole('tablist', { name: 'Delivery status' })).toBeVisible()
@@ -76,13 +79,12 @@ test('webhook destination with replay controls', async ({ page }) => {
 })
 
 test('slack channel, test send, rule and history', async ({ page }) => {
-  page.on('dialog', (dl) => void dl.accept())
   await signIn(page)
   const suffix = Date.now().toString(36)
   const channel = `team-${suffix}`
 
   await page.goto('/notifications')
-  await expect(page.getByRole('heading', { name: 'Notifications', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Alerts', level: 1 })).toBeVisible()
   await page.getByRole('button', { name: 'Add channel' }).click()
   let d = page.getByRole('dialog')
   await d.getByLabel('Name', { exact: true }).fill(channel)

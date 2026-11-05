@@ -1,13 +1,13 @@
 import { type ReactNode, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ActionIcon, Group, Menu, Stack, Text } from '@mantine/core'
-import { MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ActionIcon, Group, Menu, Stack, Switch, Text } from '@mantine/core'
+import { AlertTriangle, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button, EmptyState } from '@/components/ui'
 import { ConfirmDialog, MutationError } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { ResourceBadges } from '@/components/ResourceBadges'
 import { resourceListQuery, type ResourcePlural } from '@/lib/api/queries'
-import { useDeleteResource } from '@/lib/api/resources'
+import { useDeleteResource, useSaveResource } from '@/lib/api/resources'
 import type { ResourceMeta } from '@/lib/api/types'
 import { useCan } from '@/lib/session'
 import { type Column as KitColumn, DataTable, Section } from '@/ui/kit'
@@ -156,5 +156,43 @@ export function ResourceList<T extends ResourceMeta>({ plural, title, subtitle, 
         }}
       />
     </Section>
+  )
+}
+
+/**
+ * On/off state of a resource with an inline switch. "Off" reads as a
+ * warning ("Off — not sending") so a silent channel or rule is noticed.
+ */
+export function EnabledSwitch<S extends { enabled: boolean }>({ plural, r, offLabel = 'Off — not sending' }: {
+  plural: ResourcePlural
+  r: ResourceMeta & { spec: S }
+  offLabel?: string
+}) {
+  const canWrite = useCan('config.write')
+  const save = useSaveResource<S>(plural)
+  return (
+    <Group gap={8} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
+      {canWrite && (
+        <Switch
+          size="sm"
+          aria-label={`${r.spec.enabled ? 'Turn off' : 'Turn on'} ${r.name}`}
+          checked={r.spec.enabled}
+          disabled={save.isPending}
+          onChange={(e) => save.mutate({ existing: r, body: { name: r.name, spec: { ...r.spec, enabled: e.currentTarget.checked } } })}
+        />
+      )}
+      {r.spec.enabled ? (
+        <Text size="xs" c="dimmed">
+          On
+        </Text>
+      ) : (
+        <Group gap={4} wrap="nowrap" c="var(--warning)">
+          <AlertTriangle size={12} aria-hidden="true" />
+          <Text size="xs" c="inherit" fw={500}>
+            {offLabel}
+          </Text>
+        </Group>
+      )}
+    </Group>
   )
 }
