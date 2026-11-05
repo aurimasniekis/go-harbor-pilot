@@ -274,7 +274,24 @@ func cmdKeys(args []string, stdout, _ io.Writer) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(stdout, "re-wrapped %d secrets under master key %s; previous keys can now be removed from configuration\n", n, kr.CurrentID())
+		traces, err := store.Open(ctx, store.Options{Path: cfg.TracesDBPath(), Migrations: migrations.Traces(), Log: log})
+		if err != nil {
+			return err
+		}
+		defer traces.Close()
+		tn, err := app.RotateTraceKeys(ctx, traces, kr)
+		if err != nil {
+			return err
+		}
+		stale, err := app.StaleKeyIDs(ctx, db, traces, kr)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "re-wrapped %d secrets and %d trace keys under master key %s\n", n, tn, kr.CurrentID())
+		if len(stale) > 0 {
+			return fmt.Errorf("values are still sealed by key ids %s; keep the previous keys configured and investigate before removing them", strings.Join(stale, ", "))
+		}
+		fmt.Fprintln(stdout, "nothing is sealed by a previous key any more; previous keys can now be removed from configuration")
 		return nil
 	}
 	return fmt.Errorf("unknown keys command %q", args[0])
