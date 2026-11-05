@@ -70,7 +70,9 @@ type reqCtx struct {
 	claims    map[string]string
 	rec       telemetry.RequestRecord
 	outcome   Outcome
-	started   int // upstream attempts started
+	// current is the attempt being delivered, recorded as final by finish.
+	current *AttemptOutcome
+	started int // upstream attempts started
 }
 
 func (g *Gateway) handler(p ir.Protocol) http.HandlerFunc {
@@ -212,9 +214,17 @@ func (g *Gateway) serve(w http.ResponseWriter, r *http.Request, p ir.Protocol, p
 	g.Tel.Request(rc.rec)
 
 	// 4–6. Capability requirements, filtering and ranking.
+	intent, intentSrc := "", ""
+	if v := rc.claims["intent"]; v != "" && rc.binding.Spec.Trust.IntentHints {
+		intent, intentSrc = v, "declared"
+	}
+	reqs := ir.Requirements(req)
 	dec, derr := routing.Decide(routing.Input{Snapshot: rc.snap, Binding: rc.binding, Plan: rc.plan, RequestedModel: req.Model,
-		Required: ir.Requirements(req), SealedFamilies: ir.SealedFamilies(req), Inbound: p, SessionKey: rc.session.Key, RequestSeed: rc.id,
-		Now: rc.start, HealthOf: g.health, UpstreamFor: g.upstreamFor})
+		Required: reqs, SealedFamilies: ir.SealedFamilies(req), Inbound: p, SessionKey: rc.session.Key, RequestSeed: rc.id,
+		Now: rc.start, HealthOf: g.health, UpstreamFor: g.upstreamFor,
+		Harness: rc.harness.Name, HarnessConfidence: rc.harness.Confidence, Stream: req.Stream, ToolNames: tools.Offered,
+		Images: slices.Contains(reqs, "vision"), InputChars: inputChars(req), Intent: intent, IntentSource: intentSrc,
+		SessionConfidence: rc.session.Confidence, Refs: rc.refs, ProjectID: rc.project, WorkspaceID: rc.workspace})
 	rc.outcome.Decision = dec
 	rc.rec.Decision = dec
 	if dec != nil {
@@ -339,16 +349,15 @@ func (g *Gateway) dispatch(ctx context.Context, w http.ResponseWriter, rc *reqCt
 		if g.Metrics != nil {
 			g.Metrics.ReservationsTotal.WithLabelValues("taken").Inc()
 		}
+		rc.current = &ao
 		delivered, aerr := g.attempt(ctx, w, rc, &cand, attID, len(rc.outcome.Attempts)+1, step, rsv.ID)
-		ao.Err = nil
-		if aerr != nil {
-			ao.Err, ao.Executed = aerr.Err, aerr.Executed
-		}
-		rc.outcome.Attempts = append(rc.outcome.Attempts, ao)
+		rc.current = nil
 		if delivered {
-			rc.outcome.FinalIndex = len(rc.outcome.Attempts) - 1
+			// finish (called from delivery) recorded this attempt as final.
 			return
 		}
+		ao.Err, ao.Executed = aerr.Err, aerr.Executed
+		rc.outcome.Attempts = append(rc.outcome.Attempts, ao)
 		lastErr = aerr.Err
 		if !failoverAllowed(aerr) || ctx.Err() != nil {
 			break
@@ -390,6 +399,10 @@ func (g *Gateway) finish(ctx context.Context, rc *reqCtx, status string, e *ir.E
 		rc.rec.Losses = final.losses
 		rc.rec.BytesOut = final.bytesOut
 	}
+	if final != nil && rc.current != nil {
+		rc.outcome.Attempts = append(rc.outcome.Attempts, *rc.current)
+		rc.outcome.FinalIndex = len(rc.outcome.Attempts) - 1
+	}
 	rc.outcome.Status = status
 	g.Tel.Request(rc.rec)
 	if g.Metrics != nil {
@@ -413,4 +426,26 @@ type finalInfo struct {
 	toolCalls   int
 	losses      []ir.Loss
 	bytesOut    int64
+}
+
+// inputChars measures text size (not content) for routing expressions.
+func inputChars(r *ir.Request) int {
+	n := 0
+	for _, p := range r.System {
+		n += len(p.Text)
+	}
+	for _, m := range r.Messages {
+		for _, p := range m.Parts {
+			n += len(p.Text)
+			if p.ToolCall != nil {
+				n += len(p.ToolCall.Arguments)
+			}
+			if p.ToolResult != nil {
+				for _, c := range p.ToolResult.Content {
+					n += len(c.Text)
+				}
+			}
+		}
+	}
+	return n
 }

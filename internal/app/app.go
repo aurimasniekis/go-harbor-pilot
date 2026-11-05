@@ -31,12 +31,15 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/executor"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/executor/httpapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/gateway"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/clock"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/credentials"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/crypto"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/netpolicy"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/observability"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/reqmeta"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/routing"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/routing/routingapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/store"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/telemetry"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/telemetry/activityapi"
@@ -134,6 +137,7 @@ func New(ctx context.Context, o Options) (*App, error) {
 	a.Gateway = &gateway.Gateway{CP: a.CP, Acct: a.Acct, Tel: a.Tel, Sessions: telemetry.NewSessions(a.Tel, sessKey),
 		HTTP: httpapi.New("harbor-pilot/" + o.Version), Bridges: map[string]executor.Executor{}, DB: a.DB, Clock: a.Clock, Log: a.Log,
 		Metrics: a.Metrics, Limits: gateway.DefaultLimits}
+	a.Gateway.AfterRequest = gateway.NewTransitions(a.DB.W).After
 	a.AddBackground(a.Acct.Run)
 	a.AddBackground(a.Tel.Run)
 	a.AddRoutes(a.Gateway.Routes)
@@ -181,6 +185,21 @@ func (a *App) CoreAPI() []func(*api.API) {
 		a.registerSystem,
 		func(ap *api.API) {
 			cpapi.Register(ap, func() *controlplane.Service { return a.CP }, func() string { return a.Cfg.PublicOrigin() })
+		},
+		func(ap *api.API) {
+			routingapi.Register(ap, routingapi.Deps{CP: func() *controlplane.Service { return a.CP },
+				Health: func(id string) routing.Health {
+					if a.Gateway == nil {
+						return routing.Health{Available: true}
+					}
+					return a.Gateway.AccountHealth(id)
+				},
+				UpstreamFor: func(t string, p ir.Protocol) ir.Protocol {
+					if a.Gateway == nil {
+						return httpapi.UpstreamProtocol(t, p)
+					}
+					return a.Gateway.UpstreamProtocol(t, p)
+				}})
 		},
 		func(ap *api.API) {
 			activityapi.Register(ap, func() *store.DB { return a.DB }, func() int64 {

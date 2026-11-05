@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/app"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth"
@@ -364,3 +365,16 @@ func (e *Env) QueryString(q string, args ...any) string {
 
 // Sprintf is fmt.Sprintf (convenience for tests).
 var Sprintf = fmt.Sprintf
+
+// Eventually polls cond until it holds or the timeout expires.
+func (e *Env) Eventually(cond func() bool, what string) {
+	e.T.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	e.T.Fatalf("timed out waiting for %s", what)
+}

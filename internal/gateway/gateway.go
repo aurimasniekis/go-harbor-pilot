@@ -222,3 +222,11 @@ func (g *Gateway) executorFor(providerType string) executor.Executor {
 	}
 	return g.HTTP
 }
+
+// AccountHealth reports current account eligibility (for simulation).
+func (g *Gateway) AccountHealth(accountID string) routing.Health { return g.health(accountID) }
+
+// UpstreamProtocol reports which protocol a provider type would use.
+func (g *Gateway) UpstreamProtocol(providerType string, inbound ir.Protocol) ir.Protocol {
+	return g.upstreamFor(providerType, inbound)
+}

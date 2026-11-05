@@ -45,6 +45,21 @@ type Input struct {
 	HealthOf       func(accountID string) Health
 	// UpstreamFor returns the upstream protocol an executor would use.
 	UpstreamFor func(providerType string, inbound ir.Protocol) ir.Protocol
+
+	// Facts for routing expressions (observable request facts and trusted
+	// context; never prompt content).
+	Harness           string
+	HarnessConfidence string
+	Stream            bool
+	ToolNames         []string
+	Images            bool
+	InputChars        int
+	Intent            string // trusted declared intent
+	IntentSource      string
+	SessionConfidence string
+	Refs              map[string]string
+	ProjectID         string
+	WorkspaceID       string
 }
 
 // Candidate is an eligible (account, model) target.
@@ -95,6 +110,10 @@ type Decision struct {
 	Excluded       []Exclusion `json:"excluded"`
 	Notes          []string    `json:"notes"`
 	Affinity       string      `json:"affinity,omitempty"`
+	Intent         string      `json:"intent,omitempty"`
+	IntentSource   string      `json:"intent_source,omitempty"`
+	Rules          []Trace     `json:"rules"`
+	Mode           string      `json:"mode" doc:"live | simulation | replay"`
 }
 
 // Error is a routing failure with an explanation.
@@ -110,7 +129,7 @@ func (e *Error) Error() string { return e.Message }
 func Decide(in Input) (*Decision, error) {
 	s := in.Snapshot
 	d := &Decision{RequestedModel: in.RequestedModel, Required: slices.Clone(in.Required), Candidates: []Candidate{}, Excluded: []Exclusion{}, Notes: []string{},
-		ConfigRevision: s.ConfigRevision}
+		ConfigRevision: s.ConfigRevision, Rules: []Trace{}, Mode: "live", Intent: in.Intent, IntentSource: in.IntentSource}
 	if in.Plan == nil || in.Plan.Published == nil {
 		return d, &Error{Kind: ir.ErrPolicy, Message: "the client's routing plan has no published version", Decision: d}
 	}
@@ -139,6 +158,32 @@ func Decide(in Input) (*Decision, error) {
 		required = append(required, s.Aliases[id].Spec.RequiredCapabilities...)
 	}
 	required = cp.SortedUnique(required)
+
+	// Stage 2-3: request-level rules (access restrictions, capability
+	// requirements, rule-derived intent).
+	comp, _ := in.Plan.Published.Compiled.(*Compiled)
+	env := baseEnv(in, required)
+	if comp != nil && !comp.Empty {
+		for _, e := range comp.evaluate("request", env, &d.Rules, nil) {
+			switch e.action {
+			case "block":
+				d.Required = required
+				msg := e.reason
+				if msg == "" {
+					msg = "blocked by " + e.source
+				}
+				return d, &Error{Kind: ir.ErrPolicy, Message: msg, Decision: d}
+			case "require":
+				required = cp.SortedUnique(append(required, e.capability))
+				env.Request.Required = required
+			case "set_intent":
+				if d.Intent == "" {
+					d.Intent, d.IntentSource = e.intent, "rule"
+					env.Request.Intent, env.Request.IntentSource = e.intent, "rule"
+				}
+			}
+		}
+	}
 	d.Required = required
 
 	for _, m := range pool.Spec.Members {
@@ -228,10 +273,49 @@ func Decide(in Input) (*Decision, error) {
 				c.Reasons = append(c.Reasons, "opaque "+fam+" state in history will not reach this upstream")
 			}
 		}
+		// Stage 4-5: candidate rules after hard restrictions; they may
+		// exclude or adjust ranking, never re-admit.
+		if comp != nil && !comp.Empty {
+			cenv := candidateEnv(env, prov, acc, m, c, in.Now)
+			excluded := false
+			for _, e := range comp.evaluate("candidate", cenv, &d.Rules, &c) {
+				switch e.action {
+				case "exclude":
+					reason := e.reason
+					if reason == "" {
+						reason = e.source
+					}
+					fail("rule", "excluded_by_rule", reason)
+					excluded = true
+				case "boost":
+					c.Score += e.boost
+					c.Reasons = append(c.Reasons, fmt.Sprintf("%s %+g", e.source, e.boost))
+				}
+				if excluded {
+					break
+				}
+			}
+			if excluded {
+				continue
+			}
+			if comp.Score != nil {
+				sc, err := comp.score(cenv)
+				if err != nil {
+					d.Rules = append(d.Rules, Trace{Name: "score", Kind: "score", Stage: "candidate", Error: err.Error(), AccountID: c.AccountID, Model: c.Model})
+				} else {
+					c.Score += sc
+				}
+			}
+		}
 		d.Candidates = append(d.Candidates, c)
 	}
 
 	rank(d, pool, in)
+	// Stage 6: rule scores order candidates ahead of pool order; ties keep
+	// the deterministic pool order.
+	if comp != nil && !comp.Empty {
+		sort.SliceStable(d.Candidates, func(i, j int) bool { return d.Candidates[i].Score > d.Candidates[j].Score })
+	}
 
 	// Paid fallback: a metered candidate may only follow a non-metered
 	// first choice when the plan explicitly authorizes paid fallback.
@@ -278,14 +362,17 @@ func rank(d *Decision, pool *cp.Res[cp.PoolSpec], in Input) {
 		h := fnv.New64a()
 		h.Write([]byte(seed))
 		x := h.Sum64()
+		keys := map[string]float64{}
 		for i := range cs {
 			x ^= x << 13
 			x ^= x >> 7
 			x ^= x << 17
 			r := float64(x%1_000_000)/1_000_000 + 1e-9
-			cs[i].Score = -logApprox(r) / float64(max(cs[i].Weight, 1))
+			keys[cs[i].AccountID+"|"+cs[i].Model] = -logApprox(r) / float64(max(cs[i].Weight, 1))
 		}
-		sort.SliceStable(cs, func(i, j int) bool { return cs[i].Score < cs[j].Score })
+		sort.SliceStable(cs, func(i, j int) bool {
+			return keys[cs[i].AccountID+"|"+cs[i].Model] < keys[cs[j].AccountID+"|"+cs[j].Model]
+		})
 		d.Notes = append(d.Notes, "weighted ordering seeded per session")
 	case "round_robin":
 		n := rrNext(pool.ID, len(cs))
@@ -470,4 +557,59 @@ func Transition(f cp.FallbackPolicy, from, to Candidate) (string, bool) {
 		}
 	}
 	return step, false
+}
+
+func baseEnv(in Input, required []string) *Env {
+	e := &Env{}
+	e.Request = RequestEnv{Model: in.RequestedModel, Protocol: string(in.Inbound), Harness: in.Harness, HarnessConfidence: in.HarnessConfidence,
+		Stream: in.Stream, Tools: len(in.ToolNames), ToolNames: nonNil(in.ToolNames), Images: in.Images, InputChars: in.InputChars,
+		Required: nonNil(required), Intent: in.Intent, IntentSource: in.IntentSource, SessionConfidence: in.SessionConfidence}
+	refs := in.Refs
+	if refs == nil {
+		refs = map[string]string{}
+	}
+	e.Binding = BindingEnv{Name: in.Binding.Name, Harness: in.Binding.Spec.ExpectedHarness, Refs: refs}
+	if p := in.Snapshot.Projects[in.ProjectID]; p != nil {
+		e.Binding.Project = p.Name
+	}
+	if w := in.Snapshot.Workspaces[in.WorkspaceID]; w != nil {
+		e.Binding.Workspace = w.Name
+	}
+	e.Time = TimeEnv{Hour: in.Now.UTC().Hour(), Weekday: in.Now.UTC().Weekday().String()}
+	return e
+}
+
+func nonNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
+func candidateEnv(base *Env, prov *cp.Res[cp.ProviderSpec], acc *cp.Res[cp.AccountSpec], m cp.PoolMember, c Candidate, now time.Time) *Env {
+	e := *base
+	ce := CandidateEnv{Native: c.Native, Upstream: string(c.Upstream), Priority: c.Priority}
+	ce.Provider.Name, ce.Provider.Type, ce.Provider.Classification = prov.Name, prov.Spec.Type, prov.Spec.Classification
+	ce.Account.Name, ce.Account.Billing, ce.Account.Labels = acc.Name, acc.Spec.Billing, acc.Spec.Labels
+	if ce.Account.Labels == nil {
+		ce.Account.Labels = map[string]string{}
+	}
+	ce.Model.ID = m.Model
+	ce.Model.Capabilities = []string{}
+	if c.ModelSpec != nil {
+		ce.Model.Capabilities = nonNil(c.ModelSpec.Capabilities)
+		ce.Model.ContextWindow, ce.Model.MaxOutput = c.ModelSpec.ContextWindow, c.ModelSpec.MaxOutputTokens
+	}
+	ce.Health = HealthEnv{Available: true}
+	if h := c.Health; h != nil {
+		ce.Health.Available, ce.Health.Stale = h.Available, h.Stale
+		if h.Remaining != nil {
+			ce.Health.Known, ce.Health.Remaining = true, *h.Remaining
+		}
+		if h.ResetAt != nil {
+			ce.Health.ResetInMinutes = h.ResetAt.Sub(now).Minutes()
+		}
+	}
+	e.Candidate = ce
+	return &e
 }

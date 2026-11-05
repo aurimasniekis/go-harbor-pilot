@@ -19,7 +19,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R2.1 | Multi-provider, multi-account gateway | 4–5 | gateway, executor, routing | implemented | gateway, routing, executor/httpapi; acceptance A/B/E |
 | R2.2 | Harness integrations and protocol translation | 4, 12 | protocol, harness | in-progress | protocol adapters contract-tested; harness tooling Phase 12 |
 | R2.3 | API, subscription (CLI bridge) and local executors | 4, 7 | executor | in-progress | HTTP API + local executors; CLI bridges Phase 7 |
-| R2.4 | Explainable Expr routing plans and decision tables | 5 | routing | planned | |
+| R2.4 | Explainable Expr routing plans and decision tables | 5 | routing | in-progress | routing/engine.go (rules, decision tables, score), routingapi; TestEngineRules; editor UI pending |
 | R2.5 | Quota monitoring, account switching, budgets, attribution | 5–6 | quota, accounting | planned | |
 | R2.6 | Consumer-neutral identity via tokens and base URLs | 3–4 | controlplane, gateway | implemented | gateway auth by hpk_ token + base URL; acceptance A |
 | R2.7 | Activity statistics (models, intents, tools, sessions, attempts) | 4, 11 | telemetry | in-progress | requests/attempts/sessions/tool observation + activityapi; intents & rollups Phase 11 |
@@ -85,18 +85,18 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R7.5 | Hierarchy: workspace → run → session → request → attempts | 4, 11 | in-progress | ledger carries workspace/project/run/session/request/attempt |
 | R7.6 | Immutable, idempotent ledger with corrections; fixed-precision money | 4 | implemented | accounting ledger (append-only, idempotency_key, provenance, money.Amount) |
 | R7.7 | Atomic reservations; abandoned and crash recovery | 4 | contract-tested | accounting.Reserve (IMMEDIATE tx), reaper, RecoverStartup; scenario E |
-| R7.8 | Policy-controlled failover order; no ambiguous replay; no splicing; no unapproved paid fallback | 5 | in-progress | pre-first-byte failover, Transition steps, no ambiguous replay, paid fallback filter; scenarios C/D Phase 5 |
+| R7.8 | Policy-controlled failover order; no ambiguous replay; no splicing; no unapproved paid fallback | 5 | contract-tested | pre-first-byte failover, Transition steps, no ambiguous replay, paid fallback filter; TestScenarioC, TestScenarioD, TestTransitions |
 
 ## §8 Routing
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
 | R8.1 | Plan contents (aliases, pools, restrictions, capabilities, quota, ranking, retry, privacy, degradation) | 5 | planned | |
 | R8.2 | Aliases as data, not hard-coded | 3, 5 | implemented | model_alias kind (path names), plan model_mappings; ResolveModel tests |
-| R8.3 | Bounded Expr: typed, no side effects | 5 | planned | |
-| R8.4 | Nine evaluation stages; hard restrictions cannot be overridden by scores | 5 | planned | |
-| R8.5 | Rule builder, decision tables, Expr editor, variable reference | 5 | planned | |
-| R8.6 | Unknown, stale and missing semantics; immutable snapshots | 5 | planned | |
-| R8.7 | Draft, validate, publish, rollback; simulator; fixtures; replay distinct from simulation | 5 | in-progress | draft/validate/publish/rollback implemented (TestPlanVersionsPublishRollback); simulator/replay Phase 5 |
+| R8.3 | Bounded Expr: typed, no side effects | 5 | contract-tested | expr-lang typed env (expr.Env, AsBool/AsFloat64, MaxNodes, no now()/side-effect builtins); TestCompileErrors |
+| R8.4 | Nine evaluation stages; hard restrictions cannot be overridden by scores | 5 | in-progress | request stage (block/require/set_intent) → hard restrictions → health → candidate rules (exclude/boost) → score; exclusions never re-admitted (TestEngineRules); remaining stages tracked with quota/privacy/degradation phases |
+| R8.5 | Rule builder, decision tables, Expr editor, variable reference | 5 | in-progress | variable reference API (GET /routing/variables), expression validation API; rule builder/table/Expr editor UI pending |
+| R8.6 | Unknown, stale and missing semantics; immutable snapshots | 5 | in-progress | known() guard, unknown values error instead of matching (TestEngineRules), immutable snapshot; stale/fresh_within semantics land with quota freshness (Phase 6) |
+| R8.7 | Draft, validate, publish, rollback; simulator; fixtures; replay distinct from simulation | 5 | contract-tested | draft/validate/publish/rollback (TestPlanVersionsPublishRollback); simulate and replay APIs labelled mode=simulation/replay, no upstream calls (TestSimulationAndReplay); UI pending |
 | R8.8 | Cycle and ambiguity prevention; read-only decision graph | 3, 5 | in-progress | alias cycle/depth detection, duplicate mapping rejection (snapshot.go); decision graph UI pending |
 
 ## §9 Activity and intents
@@ -194,7 +194,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
 | R18.1 | All twelve screen groups listed in the brief | 2–11 | planned | |
-| R18.2 | "Why this route?" screen | 4, 11 | in-progress | GET /activity/requests/{id} carries decision, attempts, ledger; UI next |
+| R18.2 | "Why this route?" screen | 4, 11 | implemented | GET /activity/requests/{id}; web/src/routes/activity/$requestId.tsx; e2e activity.spec.ts |
 | R18.3 | Loading, empty, error, stale, partial, expired and denied states; keyboard access; responsive | all | in-progress | states/ErrorBoundary, a11y + responsive e2e for current screens |
 | R18.4 | Deterministic synthetic demo exercising real paths | 4+ | planned | |
 
@@ -203,8 +203,8 @@ This matrix maps every requirement in the product brief to the phase, package an
 |---|---|---|---|---|
 | A | Standalone harness using only a token and base URL | 4 | planned | `internal/acceptance/scenario_a_test.go` |
 | B | Cross-protocol tools and streaming | 4 | planned | scenario_b |
-| C | Exhaustion leads to failover and one switch event | 5 | planned | scenario_c |
-| D | Unapproved paid fallback blocked | 5 | planned | scenario_d |
+| C | Exhaustion leads to failover and one switch event | 5 | contract-tested | internal/acceptance/routing_test.go TestScenarioC_ExhaustionFailoverOneSwitchEvent |
+| D | Unapproved paid fallback blocked | 5 | contract-tested | internal/acceptance/routing_test.go TestScenarioD_UnapprovedPaidFallbackBlocked |
 | E | No over-allocation of concurrent reservations | 4 | planned | scenario_e |
 | F | Masked secret absent upstream and from persistence | 8 | planned | scenario_f |
 | G | Expired traces unreadable and unsearchable | 8 | planned | scenario_g |

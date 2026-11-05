@@ -512,6 +512,54 @@ components:
         - name
         - spec
       type: object
+    Candidate:
+      additionalProperties: false
+      properties:
+        account:
+          type: string
+        account_id:
+          type: string
+        billing:
+          type: string
+        health:
+          $ref: "#/components/schemas/Health"
+        model:
+          type: string
+        native:
+          type: boolean
+        priority:
+          format: int64
+          type: integer
+        provider:
+          type: string
+        provider_id:
+          type: string
+        reasons:
+          items:
+            type: string
+          type: array
+        score:
+          format: double
+          type: number
+        upstream_protocol:
+          type: string
+        weight:
+          format: int64
+          type: integer
+      required:
+        - provider_id
+        - provider
+        - account_id
+        - account
+        - model
+        - billing
+        - upstream_protocol
+        - native
+        - priority
+        - weight
+        - score
+        - reasons
+      type: object
     CostDTO:
       additionalProperties: false
       properties:
@@ -632,6 +680,86 @@ components:
           type: array
       required:
         - items
+      type: object
+    Decision:
+      additionalProperties: false
+      properties:
+        affinity:
+          type: string
+        alias:
+          type: string
+        alias_chain:
+          items:
+            type: string
+          type: array
+        alias_id:
+          type: string
+        candidates:
+          items:
+            $ref: "#/components/schemas/Candidate"
+          type: array
+        config_revision:
+          format: int64
+          type: integer
+        excluded:
+          items:
+            $ref: "#/components/schemas/Exclusion"
+          type: array
+        intent:
+          type: string
+        intent_source:
+          type: string
+        mode:
+          description: live | simulation | replay
+          type: string
+        notes:
+          items:
+            type: string
+          type: array
+        plan_id:
+          type: string
+        plan_version:
+          format: int64
+          type: integer
+        plan_version_id:
+          type: string
+        pool:
+          type: string
+        pool_id:
+          type: string
+        requested_model:
+          type: string
+        required_capabilities:
+          items:
+            type: string
+          type: array
+        resolution:
+          type: string
+        rules:
+          items:
+            $ref: "#/components/schemas/Trace"
+          type: array
+        strategy:
+          type: string
+      required:
+        - requested_model
+        - alias_id
+        - alias
+        - alias_chain
+        - resolution
+        - pool_id
+        - pool
+        - strategy
+        - plan_id
+        - plan_version
+        - plan_version_id
+        - config_revision
+        - required_capabilities
+        - candidates
+        - excluded
+        - notes
+        - rules
+        - mode
       type: object
     DraftRequest:
       additionalProperties: false
@@ -798,6 +926,58 @@ components:
         - code
         - message
       type: object
+    Exclusion:
+      additionalProperties: false
+      properties:
+        account:
+          type: string
+        account_id:
+          type: string
+        detail:
+          type: string
+        model:
+          type: string
+        provider_id:
+          type: string
+        reason:
+          type: string
+        stage:
+          type: string
+      required:
+        - provider_id
+        - account_id
+        - account
+        - model
+        - stage
+        - reason
+        - detail
+      type: object
+    ExprInBody:
+      additionalProperties: false
+      properties:
+        expression:
+          maxLength: 2000
+          type: string
+        kind:
+          enum:
+            - bool
+            - float
+            - any
+          type: string
+      required:
+        - expression
+        - kind
+      type: object
+    ExprOutBody:
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+        valid:
+          type: boolean
+      required:
+        - valid
+      type: object
     FallbackPolicy:
       additionalProperties: false
       properties:
@@ -850,6 +1030,58 @@ components:
           type: array
       required:
         - grants
+      type: object
+    Health:
+      additionalProperties: false
+      properties:
+        Available:
+          type: boolean
+        Reason:
+          type: string
+        Remaining:
+          format: double
+          type:
+            - number
+            - "null"
+        ResetAt:
+          format: date-time
+          type:
+            - string
+            - "null"
+        Stale:
+          type: boolean
+        Until:
+          format: date-time
+          type:
+            - string
+            - "null"
+      required:
+        - Available
+        - Reason
+        - Until
+        - Remaining
+        - ResetAt
+        - Stale
+      type: object
+    HealthOverride:
+      additionalProperties: false
+      properties:
+        available:
+          type: boolean
+        reason:
+          type: string
+        remaining:
+          format: double
+          maximum: 1
+          minimum: 0
+          type: number
+        reset_in_minutes:
+          format: double
+          type: number
+        stale:
+          type: boolean
+      required:
+        - available
       type: object
     HistoryEntry:
       additionalProperties: false
@@ -1853,6 +2085,38 @@ components:
         - request_timeout_seconds
         - stream_idle_timeout_seconds
         - models
+      type: object
+    ReplayInBody:
+      additionalProperties: false
+      properties:
+        health_mode:
+          enum:
+            - current
+            - assume_available
+            - ""
+          type: string
+        version_id:
+          description: "Plan version to replay against (default: currently published)."
+          type: string
+      type: object
+    ReplayResult:
+      additionalProperties: false
+      properties:
+        changed:
+          description: The first-choice candidate or outcome differs.
+          type: boolean
+        notes:
+          items:
+            type: string
+          type: array
+        recorded: {}
+        replay:
+          $ref: "#/components/schemas/SimulationResult"
+      required:
+        - recorded
+        - replay
+        - changed
+        - notes
       type: object
     RequestDetail:
       additionalProperties: false
@@ -2934,6 +3198,89 @@ components:
         - display_name
         - password
       type: object
+    SimulateRequest:
+      additionalProperties: false
+      properties:
+        at:
+          description: Evaluation time (default now).
+          format: date-time
+          type: string
+        binding_id:
+          description: Client binding context; default = a synthetic binding using this plan.
+          type: string
+        harness:
+          type: string
+        health_mode:
+          description: current (live health) or assume_available.
+          enum:
+            - current
+            - assume_available
+            - ""
+          type: string
+        health_overrides:
+          additionalProperties:
+            $ref: "#/components/schemas/HealthOverride"
+          description: Per-account health overrides keyed by account id.
+          type: object
+        images:
+          type: boolean
+        input_chars:
+          format: int64
+          type: integer
+        intent:
+          type: string
+        model:
+          minLength: 1
+          type: string
+        protocol:
+          enum:
+            - anthropic_messages
+            - openai_chat
+            - openai_responses
+            - gemini
+          type: string
+        required:
+          description: Capabilities the request needs.
+          items:
+            type: string
+          type: array
+        session_confidence:
+          type: string
+        stream:
+          type: boolean
+        tool_names:
+          items:
+            type: string
+          type: array
+        version_id:
+          description: Plan version to evaluate (draft allowed); default = published.
+          type: string
+      required:
+        - model
+        - protocol
+        - stream
+      type: object
+    SimulationResult:
+      additionalProperties: false
+      properties:
+        decision:
+          $ref: "#/components/schemas/Decision"
+        error:
+          description: Why the request would be refused.
+          type: string
+        error_kind:
+          type: string
+        mode:
+          description: simulation (synthetic input) or replay (recorded input).
+          type: string
+        version:
+          format: int64
+          type: integer
+      required:
+        - mode
+        - decision
+        - version
+      type: object
     SpBody:
       additionalProperties: false
       properties:
@@ -3031,6 +3378,34 @@ components:
         - cache_write
         - reasoning
       type: object
+    Trace:
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+        effect:
+          type: string
+        error:
+          type: string
+        kind:
+          type: string
+        matched:
+          type: boolean
+        model:
+          type: string
+        name:
+          type: string
+        row:
+          format: int64
+          type: integer
+        stage:
+          type: string
+      required:
+        - name
+        - kind
+        - stage
+        - matched
+      type: object
     UnlinkInBody:
       additionalProperties: false
       properties:
@@ -3124,6 +3499,33 @@ components:
         - warnings
         - checked_at
         - config_revision
+      type: object
+    Variable:
+      additionalProperties: false
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        stage:
+          type: string
+        type:
+          type: string
+      required:
+        - name
+        - type
+        - stage
+        - description
+      type: object
+    VarsOutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Variable"
+          type: array
+      required:
+        - items
       type: object
     Version:
       additionalProperties: false
@@ -3572,6 +3974,39 @@ paths:
       summary: Request detail with routing explanation, attempts and accounting
       tags:
         - Activity
+      x-permission: activity.read
+  /activity/requests/{id}/replay:
+    post:
+      operationId: replay-request
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplayInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReplayResult"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Re-evaluate a recorded request's routing with its recorded inputs (no upstream call)
+      tags:
+        - Routing
       x-permission: activity.read
   /activity/sessions:
     get:
@@ -6251,6 +6686,39 @@ paths:
       tags:
         - Routing plans
       x-permission: policy.publish
+  /routing-plans/{id}/simulate:
+    post:
+      operationId: simulate-plan
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulateRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulationResult"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Route a synthetic request through a plan version (no upstream call)
+      tags:
+        - Routing
+      x-permission: config.read
   /routing-plans/{id}/versions:
     get:
       operationId: list-plan-versions
@@ -6513,6 +6981,52 @@ paths:
       summary: Validate a version against the current configuration
       tags:
         - Routing plans
+      x-permission: config.read
+  /routing/validate-expression:
+    post:
+      operationId: validate-routing-expression
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExprInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExprOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Compile an expression against the typed environment
+      tags:
+        - Routing
+      x-permission: config.read
+  /routing/variables:
+    get:
+      operationId: list-routing-variables
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VarsOutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Typed reference of routing expression variables
+      tags:
+        - Routing
       x-permission: config.read
   /security-alerts:
     get:

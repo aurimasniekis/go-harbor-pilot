@@ -327,17 +327,17 @@ func loadDetail(ctx context.Context, q store.Execer, id string) (*RequestDetail,
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	var d RequestDetail
 	found := false
 	for rows.Next() {
 		s, err := scanSummary(rows)
 		if err != nil {
-			rows.Close()
 			return nil, err
 		}
 		d.RequestSummary, found = s, true
 	}
-	if err := rows.Close(); err != nil {
+	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	if !found {

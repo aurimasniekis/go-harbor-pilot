@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/activity/requests/{id}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-evaluate a recorded request's routing with its recorded inputs (no upstream call) */
+        post: operations["replay-request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/activity/sessions": {
         parameters: {
             query?: never;
@@ -795,6 +812,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/routing-plans/{id}/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Route a synthetic request through a plan version (no upstream call) */
+        post: operations["simulate-plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/routing-plans/{id}/versions": {
         parameters: {
             query?: never;
@@ -860,6 +894,40 @@ export interface paths {
         put?: never;
         /** Validate a version against the current configuration */
         post: operations["validate-plan-version"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routing/validate-expression": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compile an expression against the typed environment */
+        post: operations["validate-routing-expression"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routing/variables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Typed reference of routing expression variables */
+        get: operations["list-routing-variables"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1510,6 +1578,24 @@ export interface components {
             };
             spec: unknown;
         };
+        Candidate: {
+            account: string;
+            account_id: string;
+            billing: string;
+            health?: components["schemas"]["Health"];
+            model: string;
+            native: boolean;
+            /** Format: int64 */
+            priority: number;
+            provider: string;
+            provider_id: string;
+            reasons: string[];
+            /** Format: double */
+            score: number;
+            upstream_protocol: string;
+            /** Format: int64 */
+            weight: number;
+        };
         CostDTO: {
             /** @description Exact decimal. */
             amount: string;
@@ -1561,6 +1647,32 @@ export interface components {
         };
         CredentialList: {
             items: components["schemas"]["Credential"][];
+        };
+        Decision: {
+            affinity?: string;
+            alias: string;
+            alias_chain: string[];
+            alias_id: string;
+            candidates: components["schemas"]["Candidate"][];
+            /** Format: int64 */
+            config_revision: number;
+            excluded: components["schemas"]["Exclusion"][];
+            intent?: string;
+            intent_source?: string;
+            /** @description live | simulation | replay */
+            mode: string;
+            notes: string[];
+            plan_id: string;
+            /** Format: int64 */
+            plan_version: number;
+            plan_version_id: string;
+            pool: string;
+            pool_id: string;
+            requested_model: string;
+            required_capabilities: string[];
+            resolution: string;
+            rules: components["schemas"]["Trace"][];
+            strategy: string;
         };
         DraftRequest: {
             document: components["schemas"]["PlanDocument"];
@@ -1628,6 +1740,24 @@ export interface components {
             /** @description Correlates with server logs. */
             request_id?: string;
         };
+        Exclusion: {
+            account: string;
+            account_id: string;
+            detail: string;
+            model: string;
+            provider_id: string;
+            reason: string;
+            stage: string;
+        };
+        ExprInBody: {
+            expression: string;
+            /** @enum {string} */
+            kind: "bool" | "float" | "any";
+        };
+        ExprOutBody: {
+            error?: string;
+            valid: boolean;
+        };
         FallbackPolicy: {
             /** @description Allow falling back from free/subscription/local candidates to metered_api candidates. */
             allow_paid_fallback: boolean;
@@ -1647,6 +1777,26 @@ export interface components {
         };
         GrantsInBody: {
             grants: ("traces.content.read" | "traces.content.unredacted" | "traces.export")[];
+        };
+        Health: {
+            Available: boolean;
+            Reason: string;
+            /** Format: double */
+            Remaining: number | null;
+            /** Format: date-time */
+            ResetAt: string | null;
+            Stale: boolean;
+            /** Format: date-time */
+            Until: string | null;
+        };
+        HealthOverride: {
+            available: boolean;
+            reason?: string;
+            /** Format: double */
+            remaining?: number;
+            /** Format: double */
+            reset_in_minutes?: number;
+            stale?: boolean;
         };
         HistoryEntry: {
             actor_id: string;
@@ -2043,6 +2193,19 @@ export interface components {
             stream_idle_timeout_seconds: number;
             /** @enum {string} */
             type: "anthropic" | "openai" | "gemini" | "openai_compatible" | "ollama" | "claude_code" | "codex";
+        };
+        ReplayInBody: {
+            /** @enum {string} */
+            health_mode?: "current" | "assume_available" | "";
+            /** @description Plan version to replay against (default: currently published). */
+            version_id?: string;
+        };
+        ReplayResult: {
+            /** @description The first-choice candidate or outcome differs. */
+            changed: boolean;
+            notes: string[];
+            recorded: unknown;
+            replay: components["schemas"]["SimulationResult"];
         };
         RequestDetail: {
             alias_id: string;
@@ -2526,6 +2689,49 @@ export interface components {
             password: string;
             token: string;
         };
+        SimulateRequest: {
+            /**
+             * Format: date-time
+             * @description Evaluation time (default now).
+             */
+            at?: string;
+            /** @description Client binding context; default = a synthetic binding using this plan. */
+            binding_id?: string;
+            harness?: string;
+            /**
+             * @description current (live health) or assume_available.
+             * @enum {string}
+             */
+            health_mode?: "current" | "assume_available" | "";
+            /** @description Per-account health overrides keyed by account id. */
+            health_overrides?: {
+                [key: string]: components["schemas"]["HealthOverride"];
+            };
+            images?: boolean;
+            /** Format: int64 */
+            input_chars?: number;
+            intent?: string;
+            model: string;
+            /** @enum {string} */
+            protocol: "anthropic_messages" | "openai_chat" | "openai_responses" | "gemini";
+            /** @description Capabilities the request needs. */
+            required?: string[];
+            session_confidence?: string;
+            stream: boolean;
+            tool_names?: string[];
+            /** @description Plan version to evaluate (draft allowed); default = published. */
+            version_id?: string;
+        };
+        SimulationResult: {
+            decision: components["schemas"]["Decision"];
+            /** @description Why the request would be refused. */
+            error?: string;
+            error_kind?: string;
+            /** @description simulation (synthetic input) or replay (recorded input). */
+            mode: string;
+            /** Format: int64 */
+            version: number;
+        };
         SpBody: {
             description?: string;
             disabled?: boolean;
@@ -2563,6 +2769,18 @@ export interface components {
             /** Format: int64 */
             reasoning: number | null;
         };
+        Trace: {
+            account_id?: string;
+            effect?: string;
+            error?: string;
+            kind: string;
+            matched: boolean;
+            model?: string;
+            name: string;
+            /** Format: int64 */
+            row?: number;
+            stage: string;
+        };
         UnlinkInBody: {
             issuer: string;
             subject: string;
@@ -2597,6 +2815,15 @@ export interface components {
             errors: components["schemas"]["FieldError"][];
             valid: boolean;
             warnings: components["schemas"]["FieldError"][];
+        };
+        Variable: {
+            description: string;
+            name: string;
+            stage: string;
+            type: string;
+        };
+        VarsOutBody: {
+            items: components["schemas"]["Variable"][];
         };
         Version: {
             /** Format: date-time */
@@ -2792,6 +3019,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RequestDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replay-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplayInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayResult"];
                 };
             };
             /** @description Error */
@@ -5189,6 +5451,41 @@ export interface operations {
             };
         };
     };
+    "simulate-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimulationResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-plan-versions": {
         parameters: {
             query?: never;
@@ -5413,6 +5710,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ValidationReport"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "validate-routing-expression": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExprInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExprOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-routing-variables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VarsOutBody"];
                 };
             };
             /** @description Error */
