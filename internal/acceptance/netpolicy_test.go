@@ -80,7 +80,9 @@ func TestStoredSecretsDoNotFollowDestinationChanges(t *testing.T) {
 	var ch struct {
 		ID string `json:"id"`
 	}
-	spec := func(url string) map[string]any { return map[string]any{"type": "webhook", "enabled": false, "webhook_url": url} }
+	spec := func(url string) map[string]any {
+		return map[string]any{"type": "webhook", "enabled": false, "webhook_url": url}
+	}
 	e.Admin.MustDo(201, "POST", "/api/v1/notification-channels", map[string]any{"name": "hook", "spec": spec("https://hooks.example.test/a"),
 		"secrets": map[string]string{"secret": "whsec-test"}}, &ch)
 	tests := []struct {
