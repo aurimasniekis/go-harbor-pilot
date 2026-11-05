@@ -1,0 +1,75 @@
+import { useState } from 'react'
+import { describe, expect, it, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { ApiError } from '@/lib/api/client'
+import { QuotaBar, Tabs } from './ui'
+import { QueryError } from './states'
+
+describe('QuotaBar', () => {
+  it('shows Unknown without a fill for unknown values', () => {
+    render(<QuotaBar label="5-hour" percent={null} />)
+    const meter = screen.getByRole('meter', { name: '5-hour' })
+    expect(meter).toHaveAttribute('aria-valuetext', 'Unknown')
+    expect(meter).not.toHaveAttribute('aria-valuenow')
+    expect(meter).toHaveAttribute('data-unknown', 'true')
+    expect(screen.getByText('Unknown')).toBeInTheDocument()
+  })
+
+  it('shows a real zero as 0% left', () => {
+    render(<QuotaBar label="7-day" percent={0} />)
+    const meter = screen.getByRole('meter', { name: '7-day' })
+    expect(meter).toHaveAttribute('aria-valuenow', '0')
+    expect(screen.getByText('0% left')).toBeInTheDocument()
+  })
+
+  it('marks stale values', () => {
+    render(<QuotaBar label="5-hour" percent={42} stale />)
+    expect(screen.getByRole('meter')).toHaveAttribute('aria-valuetext', '42 percent remaining, stale')
+    expect(screen.getByText(/42% left · stale/)).toBeInTheDocument()
+  })
+})
+
+describe('Tabs', () => {
+  function Harness() {
+    const [v, setV] = useState<'a' | 'b' | 'c'>('a')
+    return (
+      <Tabs
+        label="Providers"
+        value={v}
+        onChange={setV}
+        items={[
+          { value: 'a', label: 'All', count: 3 },
+          { value: 'b', label: 'Claude', disabled: true },
+          { value: 'c', label: 'Codex' },
+        ]}
+      />
+    )
+  }
+
+  it('supports arrow, Home and End keys and skips disabled tabs', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const all = screen.getByRole('tab', { name: /All/ })
+    all.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(screen.getByRole('tab', { name: 'Codex' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Codex' })).toHaveFocus()
+    await user.keyboard('{Home}')
+    expect(all).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{End}')
+    expect(screen.getByRole('tab', { name: 'Codex' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Claude' })).toBeDisabled()
+  })
+})
+
+describe('QueryError', () => {
+  it('shows the message, request id and a retry button', async () => {
+    const retry = vi.fn()
+    render(<QueryError error={new ApiError(500, 'internal', 'internal server error', 'req-123')} retry={retry} />)
+    expect(screen.getByText('Could not load data')).toBeInTheDocument()
+    expect(screen.getByText(/internal server error \(request req-123\)/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(retry).toHaveBeenCalledOnce()
+  })
+})
