@@ -18,6 +18,10 @@ import s from './ProviderIcon.module.css'
 // instead of a hand-drawn logo.
 const byProvider: Record<string, SimpleIcon> = {
   anthropic_admin: siAnthropic,
+  // Gateway provider types.
+  anthropic: siAnthropic,
+  gemini: siGooglegemini,
+  claude_code: siClaude,
 }
 
 const byFamily: Record<string, SimpleIcon> = {
