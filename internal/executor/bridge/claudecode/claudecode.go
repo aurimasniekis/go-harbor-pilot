@@ -88,8 +88,11 @@ type Bridge struct {
 
 	mu    sync.Mutex
 	procs map[string]*proc
-	stop  chan struct{}
-	once  sync.Once
+	// reserved counts spawns in progress per account (and overall), so
+	// concurrent spawns cannot exceed the process limits.
+	reserved map[string]int
+	stop     chan struct{}
+	once     sync.Once
 }
 
 // New creates the bridge and starts its reaper.
@@ -115,7 +118,7 @@ func New(o Options) *Bridge {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	b := &Bridge{o: o, mcp: bridge.NewMCPServer(), procs: map[string]*proc{}, stop: make(chan struct{})}
+	b := &Bridge{o: o, mcp: bridge.NewMCPServer(), procs: map[string]*proc{}, reserved: map[string]int{}, stop: make(chan struct{})}
 	go b.reaper()
 	return b
 }
@@ -169,6 +172,58 @@ func (b *Bridge) reaper() {
 		b.mu.Unlock()
 		for _, p := range dead {
 			p.kill("idle timeout")
+		}
+		b.sweepConversationFiles(now)
+	}
+}
+
+// cacheDirs are the CLI's per-working-directory caches (MCP logs and
+// similar), keyed by the escaped working directory.
+func cacheDirs(home, work string) []string {
+	if home == "" || work == "" {
+		return nil
+	}
+	esc := unsafePath.ReplaceAllString(work, "-")
+	return []string{
+		filepath.Join(home, "Library", "Caches", "claude-cli-nodejs", esc),
+		filepath.Join(home, ".cache", "claude-cli-nodejs", esc),
+	}
+}
+
+// sweepConversationFiles removes transcripts, caches and run files that no
+// live process owns (left behind by a crash or restart), so conversation
+// content never outlives its process by more than one idle period.
+func (b *Bridge) sweepConversationFiles(now time.Time) {
+	b.mu.Lock()
+	live := map[string]bool{}
+	for _, p := range b.procs {
+		live[p.workDir], live[p.runDir], live[p.sessDir] = true, true, true
+		for _, d := range cacheDirs(p.home, p.workDir) {
+			live[d] = true
+		}
+	}
+	b.mu.Unlock()
+	grace := max(b.o.IdleTimeout, b.o.ToolTimeout)
+	var parents []string
+	accounts, _ := filepath.Glob(filepath.Join(b.o.Root, "accounts", "*"))
+	for _, a := range accounts {
+		parents = append(parents, filepath.Join(a, "config", "projects"), filepath.Join(a, "home", "Library", "Caches", "claude-cli-nodejs"),
+			filepath.Join(a, "home", ".cache", "claude-cli-nodejs"))
+	}
+	parents = append(parents, filepath.Join(b.o.Root, "w"), filepath.Join(b.o.Root, "r"))
+	for _, parent := range parents {
+		entries, err := os.ReadDir(parent)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			path := filepath.Join(parent, e.Name())
+			if live[path] {
+				continue
+			}
+			if info, err := e.Info(); err == nil && now.Sub(info.ModTime()) > grace {
+				_ = os.RemoveAll(path)
+			}
 		}
 	}
 }
@@ -449,6 +504,10 @@ type proc struct {
 	lines     chan line
 	sess      *bridge.Session
 	workDir   string
+	runDir    string // private files: MCP config with the session token, system prompt
+	sessDir   string // the CLI's transcript directory for this process
+	home      string // the account's HOME (per-workdir CLI caches live under it)
+	scope     string // gateway client scope; processes are reused only within it
 
 	mu       sync.Mutex
 	state    procState
@@ -467,9 +526,7 @@ func (p *proc) kill(reason string) {
 	}
 	p.state = stateDead
 	p.mu.Unlock()
-	if p.cmd.Process != nil {
-		_ = p.cmd.Process.Kill()
-	}
+	bridge.KillTree(p.cmd)
 	p.sess.Close()
 	_ = p.stdin.Close()
 	p.b.mu.Lock()
@@ -477,7 +534,16 @@ func (p *proc) kill(reason string) {
 	p.b.mu.Unlock()
 	go func() {
 		_ = p.cmd.Wait()
+		// Conversation content must not outlive the process: remove the
+		// work dir, the private run files and the CLI's transcript.
 		_ = os.RemoveAll(p.workDir)
+		_ = os.RemoveAll(p.runDir)
+		if p.sessDir != "" {
+			_ = os.RemoveAll(p.sessDir)
+		}
+		for _, d := range cacheDirs(p.home, p.workDir) {
+			_ = os.RemoveAll(d)
+		}
 	}()
 	p.b.o.Log.Debug("bridge.process.ended", "process", p.id, "account_id", p.accountID, "reason", reason)
 }
@@ -501,10 +567,12 @@ var unsafePath = regexp.MustCompile(`[^A-Za-z0-9]`)
 
 // spawn starts a process holding history; the caller then writes the next
 // user message.
-func (b *Bridge) spawn(ctx context.Context, accountID string, cred credentials.Secret, model, effort string, c *conv, history []json.RawMessage) (*proc, error) {
-	if err := b.reserveSlot(accountID); err != nil {
+func (b *Bridge) spawn(ctx context.Context, accountID, scope string, cred credentials.Secret, model, effort string, c *conv, history []json.RawMessage) (_ *proc, err error) {
+	release, err := b.reserveSlot(accountID)
+	if err != nil {
 		return nil, err
 	}
+	defer release()
 	base := filepath.Join(b.o.Root, "accounts", safeName(accountID))
 	cfgDir, home := filepath.Join(base, "config"), filepath.Join(base, "home")
 	for _, d := range []string{cfgDir, home, filepath.Join(b.o.Root, "w")} {
@@ -519,27 +587,51 @@ func (b *Bridge) spawn(ctx context.Context, accountID string, cred credentials.S
 	if real, err := filepath.EvalSymlinks(work); err == nil {
 		work = real
 	}
-	sess, err := b.mcp.NewSession(c.Tools)
-	if err != nil {
+	sessDir := filepath.Join(cfgDir, "projects", unsafePath.ReplaceAllString(work, "-"))
+	var sess *bridge.Session
+	runDir := ""
+	defer func() {
+		if err == nil {
+			return
+		}
+		if sess != nil {
+			sess.Close()
+		}
 		_ = os.RemoveAll(work)
+		_ = os.RemoveAll(sessDir)
+		if runDir != "" {
+			_ = os.RemoveAll(runDir)
+		}
+	}()
+	if sess, err = b.mcp.NewSession(c.Tools); err != nil {
 		return nil, err
 	}
-	mcpCfg, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{"client": map[string]any{"type": "http", "url": sess.URL()}}})
+	// The MCP session token and the system prompt go in 0600 files, not in
+	// arguments that any local user can read.
+	if runDir, err = bridge.PrivateDir(b.o.Root); err != nil {
+		return nil, err
+	}
+	mcpCfg, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{"client": map[string]any{"type": "http", "url": sess.URL(),
+		"headers": map[string]string{"Authorization": "Bearer " + sess.Token()}}}})
+	mcpPath, sysPath := filepath.Join(runDir, "mcp.json"), filepath.Join(runDir, "system.txt")
+	if err = bridge.WritePrivate(mcpPath, mcpCfg); err != nil {
+		return nil, err
+	}
+	if err = bridge.WritePrivate(sysPath, []byte(c.System)); err != nil {
+		return nil, err
+	}
 	args := []string{"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
-		"--strict-mcp-config", "--mcp-config", string(mcpCfg), "--tools", "", "--allowedTools", "mcp__client",
-		"--setting-sources", "", "--model", model, "--system-prompt", c.System}
+		"--strict-mcp-config", "--mcp-config", mcpPath, "--tools", "", "--allowedTools", "mcp__client",
+		"--setting-sources", "", "--model", model, "--system-prompt-file", sysPath}
 	if effort != "" {
 		args = append(args, "--effort", effort)
 	}
 	if len(history) > 0 {
 		sid := newUUID()
-		dir := filepath.Join(cfgDir, "projects", unsafePath.ReplaceAllString(work, "-"))
-		if err := os.MkdirAll(dir, 0o700); err != nil {
-			sess.Close()
+		if err = os.MkdirAll(sessDir, 0o700); err != nil {
 			return nil, err
 		}
-		if err := writeTranscript(filepath.Join(dir, sid+".jsonl"), sid, work, model, c, history); err != nil {
-			sess.Close()
+		if err = writeTranscript(filepath.Join(sessDir, sid+".jsonl"), sid, work, model, c, history); err != nil {
 			return nil, err
 		}
 		args = append(args, "--resume", sid)
@@ -568,22 +660,20 @@ func (b *Bridge) spawn(ctx context.Context, accountID string, cred credentials.S
 	}, b.o.ExtraEnv...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		sess.Close()
 		return nil, err
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		sess.Close()
 		return nil, err
 	}
 	cmd.Stderr = io.Discard
-	if err := cmd.Start(); err != nil {
-		sess.Close()
-		_ = os.RemoveAll(work)
+	bridge.Isolate(cmd)
+	if err = cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start claude: %w", err)
 	}
-	p := &proc{b: b, id: randID(8), accountID: accountID, model: model, sysKey: hashOf(c.System), toolsKey: toolsKey(c.Tools), conv: c,
-		cmd: cmd, stdin: stdin, lines: make(chan line, 256), sess: sess, workDir: work, state: stateBusy, lastUsed: b.o.Now()}
+	p := &proc{b: b, id: randID(8), accountID: accountID, scope: scope, model: model, sysKey: hashOf(c.System), toolsKey: toolsKey(c.Tools), conv: c,
+		cmd: cmd, stdin: stdin, lines: make(chan line, 256), sess: sess, workDir: work, runDir: runDir, sessDir: sessDir, home: home, state: stateBusy,
+		lastUsed: b.o.Now()}
 	b.mu.Lock()
 	b.procs[p.id] = p
 	b.mu.Unlock()
@@ -593,12 +683,45 @@ func (b *Bridge) spawn(ctx context.Context, accountID string, cred credentials.S
 
 func safeName(s string) string { return unsafePath.ReplaceAllString(s, "_") }
 
-// slot accounting: spawning holds a provisional slot so concurrent spawns
-// respect the limits.
-func (b *Bridge) reserveSlot(accountID string) error {
+// PruneAccounts removes the private directories (CLI config, transcripts,
+// caches) of accounts that no longer exist, unless a process of theirs is
+// still running.
+func (b *Bridge) PruneAccounts(active map[string]bool) {
+	keep := map[string]bool{}
+	for id := range active {
+		keep[safeName(id)] = true
+	}
+	b.mu.Lock()
+	for _, p := range b.procs {
+		keep[safeName(p.accountID)] = true
+	}
+	b.mu.Unlock()
+	entries, _ := os.ReadDir(filepath.Join(b.o.Root, "accounts"))
+	for _, e := range entries {
+		if e.IsDir() && !keep[e.Name()] {
+			_ = os.RemoveAll(filepath.Join(b.o.Root, "accounts", e.Name()))
+		}
+	}
+}
+
+// reserveSlot holds a provisional slot while a process is being spawned, so
+// concurrent spawns respect the limits; release it once the process is
+// registered (or the spawn failed).
+func (b *Bridge) reserveSlot(accountID string) (release func(), err error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	per := 0
+	release = func() {
+		b.mu.Lock()
+		if b.reserved[accountID]--; b.reserved[accountID] <= 0 {
+			delete(b.reserved, accountID)
+		}
+		b.mu.Unlock()
+	}
+	total := 0
+	for _, n := range b.reserved {
+		total += n
+	}
+	per := b.reserved[accountID]
 	var idle []*proc
 	for _, p := range b.procs {
 		if p.accountID == accountID {
@@ -610,8 +733,9 @@ func (b *Bridge) reserveSlot(accountID string) error {
 		}
 		p.mu.Unlock()
 	}
-	if len(b.procs) < b.o.MaxProcesses && per < b.o.MaxPerAccount {
-		return nil
+	if len(b.procs)+total < b.o.MaxProcesses && per < b.o.MaxPerAccount {
+		b.reserved[accountID]++
+		return release, nil
 	}
 	// Evict the least recently used idle process (of this account first).
 	sort.Slice(idle, func(i, j int) bool {
@@ -621,14 +745,15 @@ func (b *Bridge) reserveSlot(accountID string) error {
 		}
 		return idle[i].lastUsed.Before(idle[j].lastUsed)
 	})
-	if len(idle) > 0 && (len(b.procs) >= b.o.MaxProcesses || idle[0].accountID == accountID) {
+	if len(idle) > 0 && (len(b.procs)+total >= b.o.MaxProcesses || idle[0].accountID == accountID) {
 		victim := idle[0]
+		b.reserved[accountID]++
 		b.mu.Unlock()
 		victim.kill("evicted")
 		b.mu.Lock()
-		return nil
+		return release, nil
 	}
-	return errBusy
+	return nil, errBusy
 }
 
 var errBusy = errors.New("all CLI bridge processes for this account are busy")
@@ -741,7 +866,7 @@ func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credential
 	results, extra := toolResults(last)
 
 	// 1. A parked process holding exactly this conversation continues.
-	p := b.claim(t.Account.ID, t.Model, c, histFP, results)
+	p := b.claim(t.Account.ID, req.Scope, t.Model, c, histFP, results)
 	if p != nil {
 		p.conv = c
 		if len(results) > 0 && len(p.pending) > 0 {
@@ -775,7 +900,7 @@ func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credential
 			history = append(history, last)
 			last = json.RawMessage(`{"role":"user","content":[{"type":"text","text":"Continue."}]}`)
 		}
-		np, err := b.spawn(ctx, t.Account.ID, cred, t.Model, effort, c, history)
+		np, err := b.spawn(ctx, t.Account.ID, req.Scope, cred, t.Model, effort, c, history)
 		if errors.Is(err, errBusy) {
 			return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrOverloaded, Message: err.Error()}}
 		}
@@ -821,13 +946,13 @@ func accountScoped(k ir.ErrorKind) bool {
 }
 
 // claim takes a parked process matching the conversation.
-func (b *Bridge) claim(accountID, model string, c *conv, histFP string, results map[string]bridge.ToolReply) *proc {
+func (b *Bridge) claim(accountID, scope, model string, c *conv, histFP string, results map[string]bridge.ToolReply) *proc {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	sk, tk := hashOf(c.System), toolsKey(c.Tools)
 	for _, p := range b.procs {
 		p.mu.Lock()
-		ok := p.accountID == accountID && p.model == model && p.sysKey == sk && p.toolsKey == tk && p.fp == histFP
+		ok := p.accountID == accountID && p.scope == scope && p.model == model && p.sysKey == sk && p.toolsKey == tk && p.fp == histFP
 		if ok {
 			switch p.state {
 			case stateIdle:

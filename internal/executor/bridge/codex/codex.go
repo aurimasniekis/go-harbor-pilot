@@ -17,12 +17,14 @@ package codex
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -69,8 +71,8 @@ type Bridge struct {
 }
 
 type threadInfo struct {
-	id, accountID, model, key string
-	at                        time.Time
+	id, accountID, model, key, scope string
+	at                               time.Time
 }
 
 // New creates the bridge.
@@ -129,6 +131,7 @@ func (b *Bridge) reaper() {
 		for _, r := range dead {
 			r.kill()
 		}
+		b.sweepSessions(now)
 	}
 }
 
@@ -292,7 +295,11 @@ type run struct {
 	sess      *bridge.Session
 	events    chan event
 	work      string
-	nameMap   map[string]string // mcp name -> client name
+	scope     string // gateway client scope; parked processes are reused only within it
+	// profile names the per-run config file (developer instructions, MCP
+	// endpoint) in the account's CODEX_HOME; removed when the run ends.
+	profile, profilePath string
+	nameMap              map[string]string // mcp name -> client name
 
 	mu       sync.Mutex
 	threadID string
@@ -314,9 +321,7 @@ func (r *run) kill() {
 	}
 	r.dead = true
 	r.mu.Unlock()
-	if r.cmd.Process != nil {
-		_ = r.cmd.Process.Kill()
-	}
+	bridge.KillTree(r.cmd)
 	if r.sess != nil {
 		r.sess.Close()
 	}
@@ -326,17 +331,125 @@ func (r *run) kill() {
 	go func() {
 		_ = r.cmd.Wait()
 		_ = os.RemoveAll(r.work)
+		_ = os.Remove(r.profilePath)
 	}()
 }
 
 var unsafePath = regexp.MustCompile(`[^A-Za-z0-9]`)
+
+func randHex(n int) string {
+	b := make([]byte, n)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// seedAuth writes the account's sign-in file from the stored credential.
+// The CLI refreshes the file in place, so it is rewritten only when the
+// stored credential itself changed (tracked by a hash), never on every run.
+func seedAuth(codexHome string, cred credentials.Secret) error {
+	authFile, seedFile := filepath.Join(codexHome, "auth.json"), filepath.Join(codexHome, ".hp-auth-seed")
+	if cred.IsZero() {
+		return nil
+	}
+	sum := sha256.Sum256([]byte(cred.Reveal()))
+	want := hex.EncodeToString(sum[:])
+	have, _ := os.ReadFile(seedFile) //nolint:gosec // inside the account's private directory
+	if _, err := os.Stat(authFile); err == nil && string(have) == want {
+		return nil
+	}
+	tmp := authFile + ".tmp"
+	_ = os.Remove(tmp)
+	if err := bridge.WritePrivate(tmp, []byte(cred.Reveal())); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, authFile); err != nil {
+		return err
+	}
+	_ = os.Remove(seedFile)
+	return bridge.WritePrivate(seedFile, []byte(want))
+}
+
+// PruneAccounts removes the private directories (sign-in file, sessions) of
+// accounts that no longer exist, unless a process of theirs is running.
+func (b *Bridge) PruneAccounts(active map[string]bool) {
+	keep := map[string]bool{}
+	for id := range active {
+		keep[unsafePath.ReplaceAllString(id, "_")] = true
+	}
+	b.mu.Lock()
+	for _, r := range b.running {
+		keep[unsafePath.ReplaceAllString(r.accountID, "_")] = true
+	}
+	b.mu.Unlock()
+	entries, _ := os.ReadDir(filepath.Join(b.o.Root, "accounts"))
+	for _, e := range entries {
+		if e.IsDir() && !keep[e.Name()] {
+			_ = os.RemoveAll(filepath.Join(b.o.Root, "accounts", e.Name()))
+		}
+	}
+}
+
+// sweepSessions removes conversation files the CLI keeps for resuming
+// (rollouts, prompt history) once they are older than the thread TTL, and
+// per-run profiles and work dirs left behind by a crash.
+func (b *Bridge) sweepSessions(now time.Time) {
+	b.mu.Lock()
+	live := map[string]bool{}
+	for _, r := range b.running {
+		live[r.work], live[r.profilePath] = true, true
+	}
+	b.mu.Unlock()
+	old := func(path string, age time.Duration) bool {
+		info, err := os.Stat(path)
+		return err == nil && now.Sub(info.ModTime()) > age
+	}
+	homes, _ := filepath.Glob(filepath.Join(b.o.Root, "accounts", "*", "codex_home"))
+	for _, h := range homes {
+		for _, dir := range []string{"sessions", "archived_sessions"} {
+			// Walk inside an os.Root so a symlink in the tree cannot redirect
+			// a removal outside it.
+			root, err := os.OpenRoot(filepath.Join(h, dir))
+			if err != nil {
+				continue
+			}
+			_ = fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return nil //nolint:nilerr // best-effort sweep: skip unreadable entries
+				}
+				if d.IsDir() {
+					return nil
+				}
+				if info, err := d.Info(); err == nil && now.Sub(info.ModTime()) > b.o.ThreadTTL {
+					_ = root.Remove(path)
+				}
+				return nil
+			})
+			_ = root.Close()
+		}
+		if p := filepath.Join(h, "history.jsonl"); old(p, 0) {
+			_ = os.Remove(p)
+		}
+		profiles, _ := filepath.Glob(filepath.Join(h, "hp-*.config.toml"))
+		for _, p := range profiles {
+			if !live[p] && old(p, b.o.ToolTimeout) {
+				_ = os.Remove(p)
+			}
+		}
+	}
+	works, _ := filepath.Glob(filepath.Join(b.o.Root, "w", "*"))
+	for _, w := range works {
+		if !live[w] && old(w, b.o.ToolTimeout) {
+			_ = os.RemoveAll(w)
+		}
+	}
+}
 
 func tomlString(s string) string {
 	b, _ := json.Marshal(s) // JSON string escaping is valid TOML basic-string escaping for these inputs
 	return string(b)
 }
 
-func (b *Bridge) start(accountID string, cred credentials.Secret, model, effort, system string, tools []ir.Tool, resume, prompt string) (*run, error) {
+func (b *Bridge) start(accountID, scope string, cred credentials.Secret, model, effort, system string, tools []ir.Tool, resume, prompt string) (*run, error) {
 	b.mu.Lock()
 	per := 0
 	for _, r := range b.running {
@@ -348,7 +461,7 @@ func (b *Bridge) start(accountID string, cred credentials.Secret, model, effort,
 		b.mu.Unlock()
 		return nil, errBusy
 	}
-	r := &run{b: b, id: strconv.FormatInt(time.Now().UnixNano(), 36), accountID: accountID, model: model, events: make(chan event, 256),
+	r := &run{b: b, id: strconv.FormatInt(time.Now().UnixNano(), 36), accountID: accountID, scope: scope, model: model, events: make(chan event, 256),
 		nameMap: map[string]string{}, keyOf: map[string]string{}, started: b.o.Now()}
 	b.running[r.id] = r
 	b.mu.Unlock()
@@ -365,29 +478,26 @@ func (b *Bridge) start(accountID string, cred credentials.Secret, model, effort,
 			return fail(err)
 		}
 	}
-	// The account's sign-in file is seeded from the stored credential once;
-	// afterwards the CLI refreshes it in place. It is never shared.
-	authFile := filepath.Join(codexHome, "auth.json")
-	if _, err := os.Stat(authFile); errors.Is(err, os.ErrNotExist) && !cred.IsZero() {
-		if err := os.WriteFile(authFile, []byte(cred.Reveal()), 0o600); err != nil {
-			return fail(err)
-		}
+	if err := seedAuth(codexHome, cred); err != nil {
+		return fail(err)
 	}
 	work, err := os.MkdirTemp(filepath.Join(b.o.Root, "w"), "c")
 	if err != nil {
 		return fail(err)
 	}
 	r.work = work
-	args := []string{"exec"}
-	if resume != "" {
-		args = append(args, "resume", resume)
-	}
-	args = append(args, "--json", "--skip-git-repo-check", "--sandbox", "read-only", "--color", "never", "-m", model)
-	if system != "" {
-		args = append(args, "-c", "developer_instructions="+tomlString(system))
-	}
-	if effort != "" {
-		args = append(args, "-c", "model_reasoning_effort="+tomlString(effort))
+	// Per-run settings live in a 0600 profile layered over the account's
+	// config: the developer instructions (the client's system prompt) and
+	// the MCP endpoint, whose token is passed in the environment. Nothing
+	// confidential appears in the process arguments.
+	r.profile = "hp-" + randHex(12)
+	r.profilePath = filepath.Join(codexHome, r.profile+".config.toml")
+	cleanup := func() {
+		if r.sess != nil {
+			r.sess.Close()
+		}
+		_ = os.RemoveAll(work)
+		_ = os.Remove(r.profilePath)
 	}
 	var mtools []bridge.MCPTool
 	for _, t := range tools {
@@ -402,32 +512,51 @@ func (b *Bridge) start(accountID string, cred credentials.Secret, model, effort,
 		}
 		mtools = append(mtools, bridge.MCPTool{Name: mn, Description: t.Description, InputSchema: schema})
 	}
+	var prof strings.Builder
+	prof.WriteString("history.persistence = \"none\"\n")
+	if system != "" {
+		prof.WriteString("developer_instructions = " + tomlString(system) + "\n")
+	}
+	if effort != "" {
+		prof.WriteString("model_reasoning_effort = " + tomlString(effort) + "\n")
+	}
+	env := []string{"PATH=" + os.Getenv("PATH"), "HOME=" + filepath.Join(home, "home"), "CODEX_HOME=" + codexHome, "NO_COLOR=1", "RUST_LOG=error"}
 	if len(mtools) > 0 {
 		sess, err := b.mcp.NewSession(mtools)
 		if err != nil {
+			cleanup()
 			return fail(err)
 		}
 		r.sess = sess
-		args = append(args, "-c", "experimental_use_rmcp_client=true", "-c", "mcp_servers.client.url="+tomlString(sess.URL()),
-			"-c", "mcp_servers.client.tool_timeout_sec="+strconv.Itoa(int(b.o.ToolTimeout.Seconds())+60))
+		prof.WriteString("experimental_use_rmcp_client = true\n[mcp_servers.client]\nurl = " + tomlString(sess.URL()) +
+			"\nbearer_token_env_var = \"HP_MCP_TOKEN\"\ntool_timeout_sec = " + strconv.Itoa(int(b.o.ToolTimeout.Seconds())+60) + "\n")
+		env = append(env, "HP_MCP_TOKEN="+sess.Token())
 	}
+	if err := bridge.WritePrivate(r.profilePath, []byte(prof.String())); err != nil {
+		cleanup()
+		return fail(err)
+	}
+	args := []string{"exec"}
+	if resume != "" {
+		args = append(args, "resume", resume)
+	}
+	args = append(args, "-p", r.profile, "--json", "--skip-git-repo-check", "--sandbox", "read-only", "--color", "never", "-m", model)
+	args = append(args, disabledBuiltins...)
 	args = append(args, "-")
 	cmd := exec.Command(b.o.Binary, args...) //nolint:gosec // operator-configured binary, arguments are not shell-interpreted
 	cmd.Dir = work
-	cmd.Env = append([]string{"PATH=" + os.Getenv("PATH"), "HOME=" + filepath.Join(home, "home"), "CODEX_HOME=" + codexHome,
-		"NO_COLOR=1", "RUST_LOG=error"}, b.o.ExtraEnv...)
+	cmd.Env = append(env, b.o.ExtraEnv...)
 	cmd.Stdin = strings.NewReader(prompt)
 	cmd.Stderr = io.Discard
+	bridge.Isolate(cmd)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		cleanup()
 		return fail(err)
 	}
 	r.cmd = cmd
 	if err := cmd.Start(); err != nil {
-		if r.sess != nil {
-			r.sess.Close()
-		}
-		_ = os.RemoveAll(work)
+		cleanup()
 		return fail(fmt.Errorf("start codex: %w", err))
 	}
 	go func() {
@@ -508,7 +637,7 @@ func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credential
 	var ru *run
 	// 1. A parked process waiting for exactly these tool results.
 	if len(last.res) > 0 {
-		ru = b.claimParked(t.Account.ID, key, histFP, last.res)
+		ru = b.claimParked(t.Account.ID, req.Scope, key, histFP, last.res)
 		if ru != nil {
 			for _, res := range last.res {
 				ru.mu.Lock()
@@ -525,7 +654,8 @@ func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credential
 		resume := ""
 		prompt := last.text
 		b.mu.Lock()
-		if th, ok := b.threads[histFP]; ok && th.accountID == t.Account.ID && th.key == key && b.o.Now().Sub(th.at) < b.o.ThreadTTL && len(last.res) == 0 {
+		if th, ok := b.threads[histFP]; ok && th.accountID == t.Account.ID && th.scope == req.Scope && th.key == key && b.o.Now().Sub(th.at) < b.o.ThreadTTL &&
+			len(last.res) == 0 {
 			resume = th.id
 		}
 		b.mu.Unlock()
@@ -533,7 +663,7 @@ func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credential
 			prompt = render(history, last)
 			losses = append(losses, ir.Loss{Severity: ir.LossApproximate, Feature: "history_replay", Detail: "earlier turns were replayed to the CLI as text"})
 		}
-		nr, err := b.start(t.Account.ID, cred, t.Model, effort, system, r.Tools, resume, prompt)
+		nr, err := b.start(t.Account.ID, req.Scope, cred, t.Model, effort, system, r.Tools, resume, prompt)
 		if errors.Is(err, errBusy) {
 			return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrOverloaded, Message: err.Error()}}
 		}
@@ -571,12 +701,12 @@ func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credential
 	return res, nil
 }
 
-func (b *Bridge) claimParked(accountID, key, fp string, results []resultRef) *run {
+func (b *Bridge) claimParked(accountID, scope, key, fp string, results []resultRef) *run {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	for _, r := range b.running {
 		r.mu.Lock()
-		ok := r.parked && r.accountID == accountID && r.key == key && r.fp == fp && len(r.pending) == len(results)
+		ok := r.parked && r.accountID == accountID && r.scope == scope && r.key == key && r.fp == fp && len(r.pending) == len(results)
 		if ok {
 			have := map[string]bool{}
 			for _, x := range results {
@@ -634,7 +764,6 @@ func (r *run) relay(ctx context.Context, sent []turnMsg, out chan<- ir.Event) er
 	if r.sess != nil {
 		arrived = r.sess.Arrived()
 	}
-	internalTool := false
 	for {
 		select {
 		case <-ctx.Done():
@@ -701,8 +830,15 @@ func (r *run) relay(ctx context.Context, sent []turnMsg, out chan<- ir.Event) er
 					if r.parkIfReady(sent, assistant, started) {
 						return r.finishTools(emit)
 					}
-				case it.Type == "command_execution" || it.Type == "file_change" || it.Type == "web_search":
-					internalTool = true
+				case builtinItem(it):
+					// The CLI's own tools would run on this host with the bridge's
+					// access (files, sign-in data, network). They are disabled by
+					// flag; if one still runs, stop the turn rather than continue.
+					e := &ir.Error{Kind: ir.ErrUpstream, Message: "the CLI started its built-in " + it.Type + " tool, which the bridge does not allow; the turn was stopped"}
+					r.b.o.Log.Warn("bridge.codex.builtin_tool_refused", "account_id", r.accountID, "item_type", it.Type)
+					r.kill()
+					emit(ir.Event{Kind: ir.EvError, Err: e})
+					return e
 				}
 			case "turn.completed":
 				u := ir.Usage{InputIncludesCache: true}
@@ -710,16 +846,13 @@ func (r *run) relay(ctx context.Context, sent []turnMsg, out chan<- ir.Event) er
 					u.InputTokens, u.CacheReadTokens, u.OutputTokens = ev.Usage.InputTokens, ev.Usage.CachedInputTokens, ev.Usage.OutputTokens
 				}
 				evs := []ir.Event{{Kind: ir.EvUsage, Usage: &u}, {Kind: ir.EvStop, StopReason: ir.StopEndTurn}}
-				if internalTool {
-					r.b.o.Log.Info("bridge.codex.internal_tool", "account_id", r.accountID)
-				}
 				emit(evs...)
 				r.mu.Lock()
 				tid := r.threadID
 				r.mu.Unlock()
 				if tid != "" {
 					r.b.mu.Lock()
-					r.b.threads[fingerprint(append(sent, assistant))] = threadInfo{id: tid, accountID: r.accountID, model: r.model, key: r.key, at: r.b.o.Now()}
+					r.b.threads[fingerprint(append(sent, assistant))] = threadInfo{id: tid, accountID: r.accountID, model: r.model, key: r.key, scope: r.scope, at: r.b.o.Now()}
 					r.b.mu.Unlock()
 				}
 				r.kill()
@@ -739,6 +872,43 @@ func (r *run) relay(ctx context.Context, sent []turnMsg, out chan<- ir.Event) er
 			}
 		}
 	}
+}
+
+// disabledBuiltins turn off the CLI's own tools, verified against codex
+// 0.166.0 with `codex debug prompt-input`: without them the model gets a
+// shell (exec_command), file viewers, browsers and app connectors that run
+// on this host. Only the gateway client's tools (over MCP) remain, plus the
+// CLI's code-mode wrapper and patch tool, which the read-only sandbox and
+// builtinItem below contain.
+var disabledBuiltins = []string{
+	"-c", "features.shell_tool=false",
+	"-c", "features.unified_exec=false",
+	"-c", "features.view_image=false",
+	"-c", "features.image_generation=false",
+	"-c", "features.multi_agent=false",
+	"-c", "features.apps=false",
+	"-c", "features.plugins=false",
+	"-c", "features.browser_use=false",
+	"-c", "features.browser_use_external=false",
+	"-c", "features.in_app_browser=false",
+	"-c", "features.computer_use=false",
+	"-c", "features.skill_search=false",
+	"-c", "features.tool_suggest=false",
+	"-c", "features.sleep_tool=false",
+	"-c", `web_search="disabled"`,
+}
+
+// builtinItem reports whether an event item is the CLI acting on its own:
+// running commands, editing files, searching the web or calling an MCP
+// server other than the gateway client's.
+func builtinItem(it item) bool {
+	switch it.Type {
+	case "command_execution", "file_change", "web_search":
+		return true
+	case "mcp_tool_call":
+		return it.Server != "client"
+	}
+	return false
 }
 
 // parkIfReady reports whether every started client tool call has reached

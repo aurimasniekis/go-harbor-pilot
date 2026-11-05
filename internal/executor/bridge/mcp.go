@@ -63,7 +63,8 @@ type Session struct {
 }
 
 // MCPServer serves MCP over streamable HTTP on loopback. Each session has
-// an unguessable path token; nothing else is reachable.
+// an unguessable bearer token, sent in the Authorization header (never in
+// the URL or a process argument, where other local users could read it).
 type MCPServer struct {
 	mu       sync.Mutex
 	ln       net.Listener
@@ -83,7 +84,10 @@ func (m *MCPServer) start() error {
 		return err
 	}
 	m.ln = ln
-	m.hs = &http.Server{Handler: http.HandlerFunc(m.serve), ReadHeaderTimeout: 10 * time.Second}
+	// No write timeout: tools/call long-polls until the gateway client
+	// returns the tool result (bounded by the bridge's tool timeout).
+	m.hs = &http.Server{Handler: http.HandlerFunc(m.serve), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second,
+		IdleTimeout: 2 * time.Minute, MaxHeaderBytes: 16 << 10}
 	go func() { _ = m.hs.Serve(ln) }()
 	return nil
 }
@@ -118,8 +122,12 @@ func (m *MCPServer) NewSession(tools []MCPTool) (*Session, error) {
 	return s, nil
 }
 
-// URL is the session endpoint for the CLI's MCP configuration.
-func (s *Session) URL() string { return "http://" + s.srv.ln.Addr().String() + "/mcp/" + s.token }
+// URL is the session endpoint for the CLI's MCP configuration. It carries no
+// secret; the CLI authenticates with Token as a bearer token.
+func (s *Session) URL() string { return "http://" + s.srv.ln.Addr().String() + "/mcp" }
+
+// Token is the session's bearer token.
+func (s *Session) Token() string { return s.token }
 
 // Close releases parked calls and unregisters the session.
 func (s *Session) Close() {
@@ -183,12 +191,19 @@ type rpcError struct {
 }
 
 func (m *MCPServer) serve(w http.ResponseWriter, r *http.Request) {
-	token, ok := strings.CutPrefix(r.URL.Path, "/mcp/")
+	// Only the exact loopback origin is served (DNS rebinding from a local
+	// browser would carry another Host).
+	if r.URL.Path != "/mcp" || r.Host != m.ln.Addr().String() {
+		http.NotFound(w, r)
+		return
+	}
+	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	m.mu.Lock()
 	s := m.sessions[token]
 	m.mu.Unlock()
-	if !ok || s == nil {
-		http.NotFound(w, r)
+	if !ok || token == "" || s == nil {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	switch r.Method {

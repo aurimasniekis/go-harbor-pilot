@@ -35,6 +35,36 @@ func lookBinary(configured, name string) string {
 func (a *App) setupBridges(o Options) {
 	a.setupClaudeBridge(o)
 	a.setupCodexBridge(o)
+	a.watchBridgeAccounts()
+}
+
+// accountPruner is implemented by bridges that keep per-account files.
+type accountPruner interface{ PruneAccounts(active map[string]bool) }
+
+// pruneBridgeAccounts deletes bridge files (sign-in data, transcripts) of
+// provider accounts that were deleted, on startup and on every
+// configuration change.
+func (a *App) pruneBridgeAccounts(snap *cp.Snapshot) {
+	if snap == nil {
+		return
+	}
+	active := map[string]bool{}
+	for id := range snap.Accounts {
+		active[id] = true
+	}
+	for _, b := range a.Gateway.Bridges {
+		if p, ok := b.(accountPruner); ok {
+			p.PruneAccounts(active)
+		}
+	}
+}
+
+func (a *App) watchBridgeAccounts() {
+	if a.CP == nil || len(a.Gateway.Bridges) == 0 {
+		return
+	}
+	a.CP.OnSwap(a.pruneBridgeAccounts)
+	a.pruneBridgeAccounts(a.CP.Snapshot())
 }
 
 func (a *App) setupCodexBridge(o Options) {

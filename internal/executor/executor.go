@@ -35,6 +35,10 @@ type Request struct {
 	Passthrough bool
 	// RequestID is sent upstream for correlation where supported.
 	RequestID string
+	// Scope identifies the gateway client (binding, or parent credential for
+	// child tokens). Stateful executors such as CLI bridges reuse a live
+	// process or thread only within the same scope. Empty = unscoped.
+	Scope string
 	// ClientHeader holds the client's request headers; only allowlisted
 	// behaviour flags (e.g. anthropic-beta) are forwarded, and only to a
 	// same-protocol upstream.

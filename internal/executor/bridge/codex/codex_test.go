@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -35,17 +36,24 @@ func fakeCodex() {
 	args := os.Args[1:]
 	prompt, _ := io.ReadAll(os.Stdin)
 	thread := fmt.Sprintf("thr_%d", time.Now().UnixNano())
-	mcpURL := ""
+	mcpURL, profile := "", ""
 	for i := 0; i < len(args); i++ {
 		if args[i] == "resume" && i+1 < len(args) {
 			thread = args[i+1]
 		}
-		if args[i] == "-c" && i+1 < len(args) && strings.HasPrefix(args[i+1], "mcp_servers.client.url=") {
-			_ = json.Unmarshal([]byte(strings.TrimPrefix(args[i+1], "mcp_servers.client.url=")), &mcpURL)
+		if args[i] == "-p" && i+1 < len(args) {
+			b, _ := os.ReadFile(filepath.Join(os.Getenv("CODEX_HOME"), args[i+1]+".config.toml"))
+			profile = string(b)
+		}
+	}
+	for _, l := range strings.Split(profile, "\n") {
+		if v, ok := strings.CutPrefix(l, "url = "); ok {
+			_ = json.Unmarshal([]byte(v), &mcpURL)
 		}
 	}
 	if f, err := os.OpenFile(os.Getenv("FAKE_CODEX_LOG"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
-		b, _ := json.Marshal(map[string]any{"args": args, "prompt": string(prompt), "codex_home": os.Getenv("CODEX_HOME")})
+		b, _ := json.Marshal(map[string]any{"args": args, "prompt": string(prompt), "codex_home": os.Getenv("CODEX_HOME"), "profile": profile,
+			"mcp_token_set": os.Getenv("HP_MCP_TOKEN") != ""})
 		_, _ = f.Write(append(b, '\n'))
 		_ = f.Close()
 	}
@@ -53,6 +61,15 @@ func fakeCodex() {
 	out(map[string]any{"type": "turn.started"})
 	p := string(prompt)
 	switch {
+	case strings.Contains(p, "RUN SHELL"):
+		out(map[string]any{"type": "item.started", "item": map[string]any{"id": "item_3", "type": "command_execution", "command": "cat /etc/harbor-pilot/master.key", "status": "in_progress"}})
+		time.Sleep(2 * time.Second) // a real command would be running now
+		out(map[string]any{"type": "item.completed", "item": map[string]any{"id": "item_4", "type": "agent_message", "text": "the key is ..."}})
+		out(map[string]any{"type": "turn.completed", "usage": map[string]any{"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1}})
+	case strings.Contains(p, "OTHER MCP"):
+		out(map[string]any{"type": "item.started", "item": map[string]any{"id": "item_5", "type": "mcp_tool_call", "server": "filesystem", "tool": "read_file", "status": "in_progress"}})
+		time.Sleep(2 * time.Second)
+		out(map[string]any{"type": "turn.completed", "usage": map[string]any{"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1}})
 	case strings.Contains(p, "AUTHFAIL"):
 		out(map[string]any{"type": "turn.failed", "error": map[string]any{"message": "unexpected status 401 Unauthorized"}})
 		os.Exit(1)
@@ -63,7 +80,10 @@ func fakeCodex() {
 				body["id"] = id
 			}
 			b, _ := json.Marshal(body)
-			resp, err := http.Post(mcpURL, "application/json", bytes.NewReader(b))
+			req, _ := http.NewRequest(http.MethodPost, mcpURL, bytes.NewReader(b))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+os.Getenv("HP_MCP_TOKEN"))
+			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				return nil
 			}
@@ -139,10 +159,15 @@ func text(s string) ir.Message {
 
 func (r *rig) exec(t *testing.T, msgs []ir.Message, tools []ir.Tool) (*ir.Response, error) {
 	t.Helper()
+	return r.execScoped(t, "", msgs, tools)
+}
+
+func (r *rig) execScoped(t *testing.T, scope string, msgs []ir.Message, tools []ir.Tool) (*ir.Response, error) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	req := &ir.Request{Messages: msgs, Tools: tools, Stream: true, System: []ir.Part{{Kind: ir.PartText, Text: "Be brief."}}}
-	res, aerr := r.b.Execute(ctx, r.tgt, credentials.NewSecret(`{"tokens":{"access_token":"synthetic"}}`), executor.Request{IR: req}, true)
+	res, aerr := r.b.Execute(ctx, r.tgt, credentials.NewSecret(`{"tokens":{"access_token":"synthetic"}}`), executor.Request{IR: req, Scope: scope}, true)
 	if aerr != nil {
 		return nil, aerr.Err
 	}
@@ -221,4 +246,45 @@ func TestCodexErrors(t *testing.T) {
 	if !ok || ie.Kind != ir.ErrAuthentication {
 		t.Fatalf("%#v", err)
 	}
+}
+
+// The CLI's built-in tools are disabled by flag, and a turn that still
+// starts one (or calls an MCP server other than the client's) is stopped
+// before the CLI can finish it.
+func TestCodexRefusesBuiltinTools(t *testing.T) {
+	r := newRig(t)
+	if _, err := r.exec(t, []ir.Message{text("hello")}, nil); err != nil {
+		t.Fatal(err)
+	}
+	args := strings.Join(toStrings(r.calls(t)[0]["args"]), " ")
+	for _, want := range []string{"features.shell_tool=false", "features.unified_exec=false", "features.view_image=false", `web_search="disabled"`, "--sandbox read-only"} {
+		if !strings.Contains(args, want) {
+			t.Errorf("argv lacks %q: %s", want, args)
+		}
+	}
+	tests := []struct{ name, prompt string }{
+		{"shell command", "RUN SHELL"},
+		{"another MCP server", "OTHER MCP"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			start := time.Now()
+			res, err := r.exec(t, []ir.Message{text(tt.prompt)}, nil)
+			ie, ok := err.(*ir.Error)
+			if !ok || !strings.Contains(ie.Message, "built-in") {
+				t.Fatalf("turn not refused: res %+v err %v", res, err)
+			}
+			if d := time.Since(start); d > 1500*time.Millisecond {
+				t.Fatalf("the CLI was allowed to keep running for %s", d)
+			}
+		})
+	}
+}
+
+func toStrings(v any) []string {
+	var out []string
+	for _, x := range v.([]any) {
+		out = append(out, x.(string))
+	}
+	return out
 }
