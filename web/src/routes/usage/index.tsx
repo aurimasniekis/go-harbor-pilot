@@ -25,6 +25,7 @@ const groupOptions: { value: UsageGroupBy; label: string }[] = [
   { value: 'project', label: 'Project' },
 ]
 
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 const rangeName: Record<string, string> = { '1': 'last 24 hours', '7': 'last 7 days', '30': 'last 30 days', '90': 'last 90 days' }
 
 /** Estimated cost of a group in its main currency (the one shown on the page). */
@@ -41,9 +42,18 @@ function SpendPage() {
   const bucket = bucketFor(days)
   const range = useMemo(() => presetRange(days), [days])
   const summary = useQuery(usageSummaryQuery(range, groupBy))
-  const series = useQuery(usageSeriesQuery(range, stepFor(bucket)))
+  const series = useQuery(usageSeriesQuery(range, stepFor(bucket), groupBy))
   const rec = useQuery(reconciliationQuery(Math.min(days, 90)))
   const rows = useMemo(() => (series.data ? bucketize(series.data.points ?? [], range.from, range.to, bucket) : []), [series.data, range, bucket])
+  const groupNames = useMemo(() => Object.fromEntries((summary.data?.groups ?? []).map((g) => [g.key, g.label || g.key])), [summary.data])
+  const stacked = useMemo(
+    () =>
+      (series.data?.groups ?? []).map((g) => ({
+        label: g.key === 'other' ? 'Other' : g.key === '' ? 'Unattributed' : (groupNames[g.key] ?? g.key),
+        rows: bucketize(g.points ?? [], range.from, range.to, bucket),
+      })),
+    [series.data, groupNames, range, bucket],
+  )
   const tokens = useMemo(() => rows.reduce((t, r) => ({ input: t.input + r.input, output: t.output + r.output }), { input: 0, output: 0 }), [rows])
   const s = summary.data
   const est = s?.totals.find((c) => c.kind === 'estimated_api_charge')
@@ -141,11 +151,11 @@ function SpendPage() {
         <StatSkeleton count={4} />
       ) : (
         <StatGrid cols={fees > 0 ? 4 : 3} label={`Spend for the ${rangeName[preset]}`}>
-          <Stat label="Estimated cost" value={est ? money(est.amount, est.currency) : '—'} hint={rangeName[preset]} info={costKindHelp.estimated_api_charge} spark={rows.map((r) => r.costs[`estimated_api_charge|${currency}`] ?? 0)} />
+          <Stat label="Estimated cost" value={est ? money(est.amount, est.currency) : '—'} hint={cap(rangeName[preset] ?? '')} info={costKindHelp.estimated_api_charge} spark={rows.map((r) => r.costs[`estimated_api_charge|${currency}`] ?? 0)} />
           <Stat
             label="Billed by providers"
             value={billed === null ? '—' : money(billed, currency)}
-            hint={billed === null ? 'No provider billing data' : `Last ${Math.min(days, 90)} days`}
+            hint={billed === null ? 'No provider billing data' : cap(rangeName[preset] ?? '')}
             info={`${costKindHelp.actual_api_charge} Only accounts with quota tracking that reports billing are included.`}
           />
           {fees > 0 && <Stat label="Subscription fees" value={money(fees, currency)} hint="Prorated to the range" info={costKindHelp.subscription_fee} />}
@@ -182,7 +192,7 @@ function SpendPage() {
           </Paper>
         ) : (
           <Paper withBorder radius="md" p="md">
-            <UsageChart rows={rows} bucket={bucket} mode={mode} />
+            <UsageChart rows={rows} bucket={bucket} mode={mode} groups={stacked.length > 1 ? stacked : undefined} />
           </Paper>
         )}
       </Section>

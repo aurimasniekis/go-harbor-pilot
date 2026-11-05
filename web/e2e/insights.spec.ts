@@ -13,9 +13,11 @@ test('statistics break down activity by dimension', async ({ page }) => {
     }, { timeout: 20_000 })
     .toBeGreaterThan(0)
 
+  // The old address redirects to the Spend breakdown.
   await page.goto('/activity/stats')
-  await expect(page.getByRole('heading', { name: 'Requests', level: 1 })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Statistics' })).toHaveAttribute('aria-current', 'page')
+  await expect(page).toHaveURL(/\/usage\/breakdown$/)
+  await expect(page.getByRole('heading', { name: 'Spend', level: 1 })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Breakdown' })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByText('Unknown usage').first()).toBeVisible()
   await expect(page.getByText(/^\d+ ok · \d+ errors · \d+ blocked$/)).not.toHaveText('0 ok · 0 errors · 0 blocked')
   const table = page.getByRole('region', { name: 'Statistics breakdown' })

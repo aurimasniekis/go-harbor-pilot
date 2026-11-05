@@ -54,5 +54,5 @@ test('activity explains a request that failed over', async ({ page }) => {
 
   // Sessions screen renders.
   await page.goto('/activity/sessions')
-  await expect(page.getByRole('link', { name: 'Sessions' })).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'By session' })).toBeChecked()
 })

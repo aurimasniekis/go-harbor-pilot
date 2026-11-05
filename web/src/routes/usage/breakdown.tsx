@@ -15,7 +15,7 @@ import { dimensions, errorRate, metrics, uniqueShare, type Metric } from '@/feat
 import s from '@/features/stats/stats.module.css'
 import q from '@/features/quota/quota.module.css'
 
-export const Route = createFileRoute('/activity/stats')({
+export const Route = createFileRoute('/usage/breakdown')({
   component: StatsPage,
 })
 

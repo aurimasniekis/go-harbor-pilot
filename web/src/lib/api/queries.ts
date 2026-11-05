@@ -214,10 +214,15 @@ export const usageSummaryQuery = (r: UsageRange, groupBy: UsageGroupBy) =>
     queryFn: ({ signal }) => apiGet<UsageSummary>('/usage/summary', { ...r, group_by: groupBy }, signal),
   })
 
-export const usageSeriesQuery = (r: UsageRange, step: 'hour' | 'day') =>
+export const usageSeriesQuery = (r: UsageRange, step: 'hour' | 'day', by?: UsageGroupBy) =>
   queryOptions({
-    queryKey: ['usage', 'series', r, step],
-    queryFn: ({ signal }) => apiGet<{ from: string; to: string; step: string; points: UsagePoint[] }>('/usage/series', { ...r, step }, signal),
+    queryKey: ['usage', 'series', r, step, by ?? ''],
+    queryFn: ({ signal }) =>
+      apiGet<{ from: string; to: string; step: string; points: UsagePoint[]; groups?: { key: string; points: UsagePoint[] }[] }>(
+        '/usage/series',
+        { ...r, step, ...(by ? { by, top: 6 } : {}) },
+        signal,
+      ),
   })
 
 export const externalUsageQuery = (days: number) =>

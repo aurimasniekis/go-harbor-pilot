@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, useNavigate, useRouterState } from '@tanstack/
 import { Button, SegmentedControl } from '@mantine/core'
 import { Plus } from 'lucide-react'
 import { z } from 'zod'
-import { PageHeader } from '@/ui/kit'
+import { LinkTabs, PageHeader } from '@/ui/kit'
 
 export const usageRanges = [
   { value: '1', label: '24h' },
@@ -22,32 +22,33 @@ function UsageLayout() {
   const { range = 30 } = Route.useSearch()
   const navigate = useNavigate()
   const onSpend = useRouterState({ select: (r) => r.location.pathname.replace(/\/$/, '') === '/usage' })
-  if (!onSpend) {
-    return (
-      <>
-        <PageHeader title="Budgets" />
-        <Outlet />
-      </>
-    )
-  }
   return (
     <>
       <PageHeader
         title="Spend"
         actions={
           <>
-            <SegmentedControl
-              size="sm"
-              aria-label="Time range"
-              value={String(range)}
-              onChange={(v) => void navigate({ to: '/usage', search: { range: Number(v) as UsageRange } })}
-              data={usageRanges.map((r) => ({ value: r.value, label: r.label }))}
-            />
+            {onSpend && (
+              <SegmentedControl
+                size="sm"
+                aria-label="Time range"
+                value={String(range)}
+                onChange={(v) => void navigate({ to: '/usage', search: { range: Number(v) as UsageRange } })}
+                data={usageRanges.map((r) => ({ value: r.value, label: r.label }))}
+              />
+            )}
             <Button variant="light" leftSection={<Plus size={14} />} onClick={() => void navigate({ to: '/quotas', search: { add: 'budget' } })}>
               Add budget
             </Button>
           </>
         }
+      />
+      <LinkTabs
+        label="Spend sections"
+        items={[
+          { to: '/usage', label: 'Overview', exact: true },
+          { to: '/usage/breakdown', label: 'Breakdown' },
+        ]}
       />
       <Outlet />
     </>

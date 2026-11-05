@@ -61,6 +61,7 @@ import { Route as SettingsUsersRouteImport } from './routes/settings/users'
 import { Route as TracesIndexRouteImport } from './routes/traces/index'
 import { Route as TracesTraceIdRouteImport } from './routes/traces/$traceId'
 import { Route as UsageIndexRouteImport } from './routes/usage/index'
+import { Route as UsageBreakdownRouteImport } from './routes/usage/breakdown'
 import { Route as UsageBudgetsRouteImport } from './routes/usage/budgets'
 import { Route as CompatibilityWorkItemsIndexRouteImport } from './routes/compatibility/work-items/index'
 import { Route as CompatibilityWorkItemsItemIdRouteImport } from './routes/compatibility/work-items/$itemId'
@@ -330,6 +331,11 @@ const UsageIndexRoute = UsageIndexRouteImport.update({
   path: '/',
   getParentRoute: () => UsageRouteRoute,
 } as any)
+const UsageBreakdownRoute = UsageBreakdownRouteImport.update({
+  id: '/breakdown',
+  path: '/breakdown',
+  getParentRoute: () => UsageRouteRoute,
+} as any)
 const UsageBudgetsRoute = UsageBudgetsRouteImport.update({
   id: '/budgets',
   path: '/budgets',
@@ -410,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
   '/traces/$traceId': typeof TracesTraceIdRoute
+  '/usage/breakdown': typeof UsageBreakdownRoute
   '/usage/budgets': typeof UsageBudgetsRoute
   '/activity/': typeof ActivityIndexRoute
   '/clients/': typeof ClientsIndexRoute
@@ -460,6 +467,7 @@ export interface FileRoutesByTo {
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
   '/traces/$traceId': typeof TracesTraceIdRoute
+  '/usage/breakdown': typeof UsageBreakdownRoute
   '/usage/budgets': typeof UsageBudgetsRoute
   '/activity': typeof ActivityIndexRoute
   '/clients': typeof ClientsIndexRoute
@@ -522,6 +530,7 @@ export interface FileRoutesById {
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
   '/traces/$traceId': typeof TracesTraceIdRoute
+  '/usage/breakdown': typeof UsageBreakdownRoute
   '/usage/budgets': typeof UsageBudgetsRoute
   '/activity/': typeof ActivityIndexRoute
   '/clients/': typeof ClientsIndexRoute
@@ -585,6 +594,7 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/settings/users'
     | '/traces/$traceId'
+    | '/usage/breakdown'
     | '/usage/budgets'
     | '/activity/'
     | '/clients/'
@@ -635,6 +645,7 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/settings/users'
     | '/traces/$traceId'
+    | '/usage/breakdown'
     | '/usage/budgets'
     | '/activity'
     | '/clients'
@@ -696,6 +707,7 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/settings/users'
     | '/traces/$traceId'
+    | '/usage/breakdown'
     | '/usage/budgets'
     | '/activity/'
     | '/clients/'
@@ -1107,6 +1119,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UsageIndexRouteImport
       parentRoute: typeof UsageRouteRoute
     }
+    '/usage/breakdown': {
+      id: '/usage/breakdown'
+      path: '/breakdown'
+      fullPath: '/usage/breakdown'
+      preLoaderRoute: typeof UsageBreakdownRouteImport
+      parentRoute: typeof UsageRouteRoute
+    }
     '/usage/budgets': {
       id: '/usage/budgets'
       path: '/budgets'
@@ -1330,11 +1349,13 @@ const TracesRouteRouteWithChildren = TracesRouteRoute._addFileChildren(
 )
 
 interface UsageRouteRouteChildren {
+  UsageBreakdownRoute: typeof UsageBreakdownRoute
   UsageBudgetsRoute: typeof UsageBudgetsRoute
   UsageIndexRoute: typeof UsageIndexRoute
 }
 
 const UsageRouteRouteChildren: UsageRouteRouteChildren = {
+  UsageBreakdownRoute: UsageBreakdownRoute,
   UsageBudgetsRoute: UsageBudgetsRoute,
   UsageIndexRoute: UsageIndexRoute,
 }

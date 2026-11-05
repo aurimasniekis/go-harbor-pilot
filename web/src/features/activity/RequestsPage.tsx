@@ -23,6 +23,7 @@ export const requestSearch = z.object({
   session_id: z.string().optional().catch(undefined),
   model: z.string().optional().catch(undefined),
   fallbacks: z.boolean().optional().catch(undefined),
+  range: z.enum(['1', '7', '30', 'all']).optional().catch(undefined),
 })
 
 export type RequestSearch = z.infer<typeof requestSearch>
@@ -130,6 +131,9 @@ export function RequestsPage() {
   const project = byId(projects.data?.items)
   const [text, setText] = useState('')
   const [moreOpen, setMoreOpen] = useState(false)
+  // Range start rounded to the minute so the query key stays stable.
+  const days = f.range === 'all' ? 0 : Number(f.range ?? '7')
+  const from = days ? new Date(Math.floor((serverNow() - days * 86_400_000) / 60_000) * 60_000).toISOString() : undefined
   const filter = {
     status: f.status,
     fallbacks: f.fallbacks || undefined,
@@ -137,12 +141,13 @@ export function RequestsPage() {
     binding_id: f.binding_id,
     project_id: f.project_id,
     session_id: f.session_id,
-    model: f.model,
+    q: f.model,
+    from,
   }
   const list = useInfiniteQuery({
     queryKey: ['activity', 'requests', 'log', filter],
     initialPageParam: '',
-    queryFn: ({ pageParam, signal }) => apiGet<Page<RequestSummary>>('/activity/requests', { limit: PAGE, ...filter, ...(pageParam ? { cursor: pageParam } : {}) }, signal),
+    queryFn: ({ pageParam, signal }) => apiGet<Page<RequestSummary> & { total?: number }>('/activity/requests', { limit: PAGE, ...filter, ...(pageParam ? { cursor: pageParam } : {}) }, signal),
     getNextPageParam: (last) => last.next_cursor || undefined,
     refetchInterval: 15_000,
   })
@@ -167,6 +172,7 @@ export function RequestsPage() {
   }
 
   const items = useMemo(() => (list.data?.pages ?? []).flatMap((p) => p.items ?? []), [list.data])
+  const total = list.data?.pages[0]?.total
   const chips: { key: keyof RequestSearch; label: string }[] = []
   if (f.binding_id) chips.push({ key: 'binding_id', label: `Client: ${client[f.binding_id]?.name ?? f.binding_id}` })
   if (f.harness) chips.push({ key: 'harness', label: `Tool: ${harnessName[f.harness] ?? f.harness}` })
@@ -214,6 +220,18 @@ export function RequestsPage() {
             { value: 'error', label: 'Errors' },
             { value: 'blocked', label: 'Blocked' },
             { value: 'fallbacks', label: 'Fallbacks' },
+          ]}
+        />
+        <SegmentedControl
+          aria-label="Time range"
+          size="sm"
+          value={f.range ?? '7'}
+          onChange={(v) => set({ range: v === '7' ? undefined : (v as RequestSearch['range']) })}
+          data={[
+            { value: '1', label: '24h' },
+            { value: '7', label: '7d' },
+            { value: '30', label: '30d' },
+            { value: 'all', label: 'All' },
           ]}
         />
         <Popover opened={moreOpen} onChange={setMoreOpen} position="bottom-end" width={260} shadow="md" withinPortal>
@@ -373,7 +391,8 @@ export function RequestsPage() {
       {list.data && items.length > 0 && (
         <Group justify="space-between" gap="xs">
           <Text size="xs" c="dimmed">
-            Showing {items.length} {items.length === 1 ? 'request' : 'requests'}
+            Showing {items.length.toLocaleString('en-US')}
+            {total !== undefined && total > items.length ? ` of ${total.toLocaleString('en-US')}` : ''} {(total ?? items.length) === 1 ? 'request' : 'requests'}
             {!list.hasNextPage ? ' · that’s all' : ''}
           </Text>
           {list.hasNextPage && (

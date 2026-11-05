@@ -3832,11 +3832,6 @@ export interface components {
             /** @description Present when more items are available. */
             next_cursor?: string;
         };
-        PageRequestSummary: {
-            items: components["schemas"]["RequestSummary"][];
-            /** @description Present when more items are available. */
-            next_cursor?: string;
-        };
         PageResourceAccountSpec: {
             items: components["schemas"]["ResourceAccountSpec"][];
             /** @description Present when more items are available. */
@@ -4357,6 +4352,16 @@ export interface components {
             ttft_ms: number | null;
             usage_source: string;
             workspace_id: string;
+        };
+        RequestPage: {
+            items: components["schemas"]["RequestSummary"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+            /**
+             * Format: int64
+             * @description Requests matching the filters across all pages.
+             */
+            total: number;
         };
         RequestSummary: {
             alias_id: string;
@@ -4993,10 +4998,17 @@ export interface components {
         SerBody: {
             /** Format: date-time */
             from: string;
+            /** @description Present with by: one series per group; key "other" holds the remaining groups. */
+            groups?: components["schemas"]["SeriesGroup"][];
             points: components["schemas"]["UsagePoint"][];
             step: string;
             /** Format: date-time */
             to: string;
+        };
+        SeriesGroup: {
+            /** @description Group value (id or name); "other" for the remaining groups, "" when unattributed. */
+            key: string;
+            points: components["schemas"]["UsagePoint"][];
         };
         ServicePrincipalDTO: {
             /** Format: date-time */
@@ -5559,6 +5571,14 @@ export interface operations {
                 status?: "in_progress" | "ok" | "error" | "blocked" | "canceled" | "";
                 model?: string;
                 harness?: string;
+                /** @description RFC 3339; only requests created at or after this time. */
+                from?: string;
+                /** @description RFC 3339; only requests created before this time. */
+                to?: string;
+                /** @description Only requests that needed more than one attempt. */
+                fallbacks?: boolean;
+                /** @description Request id, or a prefix of the requested or served model. */
+                q?: string;
             };
             header?: never;
             path?: never;
@@ -5572,7 +5592,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PageRequestSummary"];
+                    "application/json": components["schemas"]["RequestPage"];
                 };
             };
             /** @description Error */
@@ -11927,9 +11947,13 @@ export interface operations {
             query?: {
                 from?: string;
                 to?: string;
-                step?: "hour" | "day" | "";
+                step?: "hour" | "day" | "week" | "";
                 filter?: "account" | "provider" | "model" | "binding" | "project" | "workspace" | "billing" | "";
                 value?: string;
+                /** @description Also split the series by this dimension (top groups by attempts, the rest as other). */
+                by?: "account" | "provider" | "model" | "binding" | "project" | "workspace" | "billing" | "";
+                /** @description Groups returned with by (default 6). */
+                top?: number;
             };
             header?: never;
             path?: never;
