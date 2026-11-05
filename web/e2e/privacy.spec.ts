@@ -1,10 +1,9 @@
-import { expect, signIn, test, choose } from './fixtures'
+import { choose, deleteRow, expect, signIn, test } from './fixtures'
 
 // The demo seeds no privacy or trace policies; this test creates them
 // through the UI and exercises the non-persisting rule sandbox.
 
 test('privacy policy, rule sandbox and trace policy', async ({ page }) => {
-  page.on('dialog', (dl) => void dl.accept())
   await signIn(page)
   const suffix = Date.now().toString(36)
 
@@ -38,13 +37,13 @@ test('privacy policy, rule sandbox and trace policy', async ({ page }) => {
   await expect(masked).toContainText('HPSEC_')
   await expect(masked).not.toContainText('sk-ant-api03-EXAMPLE')
   await expect(page.getByLabel('Sample with detections highlighted').locator('mark').first()).toBeVisible()
-  await expect(page.getByRole('cell', { name: /Anthropic API keys/ })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Result' }).getByRole('cell', { name: /Anthropic API keys/ }).first()).toBeVisible()
 
   // Unsaved policy: block rule blocks.
   await choose(page, 'Policy', { label: /Unsaved policy/ }, { exact: true })
   const def = page.getByLabel('Policy definition (JSON)')
   await def.fill(JSON.stringify({ required: true, rules: [{ name: 'prod_db', pattern: 'prod-db-[0-9]+', action: 'block' }] }))
-  await page.getByLabel('Sample text').fill('connect to prod-db-7 now')
+  await page.getByLabel('Sample text', { exact: true }).fill('connect to prod-db-7 now')
   await page.getByRole('button', { name: 'Test', exact: true }).click()
   await expect(page.getByRole('region', { name: 'Result' }).getByText('Yes')).toBeVisible()
 
@@ -69,14 +68,15 @@ test('privacy policy, rule sandbox and trace policy', async ({ page }) => {
 
   // Traces: the demo's private plan captures masked traces, listed as
   // metadata; content search explains the grant.
-  await page.goto('/traces')
-  await expect(page.getByRole('heading', { name: 'Traces', level: 1 })).toBeVisible()
-  await expect(page.getByText('No live traces').or(page.locator('table tbody tr').first())).toBeVisible()
-  await expect(page.getByText('Searching trace content needs an explicit grant')).toBeVisible()
+  await page.getByRole('link', { name: 'Captured content' }).click()
+  await expect(page).toHaveURL(/\/traces/)
+  await expect(page.getByRole('heading', { name: 'Privacy', level: 1 })).toBeVisible()
+  await expect(page.getByText('No live traces').or(page.getByRole('region', { name: 'Captured content' }))).toBeVisible()
+  await expect(page.getByText(/Reading content needs an explicit grant/)).toBeVisible()
 
   // Clean up through the list (the browser confirm is accepted above).
   await page.goto('/privacy/trace-policies')
-  await page.getByRole('button', { name: `Delete ${trace}` }).click()
+  await deleteRow(page, trace)
   await expect(page.getByRole('cell', { name: trace, exact: true })).toHaveCount(0)
 })
 
