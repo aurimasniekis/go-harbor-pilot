@@ -204,12 +204,13 @@ Verified against `claude` 2.1.318 with a synthetic upstream (see `docs/contracts
 - One data key per (trace policy, UTC expiry day). It is wrapped by the master key (`trace-key:<bucket>` as associated data) and stored in `trace_keys`; its `expires_at` is the end of that day.
 - Each section of a trace is sealed separately with AES-GCM, using `<trace id>|<section>` as associated data.
 - Reads check `expires_at` first, so an expired trace is unreadable even before the sweep. The sweep deletes expired traces, their parts and their search entries in batches of 500, then destroys bucket keys with no live trace. Once a key row is gone, any ciphertext left in free pages, the WAL or a backup that did not capture the key row cannot be decrypted.
-- The search index (FTS5) only receives text redacted by the trace's redaction policy, even for unredacted traces.
+- The search index (FTS5) only receives text redacted by the trace's redaction policy and by the masking policy that ran, even for unredacted traces. Masked trace modes apply both as well (D-037).
+- Deletes and sweeps run with `secure_delete`, the index uses FTS5 secure-delete and is merged afterwards, and the WAL is truncated (D-037).
 
 ## D-030: Masking precedence and placeholders
 
 - Overlapping detections merge into one span carrying the strongest action. Precedence is block > allow > mask > warn: an allow rule exempts a whole span from mask and warn, never from block.
-- Placeholders are `HPSEC_` followed by 20 random base32 characters. They are stable for the same value within one binding and session (or credential when no session is known) and differ across scopes. The mapping is memory-only (24-hour idle expiry, 200,000 entries); after a restart, placeholders the model echoes can no longer be restored.
+- Placeholders are `HPSEC_` followed by 20 random base32 characters. They are stable for the same value within one scope (binding, credential — a child token uses its parent's — and session when one is known) and differ across scopes. The mapping is memory-only (24-hour idle expiry; bounded overall and per credential, see D-037); after a restart, placeholders the model echoes can no longer be restored.
 - Trace redaction is independent: it replaces spans with irreversible `[redacted:<rule>]` markers.
 
 ## D-031: Compatibility breakers and passthrough
@@ -264,4 +265,16 @@ The structural baseline is seeded from this build's own protocol encoders, then 
 - **Other safeguards:**
   - Post-login redirects reject control characters, backslashes and anything other than a same-origin path.
   - SSO callbacks re-check that the provider is still enabled.
+
+## D-037: Data-protection hardening after the security review
+
+- **Restoration only into text.** Streamed restoration follows each part's kind: only text parts are restored, tool-call arguments only through the allowlisted path, reasoning and unannounced parts never. Tool-argument restoration parses URLs, refuses userinfo and backslash authorities, and refuses any value naming a host outside the allowlist, including scheme-less host names and IP addresses.
+- **Signed reasoning blocks rather than leaks.** Anthropic thinking blocks are signed and must round-trip byte for byte, so they cannot be masked. If one contains a value the policy masks or blocks, the request is blocked (rule `signed_reasoning`). The alternative, dropping the block, would break the conversation in harder-to-explain ways.
+- **Unresolvable configured values fail closed.** If a policy's configured secret values cannot be resolved, a required policy blocks. An optional policy, or one allowing unmasked fallback, masks with the detectors that still work. Failures are never cached, and references are re-read every minute.
+- **Placeholder scope includes the credential.** Sessions are client hints, so they narrow a scope but never join two credentials' scopes.
+- **Vault budgets.** Overall at most 200,000 mappings or 128 MiB; per credential at most 5,000 mappings or 8 MiB. Over budget a value is still masked, but its placeholder is not stored, cannot be restored and cannot evict other credentials' mappings.
+- **Trace search index.** It is redacted by the masking policy that ran as well as the trace redaction policy, so values kept from the provider are never indexed. Deletes use `secure_delete` and FTS5 secure-delete, then the index is merged and the WAL truncated.
+- **Error scrubbing.** Every failed attempt and every in-stream error is scrubbed of the attempt's credential, including its JSON- and URL-escaped forms, and of key-shaped strings before it is written to the client, recorded or observed.
+- **Rotation is complete.** `keys rotate` covers quota OAuth tokens and trace bucket keys, and says previous keys can be removed only after checking that nothing references them.
+- **Sandbox and stored values.** Testing a saved policy with configured secret values requires `secrets.write`, because match offsets would confirm guesses.
 

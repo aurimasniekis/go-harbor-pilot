@@ -43,21 +43,26 @@
 6. **Placeholder abuse.** A model could emit `HPSEC_…` tokens into tool arguments (URLs, commands) to exfiltrate secrets.
    - Restoring originals into tool arguments is off by default.
    - When enabled, it is limited to a configured allowlist of tool names and argument paths.
-   - Placeholders are never restored into URLs whose host is outside the allowlist.
+   - Restoration targets only an allowlisted tool's allowlisted fields, and is refused when the value names any host outside the allowlist: URLs are parsed (userinfo and backslash authorities refused) and scheme-less host names and IP addresses count too.
+   - Streamed responses restore placeholders only into text. Tool-call arguments go through the guarded path above, and reasoning (often signed) is never rewritten.
+   - Placeholders are scoped to the client, the credential (a child token shares its parent's) and the session, so another token cannot recover a value by sending the same session hint.
+   - Signed reasoning cannot be masked; if it contains a value the policy masks or blocks, the request is blocked instead of sent.
 7. **Secret leakage into logs, metrics, events, errors or Terraform diagnostics.**
    - Logs pass through a redacting slog handler, and the `Secret` type redacts itself.
    - Metrics labels carry no request or session IDs.
    - Event payloads go through an allowlist.
    - The Terraform provider marks credential fields sensitive or write-only and never logs bodies.
-   - A secret-leak test sweep runs in CI.
+   - Upstream and CLI error text is scrubbed of the attempt's credential (also in escaped forms) and key-shaped strings before it is recorded, observed or returned, including errors that arrive inside a stream.
+   - A secret-leak test sweep runs in CI (TestSecretsNeverLeak, TestStreamErrorsAreScrubbed).
 8. **CSRF and session fixation.** Defended by `__Host-` cookies, Origin checks plus an HMAC CSRF token, a session ID rotated at login, and step-up re-authentication for sensitive actions (reading unredacted traces, rotating keys).
 9. **Brute force.** Login is throttled per account and per IP with exponential delays. Gateway token verification is rate-limited per IP on failures.
 10. **Trace content exposure after expiry.**
     - Expiry is checked on every read.
     - On expiry the DEK is destroyed, which makes the ciphertext unrecoverable.
-    - Rows and search-index entries are deleted.
+    - Rows and search-index entries are deleted with `secure_delete` and FTS5 secure-delete, the index is merged and the WAL truncated, so the text leaves the database files.
+    - The search index only ever holds text redacted by both the trace redaction policy and the masking policy that ran, so values the policy kept from the provider are never indexed.
     - Exports are generated with the TTL embedded and are refused after expiry.
-    - Documented: SQLite free pages, WAL and file-system remnants persist until vacuum and checkpoint. Backups that included traces keep the ciphertext, but it is useless once its DEK is destroyed, unless the backup also captured that DEK.
+    - Documented: file-system snapshots and copies made before deletion keep whatever they captured. Backups that included traces keep the ciphertext and the wrapped DEKs as they were at backup time.
 11. **Webhook spoofing and replay.**
     - Outbound webhooks carry `X-HP-Signature: t=<unix>,v1=<hex hmac-sha256>`, computed over `t.body`.
     - Receivers should enforce a 5-minute window and track event IDs.

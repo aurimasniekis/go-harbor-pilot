@@ -338,12 +338,22 @@ func (p *Policy) maskJSON(raw string, v *Vault, scope string, sum *Summary) (str
 }
 
 func (p *Policy) maskParts(parts []ir.Part, v *Vault, scope string, sum *Summary) error {
+	return p.maskPartsIn(parts, v, scope, sum, false)
+}
+
+// maskPartsIn masks parts; inTool marks tool-result content, whose text is
+// often JSON with escaped strings, so it is decoded before scanning.
+func (p *Policy) maskPartsIn(parts []ir.Part, v *Vault, scope string, sum *Summary, inTool bool) error {
 	for i := range parts {
 		pt := &parts[i]
 		var err error
 		switch pt.Kind {
 		case ir.PartText, ir.PartRefusal:
-			pt.Text, err = p.maskText(pt.Text, v, scope, sum)
+			if inTool {
+				pt.Text, err = p.maskJSON(pt.Text, v, scope, sum)
+			} else {
+				pt.Text, err = p.maskText(pt.Text, v, scope, sum)
+			}
 		case ir.PartReasoning:
 			// Exposed reasoning text may be masked. Signed reasoning must
 			// round-trip byte for byte, so it cannot be masked: if it holds
@@ -361,7 +371,7 @@ func (p *Policy) maskParts(parts []ir.Part, v *Vault, scope string, sum *Summary
 			}
 		case ir.PartToolResult:
 			if pt.ToolResult != nil {
-				err = p.maskParts(pt.ToolResult.Content, v, scope, sum)
+				err = p.maskPartsIn(pt.ToolResult.Content, v, scope, sum, true)
 			}
 		case ir.PartImage, ir.PartDocument:
 			sum.Uninspected++

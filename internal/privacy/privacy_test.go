@@ -348,3 +348,27 @@ func TestLogRedactionMatchesPlaceholders(t *testing.T) {
 		t.Fatalf("PlaceholderRE does not match %s", ph)
 	}
 }
+
+// Tool results are often JSON; secrets escaped inside JSON strings are
+// decoded before scanning, and plain-text results are still masked.
+func TestToolResultsAreMaskedJSONAware(t *testing.T) {
+	p := policy(t, cp.PrivacyPolicySpec{})
+	escaped := strings.ReplaceAll(fakeAnthropic, "-", `-`)
+	tests := []struct{ name, content string }{
+		{"json with escaped secret", `{"output":"token ` + escaped + `"}`},
+		{"plain text", "token " + fakeAnthropic},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &ir.Request{Messages: []ir.Message{{Role: ir.RoleUser, Parts: []ir.Part{{Kind: ir.PartToolResult,
+				ToolResult: &ir.ToolResult{CallID: "c1", Content: []ir.Part{{Kind: ir.PartText, Text: tt.content}}}}}}}}
+			if _, err := p.MaskRequest(req, NewVault(nil), "s"); err != nil {
+				t.Fatal(err)
+			}
+			got := req.Messages[0].Parts[0].ToolResult.Content[0].Text
+			if strings.Contains(got, escaped) || strings.Contains(got, fakeAnthropic) || !strings.Contains(got, PlaceholderPrefix) {
+				t.Fatalf("not masked: %s", got)
+			}
+		})
+	}
+}
