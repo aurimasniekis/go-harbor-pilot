@@ -19,6 +19,7 @@ type SealedColumn struct {
 // SealedColumns lists every envelope-encrypted column.
 var SealedColumns = []SealedColumn{
 	{Table: "oidc_providers", IDColumn: "id", Column: "client_secret", AAD: func(id string) string { return "oidc-client-secret|" + id }},
+	{Table: "resource_secrets", IDColumn: "resource_id || '|' || field", Column: "envelope", AAD: func(id string) string { return "resource-secret|" + id }},
 }
 
 // RotateSecrets re-wraps server keys and all sealed columns under the

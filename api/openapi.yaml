@@ -33,6 +33,16 @@ components:
         - created_by
         - created_at
       type: object
+    APITokenList:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/APITokenDTO"
+          type: array
+      required:
+        - items
+      type: object
     AcceptInBody:
       additionalProperties: false
       properties:
@@ -52,15 +62,82 @@ components:
         - purpose
         - password
       type: object
-    AlertsOutBody:
+    AccountSpec:
       additionalProperties: false
       properties:
-        items:
+        allowed_models:
+          description: Restrict to these provider model ids; empty = all models of the provider.
           items:
-            $ref: "#/components/schemas/SecurityAlertDTO"
+            type: string
+          type: array
+        billing:
+          description: How usage on this account is paid for. Paid fallback rules use this.
+          enum:
+            - metered_api
+            - subscription
+            - free
+            - local
+          type: string
+        credential_ref:
+          description: env:NAME or file:/path. Alternative to the write-only 'credential' secret.
+          type: string
+        display_name:
+          maxLength: 120
+          type: string
+        enabled:
+          type: boolean
+        labels:
+          additionalProperties:
+            type: string
+          description: Free-form labels available to routing expressions as account.labels.
+          type: object
+        max_concurrency:
+          description: Local concurrency cap enforced by reservations; 0 = unlimited.
+          format: int64
+          maximum: 10000
+          minimum: 0
+          type: integer
+        provider_id:
+          type: string
+        requests_per_minute:
+          description: Local request rate cap; 0 = unlimited.
+          format: int64
+          maximum: 1000000
+          minimum: 0
+          type: integer
+      required:
+        - provider_id
+        - display_name
+        - credential_ref
+        - billing
+        - allowed_models
+        - max_concurrency
+        - requests_per_minute
+        - enabled
+        - labels
+      type: object
+    AliasSpec:
+      additionalProperties: false
+      properties:
+        alias_id:
+          description: Target alias (chains are allowed; cycles are rejected).
+          type: string
+        description:
+          maxLength: 500
+          type: string
+        pool_id:
+          description: Target pool (exactly one of pool_id or alias_id).
+          type: string
+        required_capabilities:
+          description: Capabilities every candidate must have in addition to what a request demands.
+          items:
+            type: string
           type: array
       required:
-        - items
+        - description
+        - pool_id
+        - alias_id
+        - required_capabilities
       type: object
     AuditEntryDTO:
       additionalProperties: false
@@ -127,6 +204,173 @@ components:
         - updated_at
         - revision
       type: object
+    BindingLimits:
+      additionalProperties: false
+      properties:
+        max_concurrency:
+          description: 0 = unlimited.
+          format: int64
+          minimum: 0
+          type: integer
+        max_request_bytes:
+          description: 0 = server default.
+          format: int64
+          minimum: 0
+          type: integer
+        requests_per_minute:
+          description: 0 = unlimited.
+          format: int64
+          minimum: 0
+          type: integer
+      required:
+        - requests_per_minute
+        - max_concurrency
+        - max_request_bytes
+      type: object
+    BindingSpec:
+      additionalProperties: false
+      properties:
+        allowed_models:
+          description: Requested model names (aliases or plan mappings) this client may use; empty = any the plan maps.
+          items:
+            type: string
+          type: array
+        allowed_project_ids:
+          description: Projects a trusted project hint may select.
+          items:
+            type: string
+          type: array
+        display_name:
+          maxLength: 120
+          type: string
+        enabled:
+          type: boolean
+        expected_harness:
+          description: Informational; mismatches are recorded, never enforced as identity.
+          enum:
+            - claude_code
+            - codex
+            - opencode
+            - pi
+            - generic
+            - ""
+          type: string
+        external_refs:
+          additionalProperties:
+            type: string
+          description: Operator-configured trusted references.
+          type: object
+        limits:
+          $ref: "#/components/schemas/BindingLimits"
+        owner_id:
+          description: usr_… or pri_… (empty when owner_kind is none).
+          type: string
+        owner_kind:
+          description: Who is accountable for this client (empty = none).
+          enum:
+            - user
+            - service
+            - none
+            - ""
+          type: string
+        plan_id:
+          type: string
+        project_id:
+          description: Default project for attribution (optional).
+          type: string
+        trust:
+          $ref: "#/components/schemas/BindingTrust"
+      required:
+        - display_name
+        - owner_kind
+        - owner_id
+        - plan_id
+        - project_id
+        - allowed_project_ids
+        - expected_harness
+        - allowed_models
+        - limits
+        - trust
+        - external_refs
+        - enabled
+      type: object
+    BindingTrust:
+      additionalProperties: false
+      properties:
+        intent_hints:
+          description: Accept declared intent (X-HP-Intent) as trusted.
+          type: boolean
+        project_hints:
+          description: Allow X-HP-Project to select one of allowed_project_ids.
+          type: boolean
+        session_hints:
+          description: Use harness session headers to group requests into sessions.
+          type: boolean
+      required:
+        - session_hints
+        - project_hints
+        - intent_hints
+      type: object
+    Bundle:
+      additionalProperties: false
+      properties:
+        api_version:
+          type: string
+        config_revision:
+          format: int64
+          type: integer
+        exported_at:
+          format: date-time
+          type: string
+        plans:
+          items:
+            $ref: "#/components/schemas/BundlePlan"
+          type: array
+        resources:
+          items:
+            $ref: "#/components/schemas/BundleResource"
+          type: array
+      required:
+        - api_version
+        - exported_at
+        - config_revision
+        - resources
+        - plans
+      type: object
+    BundlePlan:
+      additionalProperties: false
+      properties:
+        plan:
+          type: string
+        published: {}
+        version:
+          format: int64
+          type: integer
+      required:
+        - plan
+        - version
+        - published
+      type: object
+    BundleResource:
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+        managed_by:
+          type: string
+        name:
+          type: string
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Presence only; values are never exported.
+          type: object
+        spec: {}
+      required:
+        - kind
+        - name
+        - spec
+      type: object
     CreateUserInBody:
       additionalProperties: false
       properties:
@@ -163,6 +407,207 @@ components:
       required:
         - user
       type: object
+    Credential:
+      additionalProperties: false
+      properties:
+        binding_id:
+          type: string
+        bound_refs:
+          additionalProperties:
+            type: string
+          description: Trusted external references bound at mint time (e.g. spaceman.run).
+          type: object
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        expires_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        last_used_at:
+          format: date-time
+          type: string
+        last_used_ip:
+          type: string
+        managed_by:
+          type: string
+        name:
+          type: string
+        parent_id:
+          type: string
+        prefix:
+          description: Non-secret prefix (hpk_<prefix>_…).
+          type: string
+        revoked_at:
+          format: date-time
+          type: string
+        scopes:
+          items:
+            type: string
+          type: array
+      required:
+        - id
+        - prefix
+        - binding_id
+        - name
+        - scopes
+        - bound_refs
+        - managed_by
+        - created_by
+        - created_at
+      type: object
+    CredentialList:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Credential"
+          type: array
+      required:
+        - items
+      type: object
+    DraftRequest:
+      additionalProperties: false
+      properties:
+        document:
+          $ref: "#/components/schemas/PlanDocument"
+        note:
+          maxLength: 500
+          type: string
+      required:
+        - document
+        - note
+      type: object
+    DriftedObject:
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+      type: object
+    EffectiveAlias:
+      additionalProperties: false
+      properties:
+        chain:
+          items:
+            type: string
+          type: array
+        id:
+          type: string
+        name:
+          type: string
+        pool_id:
+          type: string
+      required:
+        - id
+        - name
+        - chain
+        - pool_id
+      type: object
+    EffectiveDTO:
+      additionalProperties: false
+      properties:
+        aliases:
+          items:
+            $ref: "#/components/schemas/EffectiveAlias"
+          type: array
+        compiled_at:
+          format: date-time
+          type: string
+        config_revision:
+          format: int64
+          type: integer
+        counts:
+          additionalProperties:
+            format: int64
+            type: integer
+          type: object
+        drifted:
+          items:
+            $ref: "#/components/schemas/DriftedObject"
+          type: array
+        plans:
+          items:
+            $ref: "#/components/schemas/EffectivePlan"
+          type: array
+      required:
+        - config_revision
+        - compiled_at
+        - counts
+        - plans
+        - aliases
+        - drifted
+      type: object
+    EffectivePlan:
+      additionalProperties: false
+      properties:
+        bindings:
+          format: int64
+          type: integer
+        id:
+          type: string
+        name:
+          type: string
+        published_version:
+          description: 0 when no version is published.
+          format: int64
+          type: integer
+        version_id:
+          type: string
+      required:
+        - id
+        - name
+        - published_version
+        - bindings
+      type: object
+    EntitlementSpec:
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+        currency:
+          type: string
+        ends_on:
+          description: YYYY-MM-DD, empty = open-ended
+          type: string
+        fee:
+          description: Subscription fee per period as a decimal string.
+          type: string
+        period:
+          enum:
+            - monthly
+            - yearly
+          type: string
+        plan_name:
+          maxLength: 120
+          type: string
+        starts_on:
+          description: YYYY-MM-DD
+          type: string
+        windows:
+          items:
+            $ref: "#/components/schemas/WindowSpec"
+          type: array
+      required:
+        - account_id
+        - plan_name
+        - fee
+        - currency
+        - period
+        - starts_on
+        - ends_on
+        - windows
+      type: object
     Error:
       additionalProperties: false
       properties:
@@ -189,6 +634,45 @@ components:
         - code
         - message
       type: object
+    FallbackPolicy:
+      additionalProperties: false
+      properties:
+        allow_paid_fallback:
+          description: Allow falling back from free/subscription/local candidates to metered_api candidates.
+          type: boolean
+        max_attempts:
+          format: int64
+          maximum: 10
+          minimum: 1
+          type: integer
+        steps:
+          description: "Ordered steps: retry, alternate_account, alternate_model, alternate_provider, wait, stop."
+          items:
+            type: string
+          type: array
+        wait_max_seconds:
+          description: Upper bound for the wait step.
+          format: int64
+          maximum: 600
+          minimum: 0
+          type: integer
+      required:
+        - steps
+        - max_attempts
+        - allow_paid_fallback
+        - wait_max_seconds
+      type: object
+    FieldError:
+      additionalProperties: false
+      properties:
+        location:
+          type: string
+        message:
+          type: string
+      required:
+        - location
+        - message
+      type: object
     GrantsInBody:
       additionalProperties: false
       properties:
@@ -202,6 +686,43 @@ components:
           type: array
       required:
         - grants
+      type: object
+    HistoryEntry:
+      additionalProperties: false
+      properties:
+        actor_id:
+          type: string
+        at:
+          format: date-time
+          type: string
+        config_revision:
+          format: int64
+          type: integer
+        managed_by:
+          type: string
+        operation:
+          type: string
+        revision:
+          format: int64
+          type: integer
+        spec: {}
+      required:
+        - revision
+        - operation
+        - managed_by
+        - actor_id
+        - at
+        - config_revision
+      type: object
+    HistoryList:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/HistoryEntry"
+          type: array
+      required:
+        - items
       type: object
     IdentityDTO:
       additionalProperties: false
@@ -224,7 +745,76 @@ components:
         - subject
         - linked_at
       type: object
-    IssueInBody:
+    ImportAction:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+            - create
+            - update
+            - unchanged
+            - delete
+            - publish
+            - skip
+          type: string
+        detail:
+          type: string
+        kind:
+          type: string
+        name:
+          type: string
+      required:
+        - action
+        - kind
+        - name
+      type: object
+    ImportRequest:
+      additionalProperties: false
+      properties:
+        allow_terraform:
+          description: Overwrite Terraform-managed objects (they will show as drifted).
+          type: boolean
+        bundle:
+          $ref: "#/components/schemas/Bundle"
+        dry_run:
+          type: boolean
+        modes:
+          additionalProperties:
+            type: string
+          description: "Per kind: merge (default) or replace (also delete objects absent from the bundle)."
+          type: object
+        publish_plans:
+          description: Publish the bundle's plan documents when they differ.
+          type: boolean
+      required:
+        - bundle
+        - dry_run
+        - publish_plans
+        - allow_terraform
+      type: object
+    ImportResult:
+      additionalProperties: false
+      properties:
+        actions:
+          items:
+            $ref: "#/components/schemas/ImportAction"
+          type: array
+        config_revision:
+          format: int64
+          type: integer
+        dry_run:
+          type: boolean
+        warnings:
+          items:
+            type: string
+          type: array
+      required:
+        - dry_run
+        - actions
+        - warnings
+        - config_revision
+      type: object
+    IssueAPITokenRequest:
       additionalProperties: false
       properties:
         name:
@@ -240,7 +830,33 @@ components:
       required:
         - name
       type: object
-    IssueOutBody:
+    IssueCredentialRequest:
+      additionalProperties: false
+      properties:
+        bound_refs:
+          additionalProperties:
+            type: string
+          description: Trusted references bound to this credential.
+          type: object
+        name:
+          maxLength: 80
+          minLength: 1
+          type: string
+        scopes:
+          description: "Default: gateway:invoke, gateway:models."
+          items:
+            type: string
+          type: array
+        ttl_seconds:
+          description: 0 = no expiry.
+          format: int64
+          maximum: 63072000
+          minimum: 0
+          type: integer
+      required:
+        - name
+      type: object
+    IssuedAPIToken:
       additionalProperties: false
       properties:
         plaintext:
@@ -252,6 +868,24 @@ components:
         - token
         - plaintext
       type: object
+    IssuedCredential:
+      additionalProperties: false
+      properties:
+        base_urls:
+          additionalProperties:
+            type: string
+          description: Base URLs per protocol for client configuration.
+          type: object
+        credential:
+          $ref: "#/components/schemas/Credential"
+        token:
+          description: The bearer token (hpk_…). Returned exactly once.
+          type: string
+      required:
+        - credential
+        - token
+        - base_urls
+      type: object
     LinkOutBody:
       additionalProperties: false
       properties:
@@ -259,16 +893,6 @@ components:
           type: string
       required:
         - auth_url
-      type: object
-    ListOutBody:
-      additionalProperties: false
-      properties:
-        items:
-          items:
-            $ref: "#/components/schemas/OIDCProviderDTO"
-          type: array
-      required:
-        - items
       type: object
     LoginInBody:
       additionalProperties: false
@@ -311,6 +935,78 @@ components:
         - server_time
         - public_url
         - started_at
+      type: object
+    ModelMapping:
+      additionalProperties: false
+      properties:
+        alias_id:
+          type: string
+        match:
+          description: Requested model name or glob (e.g. claude-sonnet-*).
+          type: string
+        note:
+          maxLength: 200
+          type: string
+      required:
+        - match
+        - alias_id
+        - note
+      type: object
+    ModelPricing:
+      additionalProperties: false
+      properties:
+        cache_read_per_mtok:
+          type: string
+        cache_write_per_mtok:
+          type: string
+        currency:
+          description: ISO 4217 currency, e.g. USD.
+          type: string
+        input_per_mtok:
+          description: Decimal price per million input tokens.
+          type: string
+        output_per_mtok:
+          type: string
+        price_version:
+          description: Operator label for this price list, recorded on every cost estimate.
+          type: string
+      required:
+        - currency
+        - input_per_mtok
+        - output_per_mtok
+        - cache_read_per_mtok
+        - cache_write_per_mtok
+        - price_version
+      type: object
+    ModelSpec:
+      additionalProperties: false
+      properties:
+        capabilities:
+          items:
+            type: string
+          type: array
+        context_window:
+          format: int64
+          minimum: 0
+          type: integer
+        display_name:
+          type: string
+        id:
+          description: Upstream model identifier.
+          type: string
+        max_output_tokens:
+          format: int64
+          minimum: 0
+          type: integer
+        pricing:
+          $ref: "#/components/schemas/ModelPricing"
+          description: List prices for estimates; omit when unknown.
+      required:
+        - id
+        - display_name
+        - context_window
+        - max_output_tokens
+        - capabilities
       type: object
     OIDCLoginOption:
       additionalProperties: false
@@ -404,6 +1100,16 @@ components:
         - updated_at
         - revision
       type: object
+    OIDCProviderList:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/OIDCProviderDTO"
+          type: array
+      required:
+        - items
+      type: object
     OidcBody:
       additionalProperties: false
       properties:
@@ -491,6 +1197,136 @@ components:
       required:
         - items
       type: object
+    PageResourceAccountSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourceAccountSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageResourceAliasSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourceAliasSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageResourceBindingSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourceBindingSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageResourceEntitlementSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourceEntitlementSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageResourcePlanSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourcePlanSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageResourcePoolSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourcePoolSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageResourceProjectSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourceProjectSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageResourceProviderSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourceProviderSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageResourceWorkspaceSpec:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ResourceWorkspaceSpec"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
+    PageRevisionDTO:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/RevisionDTO"
+          type: array
+        next_cursor:
+          description: Present when more items are available.
+          type: string
+      required:
+        - items
+      type: object
     PageServicePrincipalDTO:
       additionalProperties: false
       properties:
@@ -545,6 +1381,220 @@ components:
             - viewer
           type: string
       type: object
+    PlanDocument:
+      additionalProperties: false
+      properties:
+        default_alias_id:
+          description: Alias for requests whose model matches no mapping and no alias name; empty = reject.
+          type: string
+        engine: {}
+        fallback:
+          $ref: "#/components/schemas/FallbackPolicy"
+        model_mappings:
+          items:
+            $ref: "#/components/schemas/ModelMapping"
+          type: array
+        restrictions:
+          $ref: "#/components/schemas/PlanRestrictions"
+        schema_version:
+          format: int64
+          type: integer
+      required:
+        - schema_version
+        - model_mappings
+        - default_alias_id
+        - restrictions
+        - fallback
+      type: object
+    PlanRestrictions:
+      additionalProperties: false
+      properties:
+        allowed_billing:
+          description: Subset of metered_api, subscription, free, local; empty = any.
+          items:
+            type: string
+          type: array
+        allowed_classifications:
+          description: Subset of official, partial, unofficial, local; empty = any.
+          items:
+            type: string
+          type: array
+        allowed_provider_ids:
+          description: Empty = any.
+          items:
+            type: string
+          type: array
+        denied_provider_ids:
+          items:
+            type: string
+          type: array
+        required_capabilities:
+          items:
+            type: string
+          type: array
+      required:
+        - allowed_provider_ids
+        - denied_provider_ids
+        - allowed_billing
+        - allowed_classifications
+        - required_capabilities
+      type: object
+    PlanSpec:
+      additionalProperties: false
+      properties:
+        description:
+          maxLength: 1000
+          type: string
+        display_name:
+          maxLength: 120
+          type: string
+      required:
+        - display_name
+        - description
+      type: object
+    PoolMember:
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+        model:
+          description: Upstream model id at the account's provider.
+          type: string
+        priority:
+          description: Lower is preferred for ordered strategies.
+          format: int64
+          type: integer
+        weight:
+          description: Relative weight for the weighted strategy.
+          format: int64
+          maximum: 1000
+          minimum: 0
+          type: integer
+      required:
+        - account_id
+        - model
+        - priority
+        - weight
+      type: object
+    PoolSpec:
+      additionalProperties: false
+      properties:
+        affinity:
+          description: Empty = session. Keep a conversation on the same member while it stays eligible (prompt-cache friendly).
+          enum:
+            - session
+            - none
+            - ""
+          type: string
+        display_name:
+          maxLength: 120
+          type: string
+        members:
+          items:
+            $ref: "#/components/schemas/PoolMember"
+          type: array
+        strategy:
+          description: Default ranking inside the pool (empty = ordered); plans may override.
+          enum:
+            - ordered
+            - weighted
+            - reset_soonest
+            - least_used
+            - round_robin
+            - ""
+          type: string
+      required:
+        - display_name
+        - strategy
+        - affinity
+        - members
+      type: object
+    ProjectSpec:
+      additionalProperties: false
+      properties:
+        description:
+          maxLength: 1000
+          type: string
+        display_name:
+          maxLength: 120
+          type: string
+        external_refs:
+          additionalProperties:
+            type: string
+          description: Operator-configured external references (trusted).
+          type: object
+        workspace_id:
+          description: Workspace this project belongs to.
+          type: string
+      required:
+        - workspace_id
+        - display_name
+        - description
+        - external_refs
+      type: object
+    ProviderSpec:
+      additionalProperties: false
+      properties:
+        allow_private_network:
+          description: Explicitly authorize a private or loopback destination (local models). Cloud metadata addresses stay blocked.
+          type: boolean
+        base_url:
+          description: Upstream base URL. Defaults per type; required for openai_compatible.
+          type: string
+        classification:
+          description: Integration classification shown wherever this provider is used. Empty = the type default.
+          enum:
+            - official
+            - partial
+            - unofficial
+            - local
+            - ""
+          type: string
+        display_name:
+          maxLength: 120
+          type: string
+        headers:
+          additionalProperties:
+            type: string
+          description: Static non-secret headers sent upstream (authorization headers are refused).
+          type: object
+        models:
+          items:
+            $ref: "#/components/schemas/ModelSpec"
+          type: array
+        request_timeout_seconds:
+          description: Overall upstream request timeout; 0 = default (600s).
+          format: int64
+          maximum: 3600
+          minimum: 0
+          type: integer
+        stream_idle_timeout_seconds:
+          description: Abort a stream with no upstream bytes for this long; 0 = default (300s).
+          format: int64
+          maximum: 3600
+          minimum: 0
+          type: integer
+        type:
+          enum:
+            - anthropic
+            - openai
+            - gemini
+            - openai_compatible
+            - ollama
+            - claude_code
+            - codex
+          type: string
+      required:
+        - type
+        - display_name
+        - base_url
+        - allow_private_network
+        - classification
+        - headers
+        - request_timeout_seconds
+        - stream_idle_timeout_seconds
+        - models
+      type: object
     ResetOutBody:
       additionalProperties: false
       properties:
@@ -557,6 +1607,634 @@ components:
         - reset_url
         - expires_at
       type: object
+    ResourceAccountSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/AccountSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
+    ResourceAliasSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/AliasSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
+    ResourceBindingSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/BindingSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
+    ResourceEntitlementSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/EntitlementSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
+    ResourcePlanSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/PlanSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
+    ResourcePoolSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/PoolSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
+    ResourceProjectSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/ProjectSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
+    ResourceProviderSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/ProviderSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
+    ResourceWorkspaceSpec:
+      additionalProperties: false
+      properties:
+        config_revision:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        drift_state:
+          description: drifted when a Terraform-managed object was changed outside Terraform.
+          enum:
+            - in_sync
+            - drifted
+          type: string
+        drifted_at:
+          format: date-time
+          type: string
+        drifted_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        managed_by:
+          enum:
+            - ui
+            - api
+            - terraform
+            - cli
+            - import
+            - demo
+          type: string
+        name:
+          type: string
+        revision:
+          description: Use as If-Match ("r<revision>") for optimistic concurrency.
+          format: int64
+          type: integer
+        secrets:
+          additionalProperties:
+            $ref: "#/components/schemas/SecretInfo"
+          description: Write-only secret presence; values are never returned.
+          type: object
+        spec:
+          $ref: "#/components/schemas/WorkspaceSpec"
+        updated_at:
+          format: date-time
+          type: string
+        updated_by:
+          type: string
+      required:
+        - id
+        - kind
+        - name
+        - spec
+        - revision
+        - managed_by
+        - drift_state
+        - created_at
+        - updated_at
+        - created_by
+        - updated_by
+        - config_revision
+      type: object
+    RevisionDTO:
+      additionalProperties: false
+      properties:
+        actor_id:
+          type: string
+        actor_kind:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        revision:
+          format: int64
+          type: integer
+        source:
+          type: string
+        summary:
+          type: string
+      required:
+        - revision
+        - created_at
+        - actor_id
+        - actor_kind
+        - source
+        - summary
+      type: object
     RoleMapping:
       additionalProperties: false
       properties:
@@ -567,6 +2245,36 @@ components:
       required:
         - group
         - role
+      type: object
+    RollbackRequest:
+      additionalProperties: false
+      properties:
+        version_id:
+          description: A previously published version to restore.
+          type: string
+      required:
+        - version_id
+      type: object
+    SecretInfo:
+      additionalProperties: false
+      properties:
+        fingerprint:
+          description: Short non-reversible fingerprint to detect changes.
+          type: string
+        set:
+          type: boolean
+        source:
+          enum:
+            - stored
+            - reference
+            - none
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - set
+        - source
       type: object
     SecurityAlertDTO:
       additionalProperties: false
@@ -590,6 +2298,16 @@ components:
         - kind
         - message
         - created_at
+      type: object
+    SecurityAlertList:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/SecurityAlertDTO"
+          type: array
+      required:
+        - items
       type: object
     ServicePrincipalDTO:
       additionalProperties: false
@@ -679,16 +2397,6 @@ components:
         - limited
         - security_alerts
       type: object
-    SessionsOutBody:
-      additionalProperties: false
-      properties:
-        items:
-          items:
-            $ref: "#/components/schemas/WebSessionDTO"
-          type: array
-      required:
-        - items
-      type: object
     SetupInBody:
       additionalProperties: false
       properties:
@@ -772,16 +2480,6 @@ components:
       required:
         - token
       type: object
-    TokensOutBody:
-      additionalProperties: false
-      properties:
-        items:
-          items:
-            $ref: "#/components/schemas/APITokenDTO"
-          type: array
-      required:
-        - items
-      type: object
     UnlinkInBody:
       additionalProperties: false
       properties:
@@ -850,6 +2548,87 @@ components:
         - updated_at
         - revision
       type: object
+    ValidationReport:
+      additionalProperties: false
+      properties:
+        checked_at:
+          format: date-time
+          type: string
+        config_revision:
+          format: int64
+          type: integer
+        errors:
+          items:
+            $ref: "#/components/schemas/FieldError"
+          type: array
+        valid:
+          type: boolean
+        warnings:
+          items:
+            $ref: "#/components/schemas/FieldError"
+          type: array
+      required:
+        - valid
+        - errors
+        - warnings
+        - checked_at
+        - config_revision
+      type: object
+    Version:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        document:
+          $ref: "#/components/schemas/PlanDocument"
+        id:
+          type: string
+        note:
+          type: string
+        plan_id:
+          type: string
+        published_at:
+          format: date-time
+          type: string
+        published_by:
+          type: string
+        rollback_of:
+          type: string
+        status:
+          enum:
+            - draft
+            - published
+            - superseded
+            - archived
+          type: string
+        validation: {}
+        version:
+          format: int64
+          type: integer
+      required:
+        - id
+        - plan_id
+        - version
+        - status
+        - document
+        - validation
+        - note
+        - created_by
+        - created_at
+      type: object
+    VersionList:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Version"
+          type: array
+      required:
+        - items
+      type: object
     WebSessionDTO:
       additionalProperties: false
       properties:
@@ -879,6 +2658,236 @@ components:
         - created_at
         - last_seen_at
         - expires_at
+      type: object
+    WebSessionList:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/WebSessionDTO"
+          type: array
+      required:
+        - items
+      type: object
+    WindowSpec:
+      additionalProperties: false
+      properties:
+        limit:
+          description: Known limit in unit; omit when the provider does not publish one.
+          format: int64
+          type: integer
+        name:
+          description: e.g. five_hour, seven_day
+          type: string
+        seconds:
+          format: int64
+          minimum: 60
+          type: integer
+        unit:
+          enum:
+            - percent
+            - tokens
+            - requests
+            - credits
+            - unknown
+          type: string
+      required:
+        - name
+        - seconds
+        - unit
+      type: object
+    WorkspaceSpec:
+      additionalProperties: false
+      properties:
+        description:
+          maxLength: 1000
+          type: string
+        display_name:
+          maxLength: 120
+          type: string
+      required:
+        - display_name
+        - description
+      type: object
+    WriteBodyAccountSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/AccountSpec"
+      required:
+        - name
+        - spec
+      type: object
+    WriteBodyAliasSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/AliasSpec"
+      required:
+        - name
+        - spec
+      type: object
+    WriteBodyBindingSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/BindingSpec"
+      required:
+        - name
+        - spec
+      type: object
+    WriteBodyEntitlementSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/EntitlementSpec"
+      required:
+        - name
+        - spec
+      type: object
+    WriteBodyPlanSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/PlanSpec"
+      required:
+        - name
+        - spec
+      type: object
+    WriteBodyPoolSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/PoolSpec"
+      required:
+        - name
+        - spec
+      type: object
+    WriteBodyProjectSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/ProjectSpec"
+      required:
+        - name
+        - spec
+      type: object
+    WriteBodyProviderSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/ProviderSpec"
+      required:
+        - name
+        - spec
+      type: object
+    WriteBodyWorkspaceSpec:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        secrets:
+          additionalProperties:
+            type:
+              - string
+              - "null"
+          description: Write-only secret values. Omit a key to keep it; empty string clears it.
+          type: object
+        spec:
+          $ref: "#/components/schemas/WorkspaceSpec"
+      required:
+        - name
+        - spec
       type: object
   securitySchemes:
     bearer:
@@ -1013,7 +3022,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ListOutBody"
+                $ref: "#/components/schemas/OIDCProviderList"
           description: OK
         default:
           content:
@@ -1483,6 +3492,488 @@ paths:
       tags:
         - Session
       x-permission: public
+  /client-bindings:
+    get:
+      operationId: list-client-bindings
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourceBindingSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Client bindings
+      tags:
+        - Client bindings
+      x-permission: config.read
+    post:
+      operationId: create-client_binding
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyBindingSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceBindingSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Client binding
+      tags:
+        - Client bindings
+      x-permission: config.write
+  /client-bindings/{id}:
+    delete:
+      operationId: delete-client_binding
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Client binding
+      tags:
+        - Client bindings
+      x-permission: config.write
+    get:
+      operationId: get-client_binding
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceBindingSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Client binding
+      tags:
+        - Client bindings
+      x-permission: config.read
+    put:
+      operationId: replace-client_binding
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyBindingSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceBindingSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Client binding
+      tags:
+        - Client bindings
+      x-permission: config.write
+  /client-bindings/{id}/credentials:
+    get:
+      operationId: list-gateway-credentials
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Include short-lived child credentials.
+          explode: false
+          in: query
+          name: children
+          schema:
+            description: Include short-lived child credentials.
+            type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CredentialList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List gateway credentials of a client binding
+      tags:
+        - Gateway credentials
+      x-permission: config.read
+    post:
+      operationId: issue-gateway-credential
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueCredentialRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssuedCredential"
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Issue a gateway credential (token returned once)
+      tags:
+        - Gateway credentials
+      x-permission: tokens.manage
+  /client-bindings/{id}/credentials/{credential_id}:
+    delete:
+      operationId: revoke-gateway-credential
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: path
+          name: credential_id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revoke a gateway credential and its children
+      tags:
+        - Gateway credentials
+      x-permission: tokens.manage
+  /client-bindings/{id}/history:
+    get:
+      operationId: history-client_binding
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Client binding
+      tags:
+        - Client bindings
+      x-permission: config.read
+  /config/effective:
+    get:
+      operationId: get-effective-config
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EffectiveDTO"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: The active compiled configuration
+      tags:
+        - Configuration
+      x-permission: config.read
+  /config/export:
+    get:
+      operationId: export-config
+      parameters:
+        - description: Limit to these kinds (repeatable).
+          explode: false
+          in: query
+          name: kind
+          schema:
+            description: Limit to these kinds (repeatable).
+            items:
+              type: string
+            type: array
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Export managed configuration as a portable bundle (no secrets)
+      tags:
+        - Configuration
+      x-permission: config.read
+  /config/import:
+    post:
+      operationId: import-config
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Import a bundle atomically (supports dry run)
+      tags:
+        - Configuration
+      x-permission: policy.publish
+  /config/revisions:
+    get:
+      operationId: list-config-revisions
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageRevisionDTO"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List configuration revisions (newest first)
+      tags:
+        - Configuration
+      x-permission: config.read
   /meta:
     get:
       operationId: get-meta
@@ -1504,6 +3995,1785 @@ paths:
       tags:
         - System
       x-permission: public
+  /model-aliases:
+    get:
+      operationId: list-model-aliases
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourceAliasSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Model aliass
+      tags:
+        - Model aliass
+      x-permission: config.read
+    post:
+      operationId: create-model_alias
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyAliasSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceAliasSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Model alias
+      tags:
+        - Model aliass
+      x-permission: config.write
+  /model-aliases/{id}:
+    delete:
+      operationId: delete-model_alias
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Model alias
+      tags:
+        - Model aliass
+      x-permission: config.write
+    get:
+      operationId: get-model_alias
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceAliasSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Model alias
+      tags:
+        - Model aliass
+      x-permission: config.read
+    put:
+      operationId: replace-model_alias
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyAliasSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceAliasSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Model alias
+      tags:
+        - Model aliass
+      x-permission: config.write
+  /model-aliases/{id}/history:
+    get:
+      operationId: history-model_alias
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Model alias
+      tags:
+        - Model aliass
+      x-permission: config.read
+  /pools:
+    get:
+      operationId: list-pools
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourcePoolSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Pools
+      tags:
+        - Pools
+      x-permission: config.read
+    post:
+      operationId: create-pool
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyPoolSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePoolSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Pool
+      tags:
+        - Pools
+      x-permission: config.write
+  /pools/{id}:
+    delete:
+      operationId: delete-pool
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Pool
+      tags:
+        - Pools
+      x-permission: config.write
+    get:
+      operationId: get-pool
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePoolSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Pool
+      tags:
+        - Pools
+      x-permission: config.read
+    put:
+      operationId: replace-pool
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyPoolSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePoolSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Pool
+      tags:
+        - Pools
+      x-permission: config.write
+  /pools/{id}/history:
+    get:
+      operationId: history-pool
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Pool
+      tags:
+        - Pools
+      x-permission: config.read
+  /projects:
+    get:
+      operationId: list-projects
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourceProjectSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Projects
+      tags:
+        - Projects
+      x-permission: config.read
+    post:
+      operationId: create-project
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyProjectSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceProjectSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Project
+      tags:
+        - Projects
+      x-permission: config.write
+  /projects/{id}:
+    delete:
+      operationId: delete-project
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Project
+      tags:
+        - Projects
+      x-permission: config.write
+    get:
+      operationId: get-project
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceProjectSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Project
+      tags:
+        - Projects
+      x-permission: config.read
+    put:
+      operationId: replace-project
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyProjectSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceProjectSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Project
+      tags:
+        - Projects
+      x-permission: config.write
+  /projects/{id}/history:
+    get:
+      operationId: history-project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Project
+      tags:
+        - Projects
+      x-permission: config.read
+  /provider-accounts:
+    get:
+      operationId: list-provider-accounts
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourceAccountSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Provider accounts
+      tags:
+        - Provider accounts
+      x-permission: config.read
+    post:
+      operationId: create-provider_account
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyAccountSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceAccountSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Provider account
+      tags:
+        - Provider accounts
+      x-permission: secrets.write
+  /provider-accounts/{id}:
+    delete:
+      operationId: delete-provider_account
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Provider account
+      tags:
+        - Provider accounts
+      x-permission: config.write
+    get:
+      operationId: get-provider_account
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceAccountSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Provider account
+      tags:
+        - Provider accounts
+      x-permission: config.read
+    put:
+      operationId: replace-provider_account
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyAccountSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceAccountSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Provider account
+      tags:
+        - Provider accounts
+      x-permission: secrets.write
+  /provider-accounts/{id}/history:
+    get:
+      operationId: history-provider_account
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Provider account
+      tags:
+        - Provider accounts
+      x-permission: config.read
+  /providers:
+    get:
+      operationId: list-providers
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourceProviderSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Providers
+      tags:
+        - Providers
+      x-permission: config.read
+    post:
+      operationId: create-provider
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyProviderSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceProviderSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Provider
+      tags:
+        - Providers
+      x-permission: config.write
+  /providers/{id}:
+    delete:
+      operationId: delete-provider
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Provider
+      tags:
+        - Providers
+      x-permission: config.write
+    get:
+      operationId: get-provider
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceProviderSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Provider
+      tags:
+        - Providers
+      x-permission: config.read
+    put:
+      operationId: replace-provider
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyProviderSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceProviderSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Provider
+      tags:
+        - Providers
+      x-permission: config.write
+  /providers/{id}/history:
+    get:
+      operationId: history-provider
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Provider
+      tags:
+        - Providers
+      x-permission: config.read
+  /routing-plans:
+    get:
+      operationId: list-routing-plans
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourcePlanSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Routing plans
+      tags:
+        - Routing plans
+      x-permission: config.read
+    post:
+      operationId: create-routing_plan
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyPlanSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePlanSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Routing plan
+      tags:
+        - Routing plans
+      x-permission: config.write
+  /routing-plans/{id}:
+    delete:
+      operationId: delete-routing_plan
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Routing plan
+      tags:
+        - Routing plans
+      x-permission: config.write
+    get:
+      operationId: get-routing_plan
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePlanSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Routing plan
+      tags:
+        - Routing plans
+      x-permission: config.read
+    put:
+      operationId: replace-routing_plan
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyPlanSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourcePlanSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Routing plan
+      tags:
+        - Routing plans
+      x-permission: config.write
+  /routing-plans/{id}/history:
+    get:
+      operationId: history-routing_plan
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Routing plan
+      tags:
+        - Routing plans
+      x-permission: config.read
+  /routing-plans/{id}/rollback:
+    post:
+      operationId: rollback-plan
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RollbackRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Version"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Publish a copy of a previous version
+      tags:
+        - Routing plans
+      x-permission: policy.publish
+  /routing-plans/{id}/versions:
+    get:
+      operationId: list-plan-versions
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List versions of a routing plan
+      tags:
+        - Routing plans
+      x-permission: config.read
+    post:
+      operationId: create-plan-draft
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Version"
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a draft version
+      tags:
+        - Routing plans
+      x-permission: config.write
+  /routing-plans/{id}/versions/{version_id}:
+    delete:
+      operationId: discard-plan-draft
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: path
+          name: version_id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Discard a draft version
+      tags:
+        - Routing plans
+      x-permission: config.write
+    get:
+      operationId: get-plan-version
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: path
+          name: version_id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Version"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a routing plan version
+      tags:
+        - Routing plans
+      x-permission: config.read
+    put:
+      operationId: replace-plan-draft
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: path
+          name: version_id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Version"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a draft version
+      tags:
+        - Routing plans
+      x-permission: config.write
+  /routing-plans/{id}/versions/{version_id}/publish:
+    post:
+      operationId: publish-plan-version
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: path
+          name: version_id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Version"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Publish a draft (the previous version is superseded)
+      tags:
+        - Routing plans
+      x-permission: policy.publish
+  /routing-plans/{id}/versions/{version_id}/validate:
+    post:
+      operationId: validate-plan-version
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: path
+          name: version_id
+          required: true
+          schema:
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationReport"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Validate a version against the current configuration
+      tags:
+        - Routing plans
+      x-permission: config.read
   /security-alerts:
     get:
       operationId: list-security-alerts
@@ -1520,7 +5790,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AlertsOutBody"
+                $ref: "#/components/schemas/SecurityAlertList"
           description: OK
         default:
           content:
@@ -1752,7 +6022,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TokensOutBody"
+                $ref: "#/components/schemas/APITokenList"
           description: OK
         default:
           content:
@@ -1777,14 +6047,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/IssueInBody"
+              $ref: "#/components/schemas/IssueAPITokenRequest"
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/IssueOutBody"
+                $ref: "#/components/schemas/IssuedAPIToken"
           description: Created
         default:
           content:
@@ -1911,7 +6181,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SessionsOutBody"
+                $ref: "#/components/schemas/WebSessionList"
           description: OK
         default:
           content:
@@ -1967,6 +6237,251 @@ paths:
       tags:
         - Session
       x-permission: session
+  /subscription-entitlements:
+    get:
+      operationId: list-subscription-entitlements
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourceEntitlementSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Subscription entitlements
+      tags:
+        - Subscription entitlements
+      x-permission: config.read
+    post:
+      operationId: create-subscription_entitlement
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyEntitlementSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceEntitlementSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Subscription entitlement
+      tags:
+        - Subscription entitlements
+      x-permission: config.write
+  /subscription-entitlements/{id}:
+    delete:
+      operationId: delete-subscription_entitlement
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Subscription entitlement
+      tags:
+        - Subscription entitlements
+      x-permission: config.write
+    get:
+      operationId: get-subscription_entitlement
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceEntitlementSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Subscription entitlement
+      tags:
+        - Subscription entitlements
+      x-permission: config.read
+    put:
+      operationId: replace-subscription_entitlement
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyEntitlementSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceEntitlementSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Subscription entitlement
+      tags:
+        - Subscription entitlements
+      x-permission: config.write
+  /subscription-entitlements/{id}/history:
+    get:
+      operationId: history-subscription_entitlement
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Subscription entitlement
+      tags:
+        - Subscription entitlements
+      x-permission: config.read
   /system/status:
     get:
       operationId: get-system-status
@@ -2268,6 +6783,251 @@ paths:
       tags:
         - Users
       x-permission: users.manage
+  /workspaces:
+    get:
+      operationId: list-workspaces
+      parameters:
+        - description: Opaque cursor from a previous page's next_cursor.
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page's next_cursor.
+            type: string
+        - description: Maximum items to return.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum items to return.
+            format: int64
+            maximum: 500
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResourceWorkspaceSpec"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: List Workspaces
+      tags:
+        - Workspaces
+      x-permission: config.read
+    post:
+      operationId: create-workspace
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyWorkspaceSpec"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceWorkspaceSpec"
+          description: Created
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Create a Workspace
+      tags:
+        - Workspaces
+      x-permission: config.write
+  /workspaces/{id}:
+    delete:
+      operationId: delete-workspace
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - in: header
+          name: If-Match
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Delete a Workspace
+      tags:
+        - Workspaces
+      x-permission: config.write
+    get:
+      operationId: get-workspace
+      parameters:
+        - description: Object id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Object id or name.
+            maxLength: 255
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceWorkspaceSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Get a Workspace
+      tags:
+        - Workspaces
+      x-permission: config.read
+    put:
+      operationId: replace-workspace
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - description: Current ETag; required by Terraform, recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; required by Terraform, recommended for all clients.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteBodyWorkspaceSpec"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceWorkspaceSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Replace a Workspace
+      tags:
+        - Workspaces
+      x-permission: config.write
+  /workspaces/{id}/history:
+    get:
+      operationId: history-workspace
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            maxLength: 255
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Revision history of a Workspace
+      tags:
+        - Workspaces
+      x-permission: config.read
 security:
   - session: []
   - bearer: []

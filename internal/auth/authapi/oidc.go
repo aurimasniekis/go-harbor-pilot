@@ -198,11 +198,7 @@ func (h *Handlers) registerOIDC(a *api.API) {
 		})
 
 	// ----- provider administration -----
-	type listOut struct {
-		Body struct {
-			Items []OIDCProviderDTO `json:"items"`
-		}
-	}
+	type listOut struct{ Body OIDCProviderList }
 	api.Register(a, api.Op{ID: "list-oidc-providers", Method: http.MethodGet, Path: "/auth/oidc-providers", Summary: "List SSO providers",
 		Tags: tags, Permission: auth.PermAuthSettings}, func(ctx context.Context, _ *struct{}) (*listOut, error) {
 		ps, err := h.Auth.ListOIDCProviders(ctx)
@@ -356,4 +352,9 @@ func userMessage(err error) string {
 		}
 	}
 	return "single sign-on failed: " + err.Error()
+}
+
+// OIDCProviderList lists SSO providers.
+type OIDCProviderList struct {
+	Items []OIDCProviderDTO `json:"items"`
 }

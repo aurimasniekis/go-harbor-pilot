@@ -54,13 +54,13 @@ This matrix maps every requirement in the product brief to the phase, package an
 ## §5 Domain model and identity
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
-| R5.1 | All domain concepts listed in the brief | 3 | planned | |
-| R5.2 | Client binding composition | 3 | planned | |
+| R5.1 | All domain concepts listed in the brief | 3 | in-progress | controlplane/specs.go (workspace, project, provider, account, entitlement, pool, alias, plan, binding, credential); policy/trace/event/notification kinds land with their phases |
+| R5.2 | Client binding composition | 3 | implemented | BindingSpec (owner, plan, projects, harness, limits, trust, refs); controlplane tests |
 | R5.3 | Token-plus-base-URL onboarding with no custom headers | 4 | planned | scenario A |
-| R5.4 | Token scopes, expiry, revocation, ownership, last-used, nonreversible storage, shown once, never forwarded upstream | 3–4 | planned | |
+| R5.4 | Token scopes, expiry, revocation, ownership, last-used, nonreversible storage, shown once, never forwarded upstream | 3–4 | implemented | controlplane/credentials.go (scopes, expiry, revocation, verifier, last-used, children); TestGatewayCredentials |
 | R5.5 | Base URLs select namespaces but do not authenticate | 4 | planned | |
 | R5.6 | Trusted versus untrusted metadata; harness detection treated as telemetry | 4 | planned | |
-| R5.7 | Optional external refs (SpaceMan, CI, repo) | 3, 11 | planned | scenario N |
+| R5.7 | Optional external refs (SpaceMan, CI, repo) | 3, 11 | in-progress | project/binding external_refs; credential bound_refs (trusted, mint-time) |
 | R5.8 | Session uncertainty recorded; no merging by token | 4, 11 | planned | |
 
 ## §6 Harness, protocol and provider layers
@@ -91,13 +91,13 @@ This matrix maps every requirement in the product brief to the phase, package an
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
 | R8.1 | Plan contents (aliases, pools, restrictions, capabilities, quota, ranking, retry, privacy, degradation) | 5 | planned | |
-| R8.2 | Aliases as data, not hard-coded | 3, 5 | planned | |
+| R8.2 | Aliases as data, not hard-coded | 3, 5 | implemented | model_alias kind (path names), plan model_mappings; ResolveModel tests |
 | R8.3 | Bounded Expr: typed, no side effects | 5 | planned | |
 | R8.4 | Nine evaluation stages; hard restrictions cannot be overridden by scores | 5 | planned | |
 | R8.5 | Rule builder, decision tables, Expr editor, variable reference | 5 | planned | |
 | R8.6 | Unknown, stale and missing semantics; immutable snapshots | 5 | planned | |
-| R8.7 | Draft, validate, publish, rollback; simulator; fixtures; replay distinct from simulation | 5 | planned | |
-| R8.8 | Cycle and ambiguity prevention; read-only decision graph | 3, 5 | planned | |
+| R8.7 | Draft, validate, publish, rollback; simulator; fixtures; replay distinct from simulation | 5 | in-progress | draft/validate/publish/rollback implemented (TestPlanVersionsPublishRollback); simulator/replay Phase 5 |
+| R8.8 | Cycle and ambiguity prevention; read-only decision graph | 3, 5 | in-progress | alias cycle/depth detection, duplicate mapping rejection (snapshot.go); decision graph UI pending |
 
 ## §9 Activity and intents
 | ID | Requirement | Phase | Status | Evidence |
@@ -172,10 +172,10 @@ This matrix maps every requirement in the product brief to the phase, package an
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
 | R16.1 | Versioned OpenAPI: generated and validated | 1 | implemented | huma + api/openapi.yaml; cmd/harbor-pilot/openapi_test.go (drift + x-permission) |
-| R16.2 | Stable IDs, pagination, structured errors, redaction, concurrency control, idempotency | 1, 3 | in-progress | internal/api (envelope, cursor pagination, ETag/If-Match) + api_test.go; idempotency keys pending (Phase 3) |
-| R16.3 | Configuration revision and effective-policy endpoints | 3 | planned | |
-| R16.4 | One authority; export and import; last-known-good; merge vs replace | 3 | planned | |
-| R16.5 | Terraform-managed marking and drift | 3 | planned | |
+| R16.2 | Stable IDs, pagination, structured errors, redaction, concurrency control, idempotency | 1, 3 | implemented | envelope, cursor pagination, ETag/If-Match (412), referenced-delete 409, idempotent import; app/controlplane_test.go |
+| R16.3 | Configuration revision and effective-policy endpoints | 3 | implemented | GET /config/revisions, GET /config/effective |
+| R16.4 | One authority; export and import; last-known-good; merge vs replace | 3 | implemented | controlplane/bundle.go merge/replace/dry-run, compile-before-commit + atomic snapshot swap; TestExportImportRoundTrip |
+| R16.5 | Terraform-managed marking and drift | 3 | implemented | managed_by + drift_state; TestRevisionsAndDrift, TestControlPlaneOverHTTP |
 | R16.6 | CLI operations; secrets read from stdin, file or env | 1–13 | in-progress | serve, admin bootstrap/recover, keys generate/rotate, config validate, openapi, healthcheck |
 
 ## §17 Terraform

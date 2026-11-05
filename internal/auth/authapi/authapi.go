@@ -296,11 +296,7 @@ func (h *Handlers) registerSession(a *api.API) {
 			return h.signedIn(ctx, tok, info)
 		})
 
-	type sessionsOut struct {
-		Body struct {
-			Items []WebSessionDTO `json:"items"`
-		}
-	}
+	type sessionsOut struct{ Body WebSessionList }
 	api.Register(a, api.Op{ID: "list-my-sessions", Method: http.MethodGet, Path: "/session/all", Summary: "List my active sessions",
 		Tags: tags, Permission: auth.PermSession}, func(ctx context.Context, _ *struct{}) (*sessionsOut, error) {
 		p := auth.FromContext(ctx)
@@ -383,4 +379,9 @@ func mapErr(err error) error {
 
 func (h *Handlers) tx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	return mapErr(h.DB.Tx(ctx, fn))
+}
+
+// WebSessionList lists web sessions.
+type WebSessionList struct {
+	Items []WebSessionDTO `json:"items"`
 }

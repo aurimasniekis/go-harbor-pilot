@@ -212,6 +212,163 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/client-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Client bindings */
+        get: operations["list-client-bindings"];
+        put?: never;
+        /** Create a Client binding */
+        post: operations["create-client_binding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client-bindings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Client binding */
+        get: operations["get-client_binding"];
+        /** Replace a Client binding */
+        put: operations["replace-client_binding"];
+        post?: never;
+        /** Delete a Client binding */
+        delete: operations["delete-client_binding"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client-bindings/{id}/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List gateway credentials of a client binding */
+        get: operations["list-gateway-credentials"];
+        put?: never;
+        /** Issue a gateway credential (token returned once) */
+        post: operations["issue-gateway-credential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client-bindings/{id}/credentials/{credential_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a gateway credential and its children */
+        delete: operations["revoke-gateway-credential"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client-bindings/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Client binding */
+        get: operations["history-client_binding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/config/effective": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The active compiled configuration */
+        get: operations["get-effective-config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/config/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export managed configuration as a portable bundle (no secrets) */
+        get: operations["export-config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/config/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import a bundle atomically (supports dry run) */
+        post: operations["import-config"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/config/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List configuration revisions (newest first) */
+        get: operations["list-config-revisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/meta": {
         parameters: {
             query?: never;
@@ -223,6 +380,418 @@ export interface paths {
         get: operations["get-meta"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/model-aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Model aliass */
+        get: operations["list-model-aliases"];
+        put?: never;
+        /** Create a Model alias */
+        post: operations["create-model_alias"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/model-aliases/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Model alias */
+        get: operations["get-model_alias"];
+        /** Replace a Model alias */
+        put: operations["replace-model_alias"];
+        post?: never;
+        /** Delete a Model alias */
+        delete: operations["delete-model_alias"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/model-aliases/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Model alias */
+        get: operations["history-model_alias"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/pools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Pools */
+        get: operations["list-pools"];
+        put?: never;
+        /** Create a Pool */
+        post: operations["create-pool"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/pools/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Pool */
+        get: operations["get-pool"];
+        /** Replace a Pool */
+        put: operations["replace-pool"];
+        post?: never;
+        /** Delete a Pool */
+        delete: operations["delete-pool"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/pools/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Pool */
+        get: operations["history-pool"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Projects */
+        get: operations["list-projects"];
+        put?: never;
+        /** Create a Project */
+        post: operations["create-project"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Project */
+        get: operations["get-project"];
+        /** Replace a Project */
+        put: operations["replace-project"];
+        post?: never;
+        /** Delete a Project */
+        delete: operations["delete-project"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Project */
+        get: operations["history-project"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/provider-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Provider accounts */
+        get: operations["list-provider-accounts"];
+        put?: never;
+        /** Create a Provider account */
+        post: operations["create-provider_account"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/provider-accounts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Provider account */
+        get: operations["get-provider_account"];
+        /** Replace a Provider account */
+        put: operations["replace-provider_account"];
+        post?: never;
+        /** Delete a Provider account */
+        delete: operations["delete-provider_account"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/provider-accounts/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Provider account */
+        get: operations["history-provider_account"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Providers */
+        get: operations["list-providers"];
+        put?: never;
+        /** Create a Provider */
+        post: operations["create-provider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/providers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Provider */
+        get: operations["get-provider"];
+        /** Replace a Provider */
+        put: operations["replace-provider"];
+        post?: never;
+        /** Delete a Provider */
+        delete: operations["delete-provider"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/providers/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Provider */
+        get: operations["history-provider"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routing-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Routing plans */
+        get: operations["list-routing-plans"];
+        put?: never;
+        /** Create a Routing plan */
+        post: operations["create-routing_plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routing-plans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Routing plan */
+        get: operations["get-routing_plan"];
+        /** Replace a Routing plan */
+        put: operations["replace-routing_plan"];
+        post?: never;
+        /** Delete a Routing plan */
+        delete: operations["delete-routing_plan"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routing-plans/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Routing plan */
+        get: operations["history-routing_plan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routing-plans/{id}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish a copy of a previous version */
+        post: operations["rollback-plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routing-plans/{id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List versions of a routing plan */
+        get: operations["list-plan-versions"];
+        put?: never;
+        /** Create a draft version */
+        post: operations["create-plan-draft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routing-plans/{id}/versions/{version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a routing plan version */
+        get: operations["get-plan-version"];
+        /** Replace a draft version */
+        put: operations["replace-plan-draft"];
+        post?: never;
+        /** Discard a draft version */
+        delete: operations["discard-plan-draft"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routing-plans/{id}/versions/{version_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish a draft (the previous version is superseded) */
+        post: operations["publish-plan-version"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routing-plans/{id}/versions/{version_id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate a version against the current configuration */
+        post: operations["validate-plan-version"];
         delete?: never;
         options?: never;
         head?: never;
@@ -405,6 +974,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/subscription-entitlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Subscription entitlements */
+        get: operations["list-subscription-entitlements"];
+        put?: never;
+        /** Create a Subscription entitlement */
+        post: operations["create-subscription_entitlement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subscription-entitlements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Subscription entitlement */
+        get: operations["get-subscription_entitlement"];
+        /** Replace a Subscription entitlement */
+        put: operations["replace-subscription_entitlement"];
+        post?: never;
+        /** Delete a Subscription entitlement */
+        delete: operations["delete-subscription_entitlement"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subscription-entitlements/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Subscription entitlement */
+        get: operations["history-subscription_entitlement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/system/status": {
         parameters: {
             query?: never;
@@ -527,6 +1150,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Workspaces */
+        get: operations["list-workspaces"];
+        put?: never;
+        /** Create a Workspace */
+        post: operations["create-workspace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a Workspace */
+        get: operations["get-workspace"];
+        /** Replace a Workspace */
+        put: operations["replace-workspace"];
+        post?: never;
+        /** Delete a Workspace */
+        delete: operations["delete-workspace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision history of a Workspace */
+        get: operations["history-workspace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -547,14 +1224,51 @@ export interface components {
             /** Format: date-time */
             revoked_at?: string;
         };
+        APITokenList: {
+            items: components["schemas"]["APITokenDTO"][];
+        };
         AcceptInBody: {
             password: string;
             /** @enum {string} */
             purpose: "invite" | "reset";
             token: string;
         };
-        AlertsOutBody: {
-            items: components["schemas"]["SecurityAlertDTO"][];
+        AccountSpec: {
+            /** @description Restrict to these provider model ids; empty = all models of the provider. */
+            allowed_models: string[];
+            /**
+             * @description How usage on this account is paid for. Paid fallback rules use this.
+             * @enum {string}
+             */
+            billing: "metered_api" | "subscription" | "free" | "local";
+            /** @description env:NAME or file:/path. Alternative to the write-only 'credential' secret. */
+            credential_ref: string;
+            display_name: string;
+            enabled: boolean;
+            /** @description Free-form labels available to routing expressions as account.labels. */
+            labels: {
+                [key: string]: string;
+            };
+            /**
+             * Format: int64
+             * @description Local concurrency cap enforced by reservations; 0 = unlimited.
+             */
+            max_concurrency: number;
+            provider_id: string;
+            /**
+             * Format: int64
+             * @description Local request rate cap; 0 = unlimited.
+             */
+            requests_per_minute: number;
+        };
+        AliasSpec: {
+            /** @description Target alias (chains are allowed; cycles are rejected). */
+            alias_id: string;
+            description: string;
+            /** @description Target pool (exactly one of pool_id or alias_id). */
+            pool_id: string;
+            /** @description Capabilities every candidate must have in addition to what a request demands. */
+            required_capabilities: string[];
         };
         AuditEntryDTO: {
             action: string;
@@ -582,6 +1296,85 @@ export interface components {
             /** Format: date-time */
             readonly updated_at: string;
         };
+        BindingLimits: {
+            /**
+             * Format: int64
+             * @description 0 = unlimited.
+             */
+            max_concurrency: number;
+            /**
+             * Format: int64
+             * @description 0 = server default.
+             */
+            max_request_bytes: number;
+            /**
+             * Format: int64
+             * @description 0 = unlimited.
+             */
+            requests_per_minute: number;
+        };
+        BindingSpec: {
+            /** @description Requested model names (aliases or plan mappings) this client may use; empty = any the plan maps. */
+            allowed_models: string[];
+            /** @description Projects a trusted project hint may select. */
+            allowed_project_ids: string[];
+            display_name: string;
+            enabled: boolean;
+            /**
+             * @description Informational; mismatches are recorded, never enforced as identity.
+             * @enum {string}
+             */
+            expected_harness: "claude_code" | "codex" | "opencode" | "pi" | "generic" | "";
+            /** @description Operator-configured trusted references. */
+            external_refs: {
+                [key: string]: string;
+            };
+            limits: components["schemas"]["BindingLimits"];
+            /** @description usr_… or pri_… (empty when owner_kind is none). */
+            owner_id: string;
+            /**
+             * @description Who is accountable for this client (empty = none).
+             * @enum {string}
+             */
+            owner_kind: "user" | "service" | "none" | "";
+            plan_id: string;
+            /** @description Default project for attribution (optional). */
+            project_id: string;
+            trust: components["schemas"]["BindingTrust"];
+        };
+        BindingTrust: {
+            /** @description Accept declared intent (X-HP-Intent) as trusted. */
+            intent_hints: boolean;
+            /** @description Allow X-HP-Project to select one of allowed_project_ids. */
+            project_hints: boolean;
+            /** @description Use harness session headers to group requests into sessions. */
+            session_hints: boolean;
+        };
+        Bundle: {
+            api_version: string;
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            exported_at: string;
+            plans: components["schemas"]["BundlePlan"][];
+            resources: components["schemas"]["BundleResource"][];
+        };
+        BundlePlan: {
+            plan: string;
+            published: unknown;
+            /** Format: int64 */
+            version: number;
+        };
+        BundleResource: {
+            kind: string;
+            managed_by?: string;
+            name: string;
+            /** @description Presence only; values are never exported. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: unknown;
+        };
         CreateUserInBody: {
             display_name?: string;
             email: string;
@@ -596,6 +1389,86 @@ export interface components {
             invite_url?: string;
             user: components["schemas"]["UserDTO"];
         };
+        Credential: {
+            binding_id: string;
+            /** @description Trusted external references bound at mint time (e.g. spaceman.run). */
+            bound_refs: {
+                [key: string]: string;
+            };
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /** Format: date-time */
+            expires_at?: string;
+            id: string;
+            /** Format: date-time */
+            last_used_at?: string;
+            last_used_ip?: string;
+            managed_by: string;
+            name: string;
+            parent_id?: string;
+            /** @description Non-secret prefix (hpk_<prefix>_…). */
+            prefix: string;
+            /** Format: date-time */
+            revoked_at?: string;
+            scopes: string[];
+        };
+        CredentialList: {
+            items: components["schemas"]["Credential"][];
+        };
+        DraftRequest: {
+            document: components["schemas"]["PlanDocument"];
+            note: string;
+        };
+        DriftedObject: {
+            id: string;
+            kind: string;
+            name: string;
+        };
+        EffectiveAlias: {
+            chain: string[];
+            id: string;
+            name: string;
+            pool_id: string;
+        };
+        EffectiveDTO: {
+            aliases: components["schemas"]["EffectiveAlias"][];
+            /** Format: date-time */
+            compiled_at: string;
+            /** Format: int64 */
+            config_revision: number;
+            counts: {
+                [key: string]: number;
+            };
+            drifted: components["schemas"]["DriftedObject"][];
+            plans: components["schemas"]["EffectivePlan"][];
+        };
+        EffectivePlan: {
+            /** Format: int64 */
+            bindings: number;
+            id: string;
+            name: string;
+            /**
+             * Format: int64
+             * @description 0 when no version is published.
+             */
+            published_version: number;
+            version_id?: string;
+        };
+        EntitlementSpec: {
+            account_id: string;
+            currency: string;
+            /** @description YYYY-MM-DD, empty = open-ended */
+            ends_on: string;
+            /** @description Subscription fee per period as a decimal string. */
+            fee: string;
+            /** @enum {string} */
+            period: "monthly" | "yearly";
+            plan_name: string;
+            /** @description YYYY-MM-DD */
+            starts_on: string;
+            windows: components["schemas"]["WindowSpec"][];
+        };
         Error: {
             error: components["schemas"]["ErrorInfo"];
         };
@@ -609,8 +1482,40 @@ export interface components {
             /** @description Correlates with server logs. */
             request_id?: string;
         };
+        FallbackPolicy: {
+            /** @description Allow falling back from free/subscription/local candidates to metered_api candidates. */
+            allow_paid_fallback: boolean;
+            /** Format: int64 */
+            max_attempts: number;
+            /** @description Ordered steps: retry, alternate_account, alternate_model, alternate_provider, wait, stop. */
+            steps: string[];
+            /**
+             * Format: int64
+             * @description Upper bound for the wait step.
+             */
+            wait_max_seconds: number;
+        };
+        FieldError: {
+            location: string;
+            message: string;
+        };
         GrantsInBody: {
             grants: ("traces.content.read" | "traces.content.unredacted" | "traces.export")[];
+        };
+        HistoryEntry: {
+            actor_id: string;
+            /** Format: date-time */
+            at: string;
+            /** Format: int64 */
+            config_revision: number;
+            managed_by: string;
+            operation: string;
+            /** Format: int64 */
+            revision: number;
+            spec?: unknown;
+        };
+        HistoryList: {
+            items: components["schemas"]["HistoryEntry"][];
         };
         IdentityDTO: {
             issuer: string;
@@ -621,7 +1526,33 @@ export interface components {
             provider_id: string;
             subject: string;
         };
-        IssueInBody: {
+        ImportAction: {
+            /** @enum {string} */
+            action: "create" | "update" | "unchanged" | "delete" | "publish" | "skip";
+            detail?: string;
+            kind: string;
+            name: string;
+        };
+        ImportRequest: {
+            /** @description Overwrite Terraform-managed objects (they will show as drifted). */
+            allow_terraform: boolean;
+            bundle: components["schemas"]["Bundle"];
+            dry_run: boolean;
+            /** @description Per kind: merge (default) or replace (also delete objects absent from the bundle). */
+            modes?: {
+                [key: string]: string;
+            };
+            /** @description Publish the bundle's plan documents when they differ. */
+            publish_plans: boolean;
+        };
+        ImportResult: {
+            actions: components["schemas"]["ImportAction"][];
+            /** Format: int64 */
+            config_revision: number;
+            dry_run: boolean;
+            warnings: string[];
+        };
+        IssueAPITokenRequest: {
             name: string;
             /**
              * Format: int64
@@ -629,16 +1560,36 @@ export interface components {
              */
             ttl_seconds?: number;
         };
-        IssueOutBody: {
+        IssueCredentialRequest: {
+            /** @description Trusted references bound to this credential. */
+            bound_refs?: {
+                [key: string]: string;
+            };
+            name: string;
+            /** @description Default: gateway:invoke, gateway:models. */
+            scopes?: string[];
+            /**
+             * Format: int64
+             * @description 0 = no expiry.
+             */
+            ttl_seconds?: number;
+        };
+        IssuedAPIToken: {
             /** @description The bearer token. Shown exactly once; store it securely. */
             plaintext: string;
             token: components["schemas"]["APITokenDTO"];
         };
+        IssuedCredential: {
+            /** @description Base URLs per protocol for client configuration. */
+            base_urls: {
+                [key: string]: string;
+            };
+            credential: components["schemas"]["Credential"];
+            /** @description The bearer token (hpk_…). Returned exactly once. */
+            token: string;
+        };
         LinkOutBody: {
             auth_url: string;
-        };
-        ListOutBody: {
-            items: components["schemas"]["OIDCProviderDTO"][];
         };
         LoginInBody: {
             email: string;
@@ -655,6 +1606,35 @@ export interface components {
             /** Format: date-time */
             started_at: string;
             version: string;
+        };
+        ModelMapping: {
+            alias_id: string;
+            /** @description Requested model name or glob (e.g. claude-sonnet-*). */
+            match: string;
+            note: string;
+        };
+        ModelPricing: {
+            cache_read_per_mtok: string;
+            cache_write_per_mtok: string;
+            /** @description ISO 4217 currency, e.g. USD. */
+            currency: string;
+            /** @description Decimal price per million input tokens. */
+            input_per_mtok: string;
+            output_per_mtok: string;
+            /** @description Operator label for this price list, recorded on every cost estimate. */
+            price_version: string;
+        };
+        ModelSpec: {
+            capabilities: string[];
+            /** Format: int64 */
+            context_window: number;
+            display_name: string;
+            /** @description Upstream model identifier. */
+            id: string;
+            /** Format: int64 */
+            max_output_tokens: number;
+            /** @description List prices for estimates; omit when unknown. */
+            pricing?: components["schemas"]["ModelPricing"];
         };
         OIDCLoginOption: {
             display_name: string;
@@ -688,6 +1668,9 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        OIDCProviderList: {
+            items: components["schemas"]["OIDCProviderDTO"][];
+        };
         OidcBody: {
             allow_private_network?: boolean;
             allowed_algs?: string[];
@@ -716,6 +1699,56 @@ export interface components {
             /** @description Present when more items are available. */
             next_cursor?: string;
         };
+        PageResourceAccountSpec: {
+            items: components["schemas"]["ResourceAccountSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageResourceAliasSpec: {
+            items: components["schemas"]["ResourceAliasSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageResourceBindingSpec: {
+            items: components["schemas"]["ResourceBindingSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageResourceEntitlementSpec: {
+            items: components["schemas"]["ResourceEntitlementSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageResourcePlanSpec: {
+            items: components["schemas"]["ResourcePlanSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageResourcePoolSpec: {
+            items: components["schemas"]["ResourcePoolSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageResourceProjectSpec: {
+            items: components["schemas"]["ResourceProjectSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageResourceProviderSpec: {
+            items: components["schemas"]["ResourceProviderSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageResourceWorkspaceSpec: {
+            items: components["schemas"]["ResourceWorkspaceSpec"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
+        PageRevisionDTO: {
+            items: components["schemas"]["RevisionDTO"][];
+            /** @description Present when more items are available. */
+            next_cursor?: string;
+        };
         PageServicePrincipalDTO: {
             items: components["schemas"]["ServicePrincipalDTO"][];
             /** @description Present when more items are available. */
@@ -736,14 +1769,426 @@ export interface components {
             /** @enum {string} */
             role?: "admin" | "operator" | "viewer";
         };
+        PlanDocument: {
+            /** @description Alias for requests whose model matches no mapping and no alias name; empty = reject. */
+            default_alias_id: string;
+            engine?: unknown;
+            fallback: components["schemas"]["FallbackPolicy"];
+            model_mappings: components["schemas"]["ModelMapping"][];
+            restrictions: components["schemas"]["PlanRestrictions"];
+            /** Format: int64 */
+            schema_version: number;
+        };
+        PlanRestrictions: {
+            /** @description Subset of metered_api, subscription, free, local; empty = any. */
+            allowed_billing: string[];
+            /** @description Subset of official, partial, unofficial, local; empty = any. */
+            allowed_classifications: string[];
+            /** @description Empty = any. */
+            allowed_provider_ids: string[];
+            denied_provider_ids: string[];
+            required_capabilities: string[];
+        };
+        PlanSpec: {
+            description: string;
+            display_name: string;
+        };
+        PoolMember: {
+            account_id: string;
+            /** @description Upstream model id at the account's provider. */
+            model: string;
+            /**
+             * Format: int64
+             * @description Lower is preferred for ordered strategies.
+             */
+            priority: number;
+            /**
+             * Format: int64
+             * @description Relative weight for the weighted strategy.
+             */
+            weight: number;
+        };
+        PoolSpec: {
+            /**
+             * @description Empty = session. Keep a conversation on the same member while it stays eligible (prompt-cache friendly).
+             * @enum {string}
+             */
+            affinity: "session" | "none" | "";
+            display_name: string;
+            members: components["schemas"]["PoolMember"][];
+            /**
+             * @description Default ranking inside the pool (empty = ordered); plans may override.
+             * @enum {string}
+             */
+            strategy: "ordered" | "weighted" | "reset_soonest" | "least_used" | "round_robin" | "";
+        };
+        ProjectSpec: {
+            description: string;
+            display_name: string;
+            /** @description Operator-configured external references (trusted). */
+            external_refs: {
+                [key: string]: string;
+            };
+            /** @description Workspace this project belongs to. */
+            workspace_id: string;
+        };
+        ProviderSpec: {
+            /** @description Explicitly authorize a private or loopback destination (local models). Cloud metadata addresses stay blocked. */
+            allow_private_network: boolean;
+            /** @description Upstream base URL. Defaults per type; required for openai_compatible. */
+            base_url: string;
+            /**
+             * @description Integration classification shown wherever this provider is used. Empty = the type default.
+             * @enum {string}
+             */
+            classification: "official" | "partial" | "unofficial" | "local" | "";
+            display_name: string;
+            /** @description Static non-secret headers sent upstream (authorization headers are refused). */
+            headers: {
+                [key: string]: string;
+            };
+            models: components["schemas"]["ModelSpec"][];
+            /**
+             * Format: int64
+             * @description Overall upstream request timeout; 0 = default (600s).
+             */
+            request_timeout_seconds: number;
+            /**
+             * Format: int64
+             * @description Abort a stream with no upstream bytes for this long; 0 = default (300s).
+             */
+            stream_idle_timeout_seconds: number;
+            /** @enum {string} */
+            type: "anthropic" | "openai" | "gemini" | "openai_compatible" | "ollama" | "claude_code" | "codex";
+        };
         ResetOutBody: {
             /** Format: date-time */
             expires_at: string;
             reset_url: string;
         };
+        ResourceAccountSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["AccountSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
+        ResourceAliasSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["AliasSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
+        ResourceBindingSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["BindingSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
+        ResourceEntitlementSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["EntitlementSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
+        ResourcePlanSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["PlanSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
+        ResourcePoolSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["PoolSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
+        ResourceProjectSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["ProjectSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
+        ResourceProviderSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["ProviderSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
+        ResourceWorkspaceSpec: {
+            /** Format: int64 */
+            config_revision: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /**
+             * @description drifted when a Terraform-managed object was changed outside Terraform.
+             * @enum {string}
+             */
+            drift_state: "in_sync" | "drifted";
+            /** Format: date-time */
+            drifted_at?: string;
+            drifted_by?: string;
+            id: string;
+            kind: string;
+            /** @enum {string} */
+            managed_by: "ui" | "api" | "terraform" | "cli" | "import" | "demo";
+            name: string;
+            /**
+             * Format: int64
+             * @description Use as If-Match ("r<revision>") for optimistic concurrency.
+             */
+            revision: number;
+            /** @description Write-only secret presence; values are never returned. */
+            secrets?: {
+                [key: string]: components["schemas"]["SecretInfo"];
+            };
+            spec: components["schemas"]["WorkspaceSpec"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: string;
+        };
+        RevisionDTO: {
+            actor_id: string;
+            actor_kind: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            revision: number;
+            source: string;
+            summary: string;
+        };
         RoleMapping: {
             group: string;
             role: string;
+        };
+        RollbackRequest: {
+            /** @description A previously published version to restore. */
+            version_id: string;
+        };
+        SecretInfo: {
+            /** @description Short non-reversible fingerprint to detect changes. */
+            fingerprint?: string;
+            set: boolean;
+            /** @enum {string} */
+            source: "stored" | "reference" | "none";
+            /** Format: date-time */
+            updated_at?: string;
         };
         SecurityAlertDTO: {
             /** Format: date-time */
@@ -754,6 +2199,9 @@ export interface components {
             id: string;
             kind: string;
             message: string;
+        };
+        SecurityAlertList: {
+            items: components["schemas"]["SecurityAlertDTO"][];
         };
         ServicePrincipalDTO: {
             /** Format: date-time */
@@ -792,9 +2240,6 @@ export interface components {
             setup_required: boolean;
             user?: components["schemas"]["UserDTO"];
         };
-        SessionsOutBody: {
-            items: components["schemas"]["WebSessionDTO"][];
-        };
         SetupInBody: {
             display_name: string;
             email: string;
@@ -826,9 +2271,6 @@ export interface components {
         TokenInBody: {
             token: string;
         };
-        TokensOutBody: {
-            items: components["schemas"]["APITokenDTO"][];
-        };
         UnlinkInBody: {
             issuer: string;
             subject: string;
@@ -855,6 +2297,36 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        ValidationReport: {
+            /** Format: date-time */
+            checked_at: string;
+            /** Format: int64 */
+            config_revision: number;
+            errors: components["schemas"]["FieldError"][];
+            valid: boolean;
+            warnings: components["schemas"]["FieldError"][];
+        };
+        Version: {
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            document: components["schemas"]["PlanDocument"];
+            id: string;
+            note: string;
+            plan_id: string;
+            /** Format: date-time */
+            published_at?: string;
+            published_by?: string;
+            rollback_of?: string;
+            /** @enum {string} */
+            status: "draft" | "published" | "superseded" | "archived";
+            validation: unknown;
+            /** Format: int64 */
+            version: number;
+        };
+        VersionList: {
+            items: components["schemas"]["Version"][];
+        };
         WebSessionDTO: {
             auth_method: string;
             /** Format: date-time */
@@ -867,6 +2339,98 @@ export interface components {
             /** Format: date-time */
             last_seen_at: string;
             user_agent?: string;
+        };
+        WebSessionList: {
+            items: components["schemas"]["WebSessionDTO"][];
+        };
+        WindowSpec: {
+            /**
+             * Format: int64
+             * @description Known limit in unit; omit when the provider does not publish one.
+             */
+            limit?: number;
+            /** @description e.g. five_hour, seven_day */
+            name: string;
+            /** Format: int64 */
+            seconds: number;
+            /** @enum {string} */
+            unit: "percent" | "tokens" | "requests" | "credits" | "unknown";
+        };
+        WorkspaceSpec: {
+            description: string;
+            display_name: string;
+        };
+        WriteBodyAccountSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["AccountSpec"];
+        };
+        WriteBodyAliasSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["AliasSpec"];
+        };
+        WriteBodyBindingSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["BindingSpec"];
+        };
+        WriteBodyEntitlementSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["EntitlementSpec"];
+        };
+        WriteBodyPlanSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["PlanSpec"];
+        };
+        WriteBodyPoolSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["PoolSpec"];
+        };
+        WriteBodyProjectSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["ProjectSpec"];
+        };
+        WriteBodyProviderSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["ProviderSpec"];
+        };
+        WriteBodyWorkspaceSpec: {
+            name: string;
+            /** @description Write-only secret values. Omit a key to keep it; empty string clears it. */
+            secrets?: {
+                [key: string]: string | null;
+            };
+            spec: components["schemas"]["WorkspaceSpec"];
         };
     };
     responses: never;
@@ -966,7 +2530,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ListOutBody"];
+                    "application/json": components["schemas"]["OIDCProviderList"];
                 };
             };
             /** @description Error */
@@ -1418,6 +2982,450 @@ export interface operations {
             };
         };
     };
+    "list-client-bindings": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourceBindingSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-client_binding": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyBindingSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceBindingSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-client_binding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceBindingSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-client_binding": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyBindingSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceBindingSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-client_binding": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-gateway-credentials": {
+        parameters: {
+            query?: {
+                /** @description Include short-lived child credentials. */
+                children?: boolean;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "issue-gateway-credential": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssueCredentialRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssuedCredential"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "revoke-gateway-credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                credential_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-client_binding": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-effective-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EffectiveDTO"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "export-config": {
+        parameters: {
+            query?: {
+                /** @description Limit to these kinds (repeatable). */
+                kind?: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bundle"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "import-config": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-config-revisions": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageRevisionDTO"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "get-meta": {
         parameters: {
             query?: never;
@@ -1434,6 +3442,1547 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetaDTO"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-model-aliases": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourceAliasSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-model_alias": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyAliasSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceAliasSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-model_alias": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceAliasSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-model_alias": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyAliasSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceAliasSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-model_alias": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-model_alias": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-pools": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourcePoolSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-pool": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyPoolSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePoolSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-pool": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePoolSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-pool": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyPoolSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePoolSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-pool": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-pool": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-projects": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourceProjectSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-project": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyProjectSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceProjectSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-project": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceProjectSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-project": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyProjectSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceProjectSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-project": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-project": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-provider-accounts": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourceAccountSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-provider_account": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyAccountSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceAccountSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-provider_account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceAccountSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-provider_account": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyAccountSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceAccountSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-provider_account": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-provider_account": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-providers": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourceProviderSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-provider": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyProviderSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceProviderSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-provider": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceProviderSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-provider": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyProviderSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceProviderSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-provider": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-provider": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-routing-plans": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourcePlanSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-routing_plan": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyPlanSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePlanSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-routing_plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePlanSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-routing_plan": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyPlanSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePlanSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-routing_plan": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-routing_plan": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "rollback-plan": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RollbackRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Version"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-plan-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-plan-draft": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Version"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-plan-version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Version"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-plan-draft": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path: {
+                id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Version"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "discard-plan-draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "publish-plan-version": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path: {
+                id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Version"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "validate-plan-version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationReport"];
                 };
             };
             /** @description Error */
@@ -1465,7 +5014,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AlertsOutBody"];
+                    "application/json": components["schemas"]["SecurityAlertList"];
                 };
             };
             /** @description Error */
@@ -1695,7 +5244,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TokensOutBody"];
+                    "application/json": components["schemas"]["APITokenList"];
                 };
             };
             /** @description Error */
@@ -1720,7 +5269,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["IssueInBody"];
+                "application/json": components["schemas"]["IssueAPITokenRequest"];
             };
         };
         responses: {
@@ -1730,7 +5279,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["IssueOutBody"];
+                    "application/json": components["schemas"]["IssuedAPIToken"];
                 };
             };
             /** @description Error */
@@ -1883,7 +5432,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SessionsOutBody"];
+                    "application/json": components["schemas"]["WebSessionList"];
                 };
             };
             /** @description Error */
@@ -1945,6 +5494,217 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-subscription-entitlements": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourceEntitlementSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-subscription_entitlement": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyEntitlementSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceEntitlementSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-subscription_entitlement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceEntitlementSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-subscription_entitlement": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyEntitlementSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceEntitlementSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-subscription_entitlement": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-subscription_entitlement": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
             };
             /** @description Error */
             default: {
@@ -2272,6 +6032,217 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-workspaces": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: string;
+                /** @description Maximum items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResourceWorkspaceSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-workspace": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyWorkspaceSpec"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceWorkspaceSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-workspace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Object id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceWorkspaceSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-workspace": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; required by Terraform, recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteBodyWorkspaceSpec"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceWorkspaceSpec"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-workspace": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "history-workspace": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryList"];
+                };
             };
             /** @description Error */
             default: {

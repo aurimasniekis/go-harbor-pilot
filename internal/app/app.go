@@ -24,6 +24,8 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth/authapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/config"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/controlplane/cpapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/demo"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/clock"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/credentials"
@@ -56,6 +58,7 @@ type App struct {
 	Traces  *store.DB
 	Keys    *store.ServerKeys
 	Auth    *auth.Service
+	CP      *controlplane.Service
 	Started time.Time
 
 	unlock   func()
@@ -103,6 +106,12 @@ func New(ctx context.Context, o Options) (*App, error) {
 		SecureCookies: c.SecureCookies(), PublicOrigin: c.PublicOrigin()}); err != nil {
 		return fail(err)
 	}
+	if a.CP, err = controlplane.New(ctx, controlplane.Options{DB: a.DB, Keyring: a.Keyring, Keys: a.Keys, Clock: a.Clock, Log: a.Log,
+		Resolver: auth.SecretResolver}); err != nil {
+		return fail(err)
+	}
+	a.CP.OnSwap(func(s *controlplane.Snapshot) { a.Metrics.ConfigRevision.Set(float64(s.ConfigRevision)) })
+	a.Metrics.ConfigRevision.Set(float64(a.CP.Snapshot().ConfigRevision))
 	if c.Server.MetricsTokenFile != "" {
 		b, err := os.ReadFile(c.Server.MetricsTokenFile)
 		if err != nil {
@@ -128,6 +137,9 @@ func (a *App) CoreAPI() []func(*api.API) {
 	return []func(*api.API){
 		func(ap *api.API) { authapi.Register(ap, a.Auth, a.DB) },
 		a.registerSystem,
+		func(ap *api.API) {
+			cpapi.Register(ap, func() *controlplane.Service { return a.CP }, func() string { return a.Cfg.PublicOrigin() })
+		},
 	}
 }
 

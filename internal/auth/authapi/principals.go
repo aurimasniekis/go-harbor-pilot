@@ -186,11 +186,7 @@ func (h *Handlers) registerPrincipals(a *api.API) {
 			})
 		})
 
-	type tokensOut struct {
-		Body struct {
-			Items []APITokenDTO `json:"items"`
-		}
-	}
+	type tokensOut struct{ Body APITokenList }
 	api.Register(a, api.Op{ID: "list-api-tokens", Method: http.MethodGet, Path: "/service-principals/{id}/tokens", Summary: "List API tokens",
 		Tags: tags, Permission: auth.PermUsersManage}, func(ctx context.Context, in *idPath) (*tokensOut, error) {
 		ts, err := h.Auth.ListAPITokens(ctx, in.ID)
@@ -207,18 +203,9 @@ func (h *Handlers) registerPrincipals(a *api.API) {
 
 	type issueIn struct {
 		ID   string `path:"id" maxLength:"64"`
-		Body struct {
-			Name       string `json:"name" minLength:"1" maxLength:"80"`
-			TTLSeconds int64  `json:"ttl_seconds,omitempty" minimum:"0" maximum:"63072000" doc:"0 = no expiry."`
-		}
+		Body IssueAPITokenRequest
 	}
-	type issueOut struct {
-		Body struct {
-			Token APITokenDTO `json:"token"`
-			// Plaintext is shown exactly once.
-			Plaintext string `json:"plaintext" doc:"The bearer token. Shown exactly once; store it securely."`
-		}
-	}
+	type issueOut struct{ Body IssuedAPIToken }
 	api.Register(a, api.Op{ID: "issue-api-token", Method: http.MethodPost, Path: "/service-principals/{id}/tokens",
 		Summary: "Issue an API token (plaintext returned once)", Tags: tags, Permission: auth.PermUsersManage, Status: http.StatusCreated},
 		func(ctx context.Context, in *issueIn) (*issueOut, error) {
@@ -256,4 +243,21 @@ func (h *Handlers) registerPrincipals(a *api.API) {
 					Details: map[string]any{"token_id": in.TokenID}})
 			})
 		})
+}
+
+// APITokenList lists API tokens.
+type APITokenList struct {
+	Items []APITokenDTO `json:"items"`
+}
+
+// IssueAPITokenRequest describes a token to issue.
+type IssueAPITokenRequest struct {
+	Name       string `json:"name" minLength:"1" maxLength:"80"`
+	TTLSeconds int64  `json:"ttl_seconds,omitempty" minimum:"0" maximum:"63072000" doc:"0 = no expiry."`
+}
+
+// IssuedAPIToken is returned once when a token is issued.
+type IssuedAPIToken struct {
+	Token     APITokenDTO `json:"token"`
+	Plaintext string      `json:"plaintext" doc:"The bearer token. Shown exactly once; store it securely."`
 }

@@ -112,11 +112,7 @@ func (h *Handlers) registerAdmin(a *api.API) {
 	type alertsIn struct {
 		All bool `query:"all" doc:"Include acknowledged alerts."`
 	}
-	type alertsOut struct {
-		Body struct {
-			Items []SecurityAlertDTO `json:"items"`
-		}
-	}
+	type alertsOut struct{ Body SecurityAlertList }
 	api.Register(a, api.Op{ID: "list-security-alerts", Method: http.MethodGet, Path: "/security-alerts", Summary: "List security alerts",
 		Tags: []string{"Audit"}, Permission: auth.PermSystemManage}, func(ctx context.Context, in *alertsIn) (*alertsOut, error) {
 		as, err := h.Auth.ListSecurityAlerts(ctx, in.All)
@@ -200,4 +196,9 @@ func (h *Handlers) registerAdmin(a *api.API) {
 		}
 		return &auditOut{Body: api.Paginate(items, lim, func(e AuditEntryDTO) string { return e.ID })}, nil
 	})
+}
+
+// SecurityAlertList lists security alerts.
+type SecurityAlertList struct {
+	Items []SecurityAlertDTO `json:"items"`
 }
