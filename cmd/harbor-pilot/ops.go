@@ -73,6 +73,9 @@ func cmdHarness(args []string, stdin io.Reader, stdout io.Writer) error {
 		return fmt.Errorf("usage: harbor-pilot harness %s KIND (one of %s)", sub, strings.Join(harness.Kinds, ", "))
 	}
 	kind := args[1]
+	if !harness.KnownKind(kind) {
+		return fmt.Errorf("unknown harness %q (one of %s)", kind, strings.Join(harness.Kinds, ", "))
+	}
 	fs := flag.NewFlagSet("harness "+sub, flag.ContinueOnError)
 	url := fs.String("url", os.Getenv("HP_PUBLIC_URL"), "Harbor Pilot public URL")
 	tokenFile := fs.String("token-file", "", "file holding the gateway token (referenced, not copied, where the harness allows)")
@@ -96,10 +99,7 @@ func cmdHarness(args []string, stdin io.Reader, stdout io.Writer) error {
 			home, _ := os.UserHomeDir()
 			path := filepath.Join(home, ".config", "harbor-pilot", "tokens", kind+".token")
 			if sub == "setup" && *yes {
-				if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-					return err
-				}
-				if err := os.WriteFile(path, []byte(tok+"\n"), 0o600); err != nil {
+				if err := writeTokenFile(path, tok); err != nil {
 					return err
 				}
 			}
@@ -390,4 +390,33 @@ func report(stdout io.Writer, checks []check) error {
 		return errors.New("doctor found problems")
 	}
 	return nil
+}
+
+// writeTokenFile stores a gateway token owner-only. It replaces the file
+// through a temporary file (so an existing wider mode is not kept) and
+// refuses a symlink at the path, which could point the token elsewhere.
+func writeTokenFile(path, tok string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	if st, err := os.Lstat(path); err == nil && st.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s is a symlink; refusing to write the token through it", path)
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".token-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name()) //nolint:errcheck // already renamed on success
+	if _, err := tmp.WriteString(tok + "\n"); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }

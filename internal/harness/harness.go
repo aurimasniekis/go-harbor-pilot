@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -211,6 +213,11 @@ type record struct {
 }
 
 func atomicWrite(path string, b []byte) error {
+	// A symlinked config (dotfile managers) is written through to its
+	// target, so the link itself is kept.
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
+	}
 	mode := os.FileMode(0o600)
 	if st, err := os.Stat(path); err == nil {
 		mode = st.Mode().Perm()
@@ -424,12 +431,20 @@ func planClaude(before []byte, o Options) ([]byte, []string, []string, error) {
 	return encodeJSON(m), added, notes, nil
 }
 
+// shellQuote quotes s for a POSIX shell: anything beyond a conservative
+// set of path characters is single-quoted, so metacharacters (; | & < > ( )
+// * ? newline ...) in a token path cannot run commands.
 func shellQuote(s string) string {
-	if strings.ContainsAny(s, " '\"$`\\") {
-		return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+	if s != "" && safeShellWord.MatchString(s) {
+		return s
 	}
-	return s
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
+
+var safeShellWord = regexp.MustCompile(`^[A-Za-z0-9_./:@%+=,-]+$`)
+
+// KnownKind reports whether kind is a supported harness.
+func KnownKind(kind string) bool { return slices.Contains(Kinds, kind) }
 
 func planOpenCode(before []byte, o Options) ([]byte, []string, []string, error) {
 	m, err := jsonDoc(before)

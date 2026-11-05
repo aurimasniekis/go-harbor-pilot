@@ -54,3 +54,36 @@ func TestHarnessCommandPreviewWritesNothing(t *testing.T) {
 		t.Fatal("setup --yes did not write")
 	}
 }
+
+// The stored token file is owner-only even when a wider file already
+// exists, symlinks are refused, and unknown harness kinds are rejected
+// before they are used in a path.
+func TestHarnessTokenFileHandling(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "tokens", "claude.token")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTokenFile(path, "hpk_new"); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := os.Stat(path); st.Mode().Perm() != 0o600 {
+		t.Fatalf("token file mode %v", st.Mode().Perm())
+	}
+	link := filepath.Join(dir, "tokens", "codex.token")
+	if err := os.Symlink(filepath.Join(dir, "elsewhere"), link); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTokenFile(link, "hpk_new"); err == nil {
+		t.Fatal("wrote the token through a symlink")
+	}
+	var out bytes.Buffer
+	err := run([]string{"harness", "setup", "../../../tmp/evil", "--url", "https://pilot.example.test", "--token-stdin", "--yes"},
+		&out, &out)
+	if err == nil || !strings.Contains(err.Error(), "unknown harness") {
+		t.Fatalf("path-like harness kind accepted: %v", err)
+	}
+}
