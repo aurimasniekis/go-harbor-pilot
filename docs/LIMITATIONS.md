@@ -16,6 +16,7 @@ This file is kept current alongside the implementation. Each entry is one of:
 - **Blocking-traffic check is a sample (design).** Validating a plan version runs its rules against synthetic requests: each mapped model, each known tool, streaming and not, with every account healthy. It warns when all or most of them are refused. Rules that depend on other request details, time, quota or health can still block traffic the check did not try.
 - **Provider quota freshness (design).** Quota observations can be stale or unknown. Routing treats unknown as unknown, never as zero or unlimited, and the plan's semantics decide what happens next.
 - **Protocol Watch is observational (design).** It records changes it observed. It is not an authoritative changelog of provider releases. When a field stops appearing, that is not proof it was removed.
+- **Test connection is a light check (design).** It asks the provider for its model list with the account's credential. That proves the address and the credential, not access to a given model, remaining quota or billing. A provider without a model list counts as reachable. CLI bridge accounts are not checked: the result only says whether the vendor binary is installed.
 - **Harness detection is telemetry (design).** User-Agent and header heuristics do not prove which executable made a request.
 - **CLI bridges (design).**
   - Bridges run on the Harbor Pilot host and need the vendor binary and a per-account login there.
