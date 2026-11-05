@@ -36,3 +36,43 @@ func TestChangePasswordRules(t *testing.T) {
 		})
 	}
 }
+
+// Users change their own display name; the change is validated and audited.
+func TestUpdateMyProfile(t *testing.T) {
+	e := apptest.New(t)
+	tests := []struct {
+		name string
+		body map[string]any
+		code int
+		want string
+	}{
+		{"new name", map[string]any{"display_name": "  Ada Lovelace  "}, 200, "Ada Lovelace"},
+		{"blank", map[string]any{"display_name": "   "}, 422, ""},
+		{"too long", map[string]any{"display_name": strings.Repeat("x", 121)}, 422, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out struct {
+				DisplayName string `json:"display_name"`
+			}
+			if code := e.Admin.Do("PATCH", "/api/v1/session/profile", tt.body, &out); code != tt.code {
+				t.Fatalf("status %d, want %d", code, tt.code)
+			}
+			if tt.want != "" && out.DisplayName != tt.want {
+				t.Fatalf("display name %q, want %q", out.DisplayName, tt.want)
+			}
+		})
+	}
+	var s struct {
+		User struct {
+			DisplayName string `json:"display_name"`
+		} `json:"user"`
+	}
+	e.Admin.MustDo(200, "GET", "/api/v1/session", nil, &s)
+	if s.User.DisplayName != "Ada Lovelace" {
+		t.Fatalf("session shows %q", s.User.DisplayName)
+	}
+	if n := e.QueryInt(`SELECT count(*) FROM audit_log WHERE action = 'user.profile.update'`); n != 1 {
+		t.Fatalf("audit entries %d, want 1", n)
+	}
+}

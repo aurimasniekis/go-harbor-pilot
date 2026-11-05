@@ -4185,6 +4185,17 @@ components:
         - breaker
         - result
       type: object
+    ProfileInBody:
+      additionalProperties: false
+      properties:
+        display_name:
+          description: How your name appears to others.
+          maxLength: 120
+          minLength: 1
+          type: string
+      required:
+        - display_name
+      type: object
     ProjectSpec:
       additionalProperties: false
       properties:
@@ -13682,6 +13693,32 @@ paths:
                 $ref: "#/components/schemas/Error"
           description: Error
       summary: Change my password (revokes my other sessions)
+      tags:
+        - Session
+      x-permission: session
+  /session/profile:
+    patch:
+      operationId: update-my-profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileInBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDTO"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Change my display name
       tags:
         - Session
       x-permission: session

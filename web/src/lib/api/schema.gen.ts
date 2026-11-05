@@ -1953,6 +1953,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/session/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change my display name */
+        patch: operations["update-my-profile"];
+        trace?: never;
+    };
     "/session/reauth": {
         parameters: {
             query?: never;
@@ -4198,6 +4215,10 @@ export interface components {
             error?: string;
             /** @enum {string} */
             result: "succeeded" | "failed";
+        };
+        ProfileInBody: {
+            /** @description How your name appears to others. */
+            display_name: string;
         };
         ProjectSpec: {
             description?: string;
@@ -11292,6 +11313,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-my-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDTO"];
+                };
             };
             /** @description Error */
             default: {

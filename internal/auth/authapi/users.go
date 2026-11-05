@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/api"
@@ -258,6 +259,40 @@ func (h *Handlers) registerUsers(a *api.API) {
 				}
 				return audit.Record(ctx, tx, audit.Entry{Action: "user.sessions.revoke", TargetKind: "user", TargetID: in.ID})
 			})
+		})
+
+	type profileIn struct {
+		Body struct {
+			DisplayName string `json:"display_name" minLength:"1" maxLength:"120" doc:"How your name appears to others."`
+		}
+	}
+	type profileOut struct{ Body UserDTO }
+	api.Register(a, api.Op{ID: "update-my-profile", Method: http.MethodPatch, Path: "/session/profile",
+		Summary: "Change my display name", Tags: []string{"Session"}, Permission: auth.PermSession},
+		func(ctx context.Context, in *profileIn) (*profileOut, error) {
+			p := auth.FromContext(ctx)
+			if p.Kind != auth.KindUser {
+				return nil, api.Forbidden("only users have a profile")
+			}
+			name := strings.TrimSpace(in.Body.DisplayName)
+			if name == "" {
+				return nil, api.Invalid("enter a name", api.FieldError{Location: "body.display_name", Message: "Enter a name."})
+			}
+			err := h.tx(ctx, func(tx *sql.Tx) error {
+				if err := h.Auth.UpdateUser(ctx, tx, p.ID, auth.UserPatch{DisplayName: &name}); err != nil {
+					return err
+				}
+				return audit.Record(ctx, tx, audit.Entry{Action: "user.profile.update", TargetKind: "user", TargetID: p.ID,
+					Details: map[string]any{"fields": []string{"display_name"}}})
+			})
+			if err != nil {
+				return nil, mapErr(err)
+			}
+			u, err := h.Auth.GetUser(ctx, p.ID)
+			if err != nil {
+				return nil, err
+			}
+			return &profileOut{Body: userDTO(u)}, nil
 		})
 
 	api.Register(a, api.Op{ID: "change-my-password", Method: http.MethodPost, Path: "/session/password",
