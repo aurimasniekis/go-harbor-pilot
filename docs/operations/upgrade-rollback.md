@@ -18,6 +18,8 @@ After an upgrade, check:
   - Rename the variables, for example `ANTHROPIC_API_KEY` to `HP_SECRET_ANTHROPIC_API_KEY`. Alternatively, set `security.secret_env_prefixes`, but make sure the prefix covers only secrets.
   - References that no longer resolve show up as failed requests ("environment variable is not allowed as a secret reference"), and saving such a reference is refused with the allowed prefixes named.
 
+- **SSO no longer links existing accounts by email alone (D-036).** In pre-provisioned mode, an existing account is linked only after an administrator marks it for that provider: Settings → Users, or `PATCH /api/v1/users/{id}` with `{"sso_provider": "<slug>"}`. The first verified sign-in from that provider then links the account. The provider's `allowed_domains` now also applies to pre-provisioned accounts. Accounts that are already linked are unaffected. Mark the remaining users before upgrading, or they cannot sign in through SSO.
+
 ## Rollback
 An older binary refuses to run against a schema it does not know: "database has migration N unknown to this binary". Choose the path that matches the upgrade:
 

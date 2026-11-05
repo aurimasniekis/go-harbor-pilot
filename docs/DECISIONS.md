@@ -253,3 +253,15 @@ The structural baseline is seeded from this build's own protocol encoders, then 
 - **Enforcement:** both when a reference is saved (spec validation and OIDC input) and when it is resolved.
 - **Upgrade impact:** existing references to variables without the prefix stop resolving. Operators rename the variables, for example `ANTHROPIC_API_KEY` to `HP_SECRET_ANTHROPIC_API_KEY`, or add a dedicated prefix.
 
+## D-036: SSO links existing accounts only when an administrator asked
+
+- **Why:** in pre-provisioned mode, any identity with a verified email matching a local account was linked on first sign-in, including administrators with passwords, and `allowed_domains` was ignored. Identity providers that let users choose their email made that a takeover.
+- **Rule:**
+  - An existing account is linked only when an administrator has marked it for that specific provider (`sso_link_provider`, set when the user is created or edited).
+  - The mark is cleared when the account is linked.
+  - `allowed_domains` applies in both modes.
+  - Just-in-time provisioning is unchanged: it never takes over an existing email.
+- **Other safeguards:**
+  - Post-login redirects reject control characters, backslashes and anything other than a same-origin path.
+  - SSO callbacks re-check that the provider is still enabled.
+

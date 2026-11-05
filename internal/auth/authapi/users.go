@@ -26,6 +26,7 @@ type createUserIn struct {
 		DisplayName string `json:"display_name,omitempty" maxLength:"120"`
 		Role        string `json:"role" enum:"admin,operator,viewer"`
 		Invite      bool   `json:"invite" doc:"Return a one-time invitation link (valid 72h) for the user to set a password."`
+		SSOProvider string `json:"sso_provider,omitempty" required:"false" maxLength:"64" doc:"Pre-provision for single sign-on: the first verified sign-in from this provider (id or slug; pre-provisioned mode) with the account's email links it. Without this, SSO never links an existing account by email."`
 	}
 }
 
@@ -46,6 +47,7 @@ type patchUserIn struct {
 		DisplayName *string `json:"display_name,omitempty" maxLength:"120"`
 		Role        *string `json:"role,omitempty" enum:"admin,operator,viewer"`
 		Disabled    *bool   `json:"disabled,omitempty"`
+		SSOProvider *string `json:"sso_provider,omitempty" required:"false" maxLength:"64" doc:"Mark the account for linking on the next verified sign-in from this provider (id or slug); empty clears the mark."`
 	}
 }
 
@@ -112,8 +114,17 @@ func (h *Handlers) registerUsers(a *api.API) {
 			if err != nil {
 				return err
 			}
+			sso, err := h.ssoProviderID(ctx, in.Body.SSOProvider)
+			if err != nil {
+				return err
+			}
+			if sso != "" {
+				if err := h.Auth.SetSSOLink(ctx, tx, u.ID, sso); err != nil {
+					return mapErr(err)
+				}
+			}
 			return audit.Record(ctx, tx, audit.Entry{Action: "user.create", TargetKind: "user", TargetID: u.ID,
-				Details: map[string]any{"role": in.Body.Role, "invite": in.Body.Invite}})
+				Details: map[string]any{"role": in.Body.Role, "invite": in.Body.Invite, "sso_provider": sso}})
 		})
 		if err != nil {
 			return nil, err
@@ -153,8 +164,19 @@ func (h *Handlers) registerUsers(a *api.API) {
 			if err := h.Auth.UpdateUser(ctx, tx, in.ID, patch); err != nil {
 				return err
 			}
+			var sso any
+			if in.Body.SSOProvider != nil {
+				id, err := h.ssoProviderID(ctx, *in.Body.SSOProvider)
+				if err != nil {
+					return err
+				}
+				if err := h.Auth.SetSSOLink(ctx, tx, in.ID, id); err != nil {
+					return mapErr(err)
+				}
+				sso = id
+			}
 			return audit.Record(ctx, tx, audit.Entry{Action: "user.update", TargetKind: "user", TargetID: in.ID,
-				Details: map[string]any{"role": in.Body.Role, "disabled": in.Body.Disabled}})
+				Details: map[string]any{"role": in.Body.Role, "disabled": in.Body.Disabled, "sso_provider": sso}})
 		}); err != nil {
 			return nil, err
 		}
@@ -260,4 +282,20 @@ func (h *Handlers) registerUsers(a *api.API) {
 				return audit.Record(ctx, tx, audit.Entry{Action: "user.password.change", TargetKind: "user", TargetID: p.ID})
 			})
 		})
+}
+
+// ssoProviderID resolves an SSO provider id or slug ("" stays "").
+func (h *Handlers) ssoProviderID(ctx context.Context, idOrSlug string) (string, error) {
+	if idOrSlug == "" {
+		return "", nil
+	}
+	p, err := h.Auth.GetOIDCProvider(ctx, idOrSlug)
+	if err != nil {
+		return "", api.Invalid("unknown SSO provider", api.FieldError{Location: "body.sso_provider", Message: "no SSO provider with this id or slug"})
+	}
+	if p.Provisioning != "preprovisioned" {
+		return "", api.Invalid("SSO provider does not use pre-provisioned accounts",
+			api.FieldError{Location: "body.sso_provider", Message: "only providers in pre-provisioned mode link existing accounts"})
+	}
+	return p.ID, nil
 }

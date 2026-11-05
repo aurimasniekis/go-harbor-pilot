@@ -220,22 +220,73 @@ func TestOIDCRejections(t *testing.T) {
 func TestOIDCPreprovisionedLinksByVerifiedEmailOnly(t *testing.T) {
 	f := newFixture(t)
 	op := newTestOP(t)
-	setupProvider(t, f, op, OIDCInput{Provisioning: "preprovisioned"})
-	start, _ := f.svc.StartOIDC(f.ctx, "porch", OIDCPurposeLogin, "", "/")
-	code, state := op.authorize(t, start.AuthURL)
-	if _, err := f.svc.CompleteOIDC(f.ctx, state, code, "", start.BrowserCookie, nil); !errors.Is(err, ErrOIDCNoAccount) {
+	prov := setupProvider(t, f, op, OIDCInput{Provisioning: "preprovisioned"})
+	login := func() (*OIDCResult, error) {
+		start, _ := f.svc.StartOIDC(f.ctx, "porch", OIDCPurposeLogin, "", "/")
+		code, state := op.authorize(t, start.AuthURL)
+		return f.svc.CompleteOIDC(f.ctx, state, code, "", start.BrowserCookie, nil)
+	}
+	if _, err := login(); !errors.Is(err, ErrOIDCNoAccount) {
 		t.Fatalf("unknown user must be refused: %v", err)
 	}
-	u := f.createUser(t, "dev@example.test", RoleViewer, "")
-	start, _ = f.svc.StartOIDC(f.ctx, "porch", OIDCPurposeLogin, "", "/")
-	code, state = op.authorize(t, start.AuthURL)
-	res, err := f.svc.CompleteOIDC(f.ctx, state, code, "", start.BrowserCookie, nil)
+	// An existing account with the same email (here an administrator with a
+	// password) is never taken over by email alone.
+	u := f.createUser(t, "dev@example.test", RoleAdmin, "correct-horse-battery")
+	if _, err := login(); !errors.Is(err, ErrOIDCNoAccount) {
+		t.Fatalf("unmarked account must not be linked: %v", err)
+	}
+	// An administrator marks the account for this provider; the first
+	// verified sign-in links it and clears the mark.
+	tx, _ := f.db.W.BeginTx(f.ctx, nil)
+	if err := f.svc.SetSSOLink(f.ctx, tx, u.ID, prov.ID); err != nil {
+		t.Fatal(err)
+	}
+	_ = tx.Commit()
+	res, err := login()
 	if err != nil || res.User.ID != u.ID || len(res.User.Identities) != 1 {
 		t.Fatalf("link: %+v %v", res, err)
 	}
+	if res.User.SSOLinkProvider != "" {
+		t.Fatalf("link mark not cleared: %q", res.User.SSOLinkProvider)
+	}
 	// Local role is kept because no mappings are configured.
-	if res.User.Role != RoleViewer {
+	if res.User.Role != RoleAdmin {
 		t.Fatalf("role changed unexpectedly: %s", res.User.Role)
+	}
+}
+
+func TestOIDCDisabledProviderCannotCompleteFlow(t *testing.T) {
+	f := newFixture(t)
+	op := newTestOP(t)
+	prov := setupProvider(t, f, op, OIDCInput{Provisioning: "jit", AllowedDomains: []string{"example.test"}, DefaultRole: RoleViewer})
+	start, err := f.svc.StartOIDC(f.ctx, "porch", OIDCPurposeLogin, "", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, state := op.authorize(t, start.AuthURL)
+	if _, err := f.db.W.Exec(`UPDATE oidc_providers SET enabled = 0 WHERE id = ?`, prov.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.svc.invalidateOIDC(prov.ID)
+	if _, err := f.svc.CompleteOIDC(f.ctx, state, code, "", start.BrowserCookie, nil); !errors.Is(err, ErrOIDCDisabled) {
+		t.Fatalf("callback after disabling: %v", err)
+	}
+}
+
+func TestOIDCPreprovisionedHonoursAllowedDomains(t *testing.T) {
+	f := newFixture(t)
+	op := newTestOP(t)
+	prov := setupProvider(t, f, op, OIDCInput{Provisioning: "preprovisioned", AllowedDomains: []string{"corp.test"}})
+	u := f.createUser(t, "dev@example.test", RoleViewer, "")
+	tx, _ := f.db.W.BeginTx(f.ctx, nil)
+	if err := f.svc.SetSSOLink(f.ctx, tx, u.ID, prov.ID); err != nil {
+		t.Fatal(err)
+	}
+	_ = tx.Commit()
+	start, _ := f.svc.StartOIDC(f.ctx, "porch", OIDCPurposeLogin, "", "/")
+	code, state := op.authorize(t, start.AuthURL)
+	if _, err := f.svc.CompleteOIDC(f.ctx, state, code, "", start.BrowserCookie, nil); !errors.Is(err, ErrOIDCEmailDomain) {
+		t.Fatalf("email outside allowed_domains must be refused: %v", err)
 	}
 }
 

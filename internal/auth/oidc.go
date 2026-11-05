@@ -423,7 +423,18 @@ func (s *Service) StartOIDC(ctx context.Context, idOrSlug, purpose, linkUserID, 
 
 // SafeReturnTo only allows same-site relative paths.
 func SafeReturnTo(p string) string {
-	if p == "" || !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//") || strings.HasPrefix(p, "/\\") || len(p) > 512 {
+	if p == "" || len(p) > 512 || !strings.HasPrefix(p, "/") {
+		return "/"
+	}
+	// Browsers strip tabs and newlines and treat backslashes as slashes,
+	// so "/\t/evil" or "/\\evil" would become "//evil" (another host).
+	for _, c := range p {
+		if c < 0x20 || c == 0x7f || c == '\\' {
+			return "/"
+		}
+	}
+	u, err := url.Parse(p)
+	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil || strings.HasPrefix(u.Path, "//") || strings.HasPrefix(p, "//") {
 		return "/"
 	}
 	return p
@@ -468,6 +479,10 @@ func (s *Service) CompleteOIDC(ctx context.Context, state, code, issParam, brows
 	p, err := s.GetOIDCProvider(ctx, providerID)
 	if err != nil {
 		return nil, ErrOIDCState
+	}
+	// A provider disabled after the flow started must not complete it.
+	if !p.Enabled {
+		return nil, ErrOIDCDisabled
 	}
 	rt, err := s.oidcRuntime(ctx, p)
 	if err != nil {
@@ -600,13 +615,19 @@ func (s *Service) provisionOIDC(ctx context.Context, tx *sql.Tx, p *OIDCProvider
 	}
 	switch p.Provisioning {
 	case "preprovisioned":
-		// Link to an existing account only by verified email, and only when
-		// that account has no identity from this issuer yet.
+		// Link to an existing account only by verified email, only within
+		// the allowed domains, only when an administrator marked that
+		// account for this provider (an email match alone could take over
+		// any local account, including administrators), and only when it
+		// has no identity from this issuer yet.
 		if email == "" || !verified {
 			return "", ErrOIDCNoAccount
 		}
+		if !emailDomainAllowed(p, email) {
+			return "", ErrOIDCEmailDomain
+		}
 		u, _, err := s.userByEmail(ctx, tx, email)
-		if err != nil {
+		if err != nil || u.SSOLinkProvider != p.ID {
 			return "", ErrOIDCNoAccount
 		}
 		var n int
@@ -616,16 +637,16 @@ func (s *Service) provisionOIDC(ctx context.Context, tx *sql.Tx, p *OIDCProvider
 		if n > 0 {
 			return "", ErrOIDCAlreadyLinked
 		}
+		if _, err := tx.ExecContext(ctx, `UPDATE users SET sso_link_provider = NULL WHERE id = ?`, u.ID); err != nil {
+			return "", err
+		}
 		return u.ID, link(u.ID)
 	case "jit":
 		if email == "" || !verified {
 			return "", ErrOIDCNoAccount
 		}
-		if len(p.AllowedDomains) > 0 {
-			domain := strings.ToLower(email[strings.LastIndexByte(email, '@')+1:])
-			if !slices.Contains(p.AllowedDomains, domain) {
-				return "", ErrOIDCEmailDomain
-			}
+		if !emailDomainAllowed(p, email) {
+			return "", ErrOIDCEmailDomain
 		}
 		role := mapRole(p, groups)
 		if role == "" {
@@ -643,6 +664,15 @@ func (s *Service) provisionOIDC(ctx context.Context, tx *sql.Tx, p *OIDCProvider
 		return u.ID, link(u.ID)
 	}
 	return "", ErrOIDCNoAccount
+}
+
+// emailDomainAllowed applies the provider's allowed_domains (empty = any).
+func emailDomainAllowed(p *OIDCProvider, email string) bool {
+	if len(p.AllowedDomains) == 0 {
+		return true
+	}
+	domain := strings.ToLower(email[strings.LastIndexByte(email, '@')+1:])
+	return slices.Contains(p.AllowedDomains, domain)
 }
 
 var rolePriority = map[Role]int{RoleViewer: 1, RoleOperator: 2, RoleAdmin: 3}

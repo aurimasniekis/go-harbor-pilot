@@ -53,6 +53,9 @@ type UserDTO struct {
 	UpdatedAt   time.Time     `json:"updated_at"`
 	LastLoginAt *time.Time    `json:"last_login_at,omitempty"`
 	Revision    int64         `json:"revision"`
+	// SSOLinkProvider is set while the account waits for its first sign-in
+	// from that pre-provisioned SSO provider.
+	SSOLinkProvider string `json:"sso_link_provider,omitempty" required:"false" doc:"SSO provider id whose first verified sign-in will link this account."`
 }
 
 // IdentityDTO describes a linked SSO identity.
@@ -67,7 +70,7 @@ type IdentityDTO struct {
 func userDTO(u *auth.User) UserDTO {
 	d := UserDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, Role: string(u.Role), RoleSource: u.RoleSource,
 		HasPassword: u.HasPassword, Disabled: u.Disabled, Grants: []string{}, Identities: []IdentityDTO{},
-		CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt, LastLoginAt: u.LastLoginAt, Revision: u.Revision}
+		CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt, LastLoginAt: u.LastLoginAt, Revision: u.Revision, SSOLinkProvider: u.SSOLinkProvider}
 	for _, g := range u.Grants {
 		d.Grants = append(d.Grants, string(g))
 	}

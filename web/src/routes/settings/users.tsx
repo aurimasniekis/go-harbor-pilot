@@ -8,7 +8,7 @@ import { type Column, DataTable, Empty, Section } from '@/ui/kit'
 import { Checkbox, ConfirmDialog, Dialog, MutationError, SecretOnce, SelectField, TextField, formStyles as f } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { apiSend } from '@/lib/api/client'
-import { qk, sessionQuery, usersQuery } from '@/lib/api/queries'
+import { qk, sessionQuery, usersQuery, oidcProvidersQuery } from '@/lib/api/queries'
 import type { User } from '@/lib/api/types'
 import { fmtRelative } from '@/lib/format'
 
@@ -164,8 +164,12 @@ function CreateUser({ open, onClose, onCreated }: { open: boolean; onClose: () =
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState<Role>('viewer')
+  const [sso, setSso] = useState('')
+  const providers = useQuery({ ...oidcProvidersQuery, enabled: open })
+  const ssoOptions = (providers.data?.items ?? []).filter((p) => p.provisioning === 'preprovisioned' && p.enabled)
   const create = useMutation({
-    mutationFn: () => apiSend<{ invite_url?: string }>('POST', '/users', { email, display_name: name, role, invite: true }),
+    mutationFn: () =>
+      apiSend<{ invite_url?: string }>('POST', '/users', sso ? { email, display_name: name, role, invite: false, sso_provider: sso } : { email, display_name: name, role, invite: true }),
     onSuccess: (r) => {
       setEmail('')
       setName('')
@@ -177,11 +181,20 @@ function CreateUser({ open, onClose, onCreated }: { open: boolean; onClose: () =
       <TextField label="Email" type="email" value={email} onChange={setEmail} required autoFocus />
       <TextField label="Display name" value={name} onChange={setName} maxLength={120} />
       <SelectField label="Role" value={role} onChange={setRole} options={roles} hint="Users signing in through SSO with group mappings get their role from groups." />
+      {ssoOptions.length > 0 && (
+        <SelectField
+          label="Signs in with"
+          value={sso}
+          onChange={setSso}
+          options={[{ value: '', label: 'Password (invitation link)' }, ...ssoOptions.map((p) => ({ value: p.id, label: p.display_name }))]}
+          hint="With SSO, the first sign-in from that provider with this email links the account. Existing accounts are never linked by email alone."
+        />
+      )}
       <MutationError error={create.error} />
       <div className={f.actions}>
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="primary" icon={UserPlus} busy={create.isPending} disabled={!email} onClick={() => create.mutate()}>
-          Create invitation
+          {sso ? 'Create user' : 'Create invitation'}
         </Button>
       </div>
     </Dialog>

@@ -27,6 +27,9 @@ type User struct {
 	UpdatedAt   time.Time
 	LastLoginAt *time.Time
 	Revision    int64
+	// SSOLinkProvider is set while the account waits for its first sign-in
+	// from that (pre-provisioned) SSO provider.
+	SSOLinkProvider string
 }
 
 // Identity is a linked external (OIDC) identity.
@@ -39,7 +42,7 @@ type Identity struct {
 }
 
 const userCols = `id, email, display_name, role, role_source, password_hash IS NOT NULL, disabled_at IS NOT NULL,
-	created_at, updated_at, last_login_at, revision`
+	created_at, updated_at, last_login_at, revision, COALESCE(sso_link_provider, '')`
 
 func scanUser(sc interface{ Scan(...any) error }) (*User, error) {
 	var u User
@@ -47,7 +50,7 @@ func scanUser(sc interface{ Scan(...any) error }) (*User, error) {
 	var hasPw, disabled int64
 	var created, updated int64
 	var last sql.NullInt64
-	if err := sc.Scan(&u.ID, &u.Email, &u.DisplayName, &role, &u.RoleSource, &hasPw, &disabled, &created, &updated, &last, &u.Revision); err != nil {
+	if err := sc.Scan(&u.ID, &u.Email, &u.DisplayName, &role, &u.RoleSource, &hasPw, &disabled, &created, &updated, &last, &u.Revision, &u.SSOLinkProvider); err != nil {
 		return nil, err
 	}
 	u.Role = Role(role)
@@ -82,7 +85,7 @@ func (s *Service) userByEmail(ctx context.Context, q store.Execer, email string)
 	var role string
 	var hasPw, disabled, created, updated int64
 	var last sql.NullInt64
-	err := row.Scan(&u.ID, &u.Email, &u.DisplayName, &role, &u.RoleSource, &hasPw, &disabled, &created, &updated, &last, &u.Revision, &hash)
+	err := row.Scan(&u.ID, &u.Email, &u.DisplayName, &role, &u.RoleSource, &hasPw, &disabled, &created, &updated, &last, &u.Revision, &u.SSOLinkProvider, &hash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, "", ErrNotFound
 	}
@@ -91,6 +94,28 @@ func (s *Service) userByEmail(ctx context.Context, q store.Execer, email string)
 	}
 	u.Role, u.HasPassword, u.Disabled = Role(role), hasPw == 1, disabled == 1
 	return &u, hash.String, nil
+}
+
+// SetSSOLink marks (providerID != "") or unmarks a user for linking on the
+// first verified sign-in from that pre-provisioned SSO provider.
+func (s *Service) SetSSOLink(ctx context.Context, tx *sql.Tx, userID, providerID string) error {
+	if providerID != "" {
+		var mode string
+		if err := tx.QueryRowContext(ctx, `SELECT provisioning FROM oidc_providers WHERE id = ?`, providerID).Scan(&mode); err != nil {
+			return ErrNotFound
+		}
+		if mode != "preprovisioned" {
+			return errors.New("the SSO provider must use pre-provisioned accounts")
+		}
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE users SET sso_link_provider = ?, updated_at = ?, revision = revision + 1 WHERE id = ?`, nullStr(providerID), s.nowMS(), userID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Service) loadUserExtras(ctx context.Context, u *User) error {
