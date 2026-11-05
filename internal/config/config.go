@@ -57,9 +57,29 @@ type Security struct {
 	// PreviousMasterKeyFiles are older KEKs kept only to unwrap until
 	// `harbor-pilot keys rotate` finishes.
 	PreviousMasterKeyFiles []string `yaml:"previous_master_key_files"`
-	// SecretRoots confine file-based secret references.
+	// SecretRoots confine file-based secret references. They may not
+	// contain the data directory or the master key files.
 	SecretRoots []string `yaml:"secret_roots"`
+	// SecretEnvPrefixes limit env: secret references to variables with
+	// these prefixes (default HP_SECRET_). Bootstrap variables such as
+	// HP_MASTER_KEY are never readable.
+	SecretEnvPrefixes []string `yaml:"secret_env_prefixes"`
 }
+
+// ProtectedPaths are the files and directories secret references may never
+// read: the data directory and the master key files.
+func (s Security) protectedWith(dataDir string) []string {
+	out := []string{}
+	for _, p := range append([]string{dataDir, s.MasterKeyFile}, s.PreviousMasterKeyFiles...) {
+		if p != "" {
+			out = append(out, filepath.Clean(p))
+		}
+	}
+	return out
+}
+
+// ProtectedPaths returns the paths secret references may never read.
+func (c Config) ProtectedPaths() []string { return c.Security.protectedWith(c.Server.DataDir) }
 
 // Log settings.
 type Log struct {
@@ -145,6 +165,14 @@ func Load(path string, env func(string) string, f Flags) (Config, error) {
 	setStr(&c.Log.Level, "HP_LOG_LEVEL")
 	setStr(&c.Bridges.ClaudeCode.Binary, "HP_CLAUDE_BINARY")
 	setStr(&c.Bridges.Codex.Binary, "HP_CODEX_BINARY")
+	if v := strings.TrimSpace(env("HP_SECRET_ENV_PREFIXES")); v != "" {
+		c.Security.SecretEnvPrefixes = nil
+		for _, p := range strings.Split(v, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				c.Security.SecretEnvPrefixes = append(c.Security.SecretEnvPrefixes, p)
+			}
+		}
+	}
 	if f.Listen != "" {
 		c.Server.Listen = f.Listen
 	}
@@ -204,6 +232,20 @@ func (c Config) Validate() error {
 		}
 		if !c.Demo.Enabled {
 			errs = append(errs, errors.New("demo.clock requires demo mode"))
+		}
+	}
+	for _, pre := range c.Security.SecretEnvPrefixes {
+		if len(pre) < 3 || strings.HasPrefix("HP_MASTER_KEY", pre) || (strings.HasPrefix(pre, "HP_") && !strings.HasPrefix(pre, "HP_SECRET_")) {
+			errs = append(errs, fmt.Errorf("security.secret_env_prefixes: %q is too broad; use a dedicated prefix such as HP_SECRET_", pre))
+		}
+	}
+	for _, root := range c.Security.SecretRoots {
+		r := filepath.Clean(root)
+		for _, prot := range c.ProtectedPaths() {
+			if prot == r || strings.HasPrefix(prot, r+string(filepath.Separator)) || r == string(filepath.Separator) {
+				errs = append(errs, fmt.Errorf("security.secret_roots: %s contains the data directory or a master key file; use a dedicated secrets directory", root))
+				break
+			}
 		}
 	}
 	switch strings.ToLower(c.Log.Level) {

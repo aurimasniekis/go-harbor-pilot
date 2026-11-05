@@ -162,6 +162,10 @@ func New(ctx context.Context, o Options) (*App, error) {
 		return fail(fmt.Errorf("open %s: %w", c.TracesDBPath(), err))
 	}
 	a.Keys = store.NewServerKeys(a.DB, a.Keyring)
+	// Secret references may read only dedicated env vars and files outside
+	// the data directory and key files (whoever sets a reference can send
+	// its value upstream).
+	credentials.SetPolicy(credentials.Policy{EnvPrefixes: c.Security.SecretEnvPrefixes, Protected: c.ProtectedPaths()})
 	auth.SecretResolver = credentials.NewResolver(c.Security.SecretRoots)
 	if a.Auth, err = auth.New(ctx, auth.Options{DB: a.DB, Keys: a.Keys, Keyring: a.Keyring, Clock: a.Clock, Log: a.Log,
 		SecureCookies: c.SecureCookies(), PublicOrigin: c.PublicOrigin()}); err != nil {

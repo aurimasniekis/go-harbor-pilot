@@ -22,6 +22,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	cp "github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/credentials"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/money"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/quota/domain"
@@ -191,6 +192,23 @@ func refString(r SecretRef) (string, bool) {
 	return "", false
 }
 
+// importRef converts a reference and checks it against the reference
+// policy; problem explains what the operator must do when it cannot be
+// carried over.
+func importRef(r SecretRef) (ref, problem string) {
+	s, ok := refString(r)
+	if !ok {
+		return "", fmt.Sprintf("uses an unsupported %q reference", r.Type)
+	}
+	if err := credentials.CheckRef(s); err != nil {
+		if r.Type == "env" {
+			return "", fmt.Sprintf("reads %s, which is not an allowed secret variable; rename it to HP_SECRET_%s (or another configured prefix) and set the reference", r.Name, r.Name)
+		}
+		return "", "points at the data directory or a master key file"
+	}
+	return s, ""
+}
+
 // Build plans the import against the current configuration.
 func Build(c *Config, snap *cp.Snapshot) *Plan {
 	p := &Plan{}
@@ -215,9 +233,9 @@ func Build(c *Config, snap *cp.Snapshot) *Plan {
 		}
 		var notes []string
 		for cname, ref := range a.Credentials {
-			r, ok := refString(ref)
-			if !ok {
-				notes = append(notes, fmt.Sprintf("credential %s uses an unsupported %q reference; set it on the monitor after import", cname, ref.Type))
+			r, problem := importRef(ref)
+			if problem != "" {
+				notes = append(notes, fmt.Sprintf("credential %s %s; set it on the monitor after import", cname, problem))
 				continue
 			}
 			switch cname {
@@ -250,15 +268,15 @@ func Build(c *Config, snap *cp.Snapshot) *Plan {
 	case tg.Enabled && channelExists != "":
 		p.Items = append(p.Items, Item{Kind: cp.KindChannel, Name: "telegram", Action: "exists", existing: channelExists, Reason: "a channel with this name already exists"})
 	case tg.Enabled:
-		ref, ok := refString(tg.BotToken)
+		ref, problem := importRef(tg.BotToken)
 		ch := cp.ChannelSpec{Type: "telegram", Enabled: true, TelegramChatID: tg.ChatID, APIBaseURL: tg.APIBaseURL, Timezone: tg.QuietHours.Timezone, SecretRef: ref}
 		if tg.QuietHours.Start != "" && tg.QuietHours.End != "" {
 			ch.QuietHours = cp.QuietHours{Enabled: true, Start: tg.QuietHours.Start, End: tg.QuietHours.End,
 				CriticalBypass: tg.QuietHours.CriticalBypass == nil || *tg.QuietHours.CriticalBypass}
 		}
 		reason := ""
-		if !ok {
-			reason = "the bot token reference has no equivalent; set the channel secret after import"
+		if problem != "" {
+			reason = "the bot token " + problem + "; set the channel secret after import"
 		}
 		p.Items = append(p.Items, Item{Kind: cp.KindChannel, Name: "telegram", Action: "create", Reason: reason, spec: ch, def: cp.ChannelDef})
 	}

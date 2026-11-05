@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/credentials"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/ids"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/money"
 )
@@ -31,6 +32,19 @@ const (
 
 var refKeyRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 var headerNameRE = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
+
+// checkSecretRef validates an optional secret reference against the
+// reference policy (allowed env prefixes, protected paths). Setting a
+// reference is equivalent to reading the secret it names, so references are
+// confined to values meant to be secrets.
+func checkSecretRef(v *Validator, loc, ref string) {
+	if ref == "" {
+		return
+	}
+	if err := credentials.CheckRef(ref); err != nil {
+		v.Fail(loc, err.Error())
+	}
+}
 
 func checkRefs(v *Validator, loc string, m map[string]string) {
 	if len(m) > 32 {
@@ -251,10 +265,7 @@ func validateAccount(v *Validator, s *AccountSpec) {
 	v.Check(s.ProviderID != "", "spec.provider_id", "is required")
 	checkText(v, "spec.display_name", s.DisplayName, 120)
 	v.Check(slices.Contains([]string{BillingMetered, BillingSubscription, BillingFree, BillingLocal}, s.Billing), "spec.billing", "must be metered_api, subscription, free or local")
-	if s.CredentialRef != "" {
-		kind, val, ok := strings.Cut(s.CredentialRef, ":")
-		v.Check(ok && val != "" && (kind == "env" || kind == "file"), "spec.credential_ref", "must be env:NAME or file:/path")
-	}
+	checkSecretRef(v, "spec.credential_ref", s.CredentialRef)
 	for k, val := range s.Labels {
 		v.Check(refKeyRE.MatchString(k), "spec.labels."+k, "label keys must be lowercase identifiers")
 		v.Check(len(val) <= 128, "spec.labels."+k, "label values are at most 128 characters")

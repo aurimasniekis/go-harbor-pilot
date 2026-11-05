@@ -50,6 +50,15 @@ var ErrOutsideRoots = errors.New("secret path is outside the configured secret r
 type Resolver struct {
 	Roots     []string
 	LookupEnv func(string) (string, bool)
+	// Policy overrides the process-wide reference policy (tests).
+	Policy *Policy
+}
+
+func (r *Resolver) policy() Policy {
+	if r.Policy != nil {
+		return *r.Policy
+	}
+	return CurrentPolicy()
 }
 
 // NewResolver builds a resolver using the process environment.
@@ -77,6 +86,9 @@ func (r *Resolver) resolve(ref Ref) (Secret, error) {
 	case "env":
 		if ref.Name == "" {
 			return Secret{}, errors.New("env reference requires name")
+		}
+		if err := r.policy().CheckEnvName(ref.Name); err != nil {
+			return Secret{}, err
 		}
 		v, ok := r.LookupEnv(ref.Name)
 		if !ok {
@@ -124,6 +136,9 @@ func (r *Resolver) ReadFile(path string) ([]byte, error) {
 		return nil, errors.New("secret file path must be absolute")
 	}
 	clean := filepath.Clean(path)
+	if err := r.policy().CheckPath(clean); err != nil {
+		return nil, err
+	}
 	for _, root := range r.Roots {
 		rootClean := filepath.Clean(root)
 		rel, err := filepath.Rel(rootClean, clean)

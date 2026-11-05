@@ -117,6 +117,7 @@ func validateDestination(v *Validator, s *DestinationSpec) {
 		for loc, ref := range map[string]string{"spec.creds_ref": s.CredsRef, "spec.ca_ref": s.CARef} {
 			if ref != "" {
 				v.Check(strings.HasPrefix(ref, "file:") && len(ref) > 5, loc, "must be file:/path")
+				checkSecretRef(v, loc, ref)
 			}
 		}
 	case "webhook":
@@ -203,10 +204,7 @@ func validateChannel(v *Validator, s *ChannelSpec) {
 	default:
 		v.Fail("spec.type", "must be telegram, slack, discord or webhook")
 	}
-	if s.SecretRef != "" {
-		kind, val, ok := strings.Cut(s.SecretRef, ":")
-		v.Check(ok && val != "" && (kind == "env" || kind == "file"), "spec.secret_ref", "must be env:NAME or file:/path")
-	}
+	checkSecretRef(v, "spec.secret_ref", s.SecretRef)
 }
 
 // NotificationRuleSpec routes events to channels.

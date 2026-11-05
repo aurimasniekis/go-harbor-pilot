@@ -58,6 +58,11 @@ func TestLoadRejects(t *testing.T) {
 		{name: "half tls", yaml: "server:\n  tls:\n    cert_file: a\n", want: "set together"},
 		{name: "demo clock without demo", yaml: "demo:\n  clock: 2026-11-05T12:00:00Z\n", want: "requires demo"},
 		{name: "bad level", yaml: "log:\n  level: loud\n", want: "log.level"},
+		{name: "secret root contains data dir", yaml: "server:\n  data_dir: /var/lib/hp\nsecurity:\n  secret_roots: [/var/lib]\n", want: "secret_roots"},
+		{name: "secret root contains master key", yaml: "security:\n  master_key_file: /etc/hp/master.key\n  secret_roots: [/etc/hp]\n", want: "secret_roots"},
+		{name: "secret root is filesystem root", yaml: "security:\n  secret_roots: [/]\n", want: "secret_roots"},
+		{name: "broad env prefix", yaml: "security:\n  secret_env_prefixes: [HP_]\n", want: "too broad"},
+		{name: "empty-ish env prefix", yaml: "security:\n  secret_env_prefixes: [A]\n", want: "too broad"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -70,6 +75,20 @@ func TestLoadRejects(t *testing.T) {
 				t.Fatalf("err=%v want %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestSecretEnvPrefixesFromEnv(t *testing.T) {
+	env := map[string]string{"HP_SECRET_ENV_PREFIXES": "HP_SECRET_, TEAM_SECRET_"}
+	c, err := Load("", func(k string) string { return env[k] }, Flags{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(c.Security.SecretEnvPrefixes, ",") != "HP_SECRET_,TEAM_SECRET_" {
+		t.Fatalf("prefixes %v", c.Security.SecretEnvPrefixes)
+	}
+	if got := c.ProtectedPaths(); len(got) == 0 || got[0] != filepath.Clean(c.Server.DataDir) {
+		t.Fatalf("protected paths %v", got)
 	}
 }
 

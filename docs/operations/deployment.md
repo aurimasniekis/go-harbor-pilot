@@ -58,6 +58,7 @@ The Compose service runs with a read-only root filesystem, no capabilities and `
 | `HP_MASTER_KEY_FILE` | Master key file. `HP_MASTER_KEY` passes the key itself; a file is preferred. |
 | `HP_LOG_LEVEL` | `debug`, `info`, `warn` or `error` |
 | `HP_CLAUDE_BINARY`, `HP_CODEX_BINARY` | Paths to the bridge CLIs |
+| `HP_SECRET_ENV_PREFIXES` | Comma-separated prefixes that `env:` secret references may read (`security.secret_env_prefixes`; default `HP_SECRET_`). Name provider keys and other secrets with this prefix, e.g. `HP_SECRET_ANTHROPIC_API_KEY`. |
 
 Everything else, such as providers, accounts, plans, clients, policies and notification channels, is managed through the UI, the API, the CLI or Terraform, and lives in the database.
 

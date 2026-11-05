@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/ids"
@@ -154,10 +153,7 @@ func validatePrivacy(v *Validator, s *PrivacyPolicySpec) {
 	if s.AllowUnmaskedFallback {
 		v.Check(s.Required, "spec.allow_unmasked_fallback", "only meaningful when masking is required")
 	}
-	if s.SecretValuesRef != "" {
-		kind, val, ok := strings.Cut(s.SecretValuesRef, ":")
-		v.Check(ok && val != "" && (kind == "env" || kind == "file"), "spec.secret_values_ref", "must be env:NAME or file:/path")
-	}
+	checkSecretRef(v, "spec.secret_values_ref", s.SecretValuesRef)
 }
 
 // Trace content modes.

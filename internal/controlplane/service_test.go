@@ -143,7 +143,7 @@ func TestValidationAndIntegrity(t *testing.T) {
 		}, want: "not declared by provider"},
 		{name: "secret and ref both set", run: func() error {
 			v := "abc"
-			_, err := f.svc.Create(f.ctx, AccountDef, "both", js(AccountSpec{ProviderID: prov.ID, Billing: BillingMetered, CredentialRef: "env:X"}), SecretInput{"credential": &v}, Mutation{})
+			_, err := f.svc.Create(f.ctx, AccountDef, "both", js(AccountSpec{ProviderID: prov.ID, Billing: BillingMetered, CredentialRef: "env:HP_SECRET_X"}), SecretInput{"credential": &v}, Mutation{})
 			return err
 		}, want: "not both"},
 		{name: "delete referenced provider", run: func() error {

@@ -71,6 +71,12 @@
 15. **Supply chain.** Pinned dependencies, `go.sum`/`pnpm-lock`, a minimal runtime image, and SHA-256 verification of bridge binaries when Harbor Pilot downloads them. By default it does not download them; operators install them.
 16. **Passthrough weakening controls.** Passthrough requires a policy authorization configured in advance, naming exactly which features are lost. It cannot bypass mandatory masking: a request that requires masking is blocked unless the policy explicitly allows sending it unmasked. Unsafe content capture is suspended during passthrough.
 
+17. **Secret references as an exfiltration channel.** Whoever can set a secret reference can make its value leave the process: it is sent to the provider, OIDC issuer or notification endpoint they also configure. Setting a reference is therefore equivalent to reading that secret.
+    - `env:` references may read only variables with a configured prefix (`security.secret_env_prefixes`, default `HP_SECRET_`). Bootstrap variables such as `HP_MASTER_KEY` and `HP_MASTER_KEY_FILE` are never readable.
+    - `file:` references are confined to `security.secret_roots`. The roots may not contain the data directory or any master key file, and those paths are refused even when they are reachable.
+    - References are checked when saved (a validation error names the allowed prefixes) and again when resolved.
+    - Changing a resource that holds secrets, including its `*_ref` fields, requires `secrets.write`.
+
 ## Out of scope / residual risk
 
 - **Local tools that bypass the gateway.** These are outside the gateway's outbound inspection boundary.

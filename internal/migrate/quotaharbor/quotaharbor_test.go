@@ -28,7 +28,7 @@ accounts:
     poll_interval: 10m
     credentials:
       type: env
-      name: DEEPSEEK_API_KEY
+      name: HP_SECRET_DEEPSEEK_API_KEY
   - id: claude-me
     provider: claude_subscription
     unofficial:
@@ -159,7 +159,7 @@ func TestImport(t *testing.T) {
 		{"quota_monitor/mystery", "skip", "unknown quota adapter"},
 		{"quota_monitor/existing-one", "exists", "already exists"},
 		{"quota_monitor/openai-org", "create", "admin_key is not supported"},
-		{"notification_channel/telegram", "create", ""},
+		{"notification_channel/telegram", "create", "rename it to HP_SECRET_QH_TELEGRAM_TOKEN"},
 		{"notification_rule/telegram-quota-alerts", "create", ""},
 		{"pricing/", "skip", "1 price entries"},
 		{"budget/", "skip", "1 budgets"},
@@ -206,7 +206,7 @@ func TestImport(t *testing.T) {
 		}
 	}
 	ds := byName["deepseek-main"]
-	if ds["api_key_ref"] != "env:DEEPSEEK_API_KEY" || ds["poll_interval_secs"] != float64(600) || ds["enabled"] != true {
+	if ds["api_key_ref"] != "env:HP_SECRET_DEEPSEEK_API_KEY" || ds["poll_interval_secs"] != float64(600) || ds["enabled"] != true {
 		t.Fatalf("deepseek monitor spec = %v", ds)
 	}
 	if cl := byName["claude-me"]; cl["acknowledge_terms_risk"] != true || cl["shared_scope_id"] != "claude-max" || cl["access_token_ref"] != nil && cl["access_token_ref"] != "" {

@@ -161,6 +161,8 @@ func (in *OIDCInput) validate() error {
 	if in.ClientSecretRef != "" {
 		if _, err := ParseSecretRef(in.ClientSecretRef); err != nil {
 			errs = append(errs, err)
+		} else if err := credentials.CheckRef(in.ClientSecretRef); err != nil {
+			errs = append(errs, fmt.Errorf("client_secret_ref: %w", err))
 		}
 	}
 	if len(in.Scopes) == 0 {

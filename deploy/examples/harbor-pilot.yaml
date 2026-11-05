@@ -16,6 +16,7 @@ server:
 security:
   master_key_file: /etc/harbor-pilot/master.key   # `harbor-pilot keys generate`
   previous_master_key_files: []
-  secret_roots: [/etc/harbor-pilot/secrets]       # confines file: secret references
+  secret_roots: [/etc/harbor-pilot/secrets]       # confines file: secret references (never the data dir or key files)
+  # secret_env_prefixes: [HP_SECRET_]              # env: secret references may read only these variables
 log:
   level: info

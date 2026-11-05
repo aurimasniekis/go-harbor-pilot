@@ -12,6 +12,12 @@ After an upgrade, check:
 - `/readyz` returns 200;
 - the UI's System page shows the new version.
 
+### Notes for specific versions
+- **Secret references are confined (D-035).** `env:` references now read only variables with an allowed prefix, by default `HP_SECRET_`. `file:` references can no longer read the data directory or the master key files.
+  - Before upgrading, list your references: search the configuration export for `"env:` and `_ref`.
+  - Rename the variables, for example `ANTHROPIC_API_KEY` to `HP_SECRET_ANTHROPIC_API_KEY`. Alternatively, set `security.secret_env_prefixes`, but make sure the prefix covers only secrets.
+  - References that no longer resolve show up as failed requests ("environment variable is not allowed as a secret reference"), and saving such a reference is refused with the allowed prefixes named.
+
 ## Rollback
 An older binary refuses to run against a schema it does not know: "database has migration N unknown to this binary". Choose the path that matches the upgrade:
 

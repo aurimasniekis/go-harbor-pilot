@@ -242,3 +242,14 @@ The structural baseline is seeded from this build's own protocol encoders, then 
   - Mobile-first lists that turn into cards on narrow screens.
 - **Rollout:** shell, Overview, Activity and Usage first for review, then the remaining screens.
 
+## D-035: Secret references are confined
+
+- **Why:** a security review on 2026-11-05 showed that an operator could point an account's `credential_ref` at `env:HP_MASTER_KEY` and a provider `base_url` at their own host, which sends the master key out on the next request. The same applied to any process variable, and to `file:` references under a too-broad secret root.
+- **Rule:**
+  - `env:` references may read only variables starting with an allowed prefix: `security.secret_env_prefixes`, or `HP_SECRET_ENV_PREFIXES`, default `HP_SECRET_`.
+  - Configured prefixes must be specific: none shorter than three characters, and no `HP_` prefix other than `HP_SECRET_`.
+  - `HP_MASTER_KEY`, `HP_MASTER_KEY_FILE` and the previous-key variables are always denied.
+  - `file:` references may not read the data directory or any master key file, and `secret_roots` that contain them are rejected at startup.
+- **Enforcement:** both when a reference is saved (spec validation and OIDC input) and when it is resolved.
+- **Upgrade impact:** existing references to variables without the prefix stop resolving. Operators rename the variables, for example `ANTHROPIC_API_KEY` to `HP_SECRET_ANTHROPIC_API_KEY`, or add a dedicated prefix.
+

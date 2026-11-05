@@ -34,21 +34,30 @@ func TestResolve(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(root, "dirlink")); err != nil {
 		t.Fatal(err)
 	}
+	writeFile(t, filepath.Join(root, "master.key"), "kek-material")
 	r := &Resolver{Roots: []string{root}, LookupEnv: func(k string) (string, bool) {
-		if k == "NEXOS_KEY" {
+		switch k {
+		case "HP_SECRET_NEXOS_KEY":
 			return "env-value", true
+		case "HP_MASTER_KEY", "HOME", "AWS_SECRET_ACCESS_KEY":
+			return "process-only-value", true
 		}
 		return "", false
-	}}
+	}, Policy: &Policy{EnvPrefixes: DefaultEnvPrefixes, Protected: []string{filepath.Join(root, "master.key")}}}
 	tests := []struct {
 		name    string
 		ref     Ref
 		want    string
 		wantErr error
 	}{
-		{name: "env", ref: Ref{Type: "env", Name: "NEXOS_KEY"}, want: "env-value"},
-		{name: "env missing", ref: Ref{Type: "env", Name: "MISSING"}, wantErr: ErrNotFound},
-		{name: "env optional missing", ref: Ref{Type: "env", Name: "MISSING", Optional: true}, want: ""},
+		{name: "env", ref: Ref{Type: "env", Name: "HP_SECRET_NEXOS_KEY"}, want: "env-value"},
+		{name: "env missing", ref: Ref{Type: "env", Name: "HP_SECRET_MISSING"}, wantErr: ErrNotFound},
+		{name: "env optional missing", ref: Ref{Type: "env", Name: "HP_SECRET_MISSING", Optional: true}, want: ""},
+		{name: "env master key denied", ref: Ref{Type: "env", Name: "HP_MASTER_KEY"}, wantErr: ErrEnvNotAllowed},
+		{name: "env outside prefixes denied", ref: Ref{Type: "env", Name: "HOME"}, wantErr: ErrEnvNotAllowed},
+		{name: "cloud credential denied", ref: Ref{Type: "env", Name: "AWS_SECRET_ACCESS_KEY"}, wantErr: ErrEnvNotAllowed},
+		{name: "bare prefix denied", ref: Ref{Type: "env", Name: "HP_SECRET_"}, wantErr: ErrEnvNotAllowed},
+		{name: "master key file denied", ref: Ref{Type: "file", Path: filepath.Join(root, "master.key")}, wantErr: ErrProtectedPath},
 		{name: "file trims newline", ref: Ref{Type: "file", Path: filepath.Join(root, "key")}, want: "file-secret-value"},
 		{name: "file json key", ref: Ref{Type: "file", Path: filepath.Join(root, "creds.json"), Key: "claudeAiOauth.accessToken"}, want: "json-token"},
 		{name: "env_file", ref: Ref{Type: "env_file", Path: filepath.Join(root, "accounts.env"), Key: "OPENAI_WORK"}, want: "env-file-value"},
@@ -69,7 +78,7 @@ func TestResolve(t *testing.T) {
 				if tt.wantErr != errAny && !errors.Is(err, tt.wantErr) {
 					t.Fatalf("got error %v, want %v", err, tt.wantErr)
 				}
-				if strings.Contains(err.Error(), "must-not-read") {
+				if strings.Contains(err.Error(), "must-not-read") || strings.Contains(err.Error(), "process-only-value") || strings.Contains(err.Error(), "kek-material") {
 					t.Fatal("error leaked file contents")
 				}
 				return
@@ -150,5 +159,35 @@ func TestSecretNeverSerializes(t *testing.T) {
 	}
 	if got, _ := b.Get("api_key"); got.Reveal() != "top-secret-value" {
 		t.Fatal("bundle lookup failed")
+	}
+}
+
+
+func TestCheckRef(t *testing.T) {
+	SetPolicy(Policy{EnvPrefixes: []string{"HP_SECRET_", "TEAM_"}, Protected: []string{"/var/lib/harbor-pilot", "/etc/harbor-pilot/master.key"}})
+	t.Cleanup(func() { SetPolicy(Policy{}) })
+	tests := []struct {
+		ref string
+		ok  bool
+	}{
+		{"env:HP_SECRET_OPENAI", true},
+		{"env:TEAM_KEY", true},
+		{"env:HP_MASTER_KEY", false},
+		{"env:HP_MASTER_KEY_FILE", false},
+		{"env:HOME", false},
+		{"env:", false},
+		{"file:/etc/harbor-pilot/secrets/openai", true},
+		{"file:/etc/harbor-pilot/master.key", false},
+		{"file:/var/lib/harbor-pilot/harbor.db", false},
+		{"file:/var/lib/harbor-pilot/../harbor-pilot/harbor.db", false},
+		{"file:relative/path", false},
+		{"literal:x", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.ref, func(t *testing.T) {
+			if err := CheckRef(tt.ref); (err == nil) != tt.ok {
+				t.Fatalf("CheckRef(%q) = %v, want ok=%v", tt.ref, err, tt.ok)
+			}
+		})
 	}
 }
