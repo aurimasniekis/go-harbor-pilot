@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Button, Group, SegmentedControl, Select, Skeleton, Stack, Text, UnstyledButton } from '@mantine/core'
 import { AlertTriangle, ChevronDown, ChevronUp, OctagonAlert, Radio } from 'lucide-react'
@@ -8,7 +8,9 @@ import { apiGet } from '@/lib/api/client'
 import { eventCatalogQuery } from '@/lib/api/queries'
 import type { EventEnvelope, EventItem, EventKindInfo, Page } from '@/lib/api/types'
 import { fmtDateTime, fmtRelative, getDisplayTimeZone } from '@/lib/format'
-import { Empty, Fields } from '@/ui/kit'
+import { Empty, Fields, Section } from '@/ui/kit'
+import { EventsTabs } from '@/features/events/EventsTabs'
+import { kindNoun } from '@/features/audit/audit'
 import e from '@/features/events/events.module.css'
 import s from '@/features/activity/activity.module.css'
 
@@ -25,6 +27,14 @@ function clock(iso: string): string {
   return new Intl.DateTimeFormat('en-GB', { timeZone: getDisplayTimeZone(), hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date(iso))
 }
 
+/** "account_id" → "Account", "pool" → "Pool". */
+function subjectLabel(k: string): string {
+  const w = k.replace(/_id$/, '').replaceAll('_', ' ')
+  return w.charAt(0).toUpperCase() + w.slice(1)
+}
+
+const severityName: Record<string, string> = { info: 'Info', warning: 'Warning', critical: 'Critical' }
+
 /** A readable line: the kind's description plus its most telling data. */
 function sentence(env: EventEnvelope | null, kind: EventKindInfo | undefined, fallback: string): string {
   const d = (env?.data ?? {}) as Record<string, unknown>
@@ -32,7 +42,9 @@ function sentence(env: EventEnvelope | null, kind: EventKindInfo | undefined, fa
   if (name.startsWith('config.')) {
     const [, k, op] = name.split('.')
     const verb = op === 'created' ? 'created' : op === 'deleted' ? 'deleted' : 'changed'
-    return `${(k ?? '').replaceAll('_', ' ')} ${String(d.name ?? '')} ${verb}`.replace(/\s+/g, ' ').trim()
+    const noun = kindNoun[k ?? ''] ?? (k ?? '').replaceAll('_', ' ')
+    const line = `${noun} ${String(d.name ?? '')} ${verb}`.replace(/\s+/g, ' ').trim()
+    return line.charAt(0).toUpperCase() + line.slice(1)
   }
   const detail = ['monitor', 'budget', 'pool', 'label', 'plan', 'path', 'reason', 'name'].map((k) => d[k]).filter((v) => typeof v === 'string' && v) as string[]
   const base = kind?.description.replace(/\.$/, '') ?? name.replaceAll('.', ' ').replaceAll('_', ' ')
@@ -83,7 +95,13 @@ export function EventStream() {
     return (
       <li key={ev.id} data-severity={ev.severity}>
         <div className={s.logCard} data-tone={tone}>
-          <span className={s.logTop}>
+          <UnstyledButton
+            className={s.logTop}
+            aria-expanded={expanded}
+            aria-label={`${sentence(env, kind, ev.type)}: ${expanded ? 'hide' : 'show'} details`}
+            onClick={() => setOpen(expanded ? null : ev.id)}
+            style={{ width: '100%', textAlign: 'left' }}
+          >
             <Group gap={6} wrap="nowrap" miw={0}>
               {ev.severity === 'critical' ? (
                 <OctagonAlert size={14} color="var(--error)" aria-label="Critical" />
@@ -98,24 +116,19 @@ export function EventStream() {
               <span className={s.logTime} title={`${fmtDateTime(ev.occurred_at, { seconds: true })} · ${fmtRelative(ev.occurred_at)}`}>
                 {clock(ev.occurred_at)}
               </span>
-              <UnstyledButton
-                aria-expanded={expanded}
-                aria-label={`${expanded ? 'Hide' : 'Show'} envelope for ${env?.name ?? ev.type}`}
-                onClick={() => setOpen(expanded ? null : ev.id)}
-                style={{ display: 'inline-flex', color: 'var(--text-muted)' }}
-              >
+              <span style={{ display: 'inline-flex', color: 'var(--text-muted)' }} aria-hidden="true">
                 {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </UnstyledButton>
+              </span>
             </Group>
-          </span>
+          </UnstyledButton>
           {expanded && (
             <Stack gap="xs" mt="xs">
               <Fields
                 cols={2}
                 items={[
                   ['Event', <code>{env?.name ?? ev.type}</code>],
-                  ['Severity', ev.severity],
-                  ...Object.entries(env?.subjects ?? {}).map(([k, v]) => [k.replaceAll('_', ' '), <code>{v}</code>] as [string, React.ReactNode]),
+                  ['Severity', severityName[ev.severity] ?? ev.severity],
+                  ...Object.entries(env?.subjects ?? {}).map(([k, v]) => [subjectLabel(k), <code>{v}</code>] as [string, React.ReactNode]),
                 ]}
               />
               <pre className={e.envelope} aria-label="Event envelope">
@@ -129,8 +142,9 @@ export function EventStream() {
   }
 
   return (
-    <Stack gap="md">
-      <Group gap="xs" wrap="wrap" role="search" aria-label="Filter events">
+    <Section title="Event stream" info="What happened in the gateway, newest first. Alert rules and event relays react to these events. Refreshes every 15 seconds."
+      actions={<EventsTabs />}>
+      <Group gap="xs" wrap="wrap" align="center" role="search" aria-label="Filter events">
         <SegmentedControl
           aria-label="Show"
           size="sm"
@@ -138,8 +152,8 @@ export function EventStream() {
           onChange={(v) => setView(v as View)}
           data={[
             { value: 'problems', label: 'Problems' },
-            { value: 'all', label: 'All' },
-            { value: 'config', label: 'Config changes' },
+            { value: 'all', label: 'All events' },
+            { value: 'config', label: 'Configuration changes' },
           ]}
         />
         <Select
@@ -150,11 +164,9 @@ export function EventStream() {
           w={240}
           value={type}
           onChange={setType}
-          data={(catalog.data?.items ?? []).map((k) => ({ value: k.type, label: k.name }))}
+          comboboxProps={{ withinPortal: true }}
+          data={(catalog.data?.items ?? []).map((k) => ({ value: k.type, label: k.description.replace(/\.$/, '') }))}
         />
-        <Text size="xs" c="dimmed">
-          Newest first; refreshes every 15 seconds.
-        </Text>
       </Group>
       {log.isError ? (
         <QueryError error={log.error} retry={() => void log.refetch()} />
@@ -185,13 +197,19 @@ export function EventStream() {
                     >
                       <span className={s.logTop}>
                         <Text size="sm" c="dimmed">
-                          {r.evs.length} configuration changes · {expandedGroups.has(r.key) ? 'collapse' : 'expand'}
+                          {r.evs.length} configuration changes · {expandedGroups.has(r.key) ? 'hide' : 'show'}
                         </Text>
                         <span className={s.logTime}>{clock(r.evs[0]!.occurred_at)}</span>
                       </span>
                     </UnstyledButton>
                   </li>
-                  {expandedGroups.has(r.key) && r.evs.map(eventRow)}
+                  {expandedGroups.has(r.key) && (
+                    <li>
+                      <ul className={s.logList} aria-label="Configuration changes" style={{ paddingLeft: 'var(--space-5)', borderLeft: '2px solid var(--border)', marginLeft: 'var(--space-2)' }}>
+                        {r.evs.map(eventRow)}
+                      </ul>
+                    </li>
+                  )}
                 </Fragment>
               ),
             )}
@@ -206,8 +224,8 @@ export function EventStream() {
         </Group>
       )}
       <Text size="xs" c="dimmed">
-        Each event kind and its fields are listed in the <a href="/events/catalog" style={{ textDecoration: 'underline' }}>event reference</a>.
+        Every event kind and its fields are listed in the <Link to="/events/catalog">event catalog</Link>.
       </Text>
-    </Stack>
+    </Section>
   )
 }

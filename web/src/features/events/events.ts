@@ -64,12 +64,54 @@ export function defaultRule(): NotificationRuleSpec {
   return { enabled: true, filter: { ...defaultFilter(), min_severity: 'warning' }, channel_ids: [], group_seconds: 0, cooldown_seconds: 900, recovery: true, template: '' }
 }
 
-export const channelTypes: { value: ChannelSpec['type']; label: string; secret: string; secretHint: string }[] = [
-  { value: 'telegram', label: 'Telegram', secret: 'Bot token', secretHint: 'From @BotFather, e.g. 123456:ABC… Stored encrypted; never shown again.' },
-  { value: 'slack', label: 'Slack', secret: 'Incoming webhook URL', secretHint: 'https://hooks.slack.com/services/… The URL is the credential, so it is stored as a secret.' },
-  { value: 'discord', label: 'Discord', secret: 'Webhook URL', secretHint: 'https://discord.com/api/webhooks/… Mentions are disabled in every message.' },
-  { value: 'webhook', label: 'Signed webhook', secret: 'Signing secret', secretHint: 'Used for the X-Harbor-Signature HMAC. Receivers verify it with the same secret.' },
+export const channelTypes: {
+  value: ChannelSpec['type']
+  label: string
+  blurb: string
+  secret: string
+  secretHint: string
+  /** Variable name suffix for the env:HP_SECRET_… example. */
+  refExample: string
+  /** Provider API address, as the placeholder of the override. */
+  apiBase: string
+}[] = [
+  { value: 'slack', label: 'Slack', blurb: 'Post to a channel through an incoming webhook.', secret: 'Incoming webhook URL',
+    secretHint: 'From Slack: Apps → Incoming Webhooks. Starts with https://hooks.slack.com/services/. Stored encrypted; never shown again.',
+    refExample: 'SLACK_WEBHOOK', apiBase: 'https://hooks.slack.com' },
+  { value: 'discord', label: 'Discord', blurb: 'Post to a channel through a webhook. Mentions are disabled.', secret: 'Webhook URL',
+    secretHint: 'From Discord: channel settings → Integrations → Webhooks. Starts with https://discord.com/api/webhooks/. Stored encrypted.',
+    refExample: 'DISCORD_WEBHOOK', apiBase: 'https://discord.com' },
+  { value: 'telegram', label: 'Telegram', blurb: 'A bot sends messages to a chat, group or channel.', secret: 'Bot token',
+    secretHint: 'From @BotFather, for example 123456:ABC… Stored encrypted; never shown again.',
+    refExample: 'TELEGRAM_BOT_TOKEN', apiBase: 'https://api.telegram.org' },
+  { value: 'webhook', label: 'Signed webhook', blurb: 'POST each alert as JSON to your own endpoint, signed with HMAC.', secret: 'Signing secret',
+    secretHint: 'Optional. Receivers verify the X-Harbor-Signature header with the same secret.',
+    refExample: 'WEBHOOK_SIGNING_SECRET', apiBase: '' },
 ]
+
+/**
+ * A plain-language problem with a pasted Slack or Discord webhook URL, or
+ * undefined when it looks right (or an override or private network is in use).
+ */
+export function secretShapeError(type: ChannelSpec['type'], value: string, custom: boolean): string | undefined {
+  const v = value.trim()
+  if (custom) return undefined
+  if (type === 'slack' && !/^https:\/\/hooks\.slack\.com\/services\/\S+$/.test(v)) return 'A Slack webhook URL starts with https://hooks.slack.com/services/. For a test receiver, turn on “Webhook is on a private network” under Delivery.'
+  if (type === 'discord' && !/^https:\/\/(discord|discordapp)\.com\/api\/webhooks\/\S+$/.test(v)) return 'A Discord webhook URL starts with https://discord.com/api/webhooks/. For a test receiver, turn on “Webhook is on a private network” under Delivery.'
+  if (type === 'telegram' && !/^\d+:\S{8,}$/.test(v)) return 'A bot token looks like 123456789:AA… (digits, a colon, then letters).'
+  return undefined
+}
+
+/** "Sends immediately · at most 20 per min · quiet 22:00–07:00 Europe/Vilnius" */
+export function deliverySummary(spec: ChannelSpec): string {
+  const parts: string[] = []
+  const qh = spec.quiet_hours
+  parts.push(spec.digest_minutes ? `digest every ${spec.digest_minutes} min` : 'sends immediately')
+  parts.push(`at most ${spec.rate_per_minute ?? 20} per min`)
+  if (qh?.enabled) parts.push(`quiet ${qh.start}–${qh.end} ${spec.timezone || 'UTC'}`)
+  const s = parts.join(' · ')
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
 
 /** Variables available to notification templates. */
 export const templateVariables: { name: string; description: string }[] = [
@@ -119,3 +161,62 @@ export function noisePhrase(cooldown: number | undefined, group: number | undefi
   if (recovery) parts.push('also when resolved')
   return parts.join(' · ')
 }
+
+/** Plain-language names of event kinds, for pickers and lists. */
+export const eventLabels: Record<string, string> = {
+  'quota.window.exhausted': 'Quota used up',
+  'quota.window.recovered': 'Quota available again',
+  'quota.monitor.auth_failed': 'Quota tracking cannot sign in',
+  'budget.threshold.warning': 'Budget near its limit',
+  'budget.threshold.exceeded': 'Budget used up',
+  'provider.account.cooldown_started': 'Account paused after errors',
+  'provider.account.recovered': 'Account back in service',
+  'routing.account.switched': 'Serving account switched',
+  'routing.fallback.selected': 'Fell back to another model or provider',
+  'access.request.blocked': 'Request refused by policy',
+  'access.credential.issued': 'Access token issued',
+  'access.credential.revoked': 'Access token revoked',
+  'policy.plan.published': 'Routing plan published',
+  'compat.breaker.opened': 'Protocol path paused',
+  'compat.breaker.half_opened': 'Protocol path testing recovery',
+  'compat.breaker.closed': 'Protocol path restored',
+  'compat.passthrough.activated': 'Direct passthrough turned on',
+  'compat.passthrough.blocked': 'Direct passthrough refused',
+  'compat.passthrough.deactivated': 'Direct passthrough turned off',
+  'protocol.change.detected': 'Protocol change detected',
+  'config.*': 'Any configuration change',
+}
+
+/** Area headings for event pickers, in display order. */
+export const eventAreas: { prefix: string; label: string }[] = [
+  { prefix: 'quota', label: 'Quota' },
+  { prefix: 'budget', label: 'Budget' },
+  { prefix: 'provider', label: 'Provider accounts' },
+  { prefix: 'routing', label: 'Routing' },
+  { prefix: 'access', label: 'Access' },
+  { prefix: 'compat', label: 'Protocol paths' },
+  { prefix: 'protocol', label: 'Protocol changes' },
+  { prefix: 'policy', label: 'Routing plans' },
+  { prefix: 'config', label: 'Configuration' },
+]
+
+/** "Quota used up", or the raw name for kinds without a label. */
+export function eventLabel(name: string): string {
+  if (eventLabels[name]) return eventLabels[name]
+  if (name.endsWith('.*')) {
+    const area = eventAreas.find((a) => a.prefix === name.slice(0, -2))
+    if (area) return `Any ${area.label.toLowerCase()} event`
+  }
+  return name
+}
+
+/** One-click starting points for alert rules. */
+export const rulePresets: { label: string; events: string[]; severity: string }[] = [
+  { label: 'Quota used up', events: ['quota.window.exhausted', 'quota.monitor.auth_failed'], severity: 'info' },
+  { label: 'Budget warnings', events: ['budget.threshold.warning', 'budget.threshold.exceeded'], severity: 'info' },
+  { label: 'Account paused', events: ['provider.account.cooldown_started'], severity: 'info' },
+  { label: 'Protocol path paused', events: ['compat.breaker.opened'], severity: 'info' },
+]
+
+/** Patterns that would make notifications trigger notifications. */
+export const loopingPattern = (p: string) => p.startsWith('notification.') || p.startsWith('event.') || p === '*' || p === '*.*'

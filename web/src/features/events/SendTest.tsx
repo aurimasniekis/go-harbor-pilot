@@ -1,8 +1,9 @@
 import { useMutation } from '@tanstack/react-query'
+import { Group, Stack, Text } from '@mantine/core'
 import { CheckCircle2, Send, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui'
-import { apiSend, ApiError } from '@/lib/api/client'
-import e from './events.module.css'
+import { apiSend } from '@/lib/api/client'
+import { summarizeError } from '@/lib/api/errors'
 
 interface TestResult {
   delivered: boolean
@@ -16,26 +17,29 @@ export function SendTest({ id, name }: { id: string; name: string }) {
     mutationFn: () => apiSend<TestResult>('POST', `/notification-channels/${encodeURIComponent(id)}/test`, {}),
   })
   const r = test.data
+  const failure = test.isError ? summarizeError(test.error).title : r && !r.delivered ? `${r.status ? `HTTP ${r.status}: ` : ''}${r.error ?? 'no reason given'}` : ''
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start', minWidth: 0 }}>
+    <Stack gap={4} align="flex-start">
       <Button size="small" icon={Send} busy={test.isPending} aria-label={`Send test to ${name}`} onClick={() => test.mutate()}>
         Send test
       </Button>
-      <span role="status" aria-live="polite" className={e.result}>
-        {test.isError ? (
-          <span style={{ color: 'var(--error-text)' }}>
-            <XCircle size={14} aria-hidden="true" style={{ verticalAlign: '-2px' }} /> {test.error instanceof ApiError ? test.error.message : 'The test request failed.'}
-          </span>
-        ) : r?.delivered ? (
-          <span style={{ color: 'var(--success)' }}>
-            <CheckCircle2 size={14} aria-hidden="true" style={{ verticalAlign: '-2px' }} /> Delivered{r.status ? ` (HTTP ${r.status})` : ''}
-          </span>
-        ) : r ? (
-          <span style={{ color: 'var(--error-text)', overflowWrap: 'anywhere' }}>
-            <XCircle size={14} aria-hidden="true" style={{ verticalAlign: '-2px' }} /> Not delivered{r.status ? ` (HTTP ${r.status})` : ''}{r.error ? `: ${r.error}` : ''}
-          </span>
+      <span role="status" aria-live="polite">
+        {r?.delivered ? (
+          <Group gap={4} wrap="nowrap" c="var(--success)">
+            <CheckCircle2 size={12} aria-hidden="true" />
+            <Text size="xs" c="inherit">
+              Delivered
+            </Text>
+          </Group>
+        ) : failure ? (
+          <Group gap={4} wrap="nowrap" align="flex-start" c="var(--error-text)" maw={240} title={failure}>
+            <XCircle size={12} aria-hidden="true" style={{ flex: 'none', marginTop: 2 }} />
+            <Text size="xs" c="inherit" lineClamp={2} style={{ overflowWrap: 'anywhere' }}>
+              Not delivered: {failure}
+            </Text>
+          </Group>
         ) : null}
       </span>
-    </div>
+    </Stack>
   )
 }

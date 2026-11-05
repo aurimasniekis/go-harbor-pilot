@@ -1,10 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Badge } from '@/components/ui'
+import { Text } from '@mantine/core'
 import { EnabledSwitch, ResourceList } from '@/features/config/ResourceList'
 import { ChannelDialog } from '@/features/events/ChannelDialog'
 import { SendTest } from '@/features/events/SendTest'
 import { channelTypes } from '@/features/events/events'
-import type { ChannelRes } from '@/lib/api/types'
+import { useQuery } from '@tanstack/react-query'
+import { resourceListQuery } from '@/lib/api/queries'
+import type { ChannelRes, NotificationRuleRes } from '@/lib/api/types'
 import { useCan } from '@/lib/session'
 
 export const Route = createFileRoute('/notifications/')({
@@ -12,9 +15,9 @@ export const Route = createFileRoute('/notifications/')({
 })
 
 function target(r: ChannelRes) {
-  if (r.spec.type === 'telegram') return <>Chat <span className="mono">{r.spec.telegram_chat_id}</span></>
-  if (r.spec.type === 'webhook') return <span className="ident" style={{ fontSize: 'var(--text-xs)' }}>{r.spec.webhook_url}</span>
-  if (r.spec.secret_ref) return <span className="mono">{r.spec.secret_ref}</span>
+  if (r.spec.type === 'telegram') return <>chat <span className="mono">{r.spec.telegram_chat_id}</span></>
+  if (r.spec.type === 'webhook') return <span className="mono" title={r.spec.webhook_url}>{r.spec.webhook_url}</span>
+  if (r.spec.secret_ref) return <>server secret <span className="mono">{r.spec.secret_ref}</span></>
   return r.secrets?.secret?.source === 'stored' ? 'saved webhook URL' : <Badge tone="warning">No webhook URL</Badge>
 }
 
@@ -28,19 +31,29 @@ function delivery(r: ChannelRes): string {
 
 function Channels() {
   const canTest = useCan('notifications.manage')
+  const rules = useQuery(resourceListQuery<NotificationRuleRes>('notification-rules'))
   return (
     <ResourceList<ChannelRes>
       plural="notification-channels"
       title="Channels"
-      subtitle="Telegram, Slack, Discord or a signed webhook. Credentials are write-only and never shown again. Send a test after adding one."
+      subtitle="Where alerts go: Slack, Discord, Telegram or a signed webhook. Credentials are write-only and never shown again. Send a test after adding one."
       noun="channel"
-      empty="Add a channel, send a test message, then create a rule that routes events to it."
+      empty="Add a channel, send a test message, then add a rule that sends alerts to it."
       columns={[
-        { header: 'Sends to', mobile: 'meta', cell: (r) => <span>{channelTypes.find((t) => t.value === r.spec.type)?.label ?? r.spec.type} · <span className="muted">{target(r)}</span></span> },
-        { header: 'Delivery', mobile: 'meta', cell: (r) => <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>{delivery(r)}</span> },
-        { header: 'Status', mobile: 'line', cell: (r) => <EnabledSwitch plural="notification-channels" r={r} /> },
-        ...(canTest ? [{ header: 'Test', mobile: 'meta' as const, cell: (r: ChannelRes) => <span onClick={(e) => e.stopPropagation()}><SendTest id={r.id} name={r.name} /></span> }] : []),
+        {
+          header: 'Sends to',
+          mobile: 'meta',
+          cell: (r) => (
+            <Text size="sm" truncate maw="min(340px, 100%)">
+              {channelTypes.find((t) => t.value === r.spec.type)?.label ?? r.spec.type} <Text span size="xs" c="dimmed">· {target(r)}</Text>
+            </Text>
+          ),
+        },
+        { header: 'Delivery', mobile: 'meta', cell: (r) => <Text size="xs" c="dimmed">{delivery(r)}</Text> },
+        { header: 'Status', mobile: 'line', cell: (r) => <div style={{ whiteSpace: 'nowrap' }}><EnabledSwitch plural="notification-channels" r={r} /></div> },
+        ...(canTest ? [{ header: 'Test', mobile: 'meta' as const, cell: (r: ChannelRes) => <span data-row-action onClick={(e) => e.stopPropagation()}><SendTest id={r.id} name={r.name} /></span> }] : []),
       ]}
+      usedBy={(r) => (rules.data?.items ?? []).filter((x) => x.spec.channel_ids.includes(r.id)).map((x) => `rule ${x.name}`)}
       dialog={(r, close) => <ChannelDialog channel={r} onClose={close} />}
     />
   )
