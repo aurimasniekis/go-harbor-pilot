@@ -80,7 +80,8 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 		secret = s
 	}
 	target := executor.Target{Provider: prov, Account: acc, Model: cand.Model, ModelSpec: cand.ModelSpec}
-	ereq := executor.Request{IR: rc.ir, Inbound: rc.inbound, RawBody: rc.raw, RequestID: rc.id, ClientHeader: rc.header, Passthrough: mode.passthrough}
+	ereq := executor.Request{IR: rc.ir, Inbound: rc.inbound, RawBody: rc.raw, RequestID: rc.id, ClientHeader: rc.header, Passthrough: mode.passthrough,
+		Scope: bridgeScope(rc)}
 	res, aerr := g.executorFor(prov.Spec.Type).Execute(ctx, target, secret, ereq, rc.ir.Stream)
 	if g.ObserveResponse != nil {
 		if aerr != nil {
@@ -364,4 +365,18 @@ func containsTrue(raw []byte) bool {
 		}
 	}
 	return false
+}
+
+// bridgeScope identifies the gateway client for stateful executors: the
+// client binding and the credential (the parent for minted child tokens),
+// so one client can never continue another's parked CLI process.
+func bridgeScope(rc *reqCtx) string {
+	if rc.binding == nil || rc.cred == nil {
+		return ""
+	}
+	cred := rc.cred.ID
+	if rc.cred.ParentID != "" {
+		cred = rc.cred.ParentID
+	}
+	return rc.binding.ID + "/" + cred
 }
