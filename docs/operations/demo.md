@@ -12,3 +12,5 @@
 - **Banner.** The UI shows a persistent "Demo data" banner.
 
 Later phases add synthetic clients, providers, accounts, routing plans and gateway traffic through the same real code paths, with no special-case UI.
+
+The demo administrator's password is published (`admin@example.test` / `harbor-pilot-demo`), so demo mode refuses to listen on anything but a loopback address. Pass `--demo-allow-public` (or set `demo.allow_public`) only on an isolated network.

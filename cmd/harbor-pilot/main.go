@@ -33,7 +33,7 @@ const usage = `Harbor Pilot connects coding agents to models and subscriptions, 
 request through explicit policies, and explains what happened.
 
 Usage:
-  harbor-pilot serve [--config FILE] [--listen ADDR] [--data-dir DIR] [--public-url URL] [--demo] [--demo-clock RFC3339]
+  harbor-pilot serve [--config FILE] [--listen ADDR] [--data-dir DIR] [--public-url URL] [--demo] [--demo-clock RFC3339] [--demo-allow-public]
   harbor-pilot admin bootstrap [--config FILE]       print a one-time setup link for the first administrator
   harbor-pilot admin recover --email EMAIL [--config FILE]
                                                      print a one-time break-glass recovery link
@@ -124,6 +124,7 @@ func parseCommon(name string, args []string, extra func(fs *flag.FlagSet)) (*com
 	fs.StringVar(&c.flags.PublicURL, "public-url", "", "public base URL")
 	fs.BoolVar(&c.flags.Demo, "demo", false, "serve the deterministic synthetic demo")
 	fs.StringVar(&c.flags.DemoClock, "demo-clock", "", "freeze the demo clock (RFC 3339)")
+	fs.BoolVar(&c.flags.DemoAllowPublic, "demo-allow-public", false, "allow the demo on a non-loopback address (its admin password is public)")
 	if extra != nil {
 		extra(fs)
 	}

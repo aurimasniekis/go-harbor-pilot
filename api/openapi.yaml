@@ -1406,6 +1406,10 @@ components:
             - operator
             - viewer
           type: string
+        sso_provider:
+          description: "Pre-provision for single sign-on: the first verified sign-in from this provider (id or slug; pre-provisioned mode) with the account's email links it. Without this, SSO never links an existing account by email."
+          maxLength: 64
+          type: string
       required:
         - email
         - role
@@ -3787,6 +3791,10 @@ components:
             - operator
             - viewer
           type: string
+        sso_provider:
+          description: Mark the account for linking on the next verified sign-in from this provider (id or slug); empty clears the mark.
+          maxLength: 64
+          type: string
       type: object
     PlanCompat:
       additionalProperties: false
@@ -4416,6 +4424,24 @@ components:
         - unit
         - source
         - confidence
+      type: object
+    ReauthRequest:
+      additionalProperties: false
+      properties:
+        password:
+          maxLength: 4096
+          type: string
+      required:
+        - password
+      type: object
+    ReauthResponse:
+      additionalProperties: false
+      properties:
+        auth_at:
+          format: date-time
+          type: string
+      required:
+        - auth_at
       type: object
     RecOutBody:
       additionalProperties: false
@@ -6832,6 +6858,9 @@ components:
           type: string
         role_source:
           description: local, or oidc:<provider id> when roles come from SSO groups
+          type: string
+        sso_link_provider:
+          description: SSO provider id whose first verified sign-in will link this account.
           type: string
         updated_at:
           format: date-time
@@ -13526,6 +13555,32 @@ paths:
                 $ref: "#/components/schemas/Error"
           description: Error
       summary: Change my password (revokes my other sessions)
+      tags:
+        - Session
+      x-permission: session
+  /session/reauth:
+    post:
+      operationId: reauthenticate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReauthRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReauthResponse"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Confirm my password to unlock sensitive actions for 10 minutes
       tags:
         - Session
       x-permission: session

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/api"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/audit"
@@ -21,6 +22,8 @@ type Deps struct {
 	Traces   func() *traces.Service
 	Main     func() *store.DB // audit log
 	Snapshot func() *cp.Snapshot
+	// Now is the clock used for step-up checks (defaults to time.Now).
+	Now func() time.Time
 }
 
 func notFound(err error) error {
@@ -71,9 +74,20 @@ func Register(a *api.API, d Deps) {
 			record(ctx, d, action, id, audit.Failed, map[string]any{"reason": "not found or expired"})
 			return nil, notFound(err)
 		}
-		if c.Mode == cp.TraceUnredacted && !auth.FromContext(ctx).Can(auth.PermTraceContentUnredacted) {
+		p := auth.FromContext(ctx)
+		if c.Mode == cp.TraceUnredacted && !p.Can(auth.PermTraceContentUnredacted) {
 			record(ctx, d, action, id, audit.Denied, map[string]any{"mode": c.Mode})
 			return nil, api.Errorf(http.StatusForbidden, "forbidden", "unredacted trace content requires the traces.content.unredacted permission")
+		}
+		// Unredacted content and exports need a recent sign-in, so a stolen
+		// session or a long-lived token alone cannot read them.
+		now := time.Now
+		if d.Now != nil {
+			now = d.Now
+		}
+		if (c.Mode == cp.TraceUnredacted || action == "trace.export") && !p.RecentlyAuthenticated(now()) {
+			record(ctx, d, action, id, audit.Denied, map[string]any{"mode": c.Mode, "reason": "reauth_required"})
+			return nil, api.Errorf(http.StatusForbidden, "reauth_required", auth.ErrReauthRequired.Error())
 		}
 		return c, nil
 	}

@@ -68,6 +68,25 @@ func (l *Limiter) AllowN(key string, n float64) (bool, time.Duration) {
 	return false, time.Duration((n - b.tokens) / l.perSec * float64(time.Second))
 }
 
+// Peek reports whether one token is available for key without consuming
+// it, and otherwise how long until one is.
+func (l *Limiter) Peek(key string) (bool, time.Duration) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	b, ok := l.buckets[key]
+	if !ok {
+		return true, 0
+	}
+	tokens := min(l.burst, b.tokens+l.now().Sub(b.last).Seconds()*l.perSec)
+	if tokens >= 1 {
+		return true, 0
+	}
+	if l.perSec <= 0 {
+		return false, time.Hour
+	}
+	return false, time.Duration((1 - tokens) / l.perSec * float64(time.Second))
+}
+
 func (l *Limiter) evict(now time.Time) {
 	for k, b := range l.buckets {
 		if now.Sub(b.last) > 10*time.Minute {

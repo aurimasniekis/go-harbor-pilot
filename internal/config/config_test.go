@@ -61,6 +61,7 @@ func TestLoadRejects(t *testing.T) {
 		{name: "secret root contains data dir", yaml: "server:\n  data_dir: /var/lib/hp\nsecurity:\n  secret_roots: [/var/lib]\n", want: "secret_roots"},
 		{name: "secret root contains master key", yaml: "security:\n  master_key_file: /etc/hp/master.key\n  secret_roots: [/etc/hp]\n", want: "secret_roots"},
 		{name: "secret root is filesystem root", yaml: "security:\n  secret_roots: [/]\n", want: "secret_roots"},
+		{name: "demo on a public address", yaml: "server:\n  listen: 0.0.0.0:8080\ndemo:\n  enabled: true\n", want: "loopback"},
 		{name: "broad env prefix", yaml: "security:\n  secret_env_prefixes: [HP_]\n", want: "too broad"},
 		{name: "empty-ish env prefix", yaml: "security:\n  secret_env_prefixes: [A]\n", want: "too broad"},
 	}
@@ -73,6 +74,29 @@ func TestLoadRejects(t *testing.T) {
 			_, err := Load(p, func(string) string { return "" }, Flags{})
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("err=%v want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestDemoPublicListenNeedsOverride(t *testing.T) {
+	tests := []struct {
+		listen string
+		allow  bool
+		ok     bool
+	}{
+		{"127.0.0.1:8080", false, true},
+		{"localhost:8080", false, true},
+		{"[::1]:8080", false, true},
+		{":8080", false, false},
+		{"0.0.0.0:8080", false, false},
+		{"0.0.0.0:8080", true, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.listen, func(t *testing.T) {
+			_, err := Load("", func(string) string { return "" }, Flags{Listen: tt.listen, Demo: true, DemoAllowPublic: tt.allow})
+			if (err == nil) != tt.ok {
+				t.Fatalf("err=%v, want ok=%v", err, tt.ok)
 			}
 		})
 	}

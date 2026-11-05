@@ -1916,6 +1916,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/session/reauth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm my password to unlock sensitive actions for 10 minutes */
+        post: operations["reauthenticate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stats": {
         parameters: {
             query?: never;
@@ -2987,6 +3004,8 @@ export interface components {
             invite: boolean;
             /** @enum {string} */
             role: "admin" | "operator" | "viewer";
+            /** @description Pre-provision for single sign-on: the first verified sign-in from this provider (id or slug; pre-provisioned mode) with the account's email links it. Without this, SSO never links an existing account by email. */
+            sso_provider?: string;
         };
         CreateUserOutBody: {
             /** Format: date-time */
@@ -3936,6 +3955,8 @@ export interface components {
             display_name?: string;
             /** @enum {string} */
             role?: "admin" | "operator" | "viewer";
+            /** @description Mark the account for linking on the next verified sign-in from this provider (id or slug); empty clears the mark. */
+            sso_provider?: string;
         };
         PlanCompat: {
             /** @description masking, detailed_usage, intent_inspection, tool_statistics, traces. */
@@ -4216,6 +4237,13 @@ export interface components {
             per_hour: number;
             source: string;
             unit: string;
+        };
+        ReauthRequest: {
+            password: string;
+        };
+        ReauthResponse: {
+            /** Format: date-time */
+            auth_at: string;
         };
         RecOutBody: {
             items: components["schemas"]["ReconciliationRow"][];
@@ -5309,6 +5337,8 @@ export interface components {
             role: "admin" | "operator" | "viewer";
             /** @description local, or oidc:<provider id> when roles come from SSO groups */
             role_source: string;
+            /** @description SSO provider id whose first verified sign-in will link this account. */
+            sso_link_provider?: string;
             /** Format: date-time */
             updated_at: string;
         };
@@ -11097,6 +11127,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    reauthenticate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReauthRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthResponse"];
+                };
             };
             /** @description Error */
             default: {

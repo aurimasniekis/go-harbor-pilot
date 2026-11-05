@@ -162,7 +162,6 @@ func TestSecretNeverSerializes(t *testing.T) {
 	}
 }
 
-
 func TestCheckRef(t *testing.T) {
 	SetPolicy(Policy{EnvPrefixes: []string{"HP_SECRET_", "TEAM_"}, Protected: []string{"/var/lib/harbor-pilot", "/etc/harbor-pilot/master.key"}})
 	t.Cleanup(func() { SetPolicy(Policy{}) })

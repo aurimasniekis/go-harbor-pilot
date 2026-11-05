@@ -2,6 +2,8 @@ package gateway
 
 import (
 	"encoding/json"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/ratelimit"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/reqmeta"
 	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
@@ -13,10 +15,31 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/wire"
 )
 
-func (g *Gateway) authed(w http.ResponseWriter, r *http.Request, p ir.Protocol, scope string) (*cp.AuthenticatedCredential, *cp.Res[cp.BindingSpec], *cp.Snapshot, bool) {
+// authFailuresPerMinute bounds failed credential checks per address; valid
+// credentials are never limited by this.
+const authFailuresPerMinute, authFailureBurst = 60, 60
+
+// authenticate checks the gateway credential, refusing addresses with too
+// many recent failures. Only failures consume the address's budget.
+func (g *Gateway) authenticate(r *http.Request) (*cp.AuthenticatedCredential, *ir.Error) {
+	g.authFailsOnce.Do(func() { g.authFails = ratelimit.New(authFailuresPerMinute, authFailureBurst, time.Now) })
+	key := "gw:" + reqmeta.RateKey(reqmeta.From(r.Context()).IP)
+	if ok, retry := g.authFails.Peek(key); !ok {
+		return nil, &ir.Error{Kind: ir.ErrRateLimited, Message: "too many failed authentication attempts from this address",
+			RetryAfterSeconds: int(retry/time.Second) + 1}
+	}
 	cred, err := g.CP.AuthenticateGateway(r.Context(), credentialFrom(r))
 	if err != nil {
-		g.writeError(w, p, &ir.Error{Kind: ir.ErrAuthentication, Message: "invalid, expired or revoked gateway credential"}, "")
+		g.authFails.Allow(key)
+		return nil, &ir.Error{Kind: ir.ErrAuthentication, Message: "invalid, expired or revoked gateway credential"}
+	}
+	return cred, nil
+}
+
+func (g *Gateway) authed(w http.ResponseWriter, r *http.Request, p ir.Protocol, scope string) (*cp.AuthenticatedCredential, *cp.Res[cp.BindingSpec], *cp.Snapshot, bool) {
+	cred, aerr := g.authenticate(r)
+	if aerr != nil {
+		g.writeError(w, p, aerr, "")
 		return nil, nil, nil, false
 	}
 	if !cred.Has(scope) {
@@ -144,9 +167,9 @@ func (g *Gateway) countTokens(w http.ResponseWriter, r *http.Request) {
 // mintChild issues a short-lived child credential (tokens:mint scope).
 func (g *Gateway) mintChild(w http.ResponseWriter, r *http.Request) {
 	p := ir.OpenAIChat
-	cred, err := g.CP.AuthenticateGateway(r.Context(), credentialFrom(r))
-	if err != nil {
-		g.writeError(w, p, &ir.Error{Kind: ir.ErrAuthentication, Message: "invalid, expired or revoked gateway credential"}, "")
+	cred, aerr := g.authenticate(r)
+	if aerr != nil {
+		g.writeError(w, p, aerr, "")
 		return
 	}
 	var in struct {
@@ -190,9 +213,9 @@ func asValidation(err error, target **cp.ValidationError) bool {
 // revoke a child credential, e.g. when an agent run ends.
 func (g *Gateway) revokeChild(w http.ResponseWriter, r *http.Request) {
 	p := ir.OpenAIChat
-	cred, err := g.CP.AuthenticateGateway(r.Context(), credentialFrom(r))
-	if err != nil {
-		g.writeError(w, p, &ir.Error{Kind: ir.ErrAuthentication, Message: "invalid, expired or revoked gateway credential"}, "")
+	cred, aerr := g.authenticate(r)
+	if aerr != nil {
+		g.writeError(w, p, aerr, "")
 		return
 	}
 	id := chi.URLParam(r, "id")

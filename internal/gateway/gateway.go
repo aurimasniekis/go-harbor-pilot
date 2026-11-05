@@ -52,6 +52,10 @@ var DefaultLimits = Limits{MaxRequestBytes: 32 << 20, HeaderCommit: 10 * time.Se
 
 // Gateway is the data-plane handler.
 type Gateway struct {
+	// authFails limits failed credential checks per client address.
+	authFails     *ratelimit.Limiter
+	authFailsOnce sync.Once
+
 	CP       *cp.Service
 	Acct     *accounting.Service
 	Tel      *telemetry.Writer

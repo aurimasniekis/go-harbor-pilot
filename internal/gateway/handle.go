@@ -127,9 +127,9 @@ func (g *Gateway) serve(w http.ResponseWriter, r *http.Request, p ir.Protocol, p
 	}
 
 	// 1. Authenticate and establish trusted context.
-	cred, err := g.CP.AuthenticateGateway(ctx, credentialFrom(r))
-	if err != nil {
-		g.writeError(w, p, &ir.Error{Kind: ir.ErrAuthentication, Message: "invalid, expired or revoked gateway credential"}, rc.id)
+	cred, aerr := g.authenticate(r)
+	if aerr != nil {
+		g.writeError(w, p, aerr, rc.id)
 		return
 	}
 	if !cred.Has(cp.ScopeInvoke) {

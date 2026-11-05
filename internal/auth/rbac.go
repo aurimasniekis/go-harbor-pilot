@@ -4,8 +4,10 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sort"
+	"time"
 )
 
 // Permission is a capability checked by API operations. Every operation
@@ -123,6 +125,29 @@ type Principal struct {
 	SessionID   string // web session display id, empty for tokens
 	CSRFChecked bool   // true when a cookie-authenticated mutation passed CSRF/origin checks
 	Limited     bool   // session restricted (e.g. setup or recovery flow)
+	// AuthAt is when the session's user last proved their identity
+	// (sign-in or re-authentication); zero for tokens.
+	AuthAt time.Time
+}
+
+// StepUpWindow is how recent a sign-in must be for sensitive reads
+// (unredacted trace content, trace export).
+const StepUpWindow = 10 * time.Minute
+
+// ErrReauthRequired means a sensitive action needs a recent sign-in.
+var ErrReauthRequired = errors.New("sign in again (or confirm your password) to continue; this action needs a sign-in within the last 10 minutes")
+
+// RecentlyAuthenticated reports whether p proved its identity within the
+// step-up window. Only interactive user sessions qualify: long-lived API
+// tokens never do. System work (CLI, background) is exempt.
+func (p *Principal) RecentlyAuthenticated(now time.Time) bool {
+	if p == nil {
+		return false
+	}
+	if p.Kind == KindSystem {
+		return true
+	}
+	return p.Kind == KindUser && !p.AuthAt.IsZero() && now.Sub(p.AuthAt) <= StepUpWindow && now.Sub(p.AuthAt) >= -time.Minute
 }
 
 // Anonymous is the unauthenticated principal.

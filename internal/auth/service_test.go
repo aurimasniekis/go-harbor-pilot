@@ -286,3 +286,60 @@ func TestLoginSuccessDoesNotAccumulateAddressFailures(t *testing.T) {
 		}
 	}
 }
+
+// Sensitive actions need a sign-in within the step-up window; password
+// sessions can refresh it by confirming the password, tokens never qualify.
+func TestStepUpReauthentication(t *testing.T) {
+	f := newFixture(t)
+	u := f.createUser(t, "a@example.test", RoleAdmin, "correct-password")
+	tok, _, err := f.svc.CreateSession(f.ctx, f.db.W, u.ID, "password", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	principal := func() *Principal {
+		p, _, err := f.svc.ValidateSession(f.ctx, tok, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	if !principal().RecentlyAuthenticated(f.clock.Now()) {
+		t.Fatal("a fresh sign-in must count as recent")
+	}
+	f.clock.Advance(StepUpWindow + time.Minute)
+	p := principal()
+	if p.RecentlyAuthenticated(f.clock.Now()) {
+		t.Fatal("an old sign-in must not count as recent")
+	}
+	if err := f.svc.Reauthenticate(f.ctx, p, "wrong-password!"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("wrong password: %v", err)
+	}
+	if err := f.svc.Reauthenticate(f.ctx, p, "correct-password"); err != nil {
+		t.Fatal(err)
+	}
+	if !principal().RecentlyAuthenticated(f.clock.Now()) {
+		t.Fatal("re-authentication did not refresh the sign-in time")
+	}
+
+	tests := []struct {
+		name string
+		p    *Principal
+		want bool
+	}{
+		{"api token", &Principal{Kind: KindService, AuthMethod: "api_token"}, false},
+		{"user without sign-in time", &Principal{Kind: KindUser}, false},
+		{"system", System, true},
+		{"nil", nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.p.RecentlyAuthenticated(f.clock.Now()); got != tt.want {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+	sso := &Principal{Kind: KindUser, ID: u.ID, AuthMethod: "oidc", SessionID: "wss_x"}
+	if err := f.svc.Reauthenticate(f.ctx, sso, "correct-password"); err == nil {
+		t.Fatal("an SSO session must re-authenticate by signing in again")
+	}
+}

@@ -55,7 +55,10 @@ func ClientIP(r *http.Request, trusted []netip.Prefix) string {
 	if !isTrusted(peer, trusted) {
 		return peer.Unmap().String()
 	}
-	hops := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+	// Proxies may append a separate header line instead of extending the
+	// first one; read them all, in order, so the right-most hop is the one
+	// the nearest trusted proxy added.
+	hops := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
 	for i := len(hops) - 1; i >= 0; i-- {
 		a, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
 		if err != nil {

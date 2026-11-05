@@ -11,6 +11,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/netip"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -134,6 +135,21 @@ type Client struct {
 	e    *Env
 	hc   *http.Client
 	csrf string
+}
+
+// SessionClient returns a client signed in with an existing web session
+// token (for tests that create sessions through the auth service).
+func (e *Env) SessionClient(token string) *Client {
+	jar, _ := cookiejar.New(nil)
+	c := &Client{t: e.T, e: e, hc: &http.Client{Jar: jar}}
+	u, _ := url.Parse(e.Srv.URL)
+	jar.SetCookies(u, []*http.Cookie{{Name: e.App.Auth.SessionCookieName(), Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode}}) //nolint:gosec // test client over plain-HTTP httptest
+	var sess struct {
+		CSRF string `json:"csrf_token"`
+	}
+	c.MustDo(200, "GET", "/api/v1/session", nil, &sess)
+	c.csrf = sess.CSRF
+	return c
 }
 
 func (e *Env) newAdmin() *Client {

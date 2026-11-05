@@ -112,6 +112,9 @@ type Demo struct {
 	Enabled bool `yaml:"enabled"`
 	// Clock freezes time (RFC 3339) for deterministic demo output.
 	Clock string `yaml:"clock"`
+	// AllowPublic permits a non-loopback listen address in demo mode. The
+	// demo administrator's password is published, so this is off.
+	AllowPublic bool `yaml:"allow_public"`
 }
 
 // Defaults returns the built-in defaults.
@@ -128,11 +131,12 @@ func Defaults() Config {
 
 // Flags are command-line overrides (highest precedence).
 type Flags struct {
-	Listen    string
-	DataDir   string
-	PublicURL string
-	Demo      bool
-	DemoClock string
+	Listen          string
+	DataDir         string
+	PublicURL       string
+	Demo            bool
+	DemoClock       string
+	DemoAllowPublic bool
 }
 
 // Load reads path (optional), applies HP_* environment overrides and flags,
@@ -188,6 +192,9 @@ func Load(path string, env func(string) string, f Flags) (Config, error) {
 	if f.DemoClock != "" {
 		c.Demo.Clock = f.DemoClock
 	}
+	if f.DemoAllowPublic {
+		c.Demo.AllowPublic = true
+	}
 	if c.Server.PublicURL == "" {
 		// A wildcard listen address is not a usable origin; assume local
 		// access until public_url is set.
@@ -226,6 +233,9 @@ func (c Config) Validate() error {
 	if c.Server.ShutdownTimeout <= 0 {
 		errs = append(errs, errors.New("server.shutdown_timeout must be positive"))
 	}
+	if c.Demo.Enabled && !c.Demo.AllowPublic && !loopbackListen(c.Server.Listen) {
+		errs = append(errs, errors.New("demo mode listens only on a loopback address (its administrator password is public); use --demo-allow-public to override"))
+	}
 	if c.Demo.Clock != "" {
 		if _, err := time.Parse(time.RFC3339, c.Demo.Clock); err != nil {
 			errs = append(errs, errors.New("demo.clock must be RFC 3339"))
@@ -254,6 +264,18 @@ func (c Config) Validate() error {
 		errs = append(errs, fmt.Errorf("log.level %q is not one of debug|info|warn|error", c.Log.Level))
 	}
 	return errors.Join(errs...)
+}
+
+func loopbackListen(listen string) bool {
+	host, _, err := net.SplitHostPort(listen)
+	if err != nil {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // PublicOrigin returns scheme://host of the public URL.

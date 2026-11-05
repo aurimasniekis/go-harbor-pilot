@@ -54,8 +54,17 @@
    - The Terraform provider marks credential fields sensitive or write-only and never logs bodies.
    - Upstream and CLI error text is scrubbed of the attempt's credential (also in escaped forms) and key-shaped strings before it is recorded, observed or returned, including errors that arrive inside a stream.
    - A secret-leak test sweep runs in CI (TestSecretsNeverLeak, TestStreamErrorsAreScrubbed).
-8. **CSRF and session fixation.** Defended by `__Host-` cookies, Origin checks plus an HMAC CSRF token, a session ID rotated at login, and step-up re-authentication for sensitive actions (reading unredacted traces, rotating keys).
-9. **Brute force.** Login is throttled per account and per IP with exponential delays. Gateway token verification is rate-limited per IP on failures.
+8. **CSRF, session fixation and stolen sessions.**
+   - Defended by `__Host-` cookies, Origin checks plus an HMAC CSRF token, and a session ID rotated at login.
+   - Sensitive actions need a sign-in within the last 10 minutes (step-up): reading unredacted trace content, exporting traces, and setting a first password on an SSO-only account. Password sessions refresh it with `POST /session/reauth`; SSO sessions sign in again.
+   - API tokens never satisfy step-up, so automation cannot read unredacted content or export traces.
+   - Key rotation is a CLI operation on the host, not an API action.
+9. **Brute force.**
+   - Login is throttled per account and per IP with exponential delays. Each attempt reserves its failure atomically before the password is checked, so parallel guesses do not bypass the limit.
+   - Failed gateway credential checks are limited per address (60 per minute). A misbehaving client behind a shared address can therefore briefly delay its neighbours.
+   - Client addresses come from trusted proxies only, reading every `X-Forwarded-For` line.
+   - `/metrics` without a token is served only to direct loopback clients, never through a proxy.
+   - Demo mode, whose administrator password is public, refuses non-loopback listen addresses unless explicitly overridden.
 10. **Trace content exposure after expiry.**
     - Expiry is checked on every read.
     - On expiry the DEK is destroyed, which makes the ciphertext unrecoverable.

@@ -3,6 +3,7 @@ package authapi
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"time"
 
@@ -274,6 +275,10 @@ func (h *Handlers) registerUsers(a *api.API) {
 				if err := h.Auth.CheckPassword(ctx, u.ID, in.Body.CurrentPassword); err != nil {
 					return nil, api.Errorf(http.StatusUnauthorized, "invalid_credentials", "current password is incorrect")
 				}
+			} else if !p.RecentlyAuthenticated(h.Auth.Now()) {
+				// A first password adds a sign-in path; require proof from the
+				// identity provider, not just a (possibly hijacked) session.
+				return nil, reauthRequired()
 			}
 			return nil, h.tx(ctx, func(tx *sql.Tx) error {
 				if err := h.Auth.SetPassword(ctx, tx, p.ID, in.Body.NewPassword, p.SessionID); err != nil {
@@ -298,4 +303,46 @@ func (h *Handlers) ssoProviderID(ctx context.Context, idOrSlug string) (string, 
 			api.FieldError{Location: "body.sso_provider", Message: "only providers in pre-provisioned mode link existing accounts"})
 	}
 	return p.ID, nil
+}
+
+// reauthRequired is the API error for step-up.
+func reauthRequired() error {
+	return api.Errorf(http.StatusForbidden, "reauth_required", auth.ErrReauthRequired.Error())
+}
+
+// ReauthRequest confirms the signed-in user's password.
+type ReauthRequest struct {
+	Password string `json:"password" maxLength:"4096"`
+}
+
+// ReauthResponse reports the refreshed sign-in time.
+type ReauthResponse struct {
+	AuthAt time.Time `json:"auth_at"`
+}
+
+func (h *Handlers) registerReauth(a *api.API) {
+	type in struct{ Body ReauthRequest }
+	type out struct{ Body ReauthResponse }
+	api.Register(a, api.Op{ID: "reauthenticate", Method: http.MethodPost, Path: "/session/reauth",
+		Summary: "Confirm my password to unlock sensitive actions for 10 minutes", Tags: []string{"Session"}, Permission: auth.PermSession},
+		func(ctx context.Context, i *in) (*out, error) {
+			p := auth.FromContext(ctx)
+			if err := h.Auth.Reauthenticate(ctx, p, i.Body.Password); err != nil {
+				var te *auth.ThrottledError
+				switch {
+				case errors.As(err, &te):
+					return nil, api.Errorf(http.StatusTooManyRequests, "throttled", "too many attempts; try again later")
+				case errors.Is(err, auth.ErrInvalidCredentials):
+					return nil, api.Errorf(http.StatusUnauthorized, "invalid_credentials", "password is incorrect")
+				case errors.Is(err, auth.ErrReauthRequired):
+					return nil, api.Forbidden("only interactive sessions can re-authenticate")
+				default:
+					return nil, api.Errorf(http.StatusConflict, "sso_session", err.Error())
+				}
+			}
+			_ = audit.Record(ctx, h.DB.W, audit.Entry{Action: "session.reauth", TargetKind: "user", TargetID: p.ID})
+			o := &out{}
+			o.Body.AuthAt = h.Auth.Now()
+			return o, nil
+		})
 }

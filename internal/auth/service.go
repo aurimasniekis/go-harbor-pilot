@@ -144,6 +144,9 @@ func (s *Service) UpdateSettings(ctx context.Context, tx *sql.Tx, st Settings) (
 
 // ---------- sessions ----------
 
+// Now returns the service clock's current time.
+func (s *Service) Now() time.Time { return s.clock.Now() }
+
 // SessionInfo describes a validated web session.
 type SessionInfo struct {
 	DisplayID       string
@@ -241,6 +244,7 @@ func (s *Service) ValidateSession(ctx context.Context, tok string, touch bool) (
 	}
 	p := NewPrincipal(KindUser, u.ID, u.DisplayName, role, u.Grants)
 	p.AuthMethod = info.AuthMethod
+	p.AuthAt = info.AuthAt
 	p.SessionID = info.DisplayID
 	p.Limited = info.Limited
 	if info.Limited {

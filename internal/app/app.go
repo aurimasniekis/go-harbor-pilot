@@ -356,7 +356,7 @@ func (a *App) CoreAPI() []func(*api.API) {
 				}})
 		},
 		func(ap *api.API) {
-			tracesapi.Register(ap, tracesapi.Deps{Traces: func() *traces.Service { return a.TraceSvc }, Main: func() *store.DB { return a.DB },
+			tracesapi.Register(ap, tracesapi.Deps{Now: func() time.Time { return a.Clock.Now() }, Traces: func() *traces.Service { return a.TraceSvc }, Main: func() *store.DB { return a.DB },
 				Snapshot: func() *controlplane.Snapshot { return a.CP.Snapshot() }})
 		},
 		func(ap *api.API) {
@@ -498,14 +498,27 @@ func (a *App) metrics(w http.ResponseWriter, r *http.Request) {
 			api.WriteError(w, r, api.Unauthorized())
 			return
 		}
-	} else if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		// Without a token, metrics are only served to loopback clients.
-		if ip, err := netip.ParseAddr(host); err != nil || !ip.IsLoopback() {
-			api.WriteError(w, r, api.Forbidden("metrics require server.metrics_token_file for non-loopback clients"))
-			return
-		}
+	} else if !directLoopback(r, len(a.Cfg.Server.TrustedProxies) > 0) {
+		api.WriteError(w, r, api.Forbidden("metrics require server.metrics_token_file except for direct loopback clients"))
+		return
 	}
 	promhttp.HandlerFor(a.Metrics.Registry, promhttp.HandlerOpts{}).ServeHTTP(w, r)
+}
+
+// directLoopback reports whether a request comes straight from a loopback
+// client. Behind a reverse proxy on the same host every client looks like
+// loopback, so forwarded requests never qualify, and with trusted proxies
+// configured a token is always required.
+func directLoopback(r *http.Request, behindProxy bool) bool {
+	if behindProxy || r.Header.Get("X-Forwarded-For") != "" || r.Header.Get("Forwarded") != "" || r.Header.Get("X-Real-Ip") != "" {
+		return false
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	ip, err := netip.ParseAddr(host)
+	return err == nil && ip.Unmap().IsLoopback()
 }
 
 // MarkReady flips the readiness probe.

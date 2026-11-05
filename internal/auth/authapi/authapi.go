@@ -34,6 +34,7 @@ func Register(a *api.API, svc *auth.Service, db *store.DB) {
 	h.registerPrincipals(a)
 	h.registerOIDC(a)
 	h.registerAdmin(a)
+	h.registerReauth(a)
 }
 
 // ---------- DTOs ----------

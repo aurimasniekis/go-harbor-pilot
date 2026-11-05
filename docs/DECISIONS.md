@@ -278,3 +278,17 @@ The structural baseline is seeded from this build's own protocol encoders, then 
 - **Rotation is complete.** `keys rotate` covers quota OAuth tokens and trace bucket keys, and says previous keys can be removed only after checking that nothing references them.
 - **Sandbox and stored values.** Testing a saved policy with configured secret values requires `secrets.write`, because match offsets would confirm guesses.
 
+## D-037: Step-up re-authentication and throttling hardening
+
+- **Step-up:**
+  - Reading unredacted trace content, exporting traces, and setting a first password on an SSO-only account require a sign-in within 10 minutes (`auth.StepUpWindow`).
+  - Password sessions confirm the password with `POST /session/reauth`; SSO sessions sign in again.
+  - API tokens never qualify. Automation that needs trace content uses masked modes, which do not need step-up.
+- **Throttling:**
+  - Login attempts reserve their failure in the same writer transaction as the lockout check.
+  - Gateway credential failures are limited per address (60 per minute, burst 60). Valid tokens from a blocked address are also refused until the budget refills; this is the accepted trade-off.
+- **Proxies and exposure:**
+  - Client addresses join every `X-Forwarded-For` header line.
+  - Token-less `/metrics` is served only to direct loopback requests without forwarding headers, and never when trusted proxies are configured.
+  - Demo mode refuses a non-loopback listen address without `--demo-allow-public`.
+

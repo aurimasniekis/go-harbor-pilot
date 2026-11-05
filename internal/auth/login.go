@@ -335,6 +335,23 @@ func (s *Service) AcknowledgeSecurityAlert(ctx context.Context, tx *sql.Tx, id, 
 	return nil
 }
 
+// Reauthenticate confirms a password session's user again and refreshes the
+// session's sign-in time (step-up for sensitive actions). Sessions from
+// single sign-on re-authenticate by signing in again.
+func (s *Service) Reauthenticate(ctx context.Context, p *Principal, password string) error {
+	if p == nil || p.Kind != KindUser || p.SessionID == "" {
+		return ErrReauthRequired
+	}
+	if p.AuthMethod != "password" {
+		return errors.New("this session was opened with single sign-on; sign in again to continue")
+	}
+	if err := s.CheckPassword(ctx, p.ID, password); err != nil {
+		return err
+	}
+	_, err := s.db.W.ExecContext(ctx, `UPDATE web_sessions SET auth_at = ? WHERE display_id = ? AND user_id = ?`, s.nowMS(), p.SessionID, p.ID)
+	return err
+}
+
 // CheckPassword verifies a user's current password (subject to throttling)
 // without creating a session.
 func (s *Service) CheckPassword(ctx context.Context, userID, password string) error {
