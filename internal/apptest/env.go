@@ -141,7 +141,11 @@ func (e *Env) newAdmin() *Client {
 		e.T.Fatal(err)
 	}
 	if !required { // restarted on existing data: sign in
-		if code := c.Do("POST", "/api/v1/session", map[string]string{"email": "admin@example.test", "password": "correct-horse-battery"}, &sess); code != 200 {
+		password := "correct-horse-battery"
+		if e.App.Cfg.Demo.Enabled {
+			password = "harbor-pilot-demo" //nolint:gosec // the synthetic demo seed's documented administrator password
+		}
+		if code := c.Do("POST", "/api/v1/session", map[string]string{"email": "admin@example.test", "password": password}, &sess); code != 200 {
 			e.T.Fatalf("sign in: %d", code)
 		}
 		c.csrf = sess.CSRF

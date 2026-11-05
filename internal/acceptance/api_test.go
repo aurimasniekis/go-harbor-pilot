@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/apptest"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/config"
 )
 
 // Validation errors never echo submitted values: they may be secrets.
@@ -150,4 +151,65 @@ func TestPlanReferencesPreconditionsAndCredentials(t *testing.T) {
 	if src := e.QueryString(`SELECT json_extract(details, '$.source') FROM audit_log WHERE action = 'gateway_credential.revoke'`); src != "terraform" {
 		t.Fatalf("revoke source %q", src)
 	}
+}
+
+type attention struct {
+	Items []struct {
+		ID       string `json:"id"`
+		Severity string `json:"severity"`
+		Title    string `json:"title"`
+		Link     string `json:"link"`
+	} `json:"items"`
+}
+
+func (a attention) has(prefix string) bool {
+	for _, it := range a.Items {
+		if strings.HasPrefix(it.ID, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// The attention list surfaces real problems, most severe first, and clears
+// them when they are resolved.
+func TestAttentionList(t *testing.T) {
+	t.Run("demo conditions", func(t *testing.T) {
+		e := apptest.New(t, apptest.WithConfig(func(c *config.Config) { c.Demo.Enabled = true }))
+		var got attention
+		e.Eventually(func() bool {
+			got = attention{}
+			e.Admin.MustDo(200, "GET", "/api/v1/attention", nil, &got)
+			return got.has("quota-auth:") && got.has("quota-used:")
+		}, "the demo's failing credential and used-up weekly limit")
+		if got.Items[0].Severity != "critical" {
+			t.Fatalf("not sorted by severity: %+v", got.Items)
+		}
+		if got.has("system:") {
+			t.Fatalf("demo mode reports setup gaps: %+v", got.Items)
+		}
+	})
+	t.Run("setup gaps and failed deliveries", func(t *testing.T) {
+		e := apptest.New(t)
+		var got attention
+		e.Admin.MustDo(200, "GET", "/api/v1/attention", nil, &got)
+		if !got.has("system:no-backup") || got.has("system:plain-http") {
+			t.Fatalf("items %+v (loopback http is not flagged; a missing backup is)", got.Items)
+		}
+		e.Admin.MustDo(200, "POST", "/api/v1/system/backups", map[string]any{}, nil)
+		if _, err := e.App.DB.W.Exec(`INSERT INTO notifications(id, channel_id, kind, severity, title, body, status, attempts, next_attempt_at, created_at)
+			VALUES ('nfy_x', 'nch_x', 'alert', 'warning', 't', 'b', 'dead', 7, 0, 0), ('nfy_y', 'nch_x', 'test', 'info', 't', 'b', 'dead', 1, 0, 0)`); err != nil {
+			t.Fatal(err)
+		}
+		got = attention{}
+		e.Admin.MustDo(200, "GET", "/api/v1/attention", nil, &got)
+		if got.has("system:no-backup") || !got.has("delivery:notifications") {
+			t.Fatalf("after backup and a failed alert: %+v", got.Items)
+		}
+		for _, it := range got.Items {
+			if it.ID == "delivery:notifications" && it.Title != "1 notifications could not be sent" {
+				t.Fatalf("test sends must not count: %q", it.Title)
+			}
+		}
+	})
 }

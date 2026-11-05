@@ -389,6 +389,46 @@ components:
         - tokens
         - unknown_events
       type: object
+    AttentionItem:
+      additionalProperties: false
+      properties:
+        area:
+          enum:
+            - security
+            - quota
+            - budget
+            - provider
+            - compatibility
+            - delivery
+            - system
+          type: string
+        detail:
+          type: string
+        id:
+          description: Stable key for the condition (for dismiss state in clients).
+          type: string
+        link:
+          description: UI path where the condition can be resolved.
+          type: string
+        severity:
+          enum:
+            - critical
+            - warning
+            - info
+          type: string
+        since:
+          format: date-time
+          type: string
+        title:
+          description: Short plain-language summary.
+          type: string
+      required:
+        - id
+        - severity
+        - area
+        - title
+        - link
+      type: object
     AuditEntryDTO:
       additionalProperties: false
       properties:
@@ -3374,6 +3414,16 @@ components:
           type: boolean
       required:
         - queued
+      type: object
+    OutBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/AttentionItem"
+          type: array
+      required:
+        - items
       type: object
     OvInBody:
       additionalProperties: false
@@ -7627,6 +7677,27 @@ paths:
       tags:
         - Activity
       x-permission: activity.read
+  /attention:
+    get:
+      description: Failing credentials, used-up quotas and budgets, unavailable CLI bridges, paused protocol paths, failed deliveries and setup gaps, most severe first.
+      operationId: list-attention
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutBody"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Conditions that need an operator
+      tags:
+        - System
+      x-permission: config.read
   /audit:
     get:
       operationId: list-audit-log
