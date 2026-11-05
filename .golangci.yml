@@ -47,6 +47,11 @@ linters:
         text: "G101|G404|G602"
       - path: internal/quota/providers/
         linters: [nilerr]
+      # The operator CLI reads files and URLs the operator names on the
+      # command line by design.
+      - path: cmd/harbor-pilot/
+        linters: [gosec]
+        text: "G703|G704"
 formatters:
   enable:
     - gofmt

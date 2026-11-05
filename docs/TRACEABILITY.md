@@ -67,7 +67,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | ID | Requirement | Phase | Status | Evidence |
 |---|---|---|---|---|
 | R6.1 | Three distinct adapter layers | 4 | implemented | internal/protocol (wire), internal/executor (provider), harness detection (telemetry) |
-| R6.2 | Setup guides and reversible config tooling (preview, backup, atomic write, conflict, uninstall) | 12 | planned | |
+| R6.2 | Setup guides and reversible config tooling (preview, backup, atomic write, conflict, uninstall) | 12 | contract-tested | internal/harness: preview diff, backup, atomic write, conflict detection, managed-key record, uninstall or backup restore for Claude Code, Codex, OpenCode, Pi; tokens referenced by file or env, never copied (TestSetupAndUninstallPreserveUserConfig); docs/guides/harnesses.md; live harness runs: Claude Code only |
 | R6.3 | Typed canonical IR with capability negotiation and extensions | 4 | implemented | internal/ir + capability Requirements |
 | R6.4 | Coverage of instructions, multimodal, tools, streaming args, structured output, reasoning, opaque state, cache, usage, finish/errors/cancel/rate-limit | 4 | contract-tested | protocol_test.go (tools, streaming args, reasoning, sealed, usage, errors, cancellation via ctx) |
 | R6.5 | No invented reasoning; opaque state never turned into text | 4 | contract-tested | TestAnthropicToChatTranslation/TestResponsesNativeAndForeign assert no leak of sealed state |
@@ -176,7 +176,7 @@ This matrix maps every requirement in the product brief to the phase, package an
 | R16.3 | Configuration revision and effective-policy endpoints | 3 | implemented | GET /config/revisions, GET /config/effective |
 | R16.4 | One authority; export and import; last-known-good; merge vs replace | 3 | implemented | controlplane/bundle.go merge/replace/dry-run, compile-before-commit + atomic snapshot swap; TestExportImportRoundTrip |
 | R16.5 | Terraform-managed marking and drift | 3 | implemented | managed_by + drift_state; TestRevisionsAndDrift, TestControlPlaneOverHTTP |
-| R16.6 | CLI operations; secrets read from stdin, file or env | 1–13 | in-progress | serve, admin bootstrap/recover, keys generate/rotate, config validate, openapi, healthcheck |
+| R16.6 | CLI operations; secrets read from stdin, file or env | 1–13 | in-progress | serve, admin, keys, config validate, openapi, healthcheck, doctor, harness, token issue, policy simulate; secrets only from files, stdin or env (TestReadSecretSources, TestSecretsNotAcceptedAsArguments); backup/restore/migrate land in Phase 13 |
 
 ## §17 Terraform
 | ID | Requirement | Phase | Status | Evidence |

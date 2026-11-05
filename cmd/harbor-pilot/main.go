@@ -42,6 +42,13 @@ Usage:
   harbor-pilot config validate [--config FILE]
   harbor-pilot openapi                               print the control-plane OpenAPI document (YAML)
   harbor-pilot healthcheck [--url URL]
+  harbor-pilot doctor [--config FILE] [--server URL]  check configuration, keys, storage and CLI bridges
+  harbor-pilot harness preview|setup|uninstall KIND --url URL (--token-file F | --token-stdin | --token-env VAR) [--model M] [--yes]
+                                                     configure claude, codex, opencode or pi reversibly
+  harbor-pilot harness status
+  harbor-pilot token issue --binding ID [--name N] [--scopes a,b] [--ttl 720h]
+  harbor-pilot policy simulate --plan ID --model M [--protocol P] [--harness H]
+                                                     (API commands read HP_API_TOKEN, --api-token-file or --api-token-stdin; HP_SERVER)
   harbor-pilot version
 
 Secrets are never accepted as command-line arguments; use files, stdin or the environment.
@@ -72,6 +79,14 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return cmdOpenAPI(stdout)
 	case "healthcheck":
 		return cmdHealthcheck(args[1:])
+	case "harness":
+		return cmdHarness(args[1:], os.Stdin, stdout)
+	case "doctor":
+		return cmdDoctor(args[1:], stdout)
+	case "token":
+		return cmdToken(args[1:], os.Stdin, stdout)
+	case "policy":
+		return cmdPolicy(args[1:], os.Stdin, stdout)
 	case "version", "--version", "-v":
 		fmt.Fprintln(stdout, "harbor-pilot", version)
 		return nil

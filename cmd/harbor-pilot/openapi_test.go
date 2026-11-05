@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"os"
+	"regexp"
 	"testing"
 )
 
@@ -39,9 +40,10 @@ func TestSecretsNotAcceptedAsArguments(t *testing.T) {
 	if err := run([]string{"help"}, &out, &out); err != nil {
 		t.Fatal(err)
 	}
-	for _, f := range []string{"--password", "--token", "--secret", "--api-key"} {
-		if bytes.Contains(out.Bytes(), []byte(f)) {
-			t.Fatalf("usage advertises secret flag %s", f)
-		}
+	// Flags naming a secret's source (-file, -stdin, -env) are fine; a flag
+	// taking the secret value itself is not.
+	re := regexp.MustCompile(`--(password|token|secret|api-key|api-token)(\s|=|$)`)
+	if m := re.Find(out.Bytes()); m != nil {
+		t.Fatalf("usage advertises secret flag %s", m)
 	}
 }

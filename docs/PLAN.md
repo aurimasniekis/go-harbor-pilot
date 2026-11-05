@@ -16,7 +16,7 @@ Source of truth for sequencing. Status per phase is updated as work lands; requi
 | 9 | Compatibility breakers, passthrough, Protocol Watch (scenarios H, I) | done |
 | 10 | Events (outbox, Pulse, webhooks) and notifications (scenario K) | in-progress (backend done; UI pending) |
 | 11 | Intents, statistics, SpaceMan integration, Why-this-route (scenario N) | in-progress (backend done; UI pending) |
-| 12 | Harness setup tooling and operational CLI | planned |
+| 12 | Harness setup tooling and operational CLI | in-progress (CLI and harness tooling done; setup-guide UI pending) |
 | 13 | Operations: backup/restore, Quota Harbor migration, release automation (scenario M) | planned |
 | 14 | Terraform provider (scenario L) | planned |
 | 15 | Hardening: load tests, E2E, a11y, security review, final report | planned |
