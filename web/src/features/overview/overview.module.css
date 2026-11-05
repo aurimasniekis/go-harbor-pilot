@@ -188,3 +188,25 @@
   color: var(--text-muted);
   overflow-wrap: anywhere;
 }
+
+/* Quota row label: account, then the window; wraps to two lines on phones. */
+.limitLabel {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  min-width: 0;
+}
+
+.limitLabel > span:last-child::before {
+  content: '· ';
+}
+
+@media (max-width: 48em) {
+  .limitLabel {
+    flex-direction: column;
+  }
+
+  .limitLabel > span:last-child::before {
+    content: '';
+  }
+}

@@ -1,13 +1,14 @@
 import { type ReactNode, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ActionIcon, Group, Paper, Progress, SimpleGrid, Skeleton, Stack, Text, Title, Tooltip, UnstyledButton } from '@mantine/core'
+import { ActionIcon, Group, Paper, SimpleGrid, Skeleton, Stack, Text, Title, Tooltip, UnstyledButton } from '@mantine/core'
 import { ArrowRight, CircleAlert, CircleCheck, Info, TriangleAlert, X } from 'lucide-react'
 import { attentionQuery, budgetStatusQuery, quotaBoardQuery, requestsQuery, resourceListQuery, principalsQuery, oidcProvidersQuery, usersQuery } from '@/lib/api/queries'
 import { byId } from '@/lib/api/resources'
 import type { AccountRes, AttentionItem, BindingRes } from '@/lib/api/types'
 import { useCan } from '@/lib/session'
-import { fmtDateTime, fmtDuration, fmtTime, serverNow } from '@/lib/format'
+import { fmtDateTime, fmtDuration, fmtRelative, serverNow } from '@/lib/format'
+import { QuotaBar } from '@/components/ui'
 import { delta, series, useDayStats } from '@/features/activity/useDayStats'
 import { Empty, PageHeader, Stat, StatGrid, StatSkeleton, StatusDot } from '@/ui/kit'
 import { costKindHelp, harnessName, money, ms, short } from '@/ui/fmt'
@@ -42,6 +43,22 @@ function useAttention(): { items: AttentionItem[]; loading: boolean } {
   const rank: Record<Severity, number> = { critical: 0, warning: 1, info: 2 }
   items.sort((a, b) => rank[a.severity] - rank[b.severity])
   return { items, loading: canUsage && (!board.data || !budgets.data) }
+}
+
+/** The action an attention item leads to, named for what the user will do there. */
+export function attentionAction(i: Pick<AttentionItem, 'id' | 'area'>): string {
+  const id = i.id
+  if (id.startsWith('quota-auth') || id.startsWith('mon-')) return 'Update credential'
+  if (id.startsWith('quota-poll')) return 'Check tracker'
+  if (id.startsWith('quota-used') || id.startsWith('b-')) return 'View limit'
+  if (id.startsWith('budget')) return 'Review budget'
+  if (id.startsWith('bridge')) return 'Set up the CLI'
+  if (id.startsWith('breaker')) return 'View issue'
+  if (id.startsWith('delivery')) return 'View deliveries'
+  if (id === 'system:no-backup' || id === 'system:old-backup') return 'Take a backup'
+  if (id === 'system:plain-http') return 'View settings'
+  if (i.area === 'security') return 'Review'
+  return 'Open'
 }
 
 const severityIcon: Record<Severity, ReactNode> = {
@@ -91,7 +108,7 @@ function NeedsAttention({ calm }: { calm: ReactNode }) {
                 {i.detail && <span className={o.attentionDetail}>{i.detail}</span>}
               </span>
               <span className={o.fix}>
-                Fix <ArrowRight size={14} aria-hidden="true" />
+                {attentionAction(i)} <ArrowRight size={14} aria-hidden="true" />
               </span>
             </Link>
           </li>
@@ -114,33 +131,38 @@ function DayStats() {
   const cost = totals.costs.find((c) => c.kind === 'estimated_api_charge')
   const prevCost = Number(previous?.costs.find((c) => c.kind === 'estimated_api_charge')?.amount ?? 0)
   return (
-    <StatGrid cols={4} label="Last 24 hours">
-      <Stat label="Requests · 24h" value={short(totals.requests)} hint={delta(totals.requests, previous?.requests) ?? 'Last 24 hours'} spark={series(hours, (g) => g.requests)} to="/activity" />
-      <Stat
-        label="Error rate"
-        value={`${errorRate.toFixed(errorRate > 0 && errorRate < 10 ? 1 : 0)}%`}
-        tone={failed > 0 ? 'error' : 'default'}
-        hint={failed > 0 ? `${failed} failed or blocked` : 'No failed requests'}
-        spark={series(hours, (g) => g.errors + g.blocked)}
-        to="/activity"
-      />
-      <Stat
-        label="Fallbacks"
-        value={totals.failovers}
-        tone={totals.failovers > 0 ? 'warning' : 'default'}
-        hint={totals.failovers > 0 ? 'Served by a backup account' : 'None needed'}
-        info="The first account failed before any output, so the routing plan used the next one."
-        to="/activity"
-      />
-      <Stat
-        label="Estimated cost · 24h"
-        value={cost ? money(cost.amount, cost.currency) : '—'}
-        hint={(cost && delta(Number(cost.amount), prevCost || undefined)) || 'Last 24 hours'}
-        info={costKindHelp.estimated_api_charge}
-        spark={series(hours, (g) => Number(g.costs.find((c) => c.kind === 'estimated_api_charge')?.amount ?? 0))}
-        to="/usage"
-      />
-    </StatGrid>
+    <Stack gap={6}>
+      <Text size="xs" c="dimmed" fw={500}>
+        Last 24 hours
+      </Text>
+      <StatGrid cols={4} label="Last 24 hours">
+        <Stat label="Requests" value={short(totals.requests)} hint={delta(totals.requests, previous?.requests) ?? 'No earlier data to compare'} spark={series(hours, (g) => g.requests)} to="/activity" search={{ range: 1 }} />
+        <Stat
+          label="Error rate"
+          value={`${errorRate.toFixed(errorRate > 0 && errorRate < 10 ? 1 : 0)}%`}
+          tone={failed > 0 ? 'error' : 'default'}
+          hint={failed > 0 ? `${failed} failed or blocked` : 'No failed requests'}
+          spark={series(hours, (g) => g.errors + g.blocked)}
+          to="/activity" search={{ status: 'error', range: 1 }}
+        />
+        <Stat
+          label="Fallbacks"
+          value={totals.failovers}
+          tone={totals.failovers > 0 ? 'warning' : 'default'}
+          hint={totals.failovers > 0 ? 'Served by a backup account' : 'None needed'}
+          info="The first account failed before any output, so the routing plan used the next one."
+          to="/activity" search={{ fallbacks: true, range: 1 }}
+        />
+        <Stat
+          label="Estimated cost"
+          value={cost ? money(cost.amount, cost.currency) : '—'}
+          hint={(cost && delta(Number(cost.amount), prevCost || undefined)) || 'Gateway requests at list price'}
+          info={costKindHelp.estimated_api_charge}
+          spark={series(hours, (g) => Number(g.costs.find((c) => c.kind === 'estimated_api_charge')?.amount ?? 0))}
+          to="/usage" search={{ range: 1 }}
+        />
+      </StatGrid>
+    </Stack>
   )
 }
 
@@ -148,12 +170,6 @@ function resetsIn(iso: string | null): string {
   if (!iso) return ''
   const left = new Date(iso).getTime() - serverNow()
   return left > 0 ? `resets in ${fmtDuration(left)}` : 'reset due'
-}
-
-function quotaColor(left: number): string {
-  if (left < 0.1) return 'red'
-  if (left < 0.25) return 'yellow'
-  return 'green'
 }
 
 /** The quota windows and budgets with the least room left. */
@@ -189,30 +205,34 @@ function ClosestToLimit() {
           </Text>
         ) : (
           windows.map((w) => (
-            <div key={w.key} className={o.limit}>
-              <Group justify="space-between" gap="xs" wrap="nowrap">
-                <Text size="sm" truncate>
-                  {w.who} <span className="muted">· {w.label}</span>
-                </Text>
-                <Text size="xs" c="dimmed" className="num" style={{ whiteSpace: 'nowrap' }}>
-                  {w.left <= 0 ? 'Used up' : `${Math.round(w.left * 100)}% left`}
-                  {w.reset ? ` · ${resetsIn(w.reset)}` : ''}
-                  {w.stale ? ' · stale' : ''}
-                </Text>
-              </Group>
-              <Progress value={Math.max(1, (1 - w.left) * 100)} color={quotaColor(w.left)} size={8} radius="xl" aria-label={`${w.who} ${w.label} used`} />
-            </div>
+            <QuotaBar
+              key={w.key}
+              label={
+                <span className={o.limitLabel}>
+                  <span>{w.who}</span>
+                  <span className="muted">{w.label}</span>
+                </span>
+              }
+              srLabel={`${w.who} ${w.label} remaining`}
+              percent={w.left * 100}
+              stale={w.stale}
+              meta={w.reset ? resetsIn(w.reset).replace(/^./, (c) => c.toUpperCase()) : undefined}
+            />
           ))
         )}
         {(budgets.data?.items ?? []).map((b) => (
-          <Group key={b.budget_id} justify="space-between" gap="xs" wrap="nowrap">
-            <Text size="sm" truncate>
-              Budget {b.name}
-            </Text>
-            <Text size="xs" c="dimmed" className="num" style={{ whiteSpace: 'nowrap' }}>
-              {money(b.spent_e10 / 1e10, b.currency)} of {money(b.limit_e10 / 1e10, b.currency)} · {(b.fraction * 100).toFixed(b.fraction < 0.1 ? 1 : 0)}%
-            </Text>
-          </Group>
+          <QuotaBar
+            key={b.budget_id}
+            label={
+              <span className={o.limitLabel}>
+                <span>Budget {b.name}</span>
+                <span className="muted">per {b.period}</span>
+              </span>
+            }
+            srLabel={`Budget ${b.name} remaining`}
+            percent={Math.max(0, (1 - b.fraction) * 100)}
+            meta={`${money(b.spent_e10 / 1e10, b.currency)} of ${money(b.limit_e10 / 1e10, b.currency)} spent`}
+          />
         ))}
       </Stack>
     </Paper>
@@ -256,7 +276,7 @@ function LatestRequests() {
                 </span>
                 <span className={o.recentAside}>
                   <Tooltip label={fmtDateTime(r.created_at, { seconds: true })}>
-                    <span>{fmtTime(r.created_at)}</span>
+                    <span>{fmtRelative(r.created_at)}</span>
                   </Tooltip>
                   {r.status !== 'ok' ? (
                     <StatusDot status={r.status} label={r.status === 'blocked' ? 'Blocked' : 'Failed'} />
@@ -304,7 +324,7 @@ function Setup() {
         </Title>
         <Group gap={4}>
           <Text size="xs" c="dimmed">
-            {done} of {steps.length}
+            {steps.length - done === 1 ? '1 step left' : `${steps.length - done} steps left`}
           </Text>
           <ActionIcon
             variant="subtle"
