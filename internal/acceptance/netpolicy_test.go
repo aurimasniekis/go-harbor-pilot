@@ -71,3 +71,64 @@ func TestQuotaMonitorPrivateNetworkOptIn(t *testing.T) {
 		})
 	}
 }
+
+// A stored secret does not silently follow a destination change: channels
+// and destinations must re-enter it, and a provider's stored account
+// credentials are cleared when its base URL moves to another origin.
+func TestStoredSecretsDoNotFollowDestinationChanges(t *testing.T) {
+	e := apptest.New(t)
+	var ch struct {
+		ID string `json:"id"`
+	}
+	spec := func(url string) map[string]any { return map[string]any{"type": "webhook", "enabled": false, "webhook_url": url} }
+	e.Admin.MustDo(201, "POST", "/api/v1/notification-channels", map[string]any{"name": "hook", "spec": spec("https://hooks.example.test/a"),
+		"secrets": map[string]string{"secret": "whsec-test"}}, &ch)
+	tests := []struct {
+		name    string
+		url     string
+		secrets map[string]string
+		code    int
+	}{
+		{"same origin, other path", "https://hooks.example.test/b", nil, 200},
+		{"new origin without the secret", "https://attacker.example.test/x", nil, 422},
+		{"new origin with the secret re-entered", "https://attacker.example.test/x", map[string]string{"secret": "whsec-new"}, 200},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := map[string]any{"name": "hook", "spec": spec(tt.url)}
+			if tt.secrets != nil {
+				body["secrets"] = tt.secrets
+			}
+			if code := e.Admin.Do("PUT", "/api/v1/notification-channels/"+ch.ID, body, nil); code != tt.code {
+				t.Fatalf("status %d, want %d", code, tt.code)
+			}
+		})
+	}
+
+	prov := e.Provider("p", "openai_compatible", "https://api.example.test/v1", apptest.Model{ID: "m"})
+	acc := e.Account("a", prov, apptest.AccountOpts{Secret: "sk-test-provider"})
+	stored := func() int64 {
+		return e.QueryInt(`SELECT count(*) FROM resource_secrets WHERE resource_id = ? AND field = 'credential'`, acc)
+	}
+	if stored() != 1 {
+		t.Fatal("account credential not stored")
+	}
+	var p struct {
+		Spec map[string]any `json:"spec"`
+	}
+	e.Admin.MustDo(200, "GET", "/api/v1/providers/"+prov, nil, &p)
+	p.Spec["base_url"] = "https://api.example.test/v2" // same origin
+	e.Admin.MustDo(200, "PUT", "/api/v1/providers/"+prov, map[string]any{"name": "p", "spec": p.Spec}, nil)
+	if stored() != 1 {
+		t.Fatal("a same-origin change cleared the credential")
+	}
+	p.Spec["base_url"] = "https://collector.example.test/v1"
+	e.Admin.MustDo(200, "PUT", "/api/v1/providers/"+prov, map[string]any{"name": "p", "spec": p.Spec}, nil)
+	if stored() != 0 {
+		t.Fatal("the account credential would be sent to the provider's new origin")
+	}
+	p.Spec["base_url"], p.Spec["allow_private_network"] = "http://api.example.test/v1", false
+	if code := e.Admin.Do("PUT", "/api/v1/providers/"+prov, map[string]any{"name": "p", "spec": p.Spec}, nil); code != 422 {
+		t.Fatalf("plain http to a public host accepted: %d", code)
+	}
+}

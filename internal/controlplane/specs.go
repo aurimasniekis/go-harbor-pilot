@@ -200,6 +200,10 @@ func validateProvider(v *Validator, s *ProviderSpec) {
 		v.Fail("spec.base_url", "is required for this provider type")
 	} else if err := ValidateBaseURL(s.BaseURL); err != nil {
 		v.Fail("spec.base_url", err.Error())
+	} else if strings.HasPrefix(strings.ToLower(s.BaseURL), "http://") && !s.AllowPrivateNetwork {
+		// Plain http would put account credentials on the wire in clear;
+		// it is only for local endpoints (allow_private_network).
+		v.Fail("spec.base_url", "must use https (plain http needs allow_private_network, for local endpoints)")
 	}
 	v.Check(slices.Contains([]string{"official", "partial", "unofficial", "local"}, s.Classification), "spec.classification", "must be official, partial, unofficial or local")
 	for k := range s.Headers {

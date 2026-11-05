@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -417,6 +418,9 @@ func (s *Service) ReplaceTx(ctx context.Context, tx *sql.Tx, now time.Time, rev 
 	if !v.OK() {
 		return "", "", &ValidationError{Errors: v.Errors}
 	}
+	if err := s.guardDestinationChange(ctx, tx, kind, cur, canon, secrets); err != nil {
+		return "", "", err
+	}
 	managedBy, drift, driftedAt, driftedBy := s.driftAfter(ctx, cur, m.ManagedBy, now)
 	newRev := cur.Revision + 1
 	if _, err := tx.ExecContext(ctx, `UPDATE resources SET spec = ?, revision = ?, managed_by = ?, drift_state = ?, drifted_at = ?,
@@ -642,6 +646,91 @@ func (s *Service) writeSecrets(ctx context.Context, tx *sql.Tx, id string, kind 
 			id, sf.Name, env, s.fingerprint(*val), now.UnixMilli()); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// destinationFields are the spec fields (dotted paths) that decide where a
+// kind's stored secrets are sent.
+var destinationFields = map[string][]string{
+	KindChannel:      {"webhook_url", "api_base_url"},
+	KindDestination:  {"webhook_url", "pulse_url"},
+	KindQuotaMonitor: {"options.base_url", "options.url"},
+	KindProvider:     {"base_url"},
+}
+
+func specField(raw json.RawMessage, path string) string {
+	var cur any
+	if json.Unmarshal(raw, &cur) != nil {
+		return ""
+	}
+	for _, k := range strings.Split(path, ".") {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return ""
+		}
+		cur = m[k]
+	}
+	v, _ := cur.(string)
+	return v
+}
+
+// origin reduces a URL to scheme://host:port (lower case); "" when unset.
+func origin(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Host == "" {
+		return strings.ToLower(strings.TrimSpace(raw))
+	}
+	port := u.Port()
+	if port == "" {
+		port = map[string]string{"http": "80", "https": "443", "nats": "4222", "tls": "4222"}[strings.ToLower(u.Scheme)]
+	}
+	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Hostname()) + ":" + port
+}
+
+// guardDestinationChange stops a stored secret from silently following a
+// destination change: whoever points an object somewhere new must supply
+// its secrets again. For providers the secrets live on their accounts, so
+// those stored credentials are cleared instead and must be re-entered.
+func (s *Service) guardDestinationChange(ctx context.Context, tx *sql.Tx, kind Kind, cur *Object, canon json.RawMessage, in SecretInput) error {
+	var changed []string
+	for _, f := range destinationFields[kind.KindName()] {
+		if origin(specField(cur.Spec, f)) != origin(specField(canon, f)) {
+			changed = append(changed, f)
+		}
+	}
+	if len(changed) == 0 {
+		return nil
+	}
+	if kind.KindName() == KindProvider {
+		res, err := tx.ExecContext(ctx, `DELETE FROM resource_secrets WHERE field = 'credential' AND resource_id IN
+			(SELECT id FROM resources WHERE kind = ? AND json_extract(spec, '$.provider_id') = ?)`, KindAccount, cur.ID)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			return audit.Record(ctx, tx, audit.Entry{Action: "provider.credentials_cleared", TargetKind: KindProvider, TargetID: cur.ID,
+				Details: map[string]any{"reason": "base_url origin changed", "accounts": n}})
+		}
+		return nil
+	}
+	stored, err := store.Query(ctx, tx, func(r *sql.Rows) (string, error) {
+		var f string
+		err := r.Scan(&f)
+		return f, err
+	}, `SELECT field FROM resource_secrets WHERE resource_id = ?`, cur.ID)
+	if err != nil {
+		return err
+	}
+	var errs []FieldError
+	for _, f := range stored {
+		if v, ok := in[f]; !ok || v == nil {
+			errs = append(errs, FieldError{Location: "body.secrets." + f,
+				Message: "re-enter this secret when changing " + strings.Join(changed, ", ") + "; stored secrets are not sent to a new destination"})
+		}
+	}
+	if len(errs) > 0 {
+		return &ValidationError{Errors: errs}
 	}
 	return nil
 }
