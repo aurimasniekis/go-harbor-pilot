@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { apiGet } from './client'
-import type { ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken } from './types'
+import type { ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
 
 export const qk = {
   session: ['session'] as const,
@@ -157,3 +157,10 @@ export const activitySummaryQuery = (hours: number) =>
     queryKey: ['activity', 'summary', hours],
     queryFn: ({ signal }) => apiGet<ActivitySummary>('/activity/summary', { hours }, signal),
   })
+
+// ---------- routing ----------
+export const routingVariablesQuery = queryOptions({
+  queryKey: ['routing', 'variables'],
+  queryFn: ({ signal }) => apiGet<{ items: RoutingVariable[] }>('/routing/variables', undefined, signal),
+  staleTime: Infinity,
+})

@@ -59,6 +59,7 @@ export type ProjectRes = S['ResourceProjectSpec']
 
 export type PlanVersion = S['Version']
 export type ValidationReport = S['ValidationReport']
+export type FieldErrorDTO = S['FieldError']
 export type Credential = S['Credential']
 export type IssuedCredential = S['IssuedCredential']
 export type Effective = S['EffectiveDTO']
@@ -132,10 +133,80 @@ export interface Decision {
   excluded?: DecisionExclusion[] | null
   notes?: string[] | null
   affinity?: string
+  intent?: string
+  intent_source?: string
+  rules?: RuleTrace[] | null
+  mode?: string
 }
 
 export interface TranslationLoss {
   feature: string
   detail: string
   severity: 'approximate' | 'drop' | 'reject' | string
+}
+
+// ---------- routing engine ----------
+// The plan document's `engine` section is declared as free-form JSON in the
+// OpenAPI spec (it is decoded strictly by the server), so its shape is
+// written out here to match internal/routing/engine.go.
+
+export type RuleStage = 'request' | 'candidate'
+export type RuleAction = 'block' | 'require' | 'set_intent' | 'exclude' | 'boost'
+export type HitPolicy = 'first' | 'unique' | 'collect'
+
+export interface RuleSpec {
+  name: string
+  stage: RuleStage
+  when: string
+  action: RuleAction
+  capability?: string
+  intent?: string
+  boost?: number
+  reason?: string
+  enabled: boolean
+}
+
+export interface TableRow {
+  conditions: string[]
+  action: RuleAction
+  capability?: string
+  intent?: string
+  boost?: number
+  reason?: string
+}
+
+export interface TableSpec {
+  name: string
+  stage: RuleStage
+  hit_policy: HitPolicy
+  inputs: string[]
+  rows: TableRow[]
+  enabled: boolean
+}
+
+export interface EngineSpec {
+  rules: RuleSpec[]
+  tables: TableSpec[]
+  score: string
+}
+
+export type RuleTrace = S['Trace']
+export type RoutingVariable = S['Variable']
+export type SimulateRequest = S['SimulateRequest']
+export type HealthOverride = S['HealthOverride']
+
+/** Simulation result; `decision` uses the hand-written Decision shape shared with activity. */
+export interface SimulationResult {
+  mode: string
+  decision: Decision | null
+  error?: string
+  error_kind?: string
+  version: number
+}
+
+export interface ReplayResult {
+  recorded: unknown
+  replay: SimulationResult
+  changed: boolean
+  notes: string[]
 }

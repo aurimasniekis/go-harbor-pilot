@@ -3,13 +3,18 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, FilePlus2, History, Pencil, Rocket, ShieldCheck, Trash2 } from 'lucide-react'
 import { Badge, Banner, Button, KeyValues, Panel, Skeleton, TableScroll, type Tone } from '@/components/ui'
-import { MutationError } from '@/components/form'
+import { MutationError, SelectField } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { ResourceBadges } from '@/components/ResourceBadges'
 import { PlanDocumentEditor, defaultDocument } from '@/features/config/PlanDocumentEditor'
 import { apiSend } from '@/lib/api/client'
-import { planVersionsQuery, resourceQuery } from '@/lib/api/queries'
-import type { PlanDocument, PlanRes, PlanVersion, ValidationReport } from '@/lib/api/types'
+import { planVersionsQuery, resourceListQuery, resourceQuery } from '@/lib/api/queries'
+import { byId } from '@/lib/api/resources'
+import type { AccountRes, AliasRes, FieldErrorDTO, PlanDocument, PlanRes, PlanVersion, PoolRes, ProviderRes, ValidationReport } from '@/lib/api/types'
+import { DecisionGraph } from '@/features/routing/DecisionGraph'
+import { Simulator } from '@/features/routing/Simulator'
+import { describeLocation, parseEngine } from '@/features/routing/engine'
+import { laneAccounts, planLanes } from '@/features/routing/graph'
 import { useCan } from '@/lib/session'
 import { fmtDateTime } from '@/lib/format'
 import c from '@/features/config/config.module.css'
@@ -20,6 +25,70 @@ export const Route = createFileRoute('/routing/plans/$planId')({
 
 const statusTone: Record<string, Tone> = { draft: 'info', published: 'success', superseded: 'neutral', archived: 'neutral' }
 
+/** Errors from a version's stored validation report, if any. */
+function storedErrors(v: PlanVersion): FieldErrorDTO[] {
+  const rep = v.validation as Partial<ValidationReport> | null | undefined
+  return rep && Array.isArray(rep.errors) ? rep.errors : []
+}
+
+function useConfigMaps() {
+  const aliases = useQuery(resourceListQuery<AliasRes>('model-aliases'))
+  const pools = useQuery(resourceListQuery<PoolRes>('pools'))
+  const accounts = useQuery(resourceListQuery<AccountRes>('provider-accounts'))
+  const providers = useQuery(resourceListQuery<ProviderRes>('providers'))
+  return {
+    ready: Boolean(aliases.data && pools.data && accounts.data && providers.data),
+    maps: {
+      aliases: byId(aliases.data?.items),
+      pools: byId(pools.data?.items),
+      accounts: byId(accounts.data?.items),
+      providers: byId(providers.data?.items),
+    },
+  }
+}
+
+/** Read-only route picture plus the simulator, for a chosen version. */
+function Explore({ planId, items }: { planId: string; items: PlanVersion[] }) {
+  const cfg = useConfigMaps()
+  const published = items.find((v) => v.status === 'published')
+  const [graphId, setGraphId] = useState('')
+  const shown = items.find((v) => v.id === graphId) ?? published ?? items.find((v) => v.status === 'draft') ?? items[0]
+  if (!shown) return null
+  const lanes = cfg.ready ? planLanes(shown.document, cfg.maps) : []
+  const allLanes = cfg.ready ? items.filter((v) => v.status === 'published' || v.status === 'draft').flatMap((v) => planLanes(v.document, cfg.maps)) : []
+  const accountName = (id: string) => {
+    const a = cfg.maps.accounts[id]
+    if (!a) return id
+    const p = cfg.maps.providers[a.spec.provider_id]
+    return p ? `${p.name} / ${a.name}` : a.name
+  }
+  const firstAlias = lanes.find((l) => l.chain.length > 0)?.chain[0]?.name ?? ''
+  return (
+    <>
+      <Panel
+        title="Decision graph"
+        subtitle="How requests flow through this version: requested model → alias → pool → members, then rule stages and fallback. Read-only."
+        actions={
+          <SelectField label="Version" value={shown.id} onChange={setGraphId}
+            options={items.map((v) => ({ value: v.id, label: `v${v.version} (${v.status})` }))} />
+        }
+      >
+        {cfg.ready ? <DecisionGraph doc={shown.document} lanes={lanes} /> : <Skeleton height={120} />}
+      </Panel>
+      <Panel
+        title="Simulator"
+        subtitle="Route a synthetic request through a version without contacting any upstream. Drafts can be simulated before publishing."
+      >
+        {cfg.ready ? (
+          <Simulator key={planId} planId={planId} versions={items} accounts={laneAccounts(allLanes)} defaultModel={firstAlias} accountName={accountName} />
+        ) : (
+          <Skeleton height={120} />
+        )}
+      </Panel>
+    </>
+  )
+}
+
 function PlanDetail() {
   const { planId } = Route.useParams()
   const qc = useQueryClient()
@@ -27,7 +96,7 @@ function PlanDetail() {
   const versions = useQuery(planVersionsQuery(planId))
   const canWrite = useCan('config.write')
   const canPublish = useCan('policy.publish')
-  const [editing, setEditing] = useState<{ version?: PlanVersion; doc: PlanDocument; note: string } | null>(null)
+  const [editing, setEditing] = useState<{ version?: PlanVersion; doc: PlanDocument; note: string; errors?: FieldErrorDTO[] } | null>(null)
   const [report, setReport] = useState<{ id: string; r: ValidationReport } | null>(null)
   const invalidate = () => void qc.invalidateQueries({ queryKey: ['resources'] })
   const base = `/routing-plans/${encodeURIComponent(planId)}/versions`
@@ -92,7 +161,7 @@ function PlanDetail() {
               <ul>
                 {report.r.errors.map((e, i) => (
                   <li key={i}>
-                    <span className="mono">{e.location}</span>: {e.message}
+                    <span className="mono">{describeLocation(e.location, parseEngine(items.find((v) => v.id === report.id)?.document.engine))}</span>: {e.message}
                   </li>
                 ))}
               </ul>
@@ -142,7 +211,8 @@ function PlanDetail() {
                       </Button>
                       {v.status === 'draft' && canWrite && (
                         <>
-                          <Button size="small" variant="ghost" icon={Pencil} onClick={() => setEditing({ version: v, doc: v.document, note: v.note })}>
+                          <Button size="small" variant="ghost" icon={Pencil}
+                            onClick={() => setEditing({ version: v, doc: v.document, note: v.note, errors: report?.id === v.id ? report.r.errors : storedErrors(v) })}>
                             Edit
                           </Button>
                           <Button size="small" variant="ghost" icon={Trash2} aria-label={`Discard draft v${v.version}`}
@@ -175,11 +245,13 @@ function PlanDetail() {
           </details>
         )}
       </Panel>
+      {items.length > 0 && <Explore planId={planId} items={items} />}
       {editing && (
         <PlanDocumentEditor
           title={editing.version ? `Edit draft v${editing.version.version}` : 'New draft'}
           initial={editing.doc}
           note={editing.note}
+          validationErrors={editing.errors}
           busy={saveDraft.isPending}
           error={saveDraft.error}
           onSave={(doc, note) => saveDraft.mutate({ version: editing.version, doc, note })}

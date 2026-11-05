@@ -1,0 +1,377 @@
+/* Routing engine editors, simulator and decision graph. */
+
+.expr {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.exprLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.exprLabel {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-weight: 550;
+}
+
+.textarea {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  color: var(--text);
+  resize: vertical;
+  min-height: 38px;
+  width: 100%;
+  min-width: 0;
+}
+
+.textarea[aria-invalid='true'] {
+  border-color: var(--error);
+}
+
+.cellInput {
+  composes: textarea;
+  min-height: 32px;
+  padding: 5px 8px;
+  font-size: var(--text-xs);
+  resize: none;
+}
+
+.status {
+  font-size: var(--text-xs);
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+.statusOk {
+  composes: status;
+  color: var(--success);
+}
+
+.statusErr {
+  composes: status;
+  color: var(--error-text);
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+}
+
+.statusMuted {
+  composes: status;
+  color: var(--text-muted);
+}
+
+.reference {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.refList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.refItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+}
+
+.refItem:hover,
+.refItem:focus-visible {
+  background: var(--surface-raised);
+}
+
+.refName {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.refType {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.refDesc {
+  grid-column: 1 / -1;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* rule and table editors */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sectionHeader h3 {
+  font-size: var(--text-md);
+  margin: 0;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--surface-sunken);
+}
+
+.cardDisabled {
+  composes: card;
+  opacity: 0.7;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cardTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+
+.errors {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--error-text);
+  font-size: var(--text-sm);
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.grid {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 560px;
+  font-size: var(--text-sm);
+}
+
+.grid th,
+.grid td {
+  border-bottom: 1px solid var(--border);
+  padding: 6px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.grid th {
+  background: var(--surface);
+  font-weight: 550;
+  color: var(--text-secondary);
+}
+
+.grid tr:last-child td {
+  border-bottom: none;
+}
+
+.colHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.colHead > :first-child {
+  flex: 1;
+}
+
+.actionCell {
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* simulator */
+
+.simForm {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.simLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border-strong);
+  border-left: 3px solid var(--purple);
+  background: var(--surface-raised);
+  font-size: var(--text-sm);
+}
+
+.inlineInput {
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  color: var(--text);
+  width: 90px;
+}
+
+.inlineSelect {
+  composes: inlineInput;
+  width: auto;
+}
+
+/* decision graph */
+
+.graph {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.lane {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) 24px minmax(150px, 1fr) 24px minmax(220px, 2fr);
+  align-items: start;
+  gap: 8px;
+}
+
+.node {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  background: var(--surface-sunken);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.nodeKind {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.nodeMuted {
+  composes: node;
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+.edge {
+  align-self: center;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: center;
+}
+
+.members {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.member {
+  composes: node;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fallback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 760px) {
+  .lane {
+    grid-template-columns: 1fr;
+  }
+
+  .edge {
+    transform: rotate(90deg);
+    justify-content: flex-start;
+    padding-left: 12px;
+  }
+}

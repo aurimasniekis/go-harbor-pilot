@@ -6,6 +6,8 @@ import { PageHeader } from '@/components/PageHeader'
 import { Badge, Banner, Button, EmptyState, KeyValues, Panel, Skeleton, TableScroll, type Tone } from '@/components/ui'
 import { QueryError } from '@/components/states'
 import { BillingBadge } from '@/components/ResourceBadges'
+import { Replay } from '@/features/routing/Replay'
+import { CandidateTable, ExclusionTable, RuleTraceTable } from '@/features/routing/DecisionParts'
 import { ApiError } from '@/lib/api/client'
 import { requestQuery, resourceListQuery } from '@/lib/api/queries'
 import { byId } from '@/lib/api/resources'
@@ -144,7 +146,8 @@ function RequestView() {
         </Panel>
       </div>
       <Resolution r={r} d={d} names={names} />
-      <Candidates d={d} />
+      <Candidates d={d} names={names} />
+      <Replay requestId={r.id} recorded={d} accountName={(id) => names.account[id]?.name ?? id} />
       <Attempts attempts={r.attempt_list} names={names} />
       <div style={{ display: 'grid', gap: 'var(--space-4)', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
         <Panel title="Tools" subtitle="A generated tool call is not proof the tool executed; results are only seen when the client sends them back.">
@@ -305,11 +308,7 @@ function Resolution({ r, d, names }: { r: RequestDetail; d: Decision; names: Nam
   )
 }
 
-const stageTone: Record<string, Tone> = { restriction: 'neutral', capability: 'info', health: 'warning', policy: 'error' }
-
-function Candidates({ d }: { d: Decision }) {
-  const cands = d.candidates ?? []
-  const excl = d.excluded ?? []
+function Candidates({ d, names }: { d: Decision; names: NameMaps }) {
   return (
     <Panel title="Candidates" subtitle="Eligible pool members in the order they would be tried, and every member that was excluded before ranking.">
       {(d.notes?.length ?? 0) > 0 && (
@@ -322,83 +321,20 @@ function Candidates({ d }: { d: Decision }) {
         </ul>
       )}
       {d.affinity && <p className="secondary">Session affinity: {d.affinity}</p>}
-      {cands.length === 0 ? (
-        <p className="secondary">No eligible candidates were found.</p>
-      ) : (
-        <TableScroll label="Candidates">
-          <table className="data-table" style={{ width: '100%' }}>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Provider / account</th>
-                <th>Model</th>
-                <th>Billing</th>
-                <th>Upstream</th>
-                <th>Reasons</th>
-                <th>Health</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cands.map((c, i) => (
-                <tr key={c.account_id + c.model}>
-                  <td className="num">{i + 1}</td>
-                  <td>
-                    {c.provider} / {c.account}
-                  </td>
-                  <td className="mono">{c.model}</td>
-                  <td>
-                    <BillingBadge value={c.billing} />
-                  </td>
-                  <td>
-                    <ProtocolBadge p={c.upstream_protocol} /> {c.native ? <Badge tone="success">native</Badge> : <Badge tone="info">translated</Badge>}
-                  </td>
-                  <td>{(c.reasons ?? []).length ? (c.reasons ?? []).map((x) => <div key={x} className="secondary">{x}</div>) : <span className="muted">—</span>}</td>
-                  <td>
-                    {c.health ? (
-                      <span>
-                        {c.health.Available === false ? <Badge tone="error">unavailable</Badge> : <Badge tone="success">available</Badge>}{' '}
-                        {c.health.Stale && <Badge tone="warning">stale quota</Badge>}
-                      </span>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableScroll>
+      {d.intent && (
+        <p className="secondary">
+          Intent <span className="mono">{d.intent}</span>
+          {d.intent_source ? ` (${d.intent_source})` : ''}
+        </p>
       )}
+      <CandidateTable candidates={d.candidates ?? []} />
       <h3 style={{ fontSize: 'var(--text-sm)', margin: '16px 0 6px' }}>Excluded</h3>
-      {excl.length === 0 ? (
-        <p className="secondary">No pool member was excluded.</p>
-      ) : (
-        <TableScroll label="Excluded candidates">
-          <table className="data-table" style={{ width: '100%' }}>
-            <thead>
-              <tr>
-                <th>Account</th>
-                <th>Model</th>
-                <th>Stage</th>
-                <th>Reason</th>
-                <th>Detail</th>
-              </tr>
-            </thead>
-            <tbody>
-              {excl.map((x, i) => (
-                <tr key={i}>
-                  <td>{x.account || <span className="mono">{x.account_id}</span>}</td>
-                  <td className="mono">{x.model}</td>
-                  <td>
-                    <Badge tone={stageTone[x.stage] ?? 'neutral'}>{x.stage}</Badge>
-                  </td>
-                  <td className="mono">{x.reason}</td>
-                  <td>{x.detail || <span className="muted">—</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableScroll>
+      <ExclusionTable excluded={d.excluded ?? []} />
+      {(d.rules?.length ?? 0) > 0 && (
+        <>
+          <h3 style={{ fontSize: 'var(--text-sm)', margin: '16px 0 6px' }}>Rule evaluations</h3>
+          <RuleTraceTable traces={d.rules ?? []} accountName={(id) => (names.account[id]?.name ?? id)} />
+        </>
       )}
     </Panel>
   )
