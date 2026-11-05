@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { Banner, Button, Tabs } from '@/components/ui'
@@ -8,6 +8,9 @@ import type { AliasRes, FieldErrorDTO, ModelMapping, PlanDocument, PrivacyPolicy
 import { Link } from '@tanstack/react-router'
 import { traceModes } from '@/features/privacy/privacy'
 import { EngineEditor } from '@/features/routing/EngineEditor'
+import { CompatEditor } from '@/features/compat/CompatEditor'
+import { isDefault } from '@/features/compat/compat'
+import { fieldErrors } from '@/lib/api/client'
 import { parseEngine, serializeEngine } from '@/features/routing/engine'
 import { billingClasses, capabilities, classifications, fallbackSteps, toInt, toggle } from './constants'
 import c from './config.module.css'
@@ -58,7 +61,14 @@ export function PlanDocumentEditor({ title, initial, note: initialNote, busy, er
   const [engine, setEngine] = useState(() => parseEngine(initial.engine))
   const engineErrors = validationErrors.filter((e) => e.location.startsWith('body.document.engine'))
   const privacyErrors = validationErrors.filter((e) => e.location.startsWith('body.document.privacy'))
-  const [tab, setTab] = useState<'routing' | 'rules' | 'privacy'>(engineErrors.length > 0 ? 'rules' : privacyErrors.length > 0 ? 'privacy' : 'routing')
+  const saveErrors = Object.entries(fieldErrors(error)).map(([location, message]) => ({ location, message }))
+  const compatErrors = [...validationErrors, ...saveErrors].filter((e) => e.location.startsWith('body.document.compatibility'))
+  const [tab, setTab] = useState<'routing' | 'rules' | 'privacy' | 'compat'>(
+    engineErrors.length > 0 ? 'rules' : privacyErrors.length > 0 ? 'privacy' : compatErrors.length > 0 ? 'compat' : 'routing')
+  const compatErrorKey = compatErrors.map((e) => e.location + e.message).join('|')
+  useEffect(() => {
+    if (compatErrorKey) setTab('compat')
+  }, [compatErrorKey])
   const privacyPolicies = useQuery(resourceListQuery<PrivacyPolicyRes>('privacy-policies'))
   const tracePolicies = useQuery(resourceListQuery<TracePolicyRes>('trace-policies'))
   const priv = doc.privacy ?? { policy_id: '', trace_policy_id: '' }
@@ -66,6 +76,7 @@ export function PlanDocumentEditor({ title, initial, note: initialNote, busy, er
   const save = () => {
     const out: PlanDocument = { ...doc }
     if (!out.privacy?.policy_id && !out.privacy?.trace_policy_id) delete out.privacy
+    if (isDefault(out.compatibility)) delete out.compatibility
     const e = serializeEngine(engine)
     if (e) out.engine = e
     else delete out.engine
@@ -94,8 +105,11 @@ export function PlanDocumentEditor({ title, initial, note: initialNote, busy, er
           { value: 'routing', label: 'Models and fallback' },
           { value: 'rules', label: 'Rules and tables', count: engine.rules.length + engine.tables.length },
           { value: 'privacy', label: 'Privacy' },
+          { value: 'compat', label: 'Compatibility' },
         ]} />
-      {tab === 'rules' ? (
+      {tab === 'compat' ? (
+        <CompatEditor value={doc.compatibility} onChange={(v) => setDoc({ ...doc, compatibility: v })} errors={compatErrors} />
+      ) : tab === 'rules' ? (
         <EngineEditor value={engine} onChange={setEngine} errors={engineErrors} />
       ) : tab === 'privacy' ? (
         <>

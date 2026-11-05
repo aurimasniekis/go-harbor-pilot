@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AcceptRouteImport } from './routes/accept'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as ActivityRouteRouteImport } from './routes/activity/route'
+import { Route as CompatibilityRouteRouteImport } from './routes/compatibility/route'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteRouteImport } from './routes/privacy/route'
 import { Route as ProvidersRouteRouteImport } from './routes/providers/route'
@@ -29,6 +30,8 @@ import { Route as ActivityRequestIdRouteImport } from './routes/activity/$reques
 import { Route as ActivitySessionsRouteImport } from './routes/activity/sessions'
 import { Route as ClientsIndexRouteImport } from './routes/clients/index'
 import { Route as ClientsBindingIdRouteImport } from './routes/clients/$bindingId'
+import { Route as CompatibilityIndexRouteImport } from './routes/compatibility/index'
+import { Route as CompatibilityWatchRouteImport } from './routes/compatibility/watch'
 import { Route as PrivacyIndexRouteImport } from './routes/privacy/index'
 import { Route as PrivacySandboxRouteImport } from './routes/privacy/sandbox'
 import { Route as PrivacyTracePoliciesRouteImport } from './routes/privacy/trace-policies'
@@ -48,6 +51,8 @@ import { Route as TracesIndexRouteImport } from './routes/traces/index'
 import { Route as TracesTraceIdRouteImport } from './routes/traces/$traceId'
 import { Route as UsageIndexRouteImport } from './routes/usage/index'
 import { Route as UsageBudgetsRouteImport } from './routes/usage/budgets'
+import { Route as CompatibilityWorkItemsIndexRouteImport } from './routes/compatibility/work-items/index'
+import { Route as CompatibilityWorkItemsItemIdRouteImport } from './routes/compatibility/work-items/$itemId'
 import { Route as RoutingPlansIndexRouteImport } from './routes/routing/plans/index'
 import { Route as RoutingPlansPlanIdRouteImport } from './routes/routing/plans/$planId'
 
@@ -69,6 +74,11 @@ const AccountRoute = AccountRouteImport.update({
 const ActivityRouteRoute = ActivityRouteRouteImport.update({
   id: '/activity',
   path: '/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompatibilityRouteRoute = CompatibilityRouteRouteImport.update({
+  id: '/compatibility',
+  path: '/compatibility',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -150,6 +160,16 @@ const ClientsBindingIdRoute = ClientsBindingIdRouteImport.update({
   id: '/clients/$bindingId',
   path: '/clients/$bindingId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const CompatibilityIndexRoute = CompatibilityIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CompatibilityRouteRoute,
+} as any)
+const CompatibilityWatchRoute = CompatibilityWatchRouteImport.update({
+  id: '/watch',
+  path: '/watch',
+  getParentRoute: () => CompatibilityRouteRoute,
 } as any)
 const PrivacyIndexRoute = PrivacyIndexRouteImport.update({
   id: '/',
@@ -247,6 +267,18 @@ const UsageBudgetsRoute = UsageBudgetsRouteImport.update({
   path: '/budgets',
   getParentRoute: () => UsageRouteRoute,
 } as any)
+const CompatibilityWorkItemsIndexRoute =
+  CompatibilityWorkItemsIndexRouteImport.update({
+    id: '/work-items/',
+    path: '/work-items/',
+    getParentRoute: () => CompatibilityRouteRoute,
+  } as any)
+const CompatibilityWorkItemsItemIdRoute =
+  CompatibilityWorkItemsItemIdRouteImport.update({
+    id: '/work-items/$itemId',
+    path: '/work-items/$itemId',
+    getParentRoute: () => CompatibilityRouteRoute,
+  } as any)
 const RoutingPlansIndexRoute = RoutingPlansIndexRouteImport.update({
   id: '/plans/',
   path: '/plans/',
@@ -261,6 +293,7 @@ const RoutingPlansPlanIdRoute = RoutingPlansPlanIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRouteRouteWithChildren
+  '/compatibility': typeof CompatibilityRouteRouteWithChildren
   '/privacy': typeof PrivacyRouteRouteWithChildren
   '/providers': typeof ProvidersRouteRouteWithChildren
   '/quotas': typeof QuotasRouteRouteWithChildren
@@ -277,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/activity/$requestId': typeof ActivityRequestIdRoute
   '/activity/sessions': typeof ActivitySessionsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
+  '/compatibility/watch': typeof CompatibilityWatchRoute
   '/privacy/sandbox': typeof PrivacySandboxRoute
   '/privacy/trace-policies': typeof PrivacyTracePoliciesRoute
   '/providers/accounts': typeof ProvidersAccountsRoute
@@ -291,6 +325,7 @@ export interface FileRoutesByFullPath {
   '/usage/budgets': typeof UsageBudgetsRoute
   '/activity/': typeof ActivityIndexRoute
   '/clients/': typeof ClientsIndexRoute
+  '/compatibility/': typeof CompatibilityIndexRoute
   '/privacy/': typeof PrivacyIndexRoute
   '/providers/': typeof ProvidersIndexRoute
   '/quotas/': typeof QuotasIndexRoute
@@ -298,7 +333,9 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof SettingsIndexRoute
   '/traces/': typeof TracesIndexRoute
   '/usage/': typeof UsageIndexRoute
+  '/compatibility/work-items/$itemId': typeof CompatibilityWorkItemsItemIdRoute
   '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
+  '/compatibility/work-items/': typeof CompatibilityWorkItemsIndexRoute
   '/routing/plans/': typeof RoutingPlansIndexRoute
 }
 export interface FileRoutesByTo {
@@ -312,6 +349,7 @@ export interface FileRoutesByTo {
   '/activity/$requestId': typeof ActivityRequestIdRoute
   '/activity/sessions': typeof ActivitySessionsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
+  '/compatibility/watch': typeof CompatibilityWatchRoute
   '/privacy/sandbox': typeof PrivacySandboxRoute
   '/privacy/trace-policies': typeof PrivacyTracePoliciesRoute
   '/providers/accounts': typeof ProvidersAccountsRoute
@@ -326,6 +364,7 @@ export interface FileRoutesByTo {
   '/usage/budgets': typeof UsageBudgetsRoute
   '/activity': typeof ActivityIndexRoute
   '/clients': typeof ClientsIndexRoute
+  '/compatibility': typeof CompatibilityIndexRoute
   '/privacy': typeof PrivacyIndexRoute
   '/providers': typeof ProvidersIndexRoute
   '/quotas': typeof QuotasIndexRoute
@@ -333,13 +372,16 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsIndexRoute
   '/traces': typeof TracesIndexRoute
   '/usage': typeof UsageIndexRoute
+  '/compatibility/work-items/$itemId': typeof CompatibilityWorkItemsItemIdRoute
   '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
+  '/compatibility/work-items': typeof CompatibilityWorkItemsIndexRoute
   '/routing/plans': typeof RoutingPlansIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/activity': typeof ActivityRouteRouteWithChildren
+  '/compatibility': typeof CompatibilityRouteRouteWithChildren
   '/privacy': typeof PrivacyRouteRouteWithChildren
   '/providers': typeof ProvidersRouteRouteWithChildren
   '/quotas': typeof QuotasRouteRouteWithChildren
@@ -356,6 +398,7 @@ export interface FileRoutesById {
   '/activity/$requestId': typeof ActivityRequestIdRoute
   '/activity/sessions': typeof ActivitySessionsRoute
   '/clients/$bindingId': typeof ClientsBindingIdRoute
+  '/compatibility/watch': typeof CompatibilityWatchRoute
   '/privacy/sandbox': typeof PrivacySandboxRoute
   '/privacy/trace-policies': typeof PrivacyTracePoliciesRoute
   '/providers/accounts': typeof ProvidersAccountsRoute
@@ -370,6 +413,7 @@ export interface FileRoutesById {
   '/usage/budgets': typeof UsageBudgetsRoute
   '/activity/': typeof ActivityIndexRoute
   '/clients/': typeof ClientsIndexRoute
+  '/compatibility/': typeof CompatibilityIndexRoute
   '/privacy/': typeof PrivacyIndexRoute
   '/providers/': typeof ProvidersIndexRoute
   '/quotas/': typeof QuotasIndexRoute
@@ -377,7 +421,9 @@ export interface FileRoutesById {
   '/settings/': typeof SettingsIndexRoute
   '/traces/': typeof TracesIndexRoute
   '/usage/': typeof UsageIndexRoute
+  '/compatibility/work-items/$itemId': typeof CompatibilityWorkItemsItemIdRoute
   '/routing/plans/$planId': typeof RoutingPlansPlanIdRoute
+  '/compatibility/work-items/': typeof CompatibilityWorkItemsIndexRoute
   '/routing/plans/': typeof RoutingPlansIndexRoute
 }
 export interface FileRouteTypes {
@@ -385,6 +431,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/activity'
+    | '/compatibility'
     | '/privacy'
     | '/providers'
     | '/quotas'
@@ -401,6 +448,7 @@ export interface FileRouteTypes {
     | '/activity/$requestId'
     | '/activity/sessions'
     | '/clients/$bindingId'
+    | '/compatibility/watch'
     | '/privacy/sandbox'
     | '/privacy/trace-policies'
     | '/providers/accounts'
@@ -415,6 +463,7 @@ export interface FileRouteTypes {
     | '/usage/budgets'
     | '/activity/'
     | '/clients/'
+    | '/compatibility/'
     | '/privacy/'
     | '/providers/'
     | '/quotas/'
@@ -422,7 +471,9 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/traces/'
     | '/usage/'
+    | '/compatibility/work-items/$itemId'
     | '/routing/plans/$planId'
+    | '/compatibility/work-items/'
     | '/routing/plans/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -436,6 +487,7 @@ export interface FileRouteTypes {
     | '/activity/$requestId'
     | '/activity/sessions'
     | '/clients/$bindingId'
+    | '/compatibility/watch'
     | '/privacy/sandbox'
     | '/privacy/trace-policies'
     | '/providers/accounts'
@@ -450,6 +502,7 @@ export interface FileRouteTypes {
     | '/usage/budgets'
     | '/activity'
     | '/clients'
+    | '/compatibility'
     | '/privacy'
     | '/providers'
     | '/quotas'
@@ -457,12 +510,15 @@ export interface FileRouteTypes {
     | '/settings'
     | '/traces'
     | '/usage'
+    | '/compatibility/work-items/$itemId'
     | '/routing/plans/$planId'
+    | '/compatibility/work-items'
     | '/routing/plans'
   id:
     | '__root__'
     | '/'
     | '/activity'
+    | '/compatibility'
     | '/privacy'
     | '/providers'
     | '/quotas'
@@ -479,6 +535,7 @@ export interface FileRouteTypes {
     | '/activity/$requestId'
     | '/activity/sessions'
     | '/clients/$bindingId'
+    | '/compatibility/watch'
     | '/privacy/sandbox'
     | '/privacy/trace-policies'
     | '/providers/accounts'
@@ -493,6 +550,7 @@ export interface FileRouteTypes {
     | '/usage/budgets'
     | '/activity/'
     | '/clients/'
+    | '/compatibility/'
     | '/privacy/'
     | '/providers/'
     | '/quotas/'
@@ -500,13 +558,16 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/traces/'
     | '/usage/'
+    | '/compatibility/work-items/$itemId'
     | '/routing/plans/$planId'
+    | '/compatibility/work-items/'
     | '/routing/plans/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityRouteRoute: typeof ActivityRouteRouteWithChildren
+  CompatibilityRouteRoute: typeof CompatibilityRouteRouteWithChildren
   PrivacyRouteRoute: typeof PrivacyRouteRouteWithChildren
   ProvidersRouteRoute: typeof ProvidersRouteRouteWithChildren
   QuotasRouteRoute: typeof QuotasRouteRouteWithChildren
@@ -552,6 +613,13 @@ declare module '@tanstack/react-router' {
       path: '/activity'
       fullPath: '/activity'
       preLoaderRoute: typeof ActivityRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/compatibility': {
+      id: '/compatibility'
+      path: '/compatibility'
+      fullPath: '/compatibility'
+      preLoaderRoute: typeof CompatibilityRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -665,6 +733,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/clients/$bindingId'
       preLoaderRoute: typeof ClientsBindingIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/compatibility/': {
+      id: '/compatibility/'
+      path: '/'
+      fullPath: '/compatibility/'
+      preLoaderRoute: typeof CompatibilityIndexRouteImport
+      parentRoute: typeof CompatibilityRouteRoute
+    }
+    '/compatibility/watch': {
+      id: '/compatibility/watch'
+      path: '/watch'
+      fullPath: '/compatibility/watch'
+      preLoaderRoute: typeof CompatibilityWatchRouteImport
+      parentRoute: typeof CompatibilityRouteRoute
     }
     '/privacy/': {
       id: '/privacy/'
@@ -799,6 +881,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UsageBudgetsRouteImport
       parentRoute: typeof UsageRouteRoute
     }
+    '/compatibility/work-items/': {
+      id: '/compatibility/work-items/'
+      path: '/work-items'
+      fullPath: '/compatibility/work-items/'
+      preLoaderRoute: typeof CompatibilityWorkItemsIndexRouteImport
+      parentRoute: typeof CompatibilityRouteRoute
+    }
+    '/compatibility/work-items/$itemId': {
+      id: '/compatibility/work-items/$itemId'
+      path: '/work-items/$itemId'
+      fullPath: '/compatibility/work-items/$itemId'
+      preLoaderRoute: typeof CompatibilityWorkItemsItemIdRouteImport
+      parentRoute: typeof CompatibilityRouteRoute
+    }
     '/routing/plans/': {
       id: '/routing/plans/'
       path: '/plans'
@@ -831,6 +927,23 @@ const ActivityRouteRouteChildren: ActivityRouteRouteChildren = {
 const ActivityRouteRouteWithChildren = ActivityRouteRoute._addFileChildren(
   ActivityRouteRouteChildren,
 )
+
+interface CompatibilityRouteRouteChildren {
+  CompatibilityWatchRoute: typeof CompatibilityWatchRoute
+  CompatibilityIndexRoute: typeof CompatibilityIndexRoute
+  CompatibilityWorkItemsItemIdRoute: typeof CompatibilityWorkItemsItemIdRoute
+  CompatibilityWorkItemsIndexRoute: typeof CompatibilityWorkItemsIndexRoute
+}
+
+const CompatibilityRouteRouteChildren: CompatibilityRouteRouteChildren = {
+  CompatibilityWatchRoute: CompatibilityWatchRoute,
+  CompatibilityIndexRoute: CompatibilityIndexRoute,
+  CompatibilityWorkItemsItemIdRoute: CompatibilityWorkItemsItemIdRoute,
+  CompatibilityWorkItemsIndexRoute: CompatibilityWorkItemsIndexRoute,
+}
+
+const CompatibilityRouteRouteWithChildren =
+  CompatibilityRouteRoute._addFileChildren(CompatibilityRouteRouteChildren)
 
 interface PrivacyRouteRouteChildren {
   PrivacySandboxRoute: typeof PrivacySandboxRoute
@@ -947,6 +1060,7 @@ const UsageRouteRouteWithChildren = UsageRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRouteRoute: ActivityRouteRouteWithChildren,
+  CompatibilityRouteRoute: CompatibilityRouteRouteWithChildren,
   PrivacyRouteRoute: PrivacyRouteRouteWithChildren,
   ProvidersRouteRoute: ProvidersRouteRouteWithChildren,
   QuotasRouteRoute: QuotasRouteRouteWithChildren,

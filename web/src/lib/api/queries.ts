@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { apiGet } from './client'
-import type { BridgeStatus, TraceContent, TraceHit, TraceMeta, BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummary, ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
+import type { Breaker, Degradation, ProtocolChange, WorkItem, WorkStatus, BridgeStatus, TraceContent, TraceHit, TraceMeta, BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummary, ActivitySummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuditEntry, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
 
 export const qk = {
   session: ['session'] as const,
@@ -275,3 +275,41 @@ export const bridgesQuery = queryOptions({
   queryFn: ({ signal }) => apiGet<{ items: BridgeStatus[] }>('/system/bridges', undefined, signal),
   refetchInterval: 60_000,
 })
+
+// ---------- compatibility and Protocol Watch ----------
+export const breakersQuery = queryOptions({
+  queryKey: ['compat', 'breakers'],
+  queryFn: ({ signal }) => apiGet<{ items: Breaker[] }>('/compat/breakers', undefined, signal),
+  refetchInterval: 15_000,
+})
+
+export const degradationsQuery = queryOptions({
+  queryKey: ['compat', 'degradations'],
+  queryFn: ({ signal }) => apiGet<{ items: Degradation[] }>('/compat/degradations', undefined, signal),
+  refetchInterval: 60_000,
+  retry: false,
+})
+
+export interface ChangeList {
+  items: ProtocolChange[]
+  processed: number
+  dropped: number
+}
+
+export const protocolChangesQuery = queryOptions({
+  queryKey: ['protocol-watch', 'changes'],
+  queryFn: ({ signal }) => apiGet<ChangeList>('/protocol-watch/changes', { limit: 500 }, signal),
+  refetchInterval: 60_000,
+})
+
+export const workItemsQuery = (status?: WorkStatus) =>
+  queryOptions({
+    queryKey: ['protocol-watch', 'work-items', status ?? ''],
+    queryFn: ({ signal }) => apiGet<{ items: WorkItem[] }>('/protocol-watch/work-items', { status }, signal),
+  })
+
+export const workItemQuery = (id: string) =>
+  queryOptions({
+    queryKey: ['protocol-watch', 'work-item', id],
+    queryFn: ({ signal }) => apiGet<WorkItem>(`/protocol-watch/work-items/${encodeURIComponent(id)}`, undefined, signal),
+  })

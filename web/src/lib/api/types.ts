@@ -255,3 +255,13 @@ export type TraceContent = S['Content']
 export type TraceHit = S['Hit']
 export type TraceMode = TraceMeta['mode']
 export type BridgeStatus = S['BridgeStatus']
+
+// ---------- compatibility and Protocol Watch ----------
+export type Breaker = S['Breaker']
+export type Degradation = S['Degradation']
+export type PlanEffect = S['PlanEffect']
+export type ProtocolChange = S['Change']
+export type WorkItem = S['WorkItem']
+export type WorkUpdate = S['WorkUpdate']
+export type WorkStatus = WorkItem['status']
+export type PlanCompat = S['PlanCompat']

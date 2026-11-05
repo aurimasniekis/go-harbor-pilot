@@ -140,6 +140,14 @@ function RequestView() {
           {r.status === 'blocked' && (d.excluded?.length ?? 0) > 0 && ' — see Excluded candidates below for the reasons.'}
         </Banner>
       )}
+      {r.mode === 'passthrough' && (
+        <Banner tone="warning" role="status">
+          <strong>Served in native passthrough.</strong> A compatibility breaker was open, so the client's payload was forwarded unchanged under
+          the plan's degradation policy.{' '}
+          {losses.length > 0 && <>Features lost: {losses.map((l) => l.feature).join(', ')}. </>}
+          <Link to="/compatibility">Compatibility status</Link>
+        </Banner>
+      )}
       <TraceLink requestId={r.id} />
       <div style={{ display: 'grid', gap: 'var(--space-4)', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
         <TrustedContext r={r} names={names} />

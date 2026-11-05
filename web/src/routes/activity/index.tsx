@@ -9,7 +9,7 @@ import { requestsQuery, resourceListQuery, type RequestFilter } from '@/lib/api/
 import { byId } from '@/lib/api/resources'
 import type { AliasRes, BindingRes, ProjectRes } from '@/lib/api/types'
 import { fmtDateTime, fmtRelative } from '@/lib/format'
-import { CostValue, HarnessBadge, Ms, ProtocolBadge, StatusBadge, TokenTriple } from '@/features/activity/bits'
+import { CostValue, HarnessBadge, ModeBadge, Ms, ProtocolBadge, StatusBadge, TokenTriple } from '@/features/activity/bits'
 
 const search = z.object({
   status: z.string().optional().catch(undefined),
@@ -156,6 +156,12 @@ function Requests() {
                     </td>
                     <td>
                       <StatusBadge status={r.status} />
+                      {r.mode === 'passthrough' && (
+                        <>
+                          {' '}
+                          <ModeBadge mode="passthrough" />
+                        </>
+                      )}
                       {r.error_kind && <div className="muted">{r.error_kind}</div>}
                     </td>
                     <td>{r.attempts > 1 ? <Badge tone="warning" title="More than one upstream attempt">{r.attempts} · failover</Badge> : r.attempts}</td>

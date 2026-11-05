@@ -17,6 +17,7 @@ import {
   PanelLeftOpen,
   Route as RouteIcon,
   ScrollText,
+  Cable,
   Server,
   Settings,
   ShieldAlert,
@@ -28,6 +29,7 @@ import {
 import s from './AppShell.module.css'
 import { Banner, Button } from './ui'
 import { metaQuery, sessionQuery } from '@/lib/api/queries'
+import { DegradationBanner } from '@/features/compat/Degradations'
 import { uiStore, updatePrefs } from '@/lib/store'
 import { useLogout } from '@/lib/session'
 
@@ -50,6 +52,7 @@ export const nav: NavItem[] = [
   { to: '/routing', label: 'Routing', icon: RouteIcon, perm: 'config.read' },
   { to: '/privacy', label: 'Privacy', icon: ShieldCheck, perm: 'config.read' },
   { to: '/traces', label: 'Traces', icon: ScrollText, perm: 'traces.metadata.read' },
+  { to: '/compatibility', label: 'Compatibility', icon: Cable, perm: 'config.read' },
   { to: '/providers', label: 'Providers', icon: Server, perm: 'config.read' },
   { to: '/workspaces', label: 'Workspaces', icon: Building2, perm: 'config.read' },
   { to: '/settings', label: 'Settings', icon: Settings, perm: 'config.read' },
@@ -155,6 +158,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link to="/settings/audit">Review and acknowledge</Link>.
             </Banner>
           )}
+          <DegradationBanner />
           {children}
         </main>
       </div>
