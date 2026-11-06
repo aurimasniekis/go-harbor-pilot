@@ -1,0 +1,17 @@
+# Harbor Pilot behind Caddy 2, which gets and renews the certificate itself.
+#
+# Replace pilot.example.com, and set Harbor Pilot's server.public_url to https://pilot.example.com and
+# server.trusted_proxies to ["127.0.0.1/32"].
+
+pilot.example.com {
+	# Harbor Pilot accepts requests up to 32 MiB.
+	request_body {
+		max_size 32MiB
+	}
+
+	# Caddy forwards Host and X-Forwarded-For and has no response timeout by default. flush_interval -1 passes
+	# every write on straight away (Caddy does this for text/event-stream by itself; this makes it explicit).
+	reverse_proxy 127.0.0.1:8080 {
+		flush_interval -1
+	}
+}

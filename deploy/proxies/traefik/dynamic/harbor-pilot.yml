@@ -1,0 +1,18 @@
+# Harbor Pilot behind Traefik v3: the route (/etc/traefik/dynamic/harbor-pilot.yml).
+#
+# Traefik passes streamed replies on as they are written, forwards Host and X-Forwarded-For, and has no response
+# timeout by default, so no extra settings are needed.
+
+http:
+  routers:
+    harbor-pilot:
+      rule: Host(`pilot.example.com`)
+      entryPoints: [websecure]
+      service: harbor-pilot
+      tls:
+        certResolver: letsencrypt
+  services:
+    harbor-pilot:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:8080

@@ -9,7 +9,7 @@ E2E_PORT ?= 18189
 FUZZTIME ?= 30s
 
 .PHONY: all web web-deps build build-go run demo dev test test-go test-web race lint golint vet typecheck check \
-	gen gen-api gen-web fuzz-smoke load e2e screenshots e2e-install docker docker-up release-snapshot clean
+	gen gen-api gen-web fuzz-smoke load e2e screenshots proxy-check e2e-install docker docker-up release-snapshot clean
 
 all: build
 
@@ -96,6 +96,12 @@ load:
 # from a fresh demo instance (scripts/screenshots.sh).
 screenshots:
 	scripts/screenshots.sh
+
+# proxy-check runs the reverse proxy examples in deploy/proxies in Docker and
+# checks streaming, body size, timeouts and sign-in through each
+# (scripts/proxy-check.sh; QUICK=1 skips the slow checks).
+proxy-check:
+	scripts/proxy-check.sh
 
 e2e: build
 	cd web && HP_E2E_PORT=$(E2E_PORT) HP_E2E_BIN=$(CURDIR)/$(BIN) HP_E2E_CLOCK=$(DEMO_CLOCK) $(PNPM) exec playwright test
