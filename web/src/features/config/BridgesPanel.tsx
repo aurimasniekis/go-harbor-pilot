@@ -28,10 +28,18 @@ export function BridgesPanel() {
                     {b.binary}
                   </span>
                 )}
-                {b.last_error && <span className={o.rowDetail}>{b.last_error}</span>}
+                {b.last_error && (
+                  <span className={o.rowDetail} title={b.last_error}>
+                    {missingBinary(b.last_error)
+                      ? `Not found at this path. Install the ${labels[b.kind] ?? b.kind} CLI there, or set bridges.${b.kind}.binary.`
+                      : b.last_error}
+                  </span>
+                )}
               </div>
               {b.enabled && !b.last_error ? (
                 <Badge tone="success" icon={CheckCircle2}>Available</Badge>
+              ) : b.enabled && missingBinary(b.last_error) ? (
+                <Badge icon={CircleSlash} title={b.last_error}>Not installed</Badge>
               ) : b.enabled ? (
                 <Badge tone="warning" icon={AlertTriangle} title={b.last_error}>Self-test failed</Badge>
               ) : (
@@ -43,4 +51,9 @@ export function BridgesPanel() {
       )}
     </Panel>
   )
+}
+
+/** True when the self-test failed because the CLI is not installed. */
+function missingBinary(err?: string): boolean {
+  return !!err && /no such file or directory|executable file not found|not found in \$PATH/i.test(err)
 }
