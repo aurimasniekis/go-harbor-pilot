@@ -8,7 +8,7 @@ only moves up when there is evidence for it.
 |---|---|
 | **contract-tested** | Covered by tests against fixtures written from the public API documentation, fake binaries or synthetic upstreams. |
 | **implemented** | The code is there and exercised indirectly, but has no dedicated test. |
-| **live-verified** | A recorded run against the real service, with date, version and script. None yet. |
+| **live-verified** | A recorded run against the real service, with date, version and script. So far only the reverse proxies below. |
 | **blocked** | Needs something external before it can be verified: credentials, a login or a binary. |
 | **unsupported** | Deliberately not provided. |
 
@@ -95,3 +95,18 @@ Recognising which tool sent a request is a guess from its headers, not proof.
 
 Rate limits in provider responses (`anthropic-ratelimit-*`, `x-ratelimit-*`) are read as requests pass through:
 contract-tested. None of the adapters has been verified against a live account.
+
+## Reverse proxies
+
+Each configuration in [Behind a reverse proxy](/guide/reverse-proxy) was run by `scripts/proxy-check.sh` against the
+real proxy: streaming, a quiet 75-second stream, a 2-minute unstreamed reply and a 20 MiB request through a stand-in
+backend that answers like the gateway, and sign-in through the proxy to the real demo.
+
+| Proxy | Status |
+|---|---|
+| nginx | **live-verified** (2026-11-06, nginx 1.29.8) |
+| Apache httpd | **live-verified** (2026-11-06, httpd 2.4.69) |
+| Caddy | **live-verified** (2026-11-06, Caddy 2.11.9) |
+| Traefik | **live-verified** (2026-11-06, Traefik 3.7.17) |
+| HAProxy | **live-verified** (2026-11-06, HAProxy 3.2.26) |
+| Cloudflare Tunnel | documented from Cloudflare's limits; not run |

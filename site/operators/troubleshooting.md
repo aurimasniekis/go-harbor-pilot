@@ -61,7 +61,8 @@ a `request_id`; search for it in **Requests**, the [audit log](/operators/audit)
 | Symptom | Cause | Fix |
 |---|---|---|
 | `401` from the gateway | Wrong token, or it was revoked or expired. | Issue a new token on the client's page (or `harbor-pilot token issue --binding …`), then run `harbor-pilot harness setup` again. See [Clients](/operators/clients). |
-| Streaming tools time out, or get the whole reply at once | A reverse proxy buffers responses. | Turn off proxy buffering for the gateway paths (`/v1/`, `/anthropic/`, `/openai/`, `/v1beta/`). |
+| Streaming tools time out, or get the whole reply at once | A reverse proxy holds the stream back or closes it. | Use a configuration from [Behind a reverse proxy](/guide/reverse-proxy). |
+| Long requests fail with 413 or 504 from the proxy | The proxy's body limit (nginx: 1 MB) or read timeout (nginx: 60 seconds) is too small. | Allow 32 MiB and at least 15 minutes; see [Behind a reverse proxy](/guide/reverse-proxy). |
 
 ### Requests fail
 

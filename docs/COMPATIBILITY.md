@@ -76,3 +76,16 @@ Adapters live in `internal/quota/providers`; their tiers are served by `GET /api
 | demo_* | demo | synthetic only | demo mode |
 
 Response-header rate limits (`anthropic-ratelimit-*`, `x-ratelimit-*`) are parsed from gateway responses: contract-tested (TestParseHeaders, TestResponseHeadersFeedQuotaBoard).
+
+## 6. Reverse proxies
+
+Example configurations live in `deploy/proxies`; the operator page is `site/guide/reverse-proxy.md`. `scripts/proxy-check.sh` runs each real proxy in Docker with the shipped file (hostname, ports and certificate paths swapped) and checks it in front of the stand-in backend `scripts/proxycheck` (gateway streaming headers and keepalives; event-by-event delivery, a 75s keepalive-only stream, an unstreamed reply after 2 minutes, a 20 MiB body, `X-Forwarded-For`) and in front of the real demo binary (web UI, sign-in and sign-out with the `Secure` cookie and Origin check). Controls with broken configurations fail as expected (nginx 413 without `client_max_body_size`, 504 without `proxy_read_timeout`; Apache 502 after 60s without `ProxyTimeout`).
+
+| Proxy | Status | Evidence |
+|---|---|---|
+| nginx | live-verified (2026-11-06, nginx 1.29.8, scripts/proxy-check.sh) | real proxy; streaming checks against the stand-in backend, sign-in against the demo |
+| Apache httpd | live-verified (2026-11-06, httpd 2.4.69, scripts/proxy-check.sh) | as above |
+| Caddy | live-verified (2026-11-06, Caddy 2.11.9, scripts/proxy-check.sh) | as above |
+| Traefik | live-verified (2026-11-06, Traefik 3.7.17, scripts/proxy-check.sh) | as above |
+| HAProxy | live-verified (2026-11-06, HAProxy 3.2.26, scripts/proxy-check.sh) | as above |
+| Cloudflare Tunnel | implemented (documentation only) | limits quoted from Cloudflare's documentation; not run |

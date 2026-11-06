@@ -41,6 +41,7 @@ export default withMermaid(
             { text: 'Try the demo', link: '/guide/demo' },
             { text: 'Install with Docker', link: '/guide/install-docker' },
             { text: 'Install the binary (systemd)', link: '/guide/install-binary' },
+            { text: 'Behind a reverse proxy', link: '/guide/reverse-proxy' },
             { text: 'First run', link: '/guide/first-run' },
             { text: 'Connect your first tool', link: '/guide/first-tool' },
           ],

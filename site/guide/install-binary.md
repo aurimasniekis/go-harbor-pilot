@@ -82,7 +82,10 @@ Run Harbor Pilot behind a reverse proxy that terminates TLS:
 
 - Set `server.public_url` to the HTTPS address.
 - List the proxy in `server.trusted_proxies`, so client addresses are taken from `X-Forwarded-For`.
-- Turn off response buffering for `/v1/`, so streamed responses and keepalives reach the tools.
+- Allow request bodies up to 32 MiB and replies that take several minutes.
+
+[Behind a reverse proxy](/guide/reverse-proxy) has tested configurations for nginx, Apache, Caddy, Traefik and
+HAProxy.
 
 ## Subscriptions
 

@@ -109,7 +109,9 @@ make dev         # builds the UI and binary, serves the demo on http://127.0.0.1
 Sign in as `admin@example.test` with the password `harbor-pilot-demo`.
 
 To run it for real, see [Install with Docker](https://aurimasniekis.github.io/go-harbor-pilot/guide/install-docker)
-or [Install the binary](https://aurimasniekis.github.io/go-harbor-pilot/guide/install-binary), then
+or [Install the binary](https://aurimasniekis.github.io/go-harbor-pilot/guide/install-binary), put it
+[behind a reverse proxy](https://aurimasniekis.github.io/go-harbor-pilot/guide/reverse-proxy) (tested nginx, Apache,
+Caddy, Traefik and HAProxy configurations), then
 [Connect your first tool](https://aurimasniekis.github.io/go-harbor-pilot/guide/first-tool). In short:
 
 ```sh

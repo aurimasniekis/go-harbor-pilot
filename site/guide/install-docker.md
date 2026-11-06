@@ -67,9 +67,10 @@ The container publishes only on the loopback address. Put a TLS-terminating reve
 links and tool snippets are built from this URL.
 
 ::: warning Reverse proxies and streaming
-Coding tools stream responses. Turn off response buffering for `/v1/` in your proxy (for nginx,
-`proxy_buffering off;`), or tools see nothing until a response finishes. If the proxy sets `X-Forwarded-For`, list
-its address in `server.trusted_proxies` so client addresses in the audit log are correct.
+Coding tools stream long replies and send large requests, which some proxy defaults cut off (nginx refuses bodies over
+1 MB and gives up on a reply after 60 seconds). [Behind a reverse proxy](/guide/reverse-proxy) has tested
+configurations for nginx, Apache, Caddy, Traefik and HAProxy. The proxy reaches the container from the Docker
+network, so list that network in `server.trusted_proxies`.
 :::
 
 ## 3. Create the first administrator
