@@ -1,8 +1,8 @@
 import { type FormEvent, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Group, PasswordInput, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core'
-import { KeyRound, Link2, LogOut } from 'lucide-react'
+import { Group, PasswordInput, SimpleGrid, Stack, Text, TextInput, Tooltip } from '@mantine/core'
+import { KeyRound, Link2, LogOut, Pencil } from 'lucide-react'
 import { Badge, Banner, Button, KeyValues, Panel } from '@/components/ui'
 import { ConfirmButton, MutationError, NewPasswordFields, newPasswordReady, useFieldErrors } from '@/components/form'
 import { TableSkeleton, QueryError } from '@/components/states'
@@ -99,7 +99,7 @@ function Account() {
           {user && (
             <KeyValues
               items={[
-                ['Name', user.display_name || '—'],
+                ['Name', <ProfileName key="name" name={user.display_name} />],
                 ['Email', user.email],
                 ['Role', `${(session.data?.role ?? '').charAt(0).toUpperCase()}${(session.data?.role ?? '').slice(1)}${user.role_source === 'local' ? '' : ' (from single sign-on)'}`],
                 ...(user.grants.length ? ([['Can also', user.grants.join(', ')]] as [string, string][]) : []),
@@ -257,3 +257,71 @@ function Account() {
     </>
   )
 }
+
+/** The display name with an inline edit (PATCH /session/profile). */
+function ProfileName({ name }: { name: string }) {
+  const qc = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(name)
+  const save = useMutation({
+    mutationFn: () => apiSend('PATCH', '/session/profile', { display_name: value }),
+    onSuccess: () => {
+      setEditing(false)
+      void qc.invalidateQueries({ queryKey: qk.session })
+    },
+  })
+  const errs = useFieldErrors(save.error)
+  if (!editing) {
+    return (
+      <Group gap={6} wrap="nowrap">
+        <span>{name || '—'}</span>
+        <Tooltip label="Change your name">
+          <Button
+            size="small"
+            variant="ghost"
+            icon={Pencil}
+            aria-label="Change your name"
+            onClick={() => {
+              setValue(name)
+              save.reset()
+              setEditing(true)
+            }}
+          />
+        </Tooltip>
+      </Group>
+    )
+  }
+  const trimmed = value.trim()
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (trimmed && trimmed !== name) save.mutate()
+      }}
+    >
+      <Stack gap={6}>
+        <TextInput
+          aria-label="Your name"
+          value={value}
+          maxLength={120}
+          autoFocus
+          error={errs.display_name}
+          onChange={(e) => setValue(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setEditing(false)
+          }}
+        />
+        <Group gap={6}>
+          <Button type="submit" size="small" variant="primary" busy={save.isPending} disabled={!trimmed || trimmed === name}>
+            Save
+          </Button>
+          <Button size="small" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+        </Group>
+        <MutationError error={save.error} inlineFields={['display_name']} />
+      </Stack>
+    </form>
+  )
+}
+
