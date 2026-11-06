@@ -104,8 +104,8 @@ Harbor Pilot:
 | OpenCode | `provider.<id>.options.{baseURL, apiKey}`; other settings: `headers`, `timeout`, ... | `internal/agent/opencode_providers.go:78,206` |
 | Pi | `models.json` / `settings.json` | `internal/agent/pi*.go` (agent report) |
 
-Harbor Pilot implements its own reversible editors for these targets (Phase 12) and verifies them against the
-real harness binaries where they are installed.
+Harbor Pilot implements its own reversible editors for these targets (`internal/harness`), contract-tested; live
+runs are recorded in COMPATIBILITY.md.
 
 ## 8. Session headers observed (`gateway.go:8908-8915`)
 
@@ -120,7 +120,7 @@ Harbor Pilot reads these as **untrusted session hints**, recorded with their pro
 
 | Mechanism observed | Harbor Pilot |
 |---|---|
-| **Claude subscription via the vendor CLI**: launches `claude -p --input-format stream-json --output-format stream-json --verbose --strict-mcp-config --mcp-config <own>`, bridges client tools over MCP, and authenticates with per-account `CLAUDE_CONFIG_DIR` or `CLAUDE_CODE_OAUTH_TOKEN` (setup-token). Strips `ANTHROPIC_BASE_URL/API_KEY/AUTH_TOKEN` from the child env. Its default is an interactive mode inside a PTY, and its doc claims `-p` costs more plan allowance (doc-claim, unverified) | **Adopted as a pattern:** native CLI bridge (Phase 7) using the vendor binary and a per-account token or config dir. The PTY variant is **not** adopted |
+| **Claude subscription via the vendor CLI**: launches `claude -p --input-format stream-json --output-format stream-json --verbose --strict-mcp-config --mcp-config <own>`, bridges client tools over MCP, and authenticates with per-account `CLAUDE_CONFIG_DIR` or `CLAUDE_CODE_OAUTH_TOKEN` (setup-token). Strips `ANTHROPIC_BASE_URL/API_KEY/AUTH_TOKEN` from the child env. Its default is an interactive mode inside a PTY, and its doc claims `-p` costs more plan allowance (doc-claim, unverified) | **Adopted as a pattern:** native CLI bridge (D-001, D-026) using the vendor binary and a per-account token or config dir. The PTY variant is **not** adopted |
 | **Codex via the vendor CLI** | **Adopted:** `codex exec --json` with a per-account `CODEX_HOME` |
 | ChatGPT/Codex OAuth token replayed against `chatgpt.com/backend-api/codex` with Codex `originator`/User-Agent headers | **Not adopted.** Direct token replay plus client impersonation |
 | Copilot session tokens with spoofed `Editor-Version` / `Copilot-Integration-Id` | **Not adopted.** Impersonation |

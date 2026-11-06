@@ -1,4 +1,39 @@
-# Harbor Pilot: Architecture
+# Architecture
+
+Harbor Pilot is a self-hosted LLM gateway and policy control plane: one Go binary on SQLite with an embedded React UI.
+Coding tools (Claude Code, Codex, OpenCode, Pi, any SDK) connect with a gateway token, a base URL and a model name.
+For each request Harbor Pilot:
+
+1. **authenticates** the caller as a client binding (principal, routing plan, optional project, scopes, limits,
+   telemetry policy);
+2. **translates** between wire protocols (Anthropic Messages, OpenAI Chat Completions and Responses, Gemini), rejecting
+   or downgrading unsupported features only under explicit policy;
+3. **routes** it through a versioned routing plan (aliases, pools, hard restrictions, Expr rules and decision tables,
+   fallback, privacy and trace policy);
+4. **executes** it against API-key providers, local model servers, or CLI bridges that run a vendor's own binary under
+   an isolated subscription login (D-001);
+5. **accounts** for it truthfully: provider-reported quota, observed consumption, budgets, actual charges, estimates
+   and subscription fees stay separate figures;
+6. **explains** it: "Why this route?" shows the trusted context, requested, resolved and actual model, policy version,
+   excluded candidates and why, quota freshness, attempts, masking, losses and accounting.
+
+It does not bypass provider restrictions (it picks among accounts the operator may use), present subscription usage
+as an API invoice, cluster, or guarantee masking. Operator documentation is the site (`site/`); this file is for
+people changing the code.
+
+## Evidence vocabulary
+
+Every capability carries one status, in COMPATIBILITY.md, TRACEABILITY.md and the site:
+
+- **implemented**: code exists and unit tests pass;
+- **contract-tested**: verified against synthetic fixtures, fakes or fake binaries that follow the documented
+  contract;
+- **live-verified**: exercised against the real upstream, harness or service with authorised credentials, recorded
+  with date, version and script;
+- **unsupported**: deliberately not provided, with the reason;
+- **blocked**: needs an external prerequisite (LIMITATIONS.md).
+
+Mocks are tests, not evidence that a real upstream is compatible.
 
 ## 1. Deployment topology
 
@@ -27,9 +62,9 @@
 
 - **Supported:** one instance with one data directory on local disk. SQLite runs in WAL mode with a single writer connection and a pool of read-only connections.
 - **Not supported:** several instances sharing a database, or SQLite on network filesystems. Interfaces are kept clean (store, outbox, relay), but no distributed infrastructure is built speculatively.
-- **Native:** a static binary (`CGO_ENABLED=0`, modernc SQLite), with a systemd unit in `deploy/`.
+- **Native:** a static binary (`CGO_ENABLED=0`, modernc SQLite), with a systemd unit in `deploy/systemd/`.
 - **Container:** a distroless non-root image. The bridge variant adds the vendor CLIs so the Claude Code and Codex bridges can run. Bridges are disabled when their binary is missing.
-- **Demo:** `serve --demo [--demo-clock=RFC3339]` uses a separate `demo.db`, synthetic upstreams and synthetic accounts. It cannot be combined with real credentials.
+- **Demo:** `serve --demo [--demo-clock=RFC3339]` uses separate `demo.db`/`demo-traces.db`, a throwaway key, synthetic upstreams and accounts, and listens only on loopback unless `--demo-allow-public`.
 
 ## 2. Layers and packages
 | Layer | Packages | Responsibility |
@@ -46,7 +81,7 @@
 | Routing | `internal/routing` | Expr environment, rules, decision tables, ranking, simulator, replay, explanation |
 | Accounting | `internal/accounting` | Ledger, reservations, reaper, pricing, reconciliation |
 | Quota | `internal/quota` | Provider quota adapters, scheduler, analytics, forecasting |
-| Telemetry | `internal/telemetry` | Activity writer, sessions, tool observation, dedupe, rollups, intents |
+| Telemetry | `internal/telemetry` | Activity writer, sessions, tool observation, dedupe, intents, statistics |
 | Privacy | `internal/privacy` | Detectors, masking, placeholder vault, sandbox |
 | Traces | `internal/traces` | Encrypted store, expiry and crypto-erasure, search, access audit |
 | Compatibility | `internal/compat` | Circuit breakers, degradation, Protocol Watch |
@@ -54,6 +89,10 @@
 | Notifications | `internal/notify` | Rules, grouping, hysteresis, quiet hours, templates, adapters |
 | Harness tooling | `internal/harness` | Detection, reversible config editors |
 | Demo | `internal/demo` | Deterministic synthetic scenario and upstream simulator |
+| Bootstrap and wiring | `internal/config`, `internal/app` | Bootstrap config, keyring, process wiring, root handler, background jobs |
+| Audit | `internal/audit` | Audit log writer |
+| Operations | `internal/ops`, `internal/migrate` | Backup, verify and restore; the Quota Harbor importer |
+| Testing | `internal/apptest`, `internal/acceptance`, `internal/synthetic`, `internal/loadgen` | Real-server test harness, acceptance scenarios, synthetic upstreams, load generator |
 | UI | `web/`, `internal/web` | React SPA, embedded |
 
 Dependencies point downward. `gateway` depends on `routing`, `executor`, `accounting`, `privacy`, `compat` and `telemetry`. It never depends on `notify` or the `events` relays. It only appends outbox rows through `accounting` and `compat` transactions.
@@ -94,21 +133,19 @@ The `Snapshot` keeps accounts, pools, plans and compiled Expr programs read-only
 - `harbor.db` holds:
   - control-plane tables, each with `revision`, `managed_by`, `drift_state` and `created_at`/`updated_at`
   - `config_revisions`
-  - the ledger (append-only), reservations, activity (requests, attempts, tool observations, session index) and hourly rollups
-  - quota observations and rollups
+  - the ledger (append-only), reservations, and activity (requests, attempts, tool observations, session index)
+  - quota observations
   - the outbox, deliveries and audit log
 - `traces.db` holds encrypted trace bodies, a per-bucket wrapped DEK table, and an FTS5 index over masked text only.
 - Timestamps are INTEGER unix milliseconds in UTC. Money is INTEGER in 1e-10 units, with an explicit currency and price version.
 - Migrations are embedded `migrations/{main,traces}/NNNNNNNNNNNNNNNNN_name_up.sql` files. The migrator takes a pre-migration `VACUUM INTO` backup and refuses unknown or out-of-order migrations.
-- Retention:
-  - Raw activity is kept for a configurable period (default 30 days) and then rolled up hourly.
-  - Rollups and the ledger are kept indefinitely.
-  - Outbox rows that were delivered are kept for 7 days.
-  - Each purge deletes bounded batches.
+- Retention: trace content expires per trace policy (swept in batches of 500, keys destroyed); sessions, OIDC state
+  and one-time tokens are purged. Activity, the ledger, events and the audit log have no retention purge yet, and
+  there are no rollup tables (LIMITATIONS.md).
 
 ## 6. Configuration authority
 - The database is authoritative for every managed object.
-- `harbor-pilot.yaml` plus `HP_*` environment variables hold only process bootstrap settings: listen address, data dir, public URL, master key ref, TLS, and demo.
+- `harbor-pilot.yaml` plus `HP_*` environment variables hold only process bootstrap settings: listen address, data dir, public URL, master key, secret-reference rules, TLS, logging, CLI bridges and demo (`internal/config`; documented in `site/reference/configuration.md`).
 - Every mutation runs through one service layer, whether it comes from the UI, the API, the CLI, Terraform or an import. That layer:
   - validates the change and checks `If-Match` against the object's revision
   - writes the change, an audit row and an outbox event
@@ -120,7 +157,7 @@ The `Snapshot` keeps accounts, pools, plans and compiled Expr programs read-only
 ## 7. Concurrency and back-pressure
 | Resource | Bound | Overflow behavior |
 |---|---|---|
-| Request body | `gateway.max_request_bytes` (default 32 MiB) | 413 |
+| Request body | 32 MiB default; per binding `limits.max_request_bytes` (at most 64 MiB) | 413 |
 | Parser complexity | max messages, parts, tool count, schema depth | 400 with `limit` details |
 | Concurrent upstream attempts | per account, per binding, global | queue with timeout, or 429 per policy |
 | Telemetry, observer and trace channels | fixed capacity | drop, increment counter, set coverage to `partial` |
@@ -128,15 +165,24 @@ The `Snapshot` keeps accounts, pools, plans and compiled Expr programs read-only
 | Notification workers | per-channel rate limit and `retry_after` | defer, or dead-letter after the configured number of attempts |
 | Background purge | rows per batch and batches per tick | continues on the next tick |
 
-## 8. Capacity (documented target, verified by `cmd/hp-loadgen`)
-These are targets for a single instance on 2 vCPU with SSD. The figures measured on reference hardware are recorded in `docs/operations/capacity.md`.
-- About 200 concurrent streaming requests.
-- About 50 logical requests per second sustained through the accounting path.
+## 8. Capacity
 
-The SQLite writer is the serialization point. Accounting transactions are kept small, and telemetry writes are batched.
+Load tests in `internal/acceptance/load_test.go` (`make load` for full scale) run the gateway in-process in front of
+a synthetic upstream that answers at once, so they measure Harbor Pilot's own overhead. Recorded run, 2026-11-05,
+Go 1.27.3, 15-core laptop, `HP_LOAD=1`:
+
+| Scenario | Load | Result |
+|---|---|---|
+| Streaming throughput | 3,200 streamed requests, 64 concurrent clients | ~2,550 req/s; p50 22 ms, p95 54 ms, p99 77 ms; first byte p50 5 ms; every request billed once, no reservation left open |
+| Slow clients | 256 clients reading a line every 40 ms beside 1,600 fast requests | fast p95 19 ms (baseline 17 ms); all slow streams completed |
+| Telemetry back-pressure | 2,400 requests with a one-slot activity queue | all succeeded, accounting complete; 2,820 activity records dropped and counted (`telemetry_dropped`) |
+
+In production, upstream latency and provider rate limits dominate. The SQLite writer serialises reservations and
+ledger writes; it was not saturated above, and its latency was not measured separately. `cmd/hp-loadgen` drives a
+running server.
 
 ## 9. Security boundaries
-See THREAT_MODEL.md. In summary:
+See THREAT_MODEL.md (and `site/security/`). In summary:
 - Gateway tokens are never forwarded upstream.
 - Provider secrets are held as references or encrypted under the KEK, and the API treats them as write-only.
 - Outbound requests pass through `netpolicy` (SSRF guard). Private and local endpoints must be explicitly authorized for each provider.

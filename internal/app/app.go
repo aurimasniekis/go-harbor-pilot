@@ -298,7 +298,7 @@ func New(ctx context.Context, o Options) (*App, error) {
 		if err := demo.Seed(ctx, a.DB, a.Auth); err != nil {
 			return fail(err)
 		}
-		a.Log.Info("demo.ready", "admin_email", demo.AdminEmail, "admin_password", "see docs/operations/demo.md")
+		a.Log.Info("demo.ready", "admin_email", demo.AdminEmail, "admin_password", "see https://aurimasniekis.github.io/go-harbor-pilot/guide/demo")
 	}
 	a.apiRegs = append(a.apiRegs, a.CoreAPI()...)
 	return a, nil

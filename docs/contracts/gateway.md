@@ -27,6 +27,7 @@ Base URLs select a namespace only; they never authenticate. The gateway token is
 | `GET /v1/models` | Anthropic shape when `anthropic-version` or `x-api-key` is present, otherwise OpenAI shape |
 | `GET /anthropic/v1/models`, `/openai/v1/models`, `/v1beta/models` | Explicit shapes |
 | `POST /v1/harbor/credentials` | Mint a child credential (requires `tokens:mint`) |
+| `DELETE /v1/harbor/credentials/{id}` | Revoke a child credential (its parent or itself) |
 
 Every response carries `X-Request-ID`, which keys the request in Activity ("Why this route?"). Errors are returned in the client protocol's own error envelope.
 
@@ -37,7 +38,7 @@ These headers are recorded as claims, together with their provenance. They never
 |---|---|
 | `X-HP-Session`, harness session headers (`X-Claude-Code-Session-Id`, `session_id`, …) | Group requests into sessions only when the binding sets `trust.session_hints`; otherwise recorded only |
 | `X-HP-Project` | Selects one of the binding's `allowed_project_ids` only when `trust.project_hints` is set and the credential has no bound project |
-| `X-HP-Intent` | Recorded; becomes trusted only under `trust.intent_hints` (Phase 11) |
+| `X-HP-Intent` | Recorded; used as the routing intent only under `trust.intent_hints`, otherwise the plan's classifier decides |
 | `X-HP-External-Ref` | Recorded only. Trusted references come from the credential's `bound_refs` or the binding's `external_refs` |
 
 Requests without session evidence get `session_confidence: unknown`. They are never merged into a session merely because they share a token.
@@ -72,7 +73,7 @@ Requests without session evidence get `session_confidence: unknown`. They are ne
 - If the client disconnects, the upstream request is canceled. Writes to slow clients are bounded at 60 s each.
 
 ## Translation rules
-See `docs/COMPATIBILITY.md`.
+See [COMPATIBILITY.md](../COMPATIBILITY.md).
 - **Losses.** Features that cannot be represented are reported as losses:
   - `approximate`: mapped with slightly different semantics.
   - `drop`: optional information removed.

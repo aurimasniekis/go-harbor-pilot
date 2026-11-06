@@ -28,7 +28,6 @@ archives:
       - LICENSE
       - NOTICE
       - README.md
-      - docs/guides/*.md
       - deploy/examples/*
       - deploy/systemd/*
       - deploy/docker-compose.yml

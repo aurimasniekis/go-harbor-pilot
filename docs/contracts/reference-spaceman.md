@@ -73,9 +73,9 @@ SpaceMan has **no "project" entity**. A space is the unit of work.
 **Threat-model fact** (SpaceMan LIMITATIONS, doc-claim): agents have shell access and can reach the network
 directly. Anything in the run's env, a gateway token included, is readable by the agent.
 
-## 2. Proposed contract (Harbor Pilot side, implemented in Phase 11)
+## 2. Proposed contract (Harbor Pilot side, implemented)
 
-The design is inferred from the facts above and is subject to Phase 11 tests.
+The design is inferred from the facts above; `TestScenarioN_SpaceManAndStandaloneClientCoexist` covers it.
 
 1. **A SpaceMan installation is a client binding.**
    - An operator creates a binding `spaceman-<instance>`.

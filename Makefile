@@ -88,7 +88,7 @@ fuzz-smoke:
 e2e-install:
 	cd web && $(PNPM) exec playwright install chromium
 
-# load runs the load tests at capacity scale (see docs/operations/capacity.md).
+# load runs the load tests at capacity scale (results in docs/ARCHITECTURE.md §8).
 load:
 	HP_LOAD=1 $(GO) test -count=1 -run TestLoad -v ./internal/acceptance
 

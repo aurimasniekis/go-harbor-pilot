@@ -1,16 +1,16 @@
-# Compatibility Matrix
+# Compatibility matrix
 
-Statuses are `implemented`, `contract-tested`, `live-verified (date, version, script)`, `unsupported` and `blocked`. `planned` means the item is not implemented yet. A cell may only be upgraded when there is evidence for the new status. The evidence column links to the relevant test or script.
+Statuses: `implemented` (code exists, no dedicated test), `contract-tested` (tests against fixtures, fakes or synthetic upstreams), `live-verified (date, version, script)` (a recorded run against the real service), `unsupported`, `blocked` (needs an external prerequisite; see LIMITATIONS.md). Upgrade a cell only with evidence for the new status, and name the evidence. "Scenario A/B/E" are `TestScenarioA_StandaloneHarness`, `TestScenarioB_CrossProtocolTools` and `TestScenarioE_ConcurrentReservations` in `internal/acceptance`. The rendered page is `site/reference/compatibility.md`; keep both in step.
 
 ## 1. Inbound protocols (client → Harbor Pilot)
 
 | Inbound protocol | Endpoint(s) | Non-stream | Stream | Tools | Parallel tools | Tool-arg streaming | Structured output | Reasoning config | Images | Status | Evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Anthropic Messages | `POST /v1/messages`, `/anthropic/v1/messages`, `/v1/messages/count_tokens` (estimate) | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | reject→other upstreams | contract-tested | implemented | contract-tested | protocol_test.go, acceptance A/B |
-| OpenAI Chat Completions | `POST /v1/chat/completions`, `/openai/v1/chat/completions` | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | implemented | implemented | implemented | contract-tested | protocol_test.go, acceptance B |
-| OpenAI Responses | `POST /v1/responses`, `/openai/v1/responses` | contract-tested | contract-tested | contract-tested | implemented | contract-tested | implemented | implemented | implemented | contract-tested | protocol_test.go, acceptance B |
-| Gemini generateContent | `POST /v1beta/models/{model}:generateContent`, `:streamGenerateContent` | implemented | contract-tested | contract-tested | implemented | n/a (calls arrive whole) | implemented | implemented | implemented | contract-tested | protocol_test.go, acceptance B |
-| Model listing | `GET /v1/models`, `/v1beta/models` | contract-tested | | | | | | | | contract-tested | acceptance A |
+| Anthropic Messages | `POST /v1/messages`, `/anthropic/v1/messages`, `/v1/messages/count_tokens` (estimate) | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | reject→other upstreams | contract-tested | implemented | contract-tested | protocol_test.go, scenarios A and B |
+| OpenAI Chat Completions | `POST /v1/chat/completions`, `/openai/v1/chat/completions` | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | implemented | implemented | implemented | contract-tested | protocol_test.go, scenario B |
+| OpenAI Responses | `POST /v1/responses`, `/openai/v1/responses` | contract-tested | contract-tested | contract-tested | implemented | contract-tested | implemented | implemented | implemented | contract-tested | protocol_test.go, scenario B |
+| Gemini generateContent | `POST /v1beta/models/{model}:generateContent`, `:streamGenerateContent` | implemented | contract-tested | contract-tested | implemented | n/a (calls arrive whole) | implemented | implemented | implemented | contract-tested | protocol_test.go, scenario B |
+| Model listing | `GET /v1/models`, `/v1beta/models` | contract-tested | | | | | | | | contract-tested | scenario A |
 
 ## 2. Translation pairs (inbound → upstream)
 
@@ -25,33 +25,33 @@ Each translated pair is checked against these semantics:
 - Errors
 - Cancellation
 
-Sealed reasoning state only crosses within the same family. Every other pair downgrades it according to policy.
+Sealed reasoning state only crosses within the same family. Every other pair downgrades it according to policy. The CLI bridges take the IR, so any inbound protocol can reach them; their fidelity limits are in LIMITATIONS.md.
 
 | Inbound \ Upstream | Anthropic | OpenAI Chat | OpenAI Responses | Gemini | OpenAI-compatible | Ollama | Claude Code bridge | Codex bridge |
 |---|---|---|---|---|---|---|---|---|
-| Anthropic Messages | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | planned (Phase 7) | planned (Phase 7) |
-| OpenAI Chat | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | planned (Phase 7) | planned (Phase 7) |
-| OpenAI Responses | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | planned (Phase 7) | planned (Phase 7) |
-| Gemini | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | planned (Phase 7) | planned (Phase 7) |
+| Anthropic Messages | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | contract-tested (TestClaudeCodeBridgeThroughGateway) | implemented (executor contract-tested with a fake binary) |
+| OpenAI Chat | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | implemented (through the IR) | implemented (executor contract-tested with a fake binary) |
+| OpenAI Responses | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | implemented (through the IR) | implemented (executor contract-tested with a fake binary) |
+| Gemini | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | implemented (through the IR) | implemented (executor contract-tested with a fake binary) |
 
 ## 3. Harnesses
 
 | Harness | Version tested | Speaks | Configuration | Setup tooling | Status | Evidence |
 |---|---|---|---|---|---|---|
-| Claude Code | 2.1.318 (installed locally) | Anthropic Messages | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, model env vars | planned (Phase 12) | contract-tested (request shape); live: pending | acceptance A |
-| Codex | not installed | OpenAI Responses | `config.toml` `[model_providers.<id>]` | planned | blocked (binary) | |
-| OpenCode | not installed | OpenAI-compatible / Anthropic | `opencode.json` provider options | planned | blocked (binary) | |
-| Pi | not installed | OpenAI-compatible / Anthropic | `models.json` | planned | blocked (binary) | |
-| Generic API clients | n/a | any inbound protocol | base URL plus bearer token | n/a | planned | |
+| Claude Code | 2.1.318 | Anthropic Messages | `settings.json`: `env.ANTHROPIC_BASE_URL`, `env.ANTHROPIC_MODEL`, `apiKeyHelper` (or `ANTHROPIC_AUTH_TOKEN`) | contract-tested | contract-tested (request shape); live: pending | TestScenarioA_StandaloneHarness, TestSetupAndUninstallPreserveUserConfig |
+| Codex | not installed | OpenAI Responses | `config.toml` `[model_providers.<id>]` | contract-tested | contract-tested (setup); live: blocked (binary) | TestSetupAndUninstallPreserveUserConfig |
+| OpenCode | not installed | OpenAI-compatible / Anthropic | `opencode.json` provider options | contract-tested | contract-tested (setup); live: blocked (binary) | TestSetupAndUninstallPreserveUserConfig |
+| Pi | not installed | OpenAI-compatible / Anthropic | `models.json` | contract-tested | contract-tested (setup); live: blocked (binary) | TestSetupAndUninstallPreserveUserConfig |
+| Generic API clients | n/a | any inbound protocol | base URL plus bearer token | n/a | contract-tested | TestScenarioA_StandaloneHarness |
 
 ## 4. Executors
 
 | Executor | Kind | Auth | Quota source | Classification | Status | Evidence |
 |---|---|---|---|---|---|---|
-| Anthropic API | HTTP | API key | response headers, Admin API | official | contract-tested (synthetic upstream); live: blocked (credentials) | acceptance A/B/E |
-| OpenAI API (Chat, Responses) | HTTP | API key | response headers, Admin API | official | contract-tested; live: blocked | acceptance B |
+| Anthropic API | HTTP | API key | response headers, Admin API | official | contract-tested (synthetic upstream); live: blocked (credentials) | scenarios A, B and E |
+| OpenAI API (Chat, Responses) | HTTP | API key | response headers, Admin API | official | contract-tested; live: blocked | scenario B |
 | Gemini API | HTTP | API key | Cloud Quotas (monitor) | official | implemented (adapter contract-tested); live: blocked | protocol_test.go |
-| OpenAI-compatible (OpenRouter, DeepSeek, xAI, Together, Moonshot, …) | HTTP | API key | balance endpoints | partial (per server) | contract-tested; live: blocked | acceptance B |
+| OpenAI-compatible (OpenRouter, DeepSeek, xAI, Together, Moonshot, …) | HTTP | API key | balance endpoints | partial (per server) | contract-tested; live: blocked | scenario B |
 | Ollama / vLLM / llama.cpp / LM Studio | local HTTP (OpenAI-compatible endpoint) | none or key | n/a | local | contract-tested (synthetic); live: not run | demo traffic |
 | Claude Code bridge | CLI | `CLAUDE_CODE_OAUTH_TOKEN` (setup-token) per account | `rate_limit_event` (5-hour / 7-day windows) | official binary, subscription | contract-tested against the real `claude` 2.1.318 binary with a synthetic upstream (2026-11-05); live with a real setup-token: blocked (credentials) | bridge/claudecode tests, TestClaudeCodeBridgeThroughGateway, TestClaudeCodeBridgeExhaustionFailsOver |
 | Codex bridge | CLI | per-account `CODEX_HOME` sign-in (`auth.json` seeded from the account credential) | `codex_subscription` quota monitor | official binary, subscription | contract-tested against a fake binary emitting the documented `codex exec --json` events; built-in tool flags and the per-run profile checked against the real codex 0.166.0 with `codex debug prompt-input` (2026-11-05, no model call); live: blocked (no ChatGPT login) | bridge/codex tests |
@@ -59,7 +59,7 @@ Sealed reasoning state only crosses within the same family. Every other pair dow
 
 ## 5. Quota monitoring adapters
 
-The Quota Harbor adapters are inherited (`internal/quota/providers`). Per-adapter tiers are listed in `docs/contracts/reference-quota-harbor.md` and served by `GET /api/v1/quota/adapters`. None has been live-verified.
+Adapters live in `internal/quota/providers`; their tiers are served by `GET /api/v1/quota/adapters` (reference: `docs/contracts/reference-quota-harbor.md`). None has been live-verified.
 
 | Adapter id | Tier | Status | Evidence |
 |---|---|---|---|

@@ -117,7 +117,7 @@ Identity is keyed on `(iss, sub)`. Logout redirects to the discovered `end_sessi
 
 ## 7. Test strategy
 
-- **Contract tests** (Phase 2) use an in-process test OpenID Provider:
+- **Contract tests** use an in-process test OpenID Provider:
   - It reproduces this contract: ES256 and RS256 keys, `porch` claim shape with truncation, empty `roles`,
     `auth_time`, PKCE S256 enforcement, and RFC 9207 `iss` in the authorization response.
   - Negative cases: wrong `iss`/`aud`, expired token, nonce mismatch, bad PKCE, alg `none`/HS256 rejected.

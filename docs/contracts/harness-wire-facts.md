@@ -27,8 +27,9 @@ authenticates, and what session signals it sends.
 | Other headers seen in binary | `x-app`, `anthropic-beta` (many), `x-claude-code-signature`, `x-claude-code-keep-branch` | string literals; semantics unknown, so treated as opaque |
 | Settings location | `settings.json` `env` block under `CLAUDE_CONFIG_DIR` (default `~/.claude`) | `CLAUDE_CONFIG_DIR` string in binary; file layout is a doc-claim |
 
-Harbor Pilot setup (Phase 12) writes `ANTHROPIC_BASE_URL=<public_url>` and `ANTHROPIC_AUTH_TOKEN=<gateway token>`
-(the Anthropic namespace), plus optional alias mappings in the `env` block. The setup is reversible: it backs up
+`harbor-pilot harness setup claude` writes `env.ANTHROPIC_BASE_URL=<public_url>`, optionally `env.ANTHROPIC_MODEL`, and an
+`apiKeyHelper` that prints the token file (with `--token-env`, the user exports `ANTHROPIC_AUTH_TOKEN` instead), so the
+token never lands in `settings.json`. The setup is reversible: it backs up
 the file, writes atomically, and refuses on conflict.
 
 Harbor Pilot must tolerate:
@@ -63,7 +64,7 @@ Flags confirmed in `claude --help` (2.1.318):
 | `--safe-mode` | disables customisations |
 | `setup-token` (subcommand) | "Set up a long-lived authentication token (requires Claude subscription)" |
 
-Bridge consequences (inferred, verified live in Phase 7):
+Bridge consequences (inferred, then verified against the binary while building the bridge):
 - **Do not use `--bare`** with subscription accounts: it never reads OAuth credentials, so a setup-token would
   not authenticate. Get equivalent isolation from `--setting-sources ""` (or a minimal `--settings`),
   `--strict-mcp-config`, `--tools ""`, `--no-session-persistence` and a per-request `CLAUDE_CONFIG_DIR`.

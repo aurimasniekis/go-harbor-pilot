@@ -60,7 +60,7 @@ Three migrations (verified-in-source, `migrations/`). Timestamps are INTEGER uni
 | `20261017075139645_create_alerts_and_outbox` | `alert_incidents`, `alert_events` | imported as **history only** (read-only incident archive) |
 | | `alert_rule_state`, `notification_outbox` | not imported; transient delivery state |
 
-Importer rules (inferred design, to be confirmed in Phase 13):
+Importer rules (implemented in `internal/migrate/quotaharbor`):
 - `is_demo = 1` rows are always skipped.
 - Provider-reported quota keeps its `quality` and `source`, so provenance survives.
 - Usage rows keep `origin`. Imported rows become ledger `external_observed` entries with the `imported`

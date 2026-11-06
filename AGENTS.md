@@ -1,9 +1,9 @@
 # AGENTS.md: working in go-harbor-pilot
 
-Harbor Pilot is a self-hosted LLM gateway and policy control plane: a single Go binary on SQLite, with an embedded React UI. Read `docs/PRODUCT.md` and `docs/ARCHITECTURE.md` before changing anything structural.
+Harbor Pilot is a self-hosted LLM gateway and policy control plane: a single Go binary on SQLite, with an embedded React UI. Read `docs/ARCHITECTURE.md` before changing anything structural; `docs/README.md` lists the other developer docs. Operator documentation is the VitePress site in `site/`.
 
 ## Ground rules
-- **Truthful status.** Never mark a capability `live-verified` without a recorded run, giving date, version and script. Mocks and fixtures earn at most `contract-tested`. Keep `docs/TRACEABILITY.md`, `docs/COMPATIBILITY.md` and `docs/LIMITATIONS.md` current in the same change.
+- **Truthful status.** Never mark a capability `live-verified` without a recorded run, giving date, version and script. Mocks and fixtures earn at most `contract-tested`. Keep `docs/TRACEABILITY.md`, `docs/COMPATIBILITY.md` and `docs/LIMITATIONS.md` current in the same change, along with their site pages (`site/reference/compatibility.md`, `site/security/limitations.md`).
 - **No other project names in code.** Comments, identifiers and strings must not reference external or reference projects. The exceptions are named integration features: the Pulse relay, Porch-compatible OIDC, the Quota Harbor importer, and the SpaceMan examples. Reference material lives in `docs/contracts/`.
 - **Clean-room protocol work.** Fixtures under `testdata/protocol/` are synthetic, written from public API documentation. Never paste captured real prompts or third-party fixtures.
 - **Secrets never leave the secret path.** Don't log them, put them in errors, events, metric labels or test output. Use `credentials.Secret`. Read CLI secrets from stdin, a file or the environment, never from argv.
