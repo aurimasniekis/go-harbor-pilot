@@ -37,45 +37,74 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Container images on Docker Hub: docker.io/aurimasniekis/harbor-pilot (the
+  # plain image) and docker.io/aurimasniekis/harbor-pilot-bridge (with the
+  # Claude Code and Codex CLIs), linux/amd64 and linux/arm64. Published only
+  # when the repository secret DOCKERHUB_TOKEN is set; otherwise the release
+  # goes ahead without images and says so. `latest` moves only on releases
+  # without a pre-release suffix.
   images:
+    name: images (${{ matrix.image }})
     runs-on: ubuntu-24.04
     needs: binaries
     permissions:
       contents: read
-      packages: write
+    env:
+      DOCKERHUB_USER: aurimasniekis
+      DOCKERHUB_NAMESPACE: docker.io/aurimasniekis
     strategy:
       matrix:
         include:
-          - dockerfile: deploy/Dockerfile
-            suffix: ""
-          - dockerfile: deploy/Dockerfile.bridge
-            suffix: "-bridge"
+          - image: harbor-pilot
+            dockerfile: deploy/Dockerfile
+          - image: harbor-pilot-bridge
+            dockerfile: deploy/Dockerfile.bridge
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - id: meta
-        uses: docker/metadata-action@v5
+          persist-credentials: false
+      - id: dockerhub
+        name: check for the Docker Hub token
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [[ -n "$DOCKERHUB_TOKEN" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::repository secret DOCKERHUB_TOKEN is not set; no image is published"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+      - id: tags
+        if: steps.dockerhub.outputs.enabled == 'true'
+        name: compute tags
+        env:
+          REPO: ${{ env.DOCKERHUB_NAMESPACE }}/${{ matrix.image }}
+          REF: ${{ github.ref_name }}
+        run: |
+          version=${REF#v}
+          tags="$REPO:$version"
+          if [[ "$version" != *-* ]]; then
+            tags="$tags,$REPO:${version%.*},$REPO:latest"
+          fi
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        if: steps.dockerhub.outputs.enabled == 'true'
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: steps.dockerhub.outputs.enabled == 'true'
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        if: steps.dockerhub.outputs.enabled == 'true'
         with:
-          images: ghcr.io/${{ github.repository_owner }}/harbor-pilot
-          flavor: |
-            suffix=${{ matrix.suffix }},onlatest=true
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-      - uses: docker/build-push-action@v6
+          registry: docker.io
+          username: ${{ env.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        if: steps.dockerhub.outputs.enabled == 'true'
         with:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: VERSION=${{ github.ref_name }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.tags.outputs.tags }}
           provenance: true
           sbom: true
