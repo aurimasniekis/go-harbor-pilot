@@ -24,8 +24,8 @@ func info(area, entity, action, sev, desc string, subjects, data []string, pair 
 var Catalog = []KindInfo{
 	info("routing", "account", "switched", SeverityInfo, "A pool's serving account changed.", []string{"request_id", "binding_id", "pool_id", "from_account_id", "to_account_id"}, []string{"pool", "from_account_id", "to", "reason"}, ""),
 	info("routing", "fallback", "selected", SeverityWarning, "A request was served by a different model or provider than its first choice.", []string{"request_id", "binding_id", "plan_id", "pool_id"}, []string{"from", "to", "step", "reason"}, ""),
-	info("access", "request", "blocked", SeverityWarning, "A request was refused by policy (routing restriction, privacy, compatibility).", []string{"request_id", "binding_id"}, []string{"reason", "requested_model", "plan_id", "excluded"}, ""),
-	info("access", "credential", "issued", SeverityInfo, "A gateway credential was issued.", []string{"credential_id", "binding_id"}, []string{"name", "scopes"}, ""),
+	info("access", "request", "blocked", SeverityWarning, "A request was refused by policy (routing restriction, privacy, compatibility, blocking budget).", []string{"request_id", "binding_id"}, []string{"reason", "requested_model", "plan_id", "excluded"}, ""),
+	info("access", "credential", "issued", SeverityInfo, "A gateway credential was issued (child is true for a minted run token).", []string{"credential_id", "binding_id"}, []string{"prefix", "scopes", "child"}, ""),
 	info("access", "credential", "revoked", SeverityInfo, "A gateway credential was revoked.", []string{"credential_id", "binding_id"}, []string{"reason"}, ""),
 	info("quota", "window", "exhausted", SeverityWarning, "A monitored global quota window reached its exhaustion threshold.", []string{"monitor_id", "account_id"}, []string{"monitor", "bucket", "label", "reset_at", "source"}, "quota.window.recovered"),
 	info("quota", "window", "recovered", SeverityInfo, "A previously exhausted quota window has capacity again.", []string{"monitor_id", "account_id"}, []string{"monitor", "bucket", "label"}, ""),

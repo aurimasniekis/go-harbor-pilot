@@ -129,7 +129,9 @@ budget is used up), whether it **Blocks requests** or **Warns only**, and when i
 A blocking budget is checked when the gateway **reserves** a request, inside the same database transaction that
 records the reservation. Two requests can't both slip under the limit at once. When a request finishes, the
 reservation is settled with the real cost. Requests in the budget's scope are then refused with a clear error until
-the period resets or you raise the limit; they show as **Blocked** in [Requests](/operators/requests).
+the period resets or you raise the limit; they show as **Blocked** in [Requests](/operators/requests). Each refusal
+sends `access.request.blocked`; `budget.threshold.exceeded` is sent once per period, when the budget is first used up
+(see [Events](/reference/events)).
 
 ## On a phone
 

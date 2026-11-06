@@ -189,6 +189,9 @@ func (s *Service) MintChild(ctx context.Context, parent *AuthenticatedCredential
 		merged[k] = v
 	}
 	in.BoundRefs = merged
+	// The minting credential is the creator: it is recorded as created_by
+	// and as the audit actor (the gateway request has no console principal).
+	ctx = auth.WithPrincipal(ctx, &auth.Principal{Kind: auth.KindCredential, ID: parent.ID, Name: parent.Name, AuthMethod: "gateway_token"})
 	return s.insertCredential(ctx, parent.BindingID, parent.ID, in)
 }
 
