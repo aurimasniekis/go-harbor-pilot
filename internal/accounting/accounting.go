@@ -171,16 +171,28 @@ type Entry struct {
 	CorrectsID     string
 	IdempotencyKey string
 	Provenance     map[string]any
-	At             time.Time
+	// Refs are the request's trusted references (mint-time bound_refs and
+	// the client's external_refs; never client headers). They are indexed in
+	// ledger_refs in the same transaction as the row (D-041). A correction
+	// without refs inherits the corrected row's.
+	Refs map[string]string
+	At   time.Time
 }
 
-// Record appends an entry. A repeated idempotency key is a no-op; it
-// returns the id of the stored row.
+// Record appends an entry and its refs in one transaction. A repeated
+// idempotency key is a no-op; it returns the id of the stored row.
 func (s *Service) Record(ctx context.Context, e Entry) (string, error) {
-	return s.RecordTx(ctx, s.db.W, e)
+	var id string
+	err := s.db.Tx(ctx, func(tx *sql.Tx) error {
+		var err error
+		id, err = s.RecordTx(ctx, tx, e)
+		return err
+	})
+	return id, err
 }
 
-// RecordTx appends an entry using ex (e.g. a transaction).
+// RecordTx appends an entry using ex. Callers pass a transaction so the
+// row and its ref index rows commit together.
 func (s *Service) RecordTx(ctx context.Context, ex store.Execer, e Entry) (string, error) {
 	if e.IdempotencyKey == "" {
 		return "", errors.New("ledger entry requires an idempotency key")
@@ -223,7 +235,35 @@ func (s *Service) RecordTx(ctx context.Context, ex store.Execer, e Entry) (strin
 		_ = ex.QueryRowContext(ctx, `SELECT id FROM ledger WHERE idempotency_key = ?`, e.IdempotencyKey).Scan(&existing)
 		return existing, nil
 	}
+	if len(e.Refs) > 0 {
+		for k, v := range e.Refs {
+			if _, err := ex.ExecContext(ctx, `INSERT OR IGNORE INTO ledger_refs(key, value, at, ledger_id) VALUES (?, ?, ?, ?)`,
+				k, v, e.At.UnixMilli(), id); err != nil {
+				return "", err
+			}
+		}
+	} else if e.CorrectsID != "" {
+		if _, err := ex.ExecContext(ctx, `INSERT OR IGNORE INTO ledger_refs(key, value, at, ledger_id)
+			SELECT key, value, ?, ? FROM ledger_refs WHERE ledger_id = ?`, e.At.UnixMilli(), id, e.CorrectsID); err != nil {
+			return "", err
+		}
+	}
 	return id, nil
+}
+
+// requestRefs reads the trusted refs stored on a request row (nil when the
+// row is missing, e.g. its telemetry was dropped).
+func requestRefs(ctx context.Context, ex store.Execer, requestID string) (map[string]string, error) {
+	var raw string
+	err := ex.QueryRowContext(ctx, `SELECT trusted_refs FROM requests WHERE id = ?`, requestID).Scan(&raw)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	var refs map[string]string
+	if raw != "" && json.Unmarshal([]byte(raw), &refs) != nil {
+		refs = nil // malformed refs leave the row unattributed
+	}
+	return refs, nil
 }
 
 // Reap expires leases that ran out (abandoned reservations).
@@ -262,8 +302,13 @@ func (s *Service) RecoverStartup(ctx context.Context) (int, error) {
 				finished_at = ? WHERE id = ? AND status = 'in_progress'`, now.UnixMilli(), x.req); err != nil {
 				return err
 			}
-			_, err := s.RecordTx(ctx, tx, Entry{Kind: "unknown_usage", RequestID: x.req, AttemptID: x.att, AccountID: x.acc, BindingID: x.binding,
-				UsageSource: "unknown", IdempotencyKey: "recover:" + x.id, Provenance: map[string]any{"reason": "process restart", "reservation_id": x.id}, At: now})
+			refs, err := requestRefs(ctx, tx, x.req)
+			if err != nil {
+				return err
+			}
+			_, err = s.RecordTx(ctx, tx, Entry{Kind: "unknown_usage", RequestID: x.req, AttemptID: x.att, AccountID: x.acc, BindingID: x.binding,
+				UsageSource: "unknown", IdempotencyKey: "recover:" + x.id, Provenance: map[string]any{"reason": "process restart", "reservation_id": x.id},
+				Refs: refs, At: now})
 			return err
 		})
 		if err != nil {

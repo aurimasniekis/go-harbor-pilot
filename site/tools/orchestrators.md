@@ -79,9 +79,11 @@ Harbor Pilot records them on every request the token makes.
 | Key | Effect |
 |---|---|
 | `run`, `spaceman.run` or `ci.job` | The run reference on each usage entry, so spend adds up per run. |
-| `session` | Groups the run's requests into one session, with high confidence. |
+| `session` | Groups the run's requests into one session, with high confidence. Find its session id with `ref=session:<value>`. |
 | `project_id` | Charges the run to a project. It must be the client's project or one of its allowed projects. |
 | anything else | Recorded as a trusted reference for reporting, for example `spaceman.space`. |
+
+Every trusted reference, whatever its key, can filter and group usage and activity (see below).
 
 A run token inherits the parent's references and the references configured on the client (under the client's
 **References** setting). It can add to them, but it can't override either.
@@ -126,6 +128,24 @@ token gets `404`.
 
 Runs show up like any other client's traffic: under the orchestrator's client, in **Requests**, and in **Spend**
 broken down by client and project.
+
+To tell runs apart, filter and group by their trusted references through the API, with an API token (`hpa_…`) that has `usage.read`
+and `activity.read`:
+
+```sh
+# Per-run totals in one space, one group per run (paged with cursor and limit)
+curl -sS "https://pilot.example.com/api/v1/usage/summary?ref=spaceman.space:spc_alpha&group_by=ref:spaceman.run" \
+  -H "Authorization: Bearer $API_TOKEN"
+
+# One run's requests
+curl -sS "https://pilot.example.com/api/v1/activity/requests?ref=spaceman.run:run_a" -H "Authorization: Bearer $API_TOKEN"
+
+# The session id of a run's bound session
+curl -sS "https://pilot.example.com/api/v1/activity/sessions?ref=session:run_a" -H "Authorization: Bearer $API_TOKEN"
+```
+
+Only trusted references count: headers an agent sends never move usage between runs. Add `binding_id=` when other
+clients could use the same reference values. See [Usage and activity by reference](/reference/api#usage-and-activity-by-reference).
 
 <Shot name="client" alt="A client page with recent requests, its access tokens and the setup steps for its tool" caption="The orchestrator's client: its requests and tokens" />
 

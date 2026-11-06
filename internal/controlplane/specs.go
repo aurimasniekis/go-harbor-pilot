@@ -30,7 +30,15 @@ const (
 	KindTracePolicy   = "trace_policy"
 )
 
-var refKeyRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
+// RefKeyPattern is the rule for reference keys (bound_refs, external_refs
+// and the keys usage and activity can be filtered on).
+const RefKeyPattern = `[a-z0-9][a-z0-9._-]{0,63}`
+
+var refKeyRE = regexp.MustCompile(`^` + RefKeyPattern + `$`)
+
+// ValidRefKey reports whether k is a valid reference key.
+func ValidRefKey(k string) bool { return refKeyRE.MatchString(k) }
+
 var headerNameRE = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
 
 // checkSecretRef validates an optional secret reference against the

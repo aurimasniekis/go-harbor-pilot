@@ -109,6 +109,8 @@ The answer (`201`) holds the new token, shown once, in `token` and its descripti
 - has a subset of its parent's scopes and never `tokens:mint`, so it cannot mint further tokens;
 - lives 12 hours by default and at most 7 days, and never longer than its parent;
 - carries its `bound_refs` as **trusted** references on every request, and a bound project when the client allows it;
+  usage and activity can be filtered and grouped by them (see
+  [Usage and activity by reference](/reference/api#usage-and-activity-by-reference));
 - can be revoked by its parent or by itself with `DELETE /v1/harbor/credentials/{id}`.
 
 See [Agent orchestrators](/tools/orchestrators).

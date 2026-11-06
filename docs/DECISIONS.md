@@ -329,3 +329,27 @@ path and adapter version, one work item per fingerprint.
 - **Proxies and exposure:** client addresses join every `X-Forwarded-For` line. Token-less `/metrics` is served only to
   direct loopback requests without forwarding headers, never with trusted proxies configured. Demo mode refuses a
   non-loopback address without `--demo-allow-public`.
+
+## D-041: Usage and activity filter and group by trusted references
+
+- **Shape.** `GET /api/v1/usage/summary`, `/activity/requests` and `/activity/sessions` accept `ref=<key>:<value>`,
+  repeatable (at most 4, ANDed). The value is split at the first `:`, the key follows the bound-ref key rules, and the
+  value is 1 to 256 bytes. `usage/summary` also accepts `group_by=ref:<key>`, where rows without the key form the `""`
+  group, and a `binding_id` filter. Permissions stay `usage.read` and `activity.read`.
+- **Paged groups, whole totals.** `group_by=ref:<key>` groups are ordered by key and paged with the usual `cursor`,
+  `limit` (default 50, at most 500) and `next_cursor`. There is no group cap. `totals` always cover every matching row
+  in the range, whatever the page. Other groupings return all their groups, ordered by tokens as before.
+- **Trusted only.** Only `trusted_refs` (mint-time `bound_refs` and the client's `external_refs`) are indexed or
+  filterable, never claims or headers. A client-filterable ref would let any agent add usage to another run's totals
+  or hide its own. Refs are trusted per client: a minting credential chooses its runs' values, so consumers that share
+  a ref namespace across clients also filter on `binding_id` or a key the client pins.
+- **External session.** `ref=session:<value>` finds a bound session's requests, usage and `ses_…` id. The raw value is
+  not added to `/activity/sessions` (session keys stay HMAC-only), and `session_id` keeps meaning the internal id.
+- **Storage.** New tables `ledger_refs` (written in the ledger row's transaction, so totals never lose attribution) and
+  `request_refs` (written with the request row by the telemetry writer). Corrections without refs copy the corrected
+  row's; startup recovery copies them from the request row when it exists. The migration backfills both tables from
+  `requests.trusted_refs`. `ledger.run_ref` stays for compatibility.
+- **Fees under a filter.** `subscription_fees` and the `subscription_fee` total stay whole-range figures and ignore
+  filters. Allocation keeps the account's unfiltered token total as its denominator, so a filtered slice gets its
+  share of the fee, not the whole fee.
+- **Not yet.** `/usage/series` has no `ref` filter; that is a follow-up.

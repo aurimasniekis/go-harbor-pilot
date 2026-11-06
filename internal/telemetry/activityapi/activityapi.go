@@ -176,17 +176,18 @@ func Register(a *api.API, db func() *store.DB, dropped func() int64) {
 	tags := []string{"Activity"}
 	type listIn struct {
 		api.PageParams
-		BindingID string `query:"binding_id" maxLength:"64"`
-		ProjectID string `query:"project_id" maxLength:"64"`
-		SessionID string `query:"session_id" maxLength:"64"`
-		AccountID string `query:"account_id" maxLength:"64"`
-		Status    string `query:"status" enum:"in_progress,ok,error,blocked,canceled," required:"false"`
-		Model     string `query:"model" maxLength:"200"`
-		Harness   string `query:"harness" maxLength:"32"`
-		From      string `query:"from" doc:"RFC 3339; only requests created at or after this time."`
-		To        string `query:"to" doc:"RFC 3339; only requests created before this time."`
-		Fallbacks bool   `query:"fallbacks" doc:"Only requests that needed more than one attempt."`
-		Search    string `query:"q" maxLength:"200" doc:"Request id, or a prefix of the requested or served model."`
+		BindingID string   `query:"binding_id" maxLength:"64"`
+		ProjectID string   `query:"project_id" maxLength:"64"`
+		SessionID string   `query:"session_id" maxLength:"64"`
+		AccountID string   `query:"account_id" maxLength:"64"`
+		Status    string   `query:"status" enum:"in_progress,ok,error,blocked,canceled," required:"false"`
+		Model     string   `query:"model" maxLength:"200"`
+		Harness   string   `query:"harness" maxLength:"32"`
+		From      string   `query:"from" doc:"RFC 3339; only requests created at or after this time."`
+		To        string   `query:"to" doc:"RFC 3339; only requests created before this time."`
+		Fallbacks bool     `query:"fallbacks" doc:"Only requests that needed more than one attempt."`
+		Search    string   `query:"q" maxLength:"200" doc:"Request id, or a prefix of the requested or served model."`
+		Refs      []string `query:"ref,explode" required:"false" maxItems:"4" doc:"Trusted-reference filter <key>:<value>, split at the first colon. Repeatable (at most 4, ANDed)."`
 	}
 	type listOut struct{ Body RequestPage }
 	api.Register(a, api.Op{ID: "list-requests", Method: http.MethodGet, Path: "/activity/requests", Summary: "List gateway requests (newest first)",
@@ -195,9 +196,17 @@ func Register(a *api.API, db func() *store.DB, dropped func() int64) {
 		if err != nil {
 			return nil, err
 		}
+		refs, err := api.ParseRefFilters(in.Refs)
+		if err != nil {
+			return nil, err
+		}
 		lim := in.NormalizeLimit()
 		where := ` WHERE 1=1`
 		var args []any
+		for _, f := range refs {
+			where += ` AND id IN (SELECT request_id FROM request_refs WHERE key = ? AND value = ?)`
+			args = append(args, f.Key, f.Value)
+		}
 		for col, v := range map[string]string{"binding_id": in.BindingID, "project_id": in.ProjectID, "session_id": in.SessionID,
 			"final_account_id": in.AccountID, "status": in.Status, "requested_model": in.Model, "harness": in.Harness} {
 			if v != "" {
@@ -263,7 +272,8 @@ func Register(a *api.API, db func() *store.DB, dropped func() int64) {
 
 	type sessIn struct {
 		api.PageParams
-		BindingID string `query:"binding_id" maxLength:"64"`
+		BindingID string   `query:"binding_id" maxLength:"64"`
+		Refs      []string `query:"ref,explode" required:"false" maxItems:"4" doc:"Sessions with a request carrying these trusted references, e.g. session:<value> for a bound session. Same syntax as on /activity/requests."`
 	}
 	type sessOut struct{ Body api.Page[ObservedSession] }
 	api.Register(a, api.Op{ID: "list-sessions", Method: http.MethodGet, Path: "/activity/sessions", Summary: "List observed sessions (most recent first)",
@@ -272,9 +282,21 @@ func Register(a *api.API, db func() *store.DB, dropped func() int64) {
 		if err != nil {
 			return nil, err
 		}
+		refs, err := api.ParseRefFilters(in.Refs)
+		if err != nil {
+			return nil, err
+		}
 		lim := in.NormalizeLimit()
 		q := `SELECT id, binding_id, source, confidence, harness, first_seen, last_seen, requests FROM sessions WHERE 1=1`
 		var args []any
+		if len(refs) > 0 {
+			sub := `SELECT session_id FROM requests WHERE session_id IS NOT NULL`
+			for _, f := range refs {
+				sub += ` AND id IN (SELECT request_id FROM request_refs WHERE key = ? AND value = ?)`
+				args = append(args, f.Key, f.Value)
+			}
+			q += ` AND id IN (` + sub + `)`
+		}
 		if before != "" {
 			q += ` AND id < ?`
 			args = append(args, before)

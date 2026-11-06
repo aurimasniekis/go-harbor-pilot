@@ -134,6 +134,10 @@ The `Snapshot` keeps accounts, pools, plans and compiled Expr programs read-only
   - control-plane tables, each with `revision`, `managed_by`, `drift_state` and `created_at`/`updated_at`
   - `config_revisions`
   - the ledger (append-only), reservations, and activity (requests, attempts, tool observations, session index)
+  - the trusted-reference index (D-041): `ledger_refs` has one row per ledger row and trusted ref, written in the ledger
+    row's transaction; `request_refs` has one row per request and trusted ref, written with the request row by the
+    telemetry writer. Only `trusted_refs` (bound refs and the client's external refs) are indexed, never header claims.
+    Usage and activity filters and the `ref:<key>` grouping read these tables.
   - quota observations
   - the outbox, deliveries and audit log
 - `traces.db` holds encrypted trace bodies, a per-bucket wrapped DEK table, and an FTS5 index over masked text only.

@@ -51,7 +51,7 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 			_, _ = g.Acct.Record(context.WithoutCancel(ctx), accounting.Entry{Kind: "unknown_usage", RequestID: rc.id, AttemptID: attID,
 				SessionID: rc.session.ID, WorkspaceID: rc.workspace, ProjectID: rc.project, RunRef: runRef(rc.refs), BindingID: rc.binding.ID,
 				AccountID: acc.ID, ProviderID: prov.ID, Model: cand.Model, Billing: acc.Spec.Billing, UsageSource: "unknown",
-				IdempotencyKey: "usage:" + attID, Provenance: map[string]any{"reason": string(ae.Err.Kind)}})
+				Refs: rc.refs, IdempotencyKey: "usage:" + attID, Provenance: map[string]any{"reason": string(ae.Err.Kind)}})
 		} else {
 			_ = g.Acct.Settle(ctx, rsvID, "released", string(ae.Err.Kind))
 		}
@@ -135,7 +135,7 @@ func (g *Gateway) settleUsage(ctx context.Context, rc *reqCtx, fi *finalInfo, at
 	fi.cost = cost
 	e := accounting.Entry{Kind: kind, RequestID: rc.id, AttemptID: attID, SessionID: rc.session.ID, WorkspaceID: rc.workspace, ProjectID: rc.project,
 		RunRef: runRef(rc.refs), BindingID: rc.binding.ID, AccountID: acc.ID, ProviderID: fi.cand.ProviderID, Model: fi.cand.Model,
-		Billing: acc.Spec.Billing, Usage: fi.usage, UsageSource: fi.usageSource, IdempotencyKey: "usage:" + attID,
+		Billing: acc.Spec.Billing, Usage: fi.usage, UsageSource: fi.usageSource, Refs: rc.refs, IdempotencyKey: "usage:" + attID,
 		Provenance: map[string]any{"complete": complete, "mode": string(fi.mode)}}
 	if cost != nil {
 		a := cost.Amount

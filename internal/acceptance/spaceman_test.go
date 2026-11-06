@@ -2,10 +2,15 @@ package acceptance_test
 
 import (
 	"encoding/json"
+	"math"
+	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/aurimasniekis/go-harbor-pilot/internal/api"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/apptest"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/money"
 )
 
 func userMsg(text string) map[string]any {
@@ -225,5 +230,240 @@ func TestModelIntentClassifierSeesMaskedContent(t *testing.T) {
 	}
 	if n := e.QueryInt(`SELECT COUNT(*) FROM ledger WHERE idempotency_key LIKE 'classifier:%' AND input_tokens = 30`); n != 1 {
 		t.Fatal("classifier usage not accounted separately")
+	}
+}
+
+type refUsageGroup struct {
+	Key      string `json:"key"`
+	Attempts int64  `json:"attempts"`
+	Tokens   struct {
+		Input  int64 `json:"input"`
+		Output int64 `json:"output"`
+	} `json:"tokens"`
+	Costs []struct {
+		Kind   string `json:"kind"`
+		Amount string `json:"amount"`
+	} `json:"costs"`
+	Allocated []struct {
+		Kind   string `json:"kind"`
+		Amount string `json:"amount"`
+	} `json:"allocated"`
+}
+
+type refUsageSummary struct {
+	GroupBy string `json:"group_by"`
+	Filters *struct {
+		Refs      map[string]string `json:"refs"`
+		BindingID string            `json:"binding_id"`
+	} `json:"filters"`
+	Groups     []refUsageGroup `json:"groups"`
+	NextCursor string          `json:"next_cursor"`
+	Totals     []struct {
+		Kind   string `json:"kind"`
+		Amount string `json:"amount"`
+	} `json:"totals"`
+	Fees []struct {
+		Prorated string `json:"prorated"`
+	} `json:"subscription_fees"`
+}
+
+func decimal(t *testing.T, s string) float64 {
+	t.Helper()
+	a, err := money.ParseDecimal(s)
+	if err != nil {
+		t.Fatalf("amount %q: %v", s, err)
+	}
+	return float64(a) / 1e10
+}
+
+// D-041: two SpaceMan runs under one binding and one project get separate
+// usage totals through the trusted-ref filter and group-by; header claims
+// never count.
+func TestSpaceManPerRunUsageByTrustedRef(t *testing.T) {
+	e := apptest.New(t)
+	up := apptest.NewUpstream(t, "anthropic")
+	prov := e.Provider("p", "anthropic", up.Srv.URL, apptest.Model{ID: "m", MaxOutput: 1024, Price: &[2]string{"1", "2"}})
+	acc := e.Account("a", prov, apptest.AccountOpts{Billing: "subscription"})
+	alias := e.Alias("coding/default", e.Pool("p", "ordered", apptest.Member{Account: acc, Model: "m"}))
+	plan := e.Plan("default", apptest.PlanOpts{DefaultAlias: alias})
+	var ws, proj struct {
+		ID string `json:"id"`
+	}
+	e.Admin.MustDo(201, "POST", "/api/v1/workspaces", map[string]any{"name": "w", "spec": map[string]any{}}, &ws)
+	e.Admin.MustDo(201, "POST", "/api/v1/projects", map[string]any{"name": "proj", "spec": map[string]any{"workspace_id": ws.ID}}, &proj)
+	e.Admin.MustDo(201, "POST", "/api/v1/subscription-entitlements", map[string]any{"name": "sub", "spec": map[string]any{"account_id": acc,
+		"plan_name": "Team", "fee": "30", "currency": "USD", "period": "monthly", "starts_on": "2020-01-01"}}, nil)
+	binding := e.Binding("spaceman-runs", plan, apptest.BindingOpts{ProjectID: proj.ID, ExternalRefs: map[string]string{"spaceman.fleet": "fleet_1"}})
+	parent := e.Token(binding, "gateway:invoke", "gateway:models", "tokens:mint")
+	laptop := e.Token(e.Binding("laptop", plan, apptest.BindingOpts{}))
+
+	mint := func(run string) string {
+		r := e.Gateway("POST", "/v1/harbor/credentials", parent, map[string]any{"name": "run " + run, "scopes": []string{"gateway:invoke"}, "ttl_seconds": 3600,
+			"bound_refs": map[string]string{"spaceman.space": "spc_alpha", "spaceman.run": run, "spaceman.instance": "ins_" + run, "session": run,
+				"project_id": proj.ID}})
+		var out struct {
+			Token string `json:"token"`
+		}
+		body := apptest.ReadAll(r)
+		if r.StatusCode != 201 || json.Unmarshal([]byte(body), &out) != nil || out.Token == "" {
+			t.Fatalf("mint %s: %d %s", run, r.StatusCode, body)
+		}
+		return out.Token
+	}
+	runA, runB := mint("run_a"), mint("run_b")
+	up.Push(apptest.Reply{Text: "a1", InputTok: 100, OutputTok: 10}, apptest.Reply{Text: "a2", InputTok: 200, OutputTok: 20},
+		apptest.Reply{Text: "b1", InputTok: 1000, OutputTok: 100}, apptest.Reply{Text: "l1", InputTok: 50, OutputTok: 5})
+	// The standalone client claims run_a through headers: never attribution.
+	for _, c := range []struct{ tok, prompt string }{{runA, "a1"}, {runA, "a2"}, {runB, "b1"}, {laptop, "l1"}} {
+		r := e.Gateway("POST", "/v1/messages", c.tok, userMsg(c.prompt), "X-HP-Session", "run_a", "X-HP-External-Ref", "spaceman.run=run_a")
+		if b := apptest.ReadAll(r); r.StatusCode != 200 {
+			t.Fatalf("%s: %d %s", c.prompt, r.StatusCode, b)
+		}
+	}
+	e.Flush()
+
+	cost := func(g refUsageGroup) float64 {
+		for _, c := range g.Costs {
+			if c.Kind == "list_equivalent" {
+				return decimal(t, c.Amount)
+			}
+		}
+		t.Fatalf("group %q has no list_equivalent cost: %+v", g.Key, g.Costs)
+		return 0
+	}
+
+	// Per-run totals inside the space.
+	var s refUsageSummary
+	e.Admin.MustDo(200, "GET", "/api/v1/usage/summary?ref=spaceman.space:spc_alpha&group_by=ref:spaceman.run", nil, &s)
+	if s.GroupBy != "ref:spaceman.run" || s.Filters == nil || s.Filters.Refs["spaceman.space"] != "spc_alpha" || len(s.Groups) != 2 {
+		t.Fatalf("per-run summary %+v", s)
+	}
+	a, b := s.Groups[0], s.Groups[1]
+	if a.Key != "run_a" || a.Attempts != 2 || a.Tokens.Input != 300 || a.Tokens.Output != 30 {
+		t.Fatalf("run_a %+v", a)
+	}
+	if b.Key != "run_b" || b.Attempts != 1 || b.Tokens.Input != 1000 || b.Tokens.Output != 100 {
+		t.Fatalf("run_b %+v", b)
+	}
+	if ca, cb := cost(a), cost(b); math.Abs(ca-0.00036) > 1e-9 || math.Abs(cb-0.0012) > 1e-9 {
+		t.Fatalf("run costs %v %v", ca, cb)
+	}
+	var spaceTotal float64
+	for _, x := range s.Totals {
+		if x.Kind == "list_equivalent" {
+			spaceTotal = decimal(t, x.Amount)
+		}
+	}
+	if math.Abs(spaceTotal-(cost(a)+cost(b))) > 1e-9 {
+		t.Fatalf("space total %v != run sum", spaceTotal)
+	}
+	// Each run's allocation is its share of the account's tokens (the
+	// laptop's included in the denominator), not the whole fee.
+	if len(s.Fees) != 1 || len(a.Allocated) != 1 || len(b.Allocated) != 1 {
+		t.Fatalf("fees %+v allocations %+v %+v", s.Fees, a.Allocated, b.Allocated)
+	}
+	pr := decimal(t, s.Fees[0].Prorated)
+	accountTokens := float64(330 + 1100 + 55)
+	if got, want := decimal(t, a.Allocated[0].Amount), pr*330/accountTokens; math.Abs(got-want) > 1e-6 {
+		t.Fatalf("run_a allocation %v, want %v", got, want)
+	}
+	if got, want := decimal(t, b.Allocated[0].Amount), pr*1100/accountTokens; math.Abs(got-want) > 1e-6 {
+		t.Fatalf("run_b allocation %v, want %v", got, want)
+	}
+
+	// The split comes from the ref, not the project: one project group.
+	var byProject refUsageSummary
+	e.Admin.MustDo(200, "GET", "/api/v1/usage/summary?ref=spaceman.space:spc_alpha&group_by=project", nil, &byProject)
+	if len(byProject.Groups) != 1 || byProject.Groups[0].Key != proj.ID || byProject.Groups[0].Attempts != 3 {
+		t.Fatalf("by project %+v", byProject.Groups)
+	}
+	// One run's total by model; binding_id combines with ref.
+	var one refUsageSummary
+	e.Admin.MustDo(200, "GET", "/api/v1/usage/summary?ref=spaceman.run:run_a&binding_id="+binding+"&group_by=model", nil, &one)
+	if len(one.Groups) != 1 || one.Groups[0].Key != "m" || one.Groups[0].Attempts != 2 || one.Groups[0].Tokens.Input != 300 ||
+		one.Filters == nil || one.Filters.BindingID != binding {
+		t.Fatalf("run_a by model %+v", one)
+	}
+	var none refUsageSummary
+	e.Admin.MustDo(200, "GET", "/api/v1/usage/summary?ref=spaceman.run:run_a&ref=spaceman.run:run_b", nil, &none)
+	if len(none.Groups) != 0 {
+		t.Fatalf("contradicting refs matched %+v", none.Groups)
+	}
+	// Rows without the key form the "" group; groups page by key with
+	// whole-range totals on every page.
+	var p1, p2 refUsageSummary
+	e.Admin.MustDo(200, "GET", "/api/v1/usage/summary?group_by=ref:spaceman.run&limit=2", nil, &p1)
+	if len(p1.Groups) != 2 || p1.Groups[0].Key != "" || p1.Groups[0].Attempts != 1 || p1.Groups[1].Key != "run_a" || p1.NextCursor == "" {
+		t.Fatalf("page 1 %+v", p1)
+	}
+	e.Admin.MustDo(200, "GET", "/api/v1/usage/summary?group_by=ref:spaceman.run&limit=2&cursor="+url.QueryEscape(p1.NextCursor), nil, &p2)
+	if len(p2.Groups) != 1 || p2.Groups[0].Key != "run_b" || p2.NextCursor != "" {
+		t.Fatalf("page 2 %+v", p2)
+	}
+	if !reflect.DeepEqual(p1.Totals, p2.Totals) || len(p1.Totals) == 0 {
+		t.Fatalf("totals differ across pages: %+v %+v", p1.Totals, p2.Totals)
+	}
+
+	// Activity: run_a's requests, paged.
+	var reqs struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+		NextCursor string `json:"next_cursor"`
+		Total      int64  `json:"total"`
+	}
+	e.Admin.MustDo(200, "GET", "/api/v1/activity/requests?ref=spaceman.run:run_a&limit=1", nil, &reqs)
+	if reqs.Total != 2 || len(reqs.Items) != 1 || reqs.NextCursor == "" {
+		t.Fatalf("run_a requests %+v", reqs)
+	}
+	first, cursor := reqs.Items[0].ID, reqs.NextCursor
+	reqs.Items, reqs.NextCursor, reqs.Total = nil, "", 0
+	e.Admin.MustDo(200, "GET", "/api/v1/activity/requests?ref=spaceman.run:run_a&limit=1&cursor="+url.QueryEscape(cursor), nil, &reqs)
+	if reqs.Total != 2 || len(reqs.Items) != 1 || reqs.Items[0].ID == first || reqs.NextCursor != "" {
+		t.Fatalf("run_a requests page 2 %+v", reqs)
+	}
+	// The external session value finds the internal session id.
+	var sess struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}
+	e.Admin.MustDo(200, "GET", "/api/v1/activity/sessions?ref=session:run_a", nil, &sess)
+	want := e.QueryString(`SELECT session_id FROM requests WHERE trusted_refs LIKE '%"run_a"%' LIMIT 1`)
+	if len(sess.Items) != 1 || sess.Items[0].ID != want || !strings.HasPrefix(want, "ses_") {
+		t.Fatalf("sessions for run_a %+v (want %s)", sess.Items, want)
+	}
+}
+
+func TestTrustedRefFilterValidation(t *testing.T) {
+	e := apptest.New(t)
+	long := strings.Repeat("v", 257)
+	for _, tt := range []struct {
+		name, path, loc string
+	}{
+		{"no colon", "/api/v1/usage/summary?ref=nocolon", "query.ref"},
+		{"empty key", "/api/v1/usage/summary?ref=:v", "query.ref"},
+		{"bad key", "/api/v1/usage/summary?ref=Bad.Key:v", "query.ref"},
+		{"empty value", "/api/v1/activity/requests?ref=spaceman.run:", "query.ref"},
+		{"long value", "/api/v1/activity/requests?ref=spaceman.run:" + long, "query.ref"},
+		{"too many", "/api/v1/activity/sessions?ref=a:1&ref=b:2&ref=c:3&ref=d:4&ref=e:5", "query.ref"},
+		{"empty group key", "/api/v1/usage/summary?group_by=ref:", "query.group_by"},
+		{"bad group key", "/api/v1/usage/summary?group_by=ref:BAD", "query.group_by"},
+		{"unknown group", "/api/v1/usage/summary?group_by=refx", "query.group_by"},
+		{"bad cursor", "/api/v1/usage/summary?group_by=ref:spaceman.run&cursor=" + api.EncodeCursor("x"), "query.cursor"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			code, body, _ := e.Admin.GetRaw(tt.path)
+			if code != 422 || !strings.Contains(string(body), `"code":"validation_failed"`) || !strings.Contains(string(body), tt.loc) {
+				t.Fatalf("%d %s", code, body)
+			}
+		})
+	}
+	// Values may contain colons and commas.
+	for _, path := range []string{"/api/v1/usage/summary?ref=" + url.QueryEscape("git.repo:https://x.example/a,b") + "&group_by=ref:git.repo",
+		"/api/v1/activity/requests?ref=" + url.QueryEscape("git.repo:https://x.example/a,b")} {
+		if code, body, _ := e.Admin.GetRaw(path); code != 200 {
+			t.Fatalf("%s: %d %s", path, code, body)
+		}
 	}
 }

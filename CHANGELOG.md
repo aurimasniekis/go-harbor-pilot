@@ -3,6 +3,16 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
+## Unreleased
+
+### Activity and spend
+
+- Filter usage and activity by trusted reference: `ref=<key>:<value>` on `/api/v1/usage/summary`,
+  `/api/v1/activity/requests` and `/api/v1/activity/sessions`, and `group_by=ref:<key>` on the usage summary, so an
+  orchestrator gets per-run totals (for example `group_by=ref:spaceman.run`) and finds a bound session's id. Reference
+  groups are paged with `cursor` and `limit`. The usage summary also takes `binding_id`. Existing history is indexed
+  when the database is upgraded.
+
 ## 0.1.1 (2026-11-06)
 
 The first release. A `v0.1.0` tag exists, but its release build stopped on a flaky test and nothing was
