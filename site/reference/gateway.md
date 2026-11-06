@@ -30,7 +30,7 @@ provider: upstream requests carry the account's own credential, or none for loca
 | `POST /v1/responses` (also under `/openai`) | OpenAI Responses. |
 | `POST /v1beta/models/{model}:generateContent` (also under `/gemini`) | Gemini, not streaming. |
 | `POST /v1beta/models/{model}:streamGenerateContent` (also under `/gemini`) | Gemini, streaming. |
-| `POST /v1beta/models/{model}:countTokens` (also under `/gemini`) | Token estimate, as above. |
+| `POST /v1beta/models/{model}:countTokens` (also under `/gemini`) | The same estimate in Gemini's shape, `{"totalTokens": N}`. Accepts `contents` or a wrapped `generateContentRequest`. |
 | `GET /v1/models` | The models the client may use: Anthropic shape when the request has `anthropic-version` or `x-api-key`, otherwise OpenAI shape. |
 | `GET /anthropic/v1/models`, `/openai/v1/models`, `/v1beta/models` | The same list in an explicit shape. |
 | `POST /v1/harbor/credentials` | Mint a short-lived child token (see below). |
