@@ -13,6 +13,13 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
   groups are paged with `cursor` and `limit`. The usage summary also takes `binding_id`. Existing history is indexed
   when the database is upgraded.
 
+### Upgrade notes
+
+- The first start after the upgrade indexes existing history in one migration, before the server listens. Its time
+  and disk use grow with the number of requests and ledger rows times their trusted references: as a guide, 1M
+  requests plus 1M ledger rows with 3 references each took about 27 s and added about 530 MB. Leave room for that
+  next to the database and its pre-upgrade copy. Rows whose stored references aren't a JSON object are skipped.
+
 ## 0.1.1 (2026-11-06)
 
 The first release. A `v0.1.0` tag exists, but its release build stopped on a flaky test and nothing was
