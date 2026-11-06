@@ -64,7 +64,7 @@ export function guide(kind: HarnessKind, input: GuideInput): Guide {
         kind, label: 'Claude Code', file: '$CLAUDE_CONFIG_DIR/settings.json (default ~/.claude/settings.json)', lang: 'json',
         snippet: json({ apiKeyHelper: `cat ${tokenFile(kind)}`, env }),
         token: 'apiKeyHelper prints the token file; the token never lives in settings.json.',
-        after: [], verified: true,
+        after: [], verified: false,
       }
     }
     case 'codex': {
