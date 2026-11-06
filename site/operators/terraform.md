@@ -7,17 +7,32 @@ capture rules, alert channels and rules, event relays, automation accounts and s
 It talks only to the control-plane API (`/api/v1`), with an API token, like any other client. It never reads the
 database, and it never manages runtime data: requests, usage, captured content and alert history stay out of it.
 
-::: warning Not on the Terraform Registry yet
-The provider is pre-release and **not published on the Terraform Registry yet**. Until it is, build it from source and
-point Terraform at the binary with `dev_overrides` (below). Its acceptance tests run each resource and the seven
-example scenarios against a real `harbor-pilot` server built from the same release line, so its status is
-**contract-tested**.
-:::
+Its acceptance tests run each resource and the seven example scenarios against a real `harbor-pilot` server built from
+the same release line, so its status is **contract-tested**.
 
 ## Install
 
-You need Go 1.27 and Terraform 1.0 or later. Write-only secrets need Terraform 1.11, and the ephemeral token needs
-1.10.
+The provider is on the Terraform Registry as
+[`aurimasniekis/harbor-pilot`](https://registry.terraform.io/providers/aurimasniekis/harbor-pilot/latest). You need
+Terraform 1.0 or later; write-only secrets need 1.11, and the ephemeral token needs 1.10.
+
+```hcl
+terraform {
+  required_providers {
+    harborpilot = {
+      source  = "aurimasniekis/harbor-pilot"
+      version = "~> 0.1"
+    }
+  }
+}
+```
+
+Then run `terraform init`. Use the provider version that matches your server's minor version: provider 0.1 works with
+Harbor Pilot 0.1.
+
+### Build it from source
+
+To work on the provider, or to run an unreleased version, you need Go 1.27:
 
 ```sh
 git clone https://github.com/aurimasniekis/terraform-provider-harbor-pilot.git
@@ -37,15 +52,7 @@ provider_installation {
 ```
 
 With `dev_overrides` you skip `terraform init` for this provider; Terraform prints a warning on every run that the
-override is active. In your configuration:
-
-```hcl
-terraform {
-  required_providers {
-    harborpilot = { source = "aurimasniekis/harbor-pilot" }
-  }
-}
-```
+override is active.
 
 ## Authenticate
 

@@ -10,13 +10,16 @@ Harbor Pilot ships as two container images, published with each release:
 Both images listen on port 8080, keep their data in `/data`, read the master key from `/run/secrets/master_key`, and
 run `harbor-pilot healthcheck` against `/readyz` as their container health check.
 
+Each release is tagged three ways, for linux/amd64 and linux/arm64: the exact version (`0.1.0`), the minor version
+(`0.1`, which moves to each patch release) and `latest`. The examples pin `0.1`.
+
 ## 1. Create a master key
 
 Harbor Pilot encrypts provider credentials and other secrets with a master key that never goes into the database.
 Generate one and keep a copy somewhere safe, apart from your backups:
 
 ```sh
-docker run --rm docker.io/aurimasniekis/harbor-pilot keys generate > master.key
+docker run --rm docker.io/aurimasniekis/harbor-pilot:0.1 keys generate > master.key
 chmod 600 master.key
 sudo chown 65532 master.key   # readable only by the container's user
 ```
@@ -31,7 +34,7 @@ The repository has a Compose file at `deploy/docker-compose.yml`. A minimal vers
 ```yaml
 services:
   harbor-pilot:
-    image: docker.io/aurimasniekis/harbor-pilot
+    image: docker.io/aurimasniekis/harbor-pilot:0.1
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:8080"

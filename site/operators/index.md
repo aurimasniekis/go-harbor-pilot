@@ -4,10 +4,9 @@ These guides are for the people who run Harbor Pilot day to day: checking what n
 request went where it did, keeping spend and quotas in view, and changing where traffic goes. Each one starts from a
 screen in the web UI and says what every part of it means.
 
-::: warning Pre-release
-Harbor Pilot is pre-release software. What has been tested, and how, is listed in the
-[compatibility matrix](/reference/compatibility). Nothing on these pages claims a live run against a provider unless
-that page records one.
+::: info How this was tested
+What has been tested, and how, is listed in the [compatibility matrix](/reference/compatibility). Nothing on these
+pages claims a live run against a provider unless that page records one.
 :::
 
 ## Finding your way around

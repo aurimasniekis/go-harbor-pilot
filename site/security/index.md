@@ -4,8 +4,8 @@ Harbor Pilot sits between your coding tools and your model providers. It holds t
 access, it sees every prompt and response that passes through, and it decides where each request goes. This page says
 what it protects, against whom, and where its protection stops.
 
-Harbor Pilot is pre-release software. Everything below is implemented and covered by tests against fixtures, fakes
-and synthetic upstreams; none of it has been verified against live provider accounts yet (see the
+Everything below is implemented and covered by tests against fixtures, fakes and synthetic upstreams; none of it has
+been verified against live provider accounts yet (see the
 [compatibility matrix](/reference/compatibility)).
 
 ## Trust boundaries
