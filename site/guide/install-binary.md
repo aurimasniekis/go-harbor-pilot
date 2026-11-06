@@ -5,7 +5,7 @@ archives for Linux and macOS on amd64 and arm64, named `harbor-pilot_<version>_<
 `checksums.txt` file. Each archive also contains the example configuration and the systemd unit used below.
 
 ```sh
-VERSION=0.1.0
+VERSION=0.1.1
 ARCH=amd64          # or arm64
 base=https://github.com/aurimasniekis/go-harbor-pilot/releases/download/v$VERSION
 curl -fLO "$base/harbor-pilot_${VERSION}_linux_${ARCH}.tar.gz"

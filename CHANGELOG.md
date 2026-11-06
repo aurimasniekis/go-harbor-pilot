@@ -3,9 +3,10 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
-## 0.1.0 (2026-11-06)
+## 0.1.1 (2026-11-06)
 
-The first release.
+The first release. A `v0.1.0` tag exists, but its release build stopped on a flaky test and nothing was
+published from it.
 
 ### Gateway
 
