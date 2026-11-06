@@ -194,9 +194,12 @@ GET /api/v1/activity/sessions?ref=session:run_a
 }
 ```
 
-- With `group_by=ref:<key>`, usage without that reference forms the group with key `""`.
+- With `group_by=ref:<key>`, usage without that reference forms the group with key `""`. Empty reference values are
+  not indexed, so usage whose value is empty is in that group too.
 - Reference groups are ordered by key and paged like lists: `limit` (1 to 500, default 50), then `cursor` with the
-  previous `next_cursor`. Other groupings return all their groups, and ignore `cursor` and `limit`.
+  previous `next_cursor`. A cursor only works with the same `group_by`, `ref`, `binding_id`, `from` and `to` as the
+  page it came from; otherwise the response is 422 at `query.cursor`. Other groupings return all their groups, and
+  ignore `cursor` and `limit`.
 - `totals` cover all matching usage in the range, on every page.
 - `subscription_fees` and the `subscription_fee` total are the whole range's fees and ignore filters. Each group's
   `allocated` share is its part of the account's tokens, so a filtered slice never gets the whole fee.

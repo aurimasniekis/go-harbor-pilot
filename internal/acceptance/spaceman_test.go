@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/api"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/apptest"
@@ -293,7 +294,7 @@ func TestSpaceManPerRunUsageByTrustedRef(t *testing.T) {
 	e.Admin.MustDo(201, "POST", "/api/v1/projects", map[string]any{"name": "proj", "spec": map[string]any{"workspace_id": ws.ID}}, &proj)
 	e.Admin.MustDo(201, "POST", "/api/v1/subscription-entitlements", map[string]any{"name": "sub", "spec": map[string]any{"account_id": acc,
 		"plan_name": "Team", "fee": "30", "currency": "USD", "period": "monthly", "starts_on": "2020-01-01"}}, nil)
-	binding := e.Binding("spaceman-runs", plan, apptest.BindingOpts{ProjectID: proj.ID, ExternalRefs: map[string]string{"spaceman.fleet": "fleet_1"}})
+	binding := e.Binding("spaceman-runs", plan, apptest.BindingOpts{ProjectID: proj.ID, ExternalRefs: map[string]string{"spaceman.fleet": "fleet_1", "spaceman.note": ""}})
 	parent := e.Token(binding, "gateway:invoke", "gateway:models", "tokens:mint")
 	laptop := e.Token(e.Binding("laptop", plan, apptest.BindingOpts{}))
 
@@ -402,6 +403,26 @@ func TestSpaceManPerRunUsageByTrustedRef(t *testing.T) {
 	}
 	if !reflect.DeepEqual(p1.Totals, p2.Totals) || len(p1.Totals) == 0 {
 		t.Fatalf("totals differ across pages: %+v %+v", p1.Totals, p2.Totals)
+	}
+	// A group cursor only pages the query that produced it.
+	for name, q := range map[string]string{
+		"group_by": "group_by=ref:spaceman.instance&limit=2",
+		"filter":   "group_by=ref:spaceman.run&limit=2&ref=spaceman.space:spc_alpha",
+		"binding":  "group_by=ref:spaceman.run&limit=2&binding_id=" + binding,
+		"range":    "group_by=ref:spaceman.run&limit=2&from=" + url.QueryEscape(time.Now().Add(-48*time.Hour).UTC().Format(time.RFC3339)),
+	} {
+		code, body, _ := e.Admin.GetRaw("/api/v1/usage/summary?" + q + "&cursor=" + url.QueryEscape(p1.NextCursor))
+		if code != 422 || !strings.Contains(string(body), "query.cursor") {
+			t.Fatalf("cursor reused with another %s: %d %s", name, code, body)
+		}
+	}
+	// The binding's empty ref value is not indexed, so it doesn't join the
+	// "" group of rows without the key: here that is every row.
+	if n := e.QueryInt(`SELECT (SELECT count(*) FROM ledger_refs WHERE key = 'spaceman.note') + (SELECT count(*) FROM request_refs WHERE key = 'spaceman.note')`); n != 0 {
+		t.Fatalf("empty ref values indexed: %d rows", n)
+	}
+	if n := e.QueryInt(`SELECT count(*) FROM request_refs WHERE key = 'spaceman.fleet'`); n != 3 {
+		t.Fatalf("fleet ref rows %d, want 3", n)
 	}
 
 	// Activity: run_a's requests, paged.

@@ -323,7 +323,11 @@ func (w *Writer) write(ctx context.Context, batch []item) error {
 				}
 				// Index the trusted refs (D-041). Refs never change during
 				// a request, so repeated writes of the row are no-ops here.
+				// Empty values are skipped, as in the ledger index.
 				for k, v := range r.TrustedRefs {
+					if v == "" {
+						continue
+					}
 					if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO request_refs(key, value, request_id) VALUES (?, ?, ?)`, k, v, r.ID); err != nil {
 						return err
 					}

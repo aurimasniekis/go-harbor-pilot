@@ -24,9 +24,17 @@ CREATE TABLE request_refs (
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX request_refs_request ON request_refs(request_id, key);
 
--- Backfill from the refs already stored on request rows.
+-- Backfill from the refs already stored on request rows. A value that isn't
+-- a JSON object (empty, malformed, an array) indexes nothing, as do non-text
+-- and empty values. The CASE guards json_each itself: a WHERE clause is not
+-- guaranteed to run before the table-valued function.
 INSERT OR IGNORE INTO request_refs(key, value, request_id)
-    SELECT j.key, j.value, r.id FROM requests r, json_each(r.trusted_refs) j WHERE j.type = 'text';
+    SELECT j.key, j.value, r.id
+    FROM requests r,
+         json_each(CASE WHEN json_valid(r.trusted_refs) AND json_type(r.trusted_refs) = 'object' THEN r.trusted_refs ELSE '{}' END) j
+    WHERE j.type = 'text' AND j.value <> '';
 INSERT OR IGNORE INTO ledger_refs(key, value, at, ledger_id)
-    SELECT j.key, j.value, l.at, l.id FROM ledger l JOIN requests r ON r.id = l.request_id, json_each(r.trusted_refs) j
-    WHERE j.type = 'text';
+    SELECT j.key, j.value, l.at, l.id
+    FROM ledger l JOIN requests r ON r.id = l.request_id,
+         json_each(CASE WHEN json_valid(r.trusted_refs) AND json_type(r.trusted_refs) = 'object' THEN r.trusted_refs ELSE '{}' END) j
+    WHERE j.type = 'text' AND j.value <> '';

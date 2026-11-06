@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
@@ -181,7 +182,13 @@ type Entry struct {
 
 // Record appends an entry and its refs in one transaction. A repeated
 // idempotency key is a no-op; it returns the id of the stored row.
+// An entry with nothing to index (no non-empty refs and no correction to
+// copy them from) skips the transaction, so the gateway's pre-dispatch writes
+// stay a single statement.
 func (s *Service) Record(ctx context.Context, e Entry) (string, error) {
+	if !hasRefs(e.Refs) && e.CorrectsID == "" {
+		return s.RecordTx(ctx, s.db.W, e)
+	}
 	var id string
 	err := s.db.Tx(ctx, func(tx *sql.Tx) error {
 		var err error
@@ -235,12 +242,24 @@ func (s *Service) RecordTx(ctx context.Context, ex store.Execer, e Entry) (strin
 		_ = ex.QueryRowContext(ctx, `SELECT id FROM ledger WHERE idempotency_key = ?`, e.IdempotencyKey).Scan(&existing)
 		return existing, nil
 	}
-	if len(e.Refs) > 0 {
+	if hasRefs(e.Refs) {
+		// One statement for every ref. Empty values are not indexed: they
+		// would merge into the "" group of rows without the key.
+		var q strings.Builder
+		q.WriteString(`INSERT OR IGNORE INTO ledger_refs(key, value, at, ledger_id) VALUES `)
+		args := make([]any, 0, 4*len(e.Refs))
 		for k, v := range e.Refs {
-			if _, err := ex.ExecContext(ctx, `INSERT OR IGNORE INTO ledger_refs(key, value, at, ledger_id) VALUES (?, ?, ?, ?)`,
-				k, v, e.At.UnixMilli(), id); err != nil {
-				return "", err
+			if v == "" {
+				continue
 			}
+			if len(args) > 0 {
+				q.WriteString(", ")
+			}
+			q.WriteString("(?, ?, ?, ?)")
+			args = append(args, k, v, e.At.UnixMilli(), id)
+		}
+		if _, err := ex.ExecContext(ctx, q.String(), args...); err != nil {
+			return "", err
 		}
 	} else if e.CorrectsID != "" {
 		if _, err := ex.ExecContext(ctx, `INSERT OR IGNORE INTO ledger_refs(key, value, at, ledger_id)
@@ -249,6 +268,16 @@ func (s *Service) RecordTx(ctx context.Context, ex store.Execer, e Entry) (strin
 		}
 	}
 	return id, nil
+}
+
+// hasRefs reports whether refs holds a value worth indexing.
+func hasRefs(refs map[string]string) bool {
+	for _, v := range refs {
+		if v != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // requestRefs reads the trusted refs stored on a request row (nil when the

@@ -83,6 +83,21 @@ func TestRecordIndexesTrustedRefs(t *testing.T) {
 			t.Fatalf("correction refs %v", got)
 		}
 	})
+	t.Run("empty values are not indexed", func(t *testing.T) {
+		for i, in := range []map[string]string{{"spaceman.run": "run_e", "label": ""}, {"label": ""}} {
+			id, err := s.Record(ctx, Entry{Kind: "usage", UsageSource: "upstream_reported", IdempotencyKey: "empty:" + string(rune('a'+i)), Refs: in})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := map[string]string{}
+			if in["spaceman.run"] != "" {
+				want["spaceman.run"] = in["spaceman.run"]
+			}
+			if got := ledgerRefs(t, db, id); !reflect.DeepEqual(got, want) {
+				t.Fatalf("refs %v, want %v", got, want)
+			}
+		}
+	})
 	t.Run("an entry without refs has none", func(t *testing.T) {
 		id, err := s.Record(ctx, Entry{Kind: "usage", UsageSource: "upstream_reported", IdempotencyKey: "probe:1"})
 		if err != nil {

@@ -107,7 +107,7 @@ func (g *Gateway) classifyWithModel(ctx context.Context, rc *reqCtx, cfg cp.Plan
 	// Classifier usage is accounted separately from the request's own.
 	cost, _ := accounting.Estimate(t.ModelSpec, acc.Spec.Billing, resp.Usage)
 	e := accounting.Entry{Kind: "usage", RequestID: rc.id, SessionID: rc.session.ID, WorkspaceID: rc.workspace, ProjectID: rc.project,
-		BindingID: rc.binding.ID, AccountID: acc.ID, ProviderID: prov.ID, Model: model, Billing: acc.Spec.Billing, Usage: resp.Usage,
+		RunRef: runRef(rc.refs), BindingID: rc.binding.ID, AccountID: acc.ID, ProviderID: prov.ID, Model: model, Billing: acc.Spec.Billing, Usage: resp.Usage,
 		UsageSource: "upstream_reported", CostKind: "none", Refs: rc.refs, IdempotencyKey: "classifier:" + rc.id,
 		Provenance: map[string]any{"classifier": modelClassifierVersion}}
 	if cost != nil {

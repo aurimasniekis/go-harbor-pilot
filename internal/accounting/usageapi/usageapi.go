@@ -12,7 +12,9 @@ package usageapi
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"net/http"
 	"sort"
 	"strings"
@@ -173,6 +175,10 @@ type SummaryQuery struct {
 	// group key. Limit 0 returns every group.
 	Cursor string
 	Limit  int
+	// Range is the from and to as the caller gave them (empty when
+	// defaulted). It is bound into the group cursor instead of From and To,
+	// so a range that defaults to now still pages.
+	Range string
 }
 
 // refGroupPrefix marks a group_by on a trusted reference key.
@@ -219,6 +225,23 @@ func filterWhere(sq SummaryQuery) (string, []any) {
 
 const groupCursorPrefix = "g|"
 
+// cursorScope binds a group cursor to the query that produced it: group_by,
+// the filters and the range as given. Reusing a cursor with another query
+// would silently skip groups, so it is rejected instead.
+func cursorScope(sq SummaryQuery) string {
+	refs := make([]string, 0, len(sq.Refs))
+	for _, f := range sq.Refs {
+		refs = append(refs, f.Key+"\x00"+f.Value)
+	}
+	sort.Strings(refs)
+	h := sha256.New()
+	for _, part := range append([]string{sq.By, sq.BindingID, sq.Range}, refs...) {
+		h.Write([]byte(part))
+		h.Write([]byte{0xff}) // never part of valid UTF-8 input
+	}
+	return hex.EncodeToString(h.Sum(nil)[:6]) + "|"
+}
+
 // Summarize builds a usage summary.
 func Summarize(ctx context.Context, q store.Execer, snap *cp.Snapshot, sq SummaryQuery) (*UsageSummary, error) {
 	g, err := resolveGroup(sq.By)
@@ -235,10 +258,12 @@ func Summarize(ctx context.Context, q store.Execer, snap *cp.Snapshot, sq Summar
 	var next string
 	if g.isRef && sq.Limit > 0 {
 		cond, args := fwhere+usageKinds, append([]any{}, fargs...)
+		scope := groupCursorPrefix + cursorScope(sq)
 		if sq.Cursor != "" {
-			after, ok := strings.CutPrefix(sq.Cursor, groupCursorPrefix)
+			after, ok := strings.CutPrefix(sq.Cursor, scope)
 			if !ok {
-				return nil, api.Invalid("invalid cursor", api.FieldError{Location: "query.cursor", Message: "malformed cursor"})
+				return nil, api.Invalid("invalid cursor", api.FieldError{Location: "query.cursor",
+					Message: "malformed cursor, or from another query (group_by, filters and range must match)"})
 			}
 			cond += ` AND ` + g.expr + ` > ?`
 			args = append(args, after)
@@ -253,7 +278,7 @@ func Summarize(ctx context.Context, q store.Execer, snap *cp.Snapshot, sq Summar
 		}
 		if len(keys) > sq.Limit {
 			keys = keys[:sq.Limit]
-			next = api.EncodeCursor(groupCursorPrefix + keys[len(keys)-1])
+			next = api.EncodeCursor(scope + keys[len(keys)-1])
 		}
 		if len(keys) == 0 {
 			pageCond = ` AND 0`
@@ -622,7 +647,7 @@ func Register(a *api.API, d Deps) {
 		GroupBy   string   `query:"group_by" required:"false" pattern:"^(account|provider|model|binding|project|workspace|billing|ref:[a-z0-9][a-z0-9._-]{0,63})?$" doc:"account (default), provider, model, binding, project, workspace, billing, or ref:<key> to group by a trusted reference key (rows without the key form the \"\" group)."`
 		Refs      []string `query:"ref,explode" required:"false" maxItems:"4" doc:"Trusted-reference filter <key>:<value>, split at the first colon. Repeatable (at most 4, ANDed)."`
 		BindingID string   `query:"binding_id" maxLength:"64" doc:"Only usage of this client binding."`
-		Cursor    string   `query:"cursor" doc:"With group_by=ref:<key>: opaque cursor from a previous page's next_cursor."`
+		Cursor    string   `query:"cursor" doc:"With group_by=ref:<key>: opaque cursor from a previous page's next_cursor. Valid only with the same group_by, ref, binding_id, from and to."`
 		Limit     int      `query:"limit" minimum:"1" maximum:"500" default:"50" doc:"With group_by=ref:<key>: maximum groups to return."`
 	}
 	type sumOut struct{ Body *UsageSummary }
@@ -649,7 +674,7 @@ func Register(a *api.API, d Deps) {
 			limit = 50
 		}
 		s, err := Summarize(ctx, d.DB().R, d.Snapshot(), SummaryQuery{From: from, To: to, By: by, Refs: refs, BindingID: in.BindingID,
-			Cursor: cursor, Limit: limit})
+			Cursor: cursor, Limit: limit, Range: in.From + "|" + in.To})
 		if err != nil {
 			return nil, err
 		}

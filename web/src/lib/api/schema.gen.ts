@@ -12352,7 +12352,7 @@ export interface operations {
                 ref?: string[];
                 /** @description Only usage of this client binding. */
                 binding_id?: string;
-                /** @description With group_by=ref:<key>: opaque cursor from a previous page's next_cursor. */
+                /** @description With group_by=ref:<key>: opaque cursor from a previous page's next_cursor. Valid only with the same group_by, ref, binding_id, from and to. */
                 cursor?: string;
                 /** @description With group_by=ref:<key>: maximum groups to return. */
                 limit?: number;

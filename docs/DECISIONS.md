@@ -338,7 +338,10 @@ path and adapter version, one work item per fingerprint.
   group, and a `binding_id` filter. Permissions stay `usage.read` and `activity.read`.
 - **Paged groups, whole totals.** `group_by=ref:<key>` groups are ordered by key and paged with the usual `cursor`,
   `limit` (default 50, at most 500) and `next_cursor`. There is no group cap. `totals` always cover every matching row
-  in the range, whatever the page. Other groupings return all their groups, ordered by tokens as before.
+  in the range, whatever the page. Other groupings return all their groups, ordered by tokens as before. A group
+  cursor carries a short hash of `group_by`, the filters and `from`/`to` as given (not the resolved times, so a range
+  that defaults to now still pages); a cursor from another query is a 422 at `query.cursor` rather than a page that
+  silently skips groups.
 - **Trusted only.** Only `trusted_refs` (mint-time `bound_refs` and the client's `external_refs`) are indexed or
   filterable, never claims or headers. A client-filterable ref would let any agent add usage to another run's totals
   or hide its own. Refs are trusted per client: a minting credential chooses its runs' values, so consumers that share
@@ -348,7 +351,13 @@ path and adapter version, one work item per fingerprint.
 - **Storage.** New tables `ledger_refs` (written in the ledger row's transaction, so totals never lose attribution) and
   `request_refs` (written with the request row by the telemetry writer). Corrections without refs copy the corrected
   row's; startup recovery copies them from the request row when it exists. The migration backfills both tables from
-  `requests.trusted_refs`. `ledger.run_ref` stays for compatibility.
+  `requests.trusted_refs`; a stored value that isn't a JSON object indexes nothing rather than failing the upgrade.
+  Empty values are never indexed (writers and backfill alike), so they can't merge into the `""` group of rows
+  without the key. `ledger.run_ref` stays for compatibility and is set on every gateway ledger row.
+- **Hot path.** Two ledger writes run before a dispatch: the model classifier's usage row and the `unknown_usage` row
+  of an ambiguous failed attempt. They were already synchronous. With refs to index they now run in one `BEGIN
+  IMMEDIATE` transaction with a single multi-row `ledger_refs` insert, so the extra cost is one statement; without
+  refs they stay a single statement outside a transaction.
 - **Fees under a filter.** `subscription_fees` and the `subscription_fee` total stay whole-range figures and ignore
   filters. Allocation keeps the account's unfiltered token total as its denominator, so a filtered slice gets its
   share of the fee, not the whole fee.
