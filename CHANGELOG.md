@@ -3,6 +3,15 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
+## Unreleased
+
+### Gateway
+
+- `/v1/messages` accepts `system`-role entries inside `messages[]`, as Claude Code sends them on models that support
+  mid-conversation system messages. They used to be rejected with a 400. They now reach Anthropic upstreams
+  unchanged. For OpenAI upstreams they become in-place system messages, and for Gemini they become user text. Each
+  loss is recorded.
+
 ## 0.1.1 (2026-11-06)
 
 The first release. A `v0.1.0` tag exists, but its release build stopped on a flaky test and nothing was

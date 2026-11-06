@@ -91,6 +91,13 @@ func (u *Upstream) Last() Captured {
 	return u.Requests[len(u.Requests)-1]
 }
 
+// Snapshot returns a copy of the captured requests, oldest first.
+func (u *Upstream) Snapshot() []Captured {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return append([]Captured(nil), u.Requests...)
+}
+
 func (u *Upstream) next() Reply {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -127,6 +134,14 @@ func (u *Upstream) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	u.Requests = append(u.Requests, Captured{Path: r.URL.Path + "?" + r.URL.RawQuery, Header: r.Header.Clone(), Body: body, Raw: string(raw)})
 	u.mu.Unlock()
+	if u.Kind == "anthropic" && strings.HasSuffix(r.URL.Path, "/messages") {
+		if msg := checkAnthropicRoles(body); msg != "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, `{"type":"error","error":{"type":"invalid_request_error","message":%q}}`, msg)
+			return
+		}
+	}
 	rep := u.next()
 	if rep.Echo {
 		rep.Text = lastUserText(body)
@@ -357,6 +372,26 @@ func splitN(s string, n int) []string {
 		out = append(out, s[i:end])
 	}
 	return out
+}
+
+// checkAnthropicRoles applies the documented role rules of a Messages
+// request: messages are user, assistant or system, and a system message
+// cannot open the conversation. Model-specific support is not simulated.
+func checkAnthropicRoles(body map[string]any) string {
+	msgs, _ := body["messages"].([]any)
+	for i, m := range msgs {
+		mm, _ := m.(map[string]any)
+		switch mm["role"] {
+		case "user", "assistant":
+		case "system":
+			if i == 0 {
+				return "messages: a system message cannot be the first message"
+			}
+		default:
+			return fmt.Sprintf("messages.%d.role: unexpected role %v", i, mm["role"])
+		}
+	}
+	return ""
 }
 
 // lastUserText extracts the last user message text from Anthropic, Chat or
