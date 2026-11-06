@@ -63,7 +63,8 @@ TRACEABILITY.md (`planned`, `in-progress`).
   `/activity/sessions` by `ref` follow request telemetry, which can drop rows under back-pressure. Usage recovered
   after a restart is attributed to refs only when its request row was written. Refs are trusted per client: a token
   with `tokens:mint` chooses its runs' values, so filter on `binding_id` too when clients share a ref namespace.
-  `subscription_fees` and the `subscription_fee` total ignore filters. `/usage/series` has no `ref` filter yet.
+  `subscription_fees` and the `subscription_fee` total ignore filters. `/usage/series` has no `ref` filter yet, so
+  the Spend page hides its chart (and provider billing and fees) while a reference filter is on.
 
 ## Routing and diagnostics
 

@@ -38,7 +38,26 @@ The tiles change with what Harbor Pilot knows:
 
 The chart shows **Daily cost** (hourly for 24 hours, weekly for 90 days), switchable between **Cost** and **Tokens**, and
 stacked by the grouping you pick for the breakdown below it: **Account**, **Client**, **Model** or **Project**. The
-breakdown lists each group's requests, tokens in and out, estimated cost and share.
+breakdown lists each group's requests, tokens in and out, estimated cost and share. Click a row to open its requests.
+
+### Per run and by reference
+
+Requests made with a token that carries **trusted references**, such as an orchestrator's run token, can be split and
+narrowed by them:
+
+- **Group by → Run** lists one row per run (the `spaceman.run` reference), each with its own requests, tokens, cost and
+  share. **Reference…** groups by any other key: type or pick it, for example `spaceman.task`. Usage without the key is
+  one row, such as **No run**. Rows are listed by value, 50 at a time; **Load more** adds the next ones. The chart
+  shows the whole range unsplit.
+- **Filter by reference** narrows the page to requests that carry a reference, for example **Run: run_42**. Add up to
+  four to require all of them. The tiles become **Estimated cost**, **Requests** and **Tokens** for the matching
+  requests, and the breakdown covers only them. Provider billing, subscription fees, the chart and **Provider vs
+  gateway** can't be narrowed this way, so they are hidden while a filter is on.
+
+Both are part of the page address, so `/usage?group=ref:spaceman.run` is a link to per-run spend. A run's row opens
+that run's requests. Only trusted references count: hints a tool sends in headers never move usage between runs. See
+[Agent orchestrators](/tools/orchestrators#see-the-runs) and the
+[API](/reference/api#usage-and-activity-by-reference).
 
 ### Provider vs gateway
 

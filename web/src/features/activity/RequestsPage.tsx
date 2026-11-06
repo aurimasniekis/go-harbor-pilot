@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { Autocomplete, Badge, Button, Group, Pill, SegmentedControl, Popover, Select, Skeleton, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core'
+import { Autocomplete, Badge, Button, Divider, Group, Pill, SegmentedControl, Popover, Select, Skeleton, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core'
 import { Activity as ActivityIcon, ArrowLeft, CalendarDays, Filter, Search } from 'lucide-react'
 import { z } from 'zod'
 import { QueryError } from '@/components/states'
@@ -12,6 +12,8 @@ import type { AccountRes, BindingRes, Page, ProjectRes, RequestSummary } from '@
 import { fmtDateTime, fmtRelative, getDisplayTimeZone, isKnown, serverNow } from '@/lib/format'
 import { Empty, Stat, StatGrid, StatSkeleton, Unknown, useCompact } from '@/ui/kit'
 import { costKindHelp, costKindName, harnessName, human, money, ms, short } from '@/ui/fmt'
+import { refLabel, refsSearch, withRef } from '@/features/refs/refs'
+import { RefForm } from '@/features/refs/RefPicker'
 import { delta, series, useDayStats } from './useDayStats'
 import s from './activity.module.css'
 
@@ -28,6 +30,8 @@ export const requestSearch = z.object({
   account_id: z.string().optional().catch(undefined),
   project_id: z.string().optional().catch(undefined),
   session_id: z.string().optional().catch(undefined),
+  /** Trusted references, `key:value` (all must match, at most 4). */
+  ref: refsSearch,
   /** Request id or the start of a requested or served model name. */
   q: z.string().optional().catch(undefined),
   /** Older links: same as q. */
@@ -188,8 +192,9 @@ export function RequestsPage() {
   const [text, setText] = useState(query ?? '')
   useEffect(() => setText(query ?? ''), [query])
   const [moreOpen, setMoreOpen] = useState(false)
-  // A session view covers the whole session, however old.
-  const range = f.range ?? (f.session_id ? 'all' : DEFAULT_LOG_RANGE)
+  // A session or run view covers the whole session or run, however old.
+  const scoped = !!f.session_id || !!f.ref?.length
+  const range = f.range ?? (scoped ? 'all' : DEFAULT_LOG_RANGE)
   // Range start rounded to the minute so the query key stays stable.
   const days = range === 'all' ? 0 : range
   const from = days ? new Date(Math.floor((serverNow() - days * 86_400_000) / 60_000) * 60_000).toISOString() : undefined
@@ -201,6 +206,7 @@ export function RequestsPage() {
     account_id: f.account_id,
     project_id: f.project_id,
     session_id: f.session_id,
+    ref: f.ref,
     q: query,
     from,
   }
@@ -252,22 +258,27 @@ export function RequestsPage() {
 
   const items = useMemo(() => (list.data?.pages ?? []).flatMap((p) => p.items ?? []), [list.data])
   const total = list.data?.pages[0]?.total
-  const chips: { key: keyof RequestSearch; label: string }[] = []
-  if (f.binding_id) chips.push({ key: 'binding_id', label: `Client: ${client[f.binding_id]?.name ?? f.binding_id}` })
-  if (f.account_id) chips.push({ key: 'account_id', label: `Account: ${account[f.account_id]?.name ?? f.account_id}` })
-  if (f.harness) chips.push({ key: 'harness', label: `Tool: ${harnessName[f.harness] ?? f.harness}` })
-  if (f.project_id) chips.push({ key: 'project_id', label: `Project: ${project[f.project_id]?.name ?? f.project_id}` })
+  const chips: { key: string; label: string; remove: Partial<RequestSearch> }[] = []
+  const chip = (key: keyof RequestSearch, label: string) => chips.push({ key, label, remove: { [key]: undefined } })
+  if (f.binding_id) chip('binding_id', `Client: ${client[f.binding_id]?.name ?? f.binding_id}`)
+  if (f.account_id) chip('account_id', `Account: ${account[f.account_id]?.name ?? f.account_id}`)
+  if (f.harness) chip('harness', `Tool: ${harnessName[f.harness] ?? f.harness}`)
+  if (f.project_id) chip('project_id', `Project: ${project[f.project_id]?.name ?? f.project_id}`)
+  for (const r of f.ref ?? []) {
+    const rest = f.ref!.filter((x) => x !== r)
+    chips.push({ key: `ref:${r}`, label: refLabel(r), remove: { ref: rest.length ? rest : undefined } })
+  }
   if (f.session_id) {
     const first = items[items.length - 1]
     const who = first ? (client[first.binding_id]?.spec.display_name ?? client[first.binding_id]?.name) : undefined
-    chips.push({ key: 'session_id', label: ['Session', who, first ? `started ${fmtDateTime(first.created_at)}` : undefined].filter(Boolean).join(' · ') })
+    chip('session_id', ['Session', who, first ? `started ${fmtDateTime(first.created_at)}` : undefined].filter(Boolean).join(' · '))
   }
-  if (query) chips.push({ key: 'q', label: `Search: ${query}` })
-  const moreCount = [f.binding_id, f.harness, f.project_id].filter(Boolean).length
+  if (query) chip('q', `Search: ${query}`)
+  const moreCount = [f.binding_id, f.harness, f.project_id].filter(Boolean).length + (f.ref?.length ?? 0)
   const statusView = f.fallbacks ? 'fallbacks' : (f.status ?? 'all')
   const filtered = chips.length > 0 || !!f.status || !!f.fallbacks
   const clearAll = () =>
-    set({ status: undefined, fallbacks: undefined, harness: undefined, binding_id: undefined, account_id: undefined, project_id: undefined, session_id: undefined, q: undefined })
+    set({ status: undefined, fallbacks: undefined, harness: undefined, binding_id: undefined, account_id: undefined, project_id: undefined, session_id: undefined, ref: undefined, q: undefined })
 
   // Rows grouped by day, newest first.
   const groups: { day: string; rows: RequestSummary[] }[] = []
@@ -328,10 +339,10 @@ export function RequestsPage() {
           leftSection={<CalendarDays size={14} />}
           allowDeselect={false}
           value={String(range)}
-          onChange={(v) => v && set({ range: v === String(DEFAULT_LOG_RANGE) && !f.session_id ? undefined : v === 'all' ? 'all' : (Number(v) as 1 | 7 | 30) })}
+          onChange={(v) => v && set({ range: v === String(DEFAULT_LOG_RANGE) && !scoped ? undefined : v === 'all' ? 'all' : (Number(v) as 1 | 7 | 30) })}
           data={rangeOptions}
         />
-        <Popover opened={moreOpen} onChange={setMoreOpen} position="bottom-end" width={260} shadow="md" withinPortal>
+        <Popover opened={moreOpen} onChange={setMoreOpen} position="bottom-end" width={280} shadow="md" withinPortal>
           <Popover.Target>
             <Button variant="default" size="sm" leftSection={<Filter size={14} />} onClick={() => setMoreOpen((o) => !o)}>
               {moreCount ? `Filters (${moreCount})` : 'More filters'}
@@ -367,6 +378,14 @@ export function RequestsPage() {
                 onChange={(v) => set({ project_id: v ?? undefined })}
                 data={(projects.data?.items ?? []).map((p) => ({ value: p.id, label: p.name }))}
               />
+              <Divider label="Filter by reference" labelPosition="left" />
+              <RefForm
+                existing={f.ref ?? []}
+                onAdd={(r) => {
+                  set({ ref: withRef(f.ref, r) })
+                  setMoreOpen(false)
+                }}
+              />
             </Stack>
           </Popover.Dropdown>
         </Popover>
@@ -374,7 +393,7 @@ export function RequestsPage() {
       {chips.length > 0 && (
         <Group gap={6} wrap="wrap">
           {chips.map((c) => (
-            <Pill key={c.key} withRemoveButton onRemove={() => set({ [c.key]: undefined })} removeButtonProps={{ 'aria-label': `Remove ${c.label}` }}>
+            <Pill key={c.key} withRemoveButton onRemove={() => set(c.remove)} removeButtonProps={{ 'aria-label': `Remove ${c.label}` }}>
               {c.label}
             </Pill>
           ))}

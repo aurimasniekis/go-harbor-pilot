@@ -16,7 +16,20 @@ Narrow the list with:
 - **Search**: client, tool, model or request ID.
 - **Show**: **All**, **Errors**, **Blocked** or **Fallbacks**.
 - **Time range**: **Last 24 hours**, **Last 7 days**, **Last 30 days** or **All time**.
-- **More filters**: **Client**, **Tool** and **Project**.
+- **More filters**: **Client**, **Tool** and **Project**, and **Filter by reference**.
+
+### By run or other reference
+
+Requests made with a token that carries **trusted references**, such as an orchestrator's run token, can be filtered by
+them. Open **More filters**, keep the suggested **Reference** `spaceman.run` (or pick another key, such as
+`spaceman.task`), enter the **Value**, for example `run_42`, and choose **Add filter**. The filter shows as a chip in
+plain words, **Run: run_42**; remove it with its ×. Add up to four references to see only requests that carry all of
+them. A second value for the same key replaces the first.
+
+A reference filter shows **All time** unless you pick a range, so a run is shown whole however old it is. The filters
+are part of the page address, so a link to "this run's requests" opens the same view for anyone who can see requests.
+Only trusted references count: hints a tool sends in headers can't be filtered on. See
+[Agent orchestrators](/tools/orchestrators#see-the-runs).
 
 Rows are grouped by day. Each shows the time, the client and its tool, the model asked for and the model that served
 it (`claude-sonnet-4-5 → demo-gpt`), the status, latency and estimated cost. A request that was served by a backup has
@@ -68,7 +81,8 @@ Below the sentence:
 Four collapsed sections hold the detail most people need only now and then:
 
 - **Verified context**: what the gateway established itself: client, project, workspace, session, protocol, required
-  capabilities.
+  capabilities, and the request's trusted references. Each reference has a plain name with its key underneath (for
+  example **Run** and `spaceman.run`) and two links: **All requests with this run** and **Spend**.
 - **Reported by the tool**: what the tool claimed in its headers (session, project, purpose, reference). Harbor Pilot
   only trusts these where the client's settings allow it.
 - **Accounting ledger**: the reservation and the final charge, and whether each figure came from the provider, the

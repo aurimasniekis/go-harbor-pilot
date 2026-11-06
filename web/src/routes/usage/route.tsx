@@ -3,6 +3,7 @@ import { ActionIcon, Button, Group, SegmentedControl, Tooltip } from '@mantine/c
 import { Plus } from 'lucide-react'
 import { z } from 'zod'
 import { LinkTabs, PageHeader, useCompact } from '@/ui/kit'
+import { REF_KEY, refsSearch } from '@/features/refs/refs'
 
 export const usageRanges = [
   { value: '1', label: '24h' },
@@ -25,8 +26,13 @@ const rangeSchema = z.coerce
  */
 export const spendSearch = z.object({
   range: rangeSchema,
-  /** Overview breakdown grouping. */
-  group: z.enum(['account', 'binding', 'model', 'project']).optional().catch(undefined),
+  /** Overview breakdown grouping, or `ref:<key>` to group by a trusted reference key. */
+  group: z
+    .union([z.enum(['account', 'binding', 'model', 'project']), z.custom<`ref:${string}`>((v) => typeof v === 'string' && /^ref:/.test(v) && REF_KEY.test(v.slice(4)))])
+    .optional()
+    .catch(undefined),
+  /** Overview filter: trusted references, `key:value` (all must match, at most 4). */
+  ref: refsSearch,
   /** Overview chart: cost or tokens. */
   view: z.enum(['cost', 'tokens']).optional().catch(undefined),
   /** Breakdown grouping. */

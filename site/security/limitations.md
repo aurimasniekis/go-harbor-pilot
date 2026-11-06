@@ -65,7 +65,7 @@ See [Masking: guarantees and limits](/security/masking).
   Usage recorded after a restart carries references only when its request was recorded. A token that can create run
   tokens chooses their references, so when several clients use the same reference keys, filter by client too.
   Subscription fees under a filter are still whole-range figures, and the usage-over-time endpoint can't filter by
-  reference yet.
+  reference yet, so **Spend** hides its chart, provider billing and fees while a reference filter is on.
 
 ## Routing and diagnostics
 

@@ -26,6 +26,7 @@ import { useCan } from '@/lib/session'
 import { fmtDateTime, fmtRelative, getDisplayTimeZone, isKnown } from '@/lib/format'
 import { asPrivacySummary } from '@/features/privacy/PrivacySummaryPanel'
 import { detectorLabel } from '@/features/privacy/privacy'
+import { formatRef, refKeyLabel } from '@/features/refs/refs'
 import { CopyText, Empty, Fields, InfoTip, PageHeader, Unknown, useCompact } from '@/ui/kit'
 import { costKindHelp, costKindName, harnessName, human, money, ms, protocolName, short, statusName } from '@/ui/fmt'
 import s from './activity.module.css'
@@ -608,9 +609,38 @@ function Verified({ r, d, names }: { r: Detail; d: Decision; names: Names }) {
         ['Purpose', d.intent ? `${human(d.intent)}${d.intent_source ? ` (${d.intent_source})` : ''}` : '—'],
         ['Protocol', `${protocolName[r.inbound_protocol] ?? r.inbound_protocol}${r.stream ? ', streamed' : ''}`],
         ['Required capabilities', r.required_capabilities.length ? r.required_capabilities.join(', ') : 'None'],
-        ...refs.map(([k, v]) => [k, v] as [ReactNode, ReactNode]),
+        ...refs.map(([k, v]) => [<RefKey key={k} k={k} />, <RefValue key={k} k={k} v={v} />] as [ReactNode, ReactNode]),
       ]}
     />
+  )
+}
+
+/** A trusted reference's plain name, with its key underneath. */
+function RefKey({ k }: { k: string }) {
+  return (
+    <span className={s.refKey}>
+      {refKeyLabel(k)}
+      <span className="mono muted">{k}</span>
+    </span>
+  )
+}
+
+/** A trusted reference's value, with links to everything else that carries it. */
+function RefValue({ k, v }: { k: string; v: string }) {
+  const ref = [formatRef({ key: k, value: v })]
+  const name = refKeyLabel(k).toLowerCase()
+  return (
+    <Stack gap={2}>
+      <span className="mono">{v}</span>
+      <Group gap="sm" component="span">
+        <Link to="/activity" search={{ ref }}>
+          All requests with this {name}
+        </Link>
+        <Link to="/usage" search={{ ref }}>
+          Spend
+        </Link>
+      </Group>
+    </Stack>
   )
 }
 
