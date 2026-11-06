@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
-import { useStore } from '@tanstack/react-store'
-import { uiStore } from '@/lib/store'
+import { useScheme } from '@/lib/theme'
 import { EChart, type EChartsOption } from '@/components/EChart'
 import { useCompact } from '@/ui/kit'
 import { barChartBase, tones } from '@/ui/chart'
@@ -19,7 +18,7 @@ export function UsageChart({ rows, bucket, mode, groups }: {
   groups?: { label: string; rows: BucketRow[] }[]
 }) {
   // Charts read theme colors when the option is built, so rebuild on a theme change.
-  const scheme = useStore(uiStore, (st) => st.theme)
+  const scheme = useScheme()
   const compact = useCompact()
   const option = useMemo((): EChartsOption => {
     const c = tones(scheme)

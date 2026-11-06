@@ -4,10 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
 import { ApiError } from './lib/api/client'
-import { useStore } from '@tanstack/react-store'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
-import { uiStore } from './lib/store'
+import { useScheme } from './lib/theme'
 import { cssVariablesResolver, theme } from './theme/theme'
 import './styles/layers.css'
 import '@mantine/core/styles.layer.css'
@@ -15,8 +14,6 @@ import '@mantine/dates/styles.layer.css'
 import '@mantine/spotlight/styles.layer.css'
 import '@mantine/notifications/styles.layer.css'
 import './styles/global.css'
-
-document.documentElement.dataset.theme = uiStore.state.theme
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,9 +39,9 @@ declare module '@tanstack/react-router' {
   }
 }
 
-/** Mantine follows the stored theme preference (dark by default). */
+/** Mantine follows the resolved theme (the stored preference, or the OS for auto). */
 function App() {
-  const scheme = useStore(uiStore, (s) => s.theme)
+  const scheme = useScheme()
   return (
     <MantineProvider theme={theme} cssVariablesResolver={cssVariablesResolver} forceColorScheme={scheme}>
       <Notifications position="bottom-right" />
