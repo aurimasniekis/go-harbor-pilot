@@ -392,6 +392,7 @@ export function DataTable<T>({
   fixed?: boolean
 }) {
   const compact = useCompact()
+  const baseId = useId()
   if (rows.length === 0 && empty) return <>{empty}</>
   if (compact) {
     columns = columns.filter((c) => c.only !== 'desktop')
@@ -405,11 +406,16 @@ export function DataTable<T>({
     return (
       <div role="region" aria-label={label}>
         <ul className={s.cards}>
-          {rows.map((r) => {
+          {rows.map((r, i) => {
+            const titleId = `${baseId}-row-${i}`
             const content = (
               <>
                 <div className={s.cardTop}>
-                  <div className={s.cardTitle}>{title.map((c) => <span key={c.id}>{c.cell(r)}</span>)}</div>
+                  <div className={s.cardTitle} id={titleId}>
+                    {title.map((c) => (
+                      <span key={c.id}>{c.cell(r)}</span>
+                    ))}
+                  </div>
                   <div className={s.cardAside}>
                     {aside.map((c) => <span key={c.id}>{c.cell(r)}</span>)}
                     {actions.map((c) => (
@@ -442,23 +448,17 @@ export function DataTable<T>({
             return (
               <li key={rowKey(r)}>
                 {onRow ? (
-                  // A focusable card rather than a <button>, so row actions
-                  // inside it stay valid, separate buttons.
-                  <div
-                    className={s.card}
-                    data-clickable
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      if (!isInnerAction(e)) onRow(r)
-                    }}
-                    onKeyDown={(e) => {
-                      if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
-                        e.preventDefault()
-                        onRow(r)
-                      }
-                    }}
-                  >
+                  // Stretched-button pattern: one full-size button opens the
+                  // row and row actions sit above it as siblings, so no
+                  // control is nested inside another.
+                  <div className={s.card} data-clickable>
+                    <button
+                      type="button"
+                      className={s.cardHit}
+                      aria-labelledby={title.length > 0 ? titleId : undefined}
+                      aria-label={title.length > 0 ? undefined : 'Open'}
+                      onClick={() => onRow(r)}
+                    />
                     {content}
                   </div>
                 ) : (

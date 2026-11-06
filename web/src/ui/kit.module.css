@@ -332,17 +332,37 @@ button.card:hover {
 
 /* Clickable cards are divs (so row actions inside are real buttons). */
 .card[data-clickable] {
+  position: relative;
   cursor: pointer;
+}
+
+/* The full-size button that opens the row (stretched-button pattern). */
+.cardHit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cardHit:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* Links and row actions inside a card stay clickable above the row button. */
+.card[data-clickable] :is(a, [data-row-action], button:not(.cardHit), input, label) {
+  position: relative;
+  z-index: 1;
 }
 
 .card[data-clickable]:hover {
   background: var(--surface-raised);
 }
 
-.card[data-clickable]:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: -2px;
-}
 
 .metaLabel {
   color: var(--text-muted);
