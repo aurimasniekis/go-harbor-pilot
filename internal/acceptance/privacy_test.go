@@ -42,6 +42,25 @@ func newPrivacyRig(t *testing.T, policy map[string]any, trace map[string]any, op
 	return &privacyRig{e: e, up: up, tok: e.Token(e.Binding("b", plan, apptest.BindingOpts{}))}
 }
 
+// waitTraces waits until n traces are stored and returns them. The gateway
+// queues a capture after the response is written and a background writer
+// stores it, so a single flush right after reading the response can miss it.
+func (r *privacyRig) waitTraces(n int) []traces.Meta {
+	r.e.T.Helper()
+	ctx := context.Background()
+	var items []traces.Meta
+	r.e.Eventually(func() bool {
+		r.e.Flush()
+		r.e.App.TraceSvc.Flush(ctx)
+		items, _ = r.e.App.TraceSvc.List(ctx, traces.Filter{})
+		return len(items) >= n
+	}, apptest.Sprintf("%d stored traces", n))
+	if len(items) != n {
+		r.e.T.Fatalf("traces %d, want %d", len(items), n)
+	}
+	return items
+}
+
 func fileContains(t *testing.T, dir, needle string) []string {
 	t.Helper()
 	var hits []string
@@ -80,8 +99,7 @@ func TestScenarioF_MaskedSecretAbsentUpstreamAndPersistence(t *testing.T) {
 			t.Fatalf("stream=%v: client did not get its value restored: %s", stream, out)
 		}
 	}
-	r.e.Flush()
-	r.e.App.TraceSvc.Flush(context.Background())
+	r.waitTraces(2)
 	var list struct {
 		Items []struct {
 			ID   string `json:"id"`
@@ -155,15 +173,9 @@ func TestScenarioG_ExpiredTracesUnreadableAndUnsearchable(t *testing.T) {
 	resp := r.e.Gateway("POST", "/v1/messages", r.tok, map[string]any{"model": "x", "max_tokens": 16,
 		"messages": []any{map[string]any{"role": "user", "content": "rollout checklist for kubernetes"}}})
 	_ = apptest.ReadAll(resp)
-	r.e.Flush()
 	ts := r.e.App.TraceSvc
-	ts.Flush(context.Background())
 	ctx := context.Background()
-	items, _ := ts.List(ctx, traces.Filter{})
-	if len(items) != 1 {
-		t.Fatalf("traces %d", len(items))
-	}
-	id := items[0].ID
+	id := r.waitTraces(1)[0].ID
 	var hits struct {
 		Items []any `json:"items"`
 	}
