@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+// Static: importing the dialog inside the test can exceed the 5s test budget on a loaded machine.
+import { parseOptions } from './MonitorDialog'
+import { presetRange, stepFor } from '@/features/usage/range'
 import type { BucketView } from '@/lib/api/types'
 import { bucketPercent, bucketValueText, e10, forecastHeadline, historyValue } from './quota'
 
@@ -38,14 +41,12 @@ describe('quota helpers', () => {
 
 describe('monitor options and ranges', () => {
   it('parses adapter options strictly', async () => {
-    const { parseOptions } = await import('./MonitorDialog')
     expect(parseOptions('')).toEqual({ value: {} })
     expect(parseOptions('{"token_source":"login"}').value).toEqual({ token_source: 'login' })
     expect(parseOptions('[1]').error).toMatch(/JSON object/)
     expect(parseOptions('{bad').error).toMatch(/Invalid JSON/)
   })
   it('builds usage ranges on the server clock', async () => {
-    const { presetRange, stepFor } = await import('@/features/usage/range')
     const r = presetRange(7, Date.parse('2026-11-05T12:00:30Z'))
     expect(r).toEqual({ from: '2026-10-29T12:01:00.000Z', to: '2026-11-05T12:01:00.000Z' })
     expect(stepFor(7)).toBe('hour')
