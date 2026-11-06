@@ -7,7 +7,6 @@ import (
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/apptest"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/clock"
-	"github.com/aurimasniekis/go-harbor-pilot/internal/traces"
 )
 
 // Trace export needs a recent sign-in; confirming the password restores it.
@@ -17,13 +16,7 @@ func TestTraceExportNeedsRecentSignIn(t *testing.T) {
 	resp := r.e.Gateway("POST", "/v1/messages", r.tok, map[string]any{"model": "x", "max_tokens": 16,
 		"messages": []any{map[string]any{"role": "user", "content": "release notes"}}})
 	_ = apptest.ReadAll(resp)
-	r.e.Flush()
-	r.e.App.TraceSvc.Flush(context.Background())
-	items, _ := r.e.App.TraceSvc.List(context.Background(), traces.Filter{})
-	if len(items) != 1 {
-		t.Fatalf("traces %d", len(items))
-	}
-	export := "/api/v1/traces/" + items[0].ID + "/export"
+	export := "/api/v1/traces/" + r.waitTraces(1)[0].ID + "/export"
 	if code := r.e.Admin.Do("GET", export, nil, nil); code != 200 {
 		t.Fatalf("export right after sign-in: %d", code)
 	}
