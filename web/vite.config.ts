@@ -17,6 +17,8 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: false,
     chunkSizeWarningLimit: 1200,
+    // Fonts stay files: the server's CSP allows font-src 'self' only, so a font inlined as a data: URI is blocked.
+    assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
   },
   server: {
     port: 5173,
