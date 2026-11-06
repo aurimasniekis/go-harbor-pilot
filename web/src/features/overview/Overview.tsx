@@ -14,6 +14,14 @@ import { Empty, PageHeader, Stat, StatGrid, StatSkeleton, StatusDot } from '@/ui
 import { costKindHelp, harnessName, money, ms, short } from '@/ui/fmt'
 import o from './overview.module.css'
 
+/** Plain labels for request statuses other than ok. */
+const requestStatusLabel: Record<string, string> = {
+  in_progress: 'Running',
+  error: 'Failed',
+  blocked: 'Blocked',
+  canceled: 'Canceled',
+}
+
 type Severity = AttentionItem['severity']
 
 /**
@@ -279,7 +287,7 @@ function LatestRequests() {
                     <span>{fmtRelative(r.created_at)}</span>
                   </Tooltip>
                   {r.status !== 'ok' ? (
-                    <StatusDot status={r.status} label={r.status === 'blocked' ? 'Blocked' : 'Failed'} />
+                    <StatusDot status={r.status} label={requestStatusLabel[r.status] ?? r.status} />
                   ) : r.attempts > 1 ? (
                     <span style={{ color: 'var(--warning)' }}>Fallback</span>
                   ) : (
