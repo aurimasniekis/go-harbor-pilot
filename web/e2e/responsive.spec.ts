@@ -1,6 +1,8 @@
 import { ADMIN_PAGES, expect, signIn, test } from './fixtures'
 
 test('no horizontal page scroll on a phone', async ({ page }) => {
+  // Visits every admin page; allow for a loaded machine.
+  test.setTimeout(90_000)
   await signIn(page)
   for (const path of ADMIN_PAGES) {
     await page.goto(path)
@@ -23,6 +25,7 @@ test('request page fits a phone screen', async ({ page }) => {
 })
 
 test('detail pages fit a phone screen', async ({ page }) => {
+  test.setTimeout(90_000)
   await signIn(page)
   const first = async (url: string) => {
     const r = await page.request.get(url)

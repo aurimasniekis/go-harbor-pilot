@@ -289,3 +289,13 @@ kbd,
   content: ' *';
   color: var(--error-text);
 }
+
+/* Phones: segmented controls get 44px touch targets. */
+@media (max-width: 47.99em) {
+  .mantine-SegmentedControl-label {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

@@ -26,9 +26,9 @@ export const navSections: NavSection[] = [
   {
     label: 'Monitor',
     items: [
-      { to: '/activity', label: 'Requests', icon: List, perm: 'activity.read', keywords: ['activity', 'sessions', 'statistics', 'why this route'] },
-      { to: '/quotas', label: 'Limits', icon: Gauge, match: ['/quotas', '/usage/budgets'], perm: 'usage.read', keywords: ['quotas', 'budgets', 'rate limits'] },
-      { to: '/usage', label: 'Spend', icon: Coins, perm: 'usage.read', keywords: ['usage', 'cost', 'tokens'] },
+      { to: '/activity', label: 'Requests', icon: List, perm: 'activity.read', keywords: ['activity', 'sessions', 'why this route', 'replay', 'logs'] },
+      { to: '/quotas', label: 'Limits', icon: Gauge, match: ['/quotas', '/usage/budgets'], perm: 'usage.read', keywords: ['quotas', 'budgets', 'rate limits', 'quota tracking', 'trackers'] },
+      { to: '/usage', label: 'Spend', icon: Coins, perm: 'usage.read', keywords: ['usage', 'cost', 'tokens', 'statistics', 'breakdown'] },
     ],
   },
   {

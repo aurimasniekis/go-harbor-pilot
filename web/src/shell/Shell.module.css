@@ -285,3 +285,35 @@
 .bottomTab[data-active] {
   color: var(--accent);
 }
+
+/* Phone header burger: a 44px touch target around the icon. */
+.burger {
+  width: 44px;
+  height: 44px;
+  margin-left: -10px;
+}
+
+/* Rail mode: the logo stays at the top and leads Home. */
+.railLogo {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.railLogo:hover {
+  text-decoration: none;
+  filter: brightness(1.1);
+}
+
+/* Phone drawer: 44px rows for touch. */
+.navbar[data-compact] .navLink {
+  height: 44px;
+}
+
+.navbar[data-compact] .user {
+  min-height: 44px;
+}

@@ -1,13 +1,15 @@
 import { lazy, Suspense } from 'react'
-import { Navigate, Outlet, createRootRouteWithContext, useRouterState } from '@tanstack/react-router'
+import { Link, Navigate, Outlet, createRootRouteWithContext, useRouterState } from '@tanstack/react-router'
 import { type QueryClient, useQuery } from '@tanstack/react-query'
-import { Compass } from 'lucide-react'
+import { Button, Group } from '@mantine/core'
+import { Compass, House, Search } from 'lucide-react'
+import { spotlight } from '@mantine/spotlight'
 import { Shell } from '@/shell/Shell'
 import { ErrorBoundary, QueryError } from '@/components/states'
-import { EmptyState, Panel } from '@/components/ui'
 import { useSessionSync } from '@/lib/session'
 import { metaQuery } from '@/lib/api/queries'
 import { setServerTime } from '@/lib/format'
+import { Empty, PageHeader } from '@/ui/kit'
 
 const Devtools = import.meta.env.DEV
   ? lazy(() =>
@@ -55,11 +57,32 @@ function Root() {
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   component: Root,
   errorComponent: ({ error, reset }) => <QueryError error={error} retry={reset} />,
-  notFoundComponent: () => (
-    <Panel>
-      <EmptyState icon={Compass} title="Page not found">
-        The page you requested does not exist.
-      </EmptyState>
-    </Panel>
-  ),
+  notFoundComponent: NotFound,
 })
+
+/** Unknown address: a real heading, what happened, and ways back. */
+function NotFound() {
+  const href = useRouterState({ select: (r) => r.location.pathname })
+  return (
+    <>
+      <PageHeader title="Page not found" />
+      <Empty
+        icon={<Compass size={28} aria-hidden="true" />}
+        title="Nothing lives at this address"
+        action={
+          <Group gap="sm" mt="sm">
+            <Button component={Link} to="/" leftSection={<House size={16} />}>
+              Go to Home
+            </Button>
+            <Button variant="default" leftSection={<Search size={16} />} onClick={() => spotlight.open()}>
+              Search pages
+            </Button>
+          </Group>
+        }
+      >
+        <span className="mono">{href}</span> is not a Harbor Pilot page. It may have moved, or the link may be mistyped.
+      </Empty>
+    </>
+  )
+}
+

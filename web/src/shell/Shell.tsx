@@ -3,27 +3,21 @@ import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useStore } from '@tanstack/react-store'
 import { ActionIcon, Alert, AppShell, Avatar, Badge, Burger, Group, Kbd, Menu, ScrollArea, Text, Tooltip, UnstyledButton } from '@mantine/core'
-import { useDisclosure } from '@mantine/hooks'
+import { useDisclosure, useOs, useViewportSize } from '@mantine/hooks'
+import { notifications } from '@mantine/notifications'
 import { Spotlight, type SpotlightActionData, spotlight } from '@mantine/spotlight'
-import { ChevronsUpDown, Info, LogOut, Menu as MenuIcon, Moon, PanelLeftClose, PanelLeftOpen, Search, ShieldAlert, ShipWheel, Sun, UserRound } from 'lucide-react'
+import { Check, ChevronsUpDown, Info, LogOut, Menu as MenuIcon, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Search, ShieldAlert, ShipWheel, Sun, UserRound } from 'lucide-react'
 import { metaQuery, sessionQuery } from '@/lib/api/queries'
 import { DegradationBanner } from '@/features/compat/Degradations'
 import { uiStore, updatePrefs } from '@/lib/store'
 import { useLogout } from '@/lib/session'
 import { useCompact } from '@/ui/kit'
+import { themeChoices } from '@/lib/theme'
+import type { ThemePref } from '@/lib/store'
 import { type NavItem, activeNavItem, bottomTabs, navItems, navSections, settingsItem } from './nav'
+import { friendlyVersion, matchesQuery, paletteEntries, shortcutLabel } from './palette'
 import s from './Shell.module.css'
 
-const quickActions: { id: string; label: string; description: string; to: string; perm?: string }[] = [
-  { id: 'connect', label: 'Connect a tool', description: 'Set up Claude Code, Codex, OpenCode or Pi', to: '/clients/setup', perm: 'config.read' },
-  { id: 'new-client', label: 'Add a client', description: 'Create a client and its access token', to: '/clients', perm: 'config.write' },
-  { id: 'new-provider', label: 'Add a provider', description: 'API key, local model or CLI subscription', to: '/providers', perm: 'config.write' },
-  { id: 'simulate', label: 'Test a request', description: 'See where a routing plan would send it', to: '/routing/plans', perm: 'config.read' },
-  { id: 'budgets', label: 'Budgets', description: 'Spend limits and how close you are', to: '/quotas#budgets', perm: 'usage.read' },
-  { id: 'people', label: 'People', description: 'Invite and manage users', to: '/settings/users', perm: 'users.manage' },
-  { id: 'audit', label: 'Audit log', description: 'Who changed what', to: '/settings/audit', perm: 'audit.read' },
-  { id: 'backups', label: 'System & backups', description: 'Version, storage and backups', to: '/settings/system', perm: 'system.manage' },
-]
 
 export function Shell({ children }: { children: ReactNode }) {
   const collapsed = useStore(uiStore, (st) => st.sidebarCollapsed)
@@ -42,30 +36,32 @@ export function Shell({ children }: { children: ReactNode }) {
   const rail = collapsed && !compact
   const active = activeNavItem(path)
 
-  const actions: SpotlightActionData[] = [
-    ...navItems.filter((i) => can(i.perm)).map((i) => ({
-      id: `go-${i.to}`,
-      label: i.label,
-      description: `Go to ${i.label}`,
-      keywords: i.keywords,
-      leftSection: <i.icon size={16} aria-hidden="true" />,
-      onClick: () => void navigate({ to: i.to }),
-      group: 'Pages',
-    })),
-    ...quickActions.filter((a) => can(a.perm)).map((a) => ({
-      id: a.id,
-      label: a.label,
-      description: a.description,
-      onClick: () => void navigate({ to: a.to }),
-      group: 'Actions',
-    })),
-    {
-      id: 'theme',
-      label: theme === 'dark' ? 'Use light theme' : 'Use dark theme',
-      onClick: () => updatePrefs({ theme: theme === 'dark' ? 'light' : 'dark' }),
-      group: 'Actions',
+  const os = useOs()
+  const viewport = useViewportSize()
+  const kbd = shortcutLabel(os)
+  const actions: SpotlightActionData[] = paletteEntries(can, theme, !!session.data?.authenticated && !!user).map((e) => ({
+    id: e.id,
+    label: e.label,
+    description: e.description,
+    keywords: e.keywords,
+    leftSection: <e.icon size={16} aria-hidden="true" />,
+    group: e.group,
+    onClick: () => {
+      const r = e.run
+      if (r.kind === 'go') void navigate({ to: r.to, hash: r.hash })
+      else if (r.kind === 'theme') updatePrefs({ theme: r.value })
+      else logout.mutate()
     },
-  ]
+  }))
+  const version = friendlyVersion(meta.data?.version)
+  const copyVersion = () => {
+    if (!meta.data?.version) return
+    void navigator.clipboard?.writeText(meta.data.version).then(
+      () => notifications.show({ message: `Copied ${meta.data?.version}`, autoClose: 2500 }),
+      () => undefined,
+    )
+  }
+  const themeIcon = (t: ThemePref) => (t === 'auto' ? <Monitor size={14} /> : t === 'light' ? <Sun size={14} /> : <Moon size={14} />)
 
   const navLink = (item: NavItem) => {
     const Icon = item.icon
@@ -112,7 +108,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <AppShell.Header className={s.header}>
           <Group h="100%" px="md" justify="space-between" wrap="nowrap">
             <Group gap="sm" wrap="nowrap">
-              <Burger opened={opened} onClick={toggle} size="sm" aria-label={opened ? 'Close navigation' : 'Open navigation'} />
+              <Burger opened={opened} onClick={toggle} size="sm" className={s.burger} aria-label={opened ? 'Close navigation' : 'Open navigation'} />
               <Brand demo={meta.data?.demo} />
             </Group>
             <ActionIcon variant="subtle" color="gray" size="lg" aria-label="Search" onClick={() => spotlight.open()}>
@@ -122,39 +118,55 @@ export function Shell({ children }: { children: ReactNode }) {
         </AppShell.Header>
       )}
 
-      <AppShell.Navbar className={s.navbar} data-rail={rail || undefined} aria-label="Primary">
-        <AppShell.Section className={s.navTop}>
-          {!compact && (
-            <Group justify="space-between" wrap="nowrap" gap={4} className={s.brandRow}>
-              {!rail && <Brand demo={meta.data?.demo} />}
-              <Tooltip label={rail ? 'Expand sidebar' : 'Collapse sidebar'} position="right">
-                <ActionIcon variant="subtle" color="gray" aria-label={rail ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => updatePrefs({ sidebarCollapsed: !collapsed })}>
-                  {rail ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-                </ActionIcon>
-              </Tooltip>
-            </Group>
-          )}
-          {rail ? (
-            <Tooltip label="Search (Ctrl K)" position="right">
-              <ActionIcon variant="default" size="lg" aria-label="Search" onClick={() => spotlight.open()} className={s.railSearch}>
-                <Search size={16} />
-              </ActionIcon>
-            </Tooltip>
-          ) : (
-            <UnstyledButton className={s.search} onClick={() => spotlight.open()} aria-label="Search pages and actions">
-              <Search size={14} aria-hidden="true" />
-              <span>Search</span>
-              <Kbd size="xs" className={s.kbd}>
-                Ctrl K
-              </Kbd>
-            </UnstyledButton>
-          )}
-        </AppShell.Section>
+      <AppShell.Navbar className={s.navbar} data-rail={rail || undefined} data-compact={compact || undefined} aria-label="Primary">
+        {/* On phones the drawer only adds what the bottom bar and the header
+            (search) do not already offer. */}
+        {!compact && (
+          <AppShell.Section className={s.navTop}>
+            {rail ? (
+              <>
+                <Tooltip label="Home" position="right">
+                  <Link to="/" className={s.railLogo} aria-label="Harbor Pilot home">
+                    <ShipWheel size={16} />
+                  </Link>
+                </Tooltip>
+                <Tooltip label="Expand sidebar" position="right">
+                  <ActionIcon variant="subtle" color="gray" aria-label="Expand sidebar" onClick={() => updatePrefs({ sidebarCollapsed: false })}>
+                    <PanelLeftOpen size={17} />
+                  </ActionIcon>
+                </Tooltip>
+                <Tooltip label={`Search (${kbd})`} position="right">
+                  <ActionIcon variant="subtle" color="gray" size="lg" aria-label="Search" onClick={() => spotlight.open()}>
+                    <Search size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              </>
+            ) : (
+              <>
+                <Group justify="space-between" wrap="nowrap" gap={4} className={s.brandRow}>
+                  <Brand demo={meta.data?.demo} />
+                  <Tooltip label="Collapse sidebar" position="right">
+                    <ActionIcon variant="subtle" color="gray" aria-label="Collapse sidebar" onClick={() => updatePrefs({ sidebarCollapsed: true })}>
+                      <PanelLeftClose size={17} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+                <UnstyledButton className={s.search} onClick={() => spotlight.open()} aria-label="Search pages and actions">
+                  <Search size={14} aria-hidden="true" />
+                  <span>Search</span>
+                  <Kbd size="xs" className={s.kbd}>
+                    {kbd}
+                  </Kbd>
+                </UnstyledButton>
+              </>
+            )}
+          </AppShell.Section>
+        )}
 
         <AppShell.Section grow component={ScrollArea} type="never">
           <nav className={s.nav} aria-label="Main navigation">
             {navSections.map((sec, i) => {
-              const items = sec.items.filter((it) => can(it.perm))
+              const items = sec.items.filter((it) => can(it.perm) && !(compact && bottomTabs.includes(it.to)))
               if (items.length === 0) return null
               return (
                 <div key={sec.label ?? i} className={s.navSection}>
@@ -168,8 +180,9 @@ export function Shell({ children }: { children: ReactNode }) {
 
         <AppShell.Section className={s.navFooter}>
           {can(settingsItem.perm) && <div className={s.navSection}>{navLink(settingsItem)}</div>}
-          <Menu position={rail ? 'right-end' : 'top-start'} width={232} withinPortal>
+          <Menu position={rail ? 'right-end' : 'top-start'} width={rail ? 232 : 'target'} withinPortal>
             <Menu.Target>
+              <Tooltip label={`${user?.display_name ?? 'Service'} · account menu`} position="right" disabled={!rail}>
               <UnstyledButton className={s.user} aria-label="Account menu">
                 <Avatar size={26} radius="xl" color="blue" variant="light">
                   {(user?.display_name ?? user?.email ?? '?').slice(0, 1).toUpperCase()}
@@ -188,6 +201,7 @@ export function Shell({ children }: { children: ReactNode }) {
                   </>
                 )}
               </UnstyledButton>
+              </Tooltip>
             </Menu.Target>
             <Menu.Dropdown>
               {user && <Menu.Label>{user.email}</Menu.Label>}
@@ -196,13 +210,28 @@ export function Shell({ children }: { children: ReactNode }) {
                   My account
                 </Menu.Item>
               )}
-              <Menu.Item leftSection={theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />} onClick={() => updatePrefs({ theme: theme === 'dark' ? 'light' : 'dark' })}>
-                {theme === 'dark' ? 'Light theme' : 'Dark theme'}
-              </Menu.Item>
-              {meta.data && (
-                <Menu.Item leftSection={<Info size={14} />} disabled>
-                  Version {meta.data.version}
+              <Menu.Label>Theme</Menu.Label>
+              {themeChoices.map((c) => (
+                <Menu.Item
+                  key={c.value}
+                  leftSection={themeIcon(c.value)}
+                  rightSection={theme === c.value ? <Check size={14} aria-hidden="true" /> : undefined}
+                  aria-checked={theme === c.value}
+                  role="menuitemradio"
+                  onClick={() => updatePrefs({ theme: c.value })}
+                >
+                  {c.label}
                 </Menu.Item>
+              ))}
+              {version && (
+                <>
+                  <Menu.Divider />
+                  <Menu.Item leftSection={<Info size={14} />} onClick={copyVersion} title="Copy the full version">
+                    <Text size="xs" c="dimmed" span>
+                      Harbor Pilot {version}
+                    </Text>
+                  </Menu.Item>
+                </>
               )}
               {session.data?.authenticated && (
                 <>
@@ -252,7 +281,14 @@ export function Shell({ children }: { children: ReactNode }) {
         nothingFound="Nothing found"
         highlightQuery
         searchProps={{ leftSection: <Search size={16} />, placeholder: 'Search pages and actions' }}
-        limit={12}
+        filter={(query, items) =>
+          (items as SpotlightActionData[]).filter((a) => matchesQuery([a.label, a.description, ...((a.keywords as string[] | undefined) ?? [])], query))
+        }
+        limit={60}
+        fullScreen={compact}
+        scrollable
+        maxHeight={compact ? Math.max(240, viewport.height - 64) : 480}
+        styles={compact ? { body: { height: '100dvh' }, actionsList: { maxHeight: `${Math.max(240, viewport.height - 64)}px` } } : undefined}
       />
     </AppShell>
   )
