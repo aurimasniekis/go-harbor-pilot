@@ -39,7 +39,7 @@ sequenceDiagram
     H->>B: Same request to the next account
     B-->>H: Streamed response
     H-->>T: Streamed response, placeholders restored
-    H->>H: Record attempts, usage and cost; settle the reservation
+    H->>H: Record attempts, usage and cost, then settle the reservation
 ```
 
 A few rules make this safe:
