@@ -109,7 +109,7 @@ func (g *Gateway) geminiHandler(w http.ResponseWriter, r *http.Request) {
 	case "streamGenerateContent":
 		g.serve(w, r, ir.Gemini, model, true)
 	case "countTokens":
-		g.countTokens(w, r)
+		g.geminiCountTokens(w, r, model)
 	default:
 		g.writeError(w, ir.Gemini, &ir.Error{Kind: ir.ErrNotFound, Message: "unsupported method " + method}, "")
 	}

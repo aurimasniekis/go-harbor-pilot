@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/ratelimit"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/reqmeta"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/gemini"
 	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
@@ -118,50 +119,91 @@ func (g *Gateway) listModels(p ir.Protocol) http.HandlerFunc {
 	}
 }
 
-// countTokens answers token-count requests. Harbor Pilot does not hold
-// provider tokenizers, so the figure is a labelled character-based estimate
-// (X-HP-Token-Count: estimated); it is never recorded as usage.
+// countTokens answers Anthropic token-count requests. Harbor Pilot does not
+// hold provider tokenizers, so the figure is a labelled character-based
+// estimate (X-HP-Token-Count: estimated); it is never recorded as usage.
 func (g *Gateway) countTokens(w http.ResponseWriter, r *http.Request) {
 	p := ir.AnthropicMessages
 	if _, _, _, ok := g.authed(w, r, p, cp.ScopeInvoke); !ok {
 		return
 	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, g.Limits.MaxRequestBytes+1))
-	if err != nil || int64(len(body)) > g.Limits.MaxRequestBytes {
-		g.writeError(w, p, &ir.Error{Kind: ir.ErrInvalidRequest, Message: "request body too large"}, "")
+	body, ok := g.readCountBody(w, r, p)
+	if !ok {
 		return
 	}
 	req, err := anthropic.ParseRequest(body, anthropic.DefaultLimits)
 	if err != nil {
 		req = nil
 	}
-	chars := 0
-	if req != nil {
-		for _, s := range req.System {
-			chars += len(s.Text)
-		}
-		for _, m := range req.Messages {
-			for _, p := range m.Parts {
-				chars += len(p.Text)
-				if p.ToolCall != nil {
-					chars += len(p.ToolCall.Arguments) + len(p.ToolCall.Name)
-				}
-				if p.ToolResult != nil {
-					for _, c := range p.ToolResult.Content {
-						chars += len(c.Text)
-					}
-				}
-			}
-		}
-		for _, t := range req.Tools {
-			chars += len(t.Name) + len(t.Description) + len(t.Parameters)
-		}
-	} else {
-		chars = len(body)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-HP-Token-Count", "estimated")
+	_, _ = w.Write(wire.MustMarshal(map[string]any{"input_tokens": estimateTokens(req, body)}))
+}
+
+// geminiCountTokens answers models/{model}:countTokens in Gemini's own
+// shape ({"totalTokens": N}), with the same labelled estimate.
+func (g *Gateway) geminiCountTokens(w http.ResponseWriter, r *http.Request, model string) {
+	p := ir.Gemini
+	if _, _, _, ok := g.authed(w, r, p, cp.ScopeInvoke); !ok {
+		return
+	}
+	body, ok := g.readCountBody(w, r, p)
+	if !ok {
+		return
+	}
+	// Either {"contents": …} or {"generateContentRequest": {…}}.
+	var wrapped struct {
+		GenerateContentRequest json.RawMessage `json:"generateContentRequest"`
+	}
+	inner := body
+	if json.Unmarshal(body, &wrapped) == nil && len(wrapped.GenerateContentRequest) > 0 {
+		inner = wrapped.GenerateContentRequest
+	}
+	req, err := gemini.ParseRequest(inner, model, false)
+	if err != nil {
+		req = nil
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-HP-Token-Count", "estimated")
-	_, _ = w.Write(wire.MustMarshal(map[string]any{"input_tokens": (chars + 3) / 4}))
+	_, _ = w.Write(wire.MustMarshal(map[string]any{"totalTokens": estimateTokens(req, inner)}))
+}
+
+func (g *Gateway) readCountBody(w http.ResponseWriter, r *http.Request, p ir.Protocol) ([]byte, bool) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, g.Limits.MaxRequestBytes+1))
+	if err != nil || int64(len(body)) > g.Limits.MaxRequestBytes {
+		g.writeError(w, p, &ir.Error{Kind: ir.ErrInvalidRequest, Message: "request body too large"}, "")
+		return nil, false
+	}
+	return body, true
+}
+
+// estimateTokens is about four characters per token over the text the
+// model would read; an unparsable body counts as a whole.
+func estimateTokens(req *ir.Request, body []byte) int {
+	if req == nil {
+		return (len(body) + 3) / 4
+	}
+	chars := 0
+	for _, s := range req.System {
+		chars += len(s.Text)
+	}
+	for _, m := range req.Messages {
+		for _, p := range m.Parts {
+			chars += len(p.Text)
+			if p.ToolCall != nil {
+				chars += len(p.ToolCall.Arguments) + len(p.ToolCall.Name)
+			}
+			if p.ToolResult != nil {
+				for _, c := range p.ToolResult.Content {
+					chars += len(c.Text)
+				}
+			}
+		}
+	}
+	for _, t := range req.Tools {
+		chars += len(t.Name) + len(t.Description) + len(t.Parameters)
+	}
+	return (chars + 3) / 4
 }
 
 // mintChild issues a short-lived child credential (tokens:mint scope).

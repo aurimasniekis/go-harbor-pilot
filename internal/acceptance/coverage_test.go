@@ -1,6 +1,8 @@
 package acceptance_test
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/apptest"
@@ -94,5 +96,38 @@ func TestToolObservationAndUniqueResults(t *testing.T) {
 	second := e.QueryInt(`SELECT unique_tool_results FROM requests WHERE id = ?`, list.Items[0].ID)
 	if first != 2 || second != 0 {
 		t.Fatalf("unique tool results first %d second %d, want 2 then 0 (repeated history)", first, second)
+	}
+}
+
+// Token counts are labelled estimates in each protocol's own shape.
+func TestTokenCountsUseEachProtocolsShape(t *testing.T) {
+	e := apptest.New(t)
+	up := apptest.NewUpstream(t, "anthropic")
+	prov := e.Provider("anthropic", "anthropic", up.Srv.URL, apptest.Model{ID: "m", MaxOutput: 1024})
+	alias := e.Alias("coding/default", e.Pool("p", "ordered", apptest.Member{Account: e.Account("a", prov, apptest.AccountOpts{}), Model: "m"}))
+	tok := e.Token(e.Binding("b", e.Plan("default", apptest.PlanOpts{DefaultAlias: alias}), apptest.BindingOpts{}))
+	text := strings.Repeat("abcd", 25) // 100 characters, about 25 tokens
+	gem := map[string]any{"contents": []any{map[string]any{"role": "user", "parts": []any{map[string]any{"text": text}}}}}
+	tests := []struct {
+		name, path string
+		body       any
+		field      string
+	}{
+		{"anthropic", "/v1/messages/count_tokens", map[string]any{"model": "x", "messages": []any{map[string]any{"role": "user", "content": text}}}, "input_tokens"},
+		{"gemini", "/v1beta/models/x:countTokens", gem, "totalTokens"},
+		{"gemini wrapped request", "/v1beta/models/x:countTokens", map[string]any{"generateContentRequest": gem}, "totalTokens"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := e.Gateway("POST", tt.path, tok, tt.body)
+			body := apptest.ReadAll(r)
+			if r.StatusCode != 200 || r.Header.Get("X-HP-Token-Count") != "estimated" {
+				t.Fatalf("%d %s (header %q)", r.StatusCode, body, r.Header.Get("X-HP-Token-Count"))
+			}
+			var out map[string]float64
+			if err := json.Unmarshal([]byte(body), &out); err != nil || out[tt.field] < 20 || out[tt.field] > 30 || len(out) != 1 {
+				t.Fatalf("want only %s ≈ 25, got %s", tt.field, body)
+			}
+		})
 	}
 }
