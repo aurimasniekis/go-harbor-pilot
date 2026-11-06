@@ -3,6 +3,8 @@ name: pages
 # Builds the documentation website in site/ (VitePress) and deploys it to GitHub Pages:
 # https://aurimasniekis.github.io/go-harbor-pilot/
 # Requires Settings → Pages → Source: "GitHub Actions".
+# Pull requests only build it, so a broken page, diagram or screenshot reference fails before merge.
+# deploy/proxies is included because the reverse proxy guide shows those files.
 
 on:
   push:
@@ -10,6 +12,14 @@ on:
     paths:
       - "site/**"
       - "docs/**"
+      - "deploy/proxies/**"
+      - "README.md"
+      - ".github/workflows/pages.yaml"
+  pull_request:
+    paths:
+      - "site/**"
+      - "docs/**"
+      - "deploy/proxies/**"
       - "README.md"
       - ".github/workflows/pages.yaml"
   workflow_dispatch:
@@ -18,8 +28,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  # Deploys queue one after another; a pull request's newer build replaces its older one.
+  group: ${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.event.number) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -38,6 +49,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: site/pnpm-lock.yaml
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+        if: github.event_name != 'pull_request'
       - name: install
         working-directory: site
         run: pnpm install --frozen-lockfile
@@ -45,12 +57,14 @@ jobs:
         working-directory: site
         run: pnpm build
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: github.event_name != 'pull_request'
         with:
           path: site/.vitepress/dist
 
   deploy:
     name: deploy to GitHub Pages
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
       pages: write
