@@ -393,7 +393,7 @@ export function RequestsPage() {
       {chips.length > 0 && (
         <Group gap={6} wrap="wrap">
           {chips.map((c) => (
-            <Pill key={c.key} withRemoveButton onRemove={() => set(c.remove)} removeButtonProps={{ 'aria-label': `Remove ${c.label}` }}>
+            <Pill key={c.key} withRemoveButton onRemove={() => set(c.remove)} removeButtonProps={{ 'aria-label': `Remove ${c.label}`, 'aria-hidden': false, tabIndex: 0 }}>
               {c.label}
             </Pill>
           ))}

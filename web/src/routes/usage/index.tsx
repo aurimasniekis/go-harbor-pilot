@@ -201,7 +201,7 @@ function SpendPage() {
             const label = refLabel(r)
             const rest = refs!.filter((x) => x !== r)
             return (
-              <Pill key={r} withRemoveButton onRemove={() => set({ ref: rest.length ? rest : undefined })} removeButtonProps={{ 'aria-label': `Remove ${label}` }}>
+              <Pill key={r} withRemoveButton onRemove={() => set({ ref: rest.length ? rest : undefined })} removeButtonProps={{ 'aria-label': `Remove ${label}`, 'aria-hidden': false, tabIndex: 0 }}>
                 {label}
               </Pill>
             )

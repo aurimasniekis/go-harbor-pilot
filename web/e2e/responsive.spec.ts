@@ -61,6 +61,7 @@ test('run views fit a phone screen', async ({ page }) => {
     expect(overflow, path).toBeLessThanOrEqual(1)
   }
   // On a phone the grouping is a select with the run option.
+  if ((page.viewportSize()?.width ?? 0) >= 768) return
   await page.goto('/usage')
   await expect(page.getByLabel('Group by').and(page.locator('input:not([type="hidden"])')).first()).toBeVisible()
 })
