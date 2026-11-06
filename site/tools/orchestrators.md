@@ -89,6 +89,8 @@ A run token inherits the parent's references and the references configured on th
 Headers the agent sends, such as `X-HP-Session` or `X-HP-External-Ref`, are hints. They are recorded as claims next to
 the trusted references, and never decide access or billing.
 
+<Shot name="request-run-refs" alt="A request made with a run token of the spaceman-runs client, with Verified context open: client, project, workspace, protocol and required capabilities, then the trusted references spaceman.run run_synthetic_2, spaceman.space spc_synthetic and spaceman.task tsk_synthetic_7" caption="A run token's request: its trusted references under Verified context" />
+
 ## Hand the token to the run
 
 Give the run its token like any other tool, in the run's environment:

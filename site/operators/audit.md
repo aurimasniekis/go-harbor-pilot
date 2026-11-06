@@ -5,7 +5,7 @@ UI, the API, the CLI and Terraform, every sign-in, and every read of captured co
 
 **Settings → Audit log.** Reading it needs `audit.read` (operators and admins).
 
-<Shot name="audit" alt="Settings, Audit log tab, with search and filters for who, what, outcome and time, and today's entries such as a password sign-in and the system issuing access tokens and creating budgets" caption="Settings → Audit log: newest first, grouped by day" />
+<Shot name="audit" alt="Settings, Audit log tab, with search and filters for who, what, outcome and time, and today's entries by Demo Admin: changing an alert rule and an event relay, taking a backup, sending test alerts, issuing an API token, changing a protocol breaker, changing content access and a subscription" caption="Settings → Audit log: newest first, grouped by day" />
 
 ## What is recorded
 

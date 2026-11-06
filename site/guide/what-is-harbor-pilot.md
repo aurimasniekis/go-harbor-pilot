@@ -7,7 +7,7 @@ and records why every request went where it did.
 
 It is a single Go binary with the web UI built in and SQLite for storage.
 
-<Shot name="home" alt="Harbor Pilot home page with two things that need attention, request and cost figures, the limits closest to running out and the latest requests" caption="Home: what needs attention first, then the numbers" />
+<Shot name="home" alt="Harbor Pilot home page with three things that need attention, request and cost figures, the limits closest to running out and the latest requests" caption="Home: what needs attention first, then the numbers" />
 
 ## The problem
 

@@ -37,6 +37,8 @@ harbor-pilot backup verify /srv/backups/hp-2026-11-06
 taken here are written under `<data-dir>/backups`. Each one in the list can be **Download**ed as a `.tar.gz` archive
 or deleted. Downloads and deletions are [audited](/operators/audit).
 
+<Shot name="system" alt="Settings, System and backups tab: one verified backup of configuration and data with Download, how to restore, this instance's version, public URL, data directory and master key id, and the CLI bridges" caption="Settings → System & backups with one backup taken" />
+
 A backup that only lives in the data directory doesn't protect you from losing the disk: download it or copy it off
 the host. The API equivalent is `POST /api/v1/system/backups`.
 

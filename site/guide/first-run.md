@@ -24,7 +24,7 @@ For an API key you have three choices:
 The key becomes the provider's first account. Its panel opens with a **Test connection** check, which proves the
 address and credential work. It does not prove model access, quota or billing.
 
-<Shot name="providers" alt="Providers page listing Anthropic, OpenAI and local providers with their accounts, status, requests and cost" caption="Each account shows an honest status: Connection OK, Key rejected, Unreachable, Not tested…" />
+<Shot name="providers" alt="Providers page listing Anthropic, OpenAI and local providers with their accounts, status, requests and cost" caption="Each account with its status, its tightest limit, and its requests and cost in the last 24 hours" />
 
 More in [Providers and accounts](/operators/providers) and [Subscriptions and CLI bridges](/operators/subscriptions).
 

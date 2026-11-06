@@ -51,6 +51,8 @@ does not use them.
 **Predicted unavailable windows** shows when the account is expected to be out, and **Caveats** lists what makes the
 estimate less certain.
 
+<Shot name="quota-forecast" alt="Forecast for the 5-hour session window of team-1-subscription: a summary saying the window still has room when it resets, seven days of observed usage and a shaded forecast range, Uses about 5.0 % per hour, Runs out not within the forecast horizon, the reset time and How sure: High" caption="A window's history and forecast" />
+
 Forecasts extrapolate recent use. They are estimates, not provider guarantees.
 
 ## Quota tracking

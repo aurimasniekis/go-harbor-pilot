@@ -2,7 +2,7 @@
 
 Home answers two questions: is anything broken, and how did the last 24 hours go. Open it first.
 
-<Shot name="home" alt="Home page with two things that need attention, the last 24 hours tiles, the limits closest to running out and the latest requests" caption="Home: problems first, then the numbers" />
+<Shot name="home" alt="Home page with three things that need attention, the last 24 hours tiles, the limits closest to running out and the latest requests" caption="Home: problems first, then the numbers" />
 
 ## Things that need your attention
 
@@ -68,4 +68,4 @@ The ✕ (**Hide setup checklist**) removes it.
 
 Home works the same on a phone. The tiles sit two to a row, and the bottom bar takes you to Requests, Limits and Spend.
 
-<Shot name="home" mobile alt="Home page on a phone with two things needing attention, the four tiles in two columns, and the bottom tab bar" caption="Home on a 390 px screen" />
+<Shot name="home" mobile alt="Home page on a phone with three things needing attention, the four tiles in two columns, and the bottom tab bar" caption="Home on a 390 px screen" />

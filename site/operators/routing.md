@@ -82,6 +82,8 @@ them to another plan first.
 name**. The first matching row wins. The last row, **Anything else**, picks a model name for every other model, or
 **Reject the request**. Rows can be reordered.
 
+<Shot name="plan-editor" alt="Edit draft v2 dialog on the Models and fallback tab: claude-* goes to coding/default, gpt-* to coding/fast and anything else to coding/default, then the fallback steps, give up after 3 attempts and Allow paid fallback ticked" caption="The draft editor's Models and fallback tab" />
+
 With no rows and **Reject the request** as the default, every request on the plan is refused, and the editor says so.
 
 ### Fallback steps
@@ -152,6 +154,8 @@ gives each candidate a number; higher goes first, after exclusions and before fa
 New rules and tables start **off**. Turn each **On** when it is ready. A rule or row that would block every request
 gets a **Blocks every request** badge as soon as you write it.
 
+<Shot name="plan-rules" alt="Rules tab of the draft editor with the approved-tools decision table: columns request.harness and request.stream, row 1 requires the tools capability for Codex, row 2 sets the intent to review for Pi, and row 3 matches anything and blocks the request with the reason Not an approved tool, marked blocks all" caption="A decision table whose last row blocks everything else" />
+
 The request's intent comes from, in order of trust: what the tool declared (only if its client
 [trusts the purpose it declares](/operators/clients#settings)), then a rule's **Set the intent**, then the optional
 classifier.
@@ -210,6 +214,8 @@ Publishing or rolling back to such a version is still possible (a maintenance bl
 turns red, titled **This version blocks traffic**, and **Publish** stays disabled until you tick **I understand that
 clients on this plan will have requests refused.** History marks such versions **Blocks every request**.
 
+<Shot name="plan-publish" alt="Publish v2? dialog: it becomes active immediately for 3 clients, the changes from live v1, a red This version blocks traffic notice naming table approved-tools row 3, the check's finding that most test requests are refused, and the unticked I understand checkbox with Publish disabled" caption="Publishing a version that blocks traffic needs an explicit acknowledgement" />
+
 ## Test a request
 
 **Test a request** runs the plan without sending anything to a provider.
@@ -241,6 +247,8 @@ on its request page.
 `review/deep`. Then a plan can point `claude-*` at `coding/default` today and something else tomorrow without touching
 any tool.
 
+<Shot name="model-names" alt="Routing page, Model names tab, listing coding/default, coding/fast, coding/deep, review/default and local/private with where each goes, the capabilities it needs, its description and what uses it" caption="Model names and where each one goes" />
+
 **+ Add model name**:
 
 - **Model name**: lowercase letters, digits, dots, dashes or underscores, in up to four parts separated by `/`. It
@@ -258,6 +266,8 @@ A **fallback group** is the ordered list of account and model pairs that can ser
 load across seats or keys, or to say "Claude first, then GPT".
 
 **+ Add fallback group**:
+
+<Shot name="fallback-group-add" alt="Add fallback group dialog with a display name, short name, how accounts are chosen, keeping a conversation on the same account, and an empty list of accounts with Add account and a note that a group without accounts rejects every request" caption="A new fallback group: its accounts and models, in order" />
 
 - **Display name**.
 - **How accounts are chosen** (plans may override this):

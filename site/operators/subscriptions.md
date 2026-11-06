@@ -93,6 +93,8 @@ Codex, add a **ChatGPT / Codex plan** [quota tracker](/operators/limits#quota-tr
 Record what you pay for a subscription so [Spend](/operators/spend) can show it next to usage, never added to it. Open
 the account from **Providers** and, under **Subscription**, click **Add subscription**:
 
+<Shot name="subscription-add" alt="Add a subscription dialog over an account's drawer, with plan name, short name, fee, currency, billing period, start and end dates, and an Add window button for usage windows" caption="Add a subscription: what you pay, how often, and the windows the plan advertises" />
+
 | Field | Notes |
 |---|---|
 | **Account** | The account the subscription belongs to |
@@ -107,6 +109,8 @@ length** in **Hours**), a **Limit** and what it is **Measured in** (percent of t
 or not published). Declared windows are used for forecasts and shown on the account until quota tracking reports live
 usage ("Declared by its subscription: 5-hour window. Live usage is not tracked yet."). Live usage always comes from
 quota tracking or the bridge itself.
+
+<Shot name="subscriptions" alt="Editing the Team plan (synthetic) subscription of Team key 1: a fee of 150.00 USD every month since 1 Jan 2026, and two usage windows, a 5-hour session and a weekly window, each measured in percent of the allowance with a limit of 100" caption="A recorded subscription with its declared usage windows" />
 
 Fees are prorated to the range you look at on Spend. **Subscription value** on Spend prices the subscription's usage at
 public API list prices so you can compare; it is not a charge.

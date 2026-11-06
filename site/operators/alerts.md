@@ -126,6 +126,8 @@ trigger another alert.
 **Alerts → History** lists every message: what was sent, to which **Channel**, its **Status** and **When**. Filter by
 channel and status.
 
+<Shot name="alert-history" alt="Alerts, History tab: four messages sent to on-call-webhook, a breaker-opened warning, two test messages and the recovered message when the breaker closed, with channel and status filters" caption="Alert history: alerts, recoveries and test messages" />
+
 | Status | Meaning |
 |---|---|
 | **Waiting** | Queued or being retried. |

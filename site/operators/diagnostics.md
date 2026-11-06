@@ -10,7 +10,7 @@ the provider is up. **Diagnostics** is where you see that happening and what Har
 - **Protocol changes**: what Harbor Pilot has observed changing in provider traffic.
 - **Follow-ups**: one item per observed change, for you to triage.
 
-<Shot name="diagnostics" alt="Settings, Diagnostics tab on Protocol issues, showing no degraded routes and no circuit breakers yet" caption="Settings → Diagnostics on a healthy instance: nothing degraded, no breakers" />
+<Shot name="diagnostics" alt="Settings, Diagnostics tab on Protocol issues, with the degraded routing banner, an active degradation for openai-demo Anthropic to Responses skipping that candidate on two plans, and its circuit breaker open, paused by hand, with a Manage button" caption="Settings → Diagnostics with one protocol path paused by hand" />
 
 ::: info Status
 Breakers, passthrough and Protocol Watch are **contract-tested** (acceptance scenarios H, I and J use a synthetic

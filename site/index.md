@@ -61,7 +61,7 @@ features:
 
 ## See it
 
-<Shot name="home" alt="Home page with two things that need attention, request and cost figures, the limits closest to running out and the latest requests" caption="Home: what needs attention first, then the numbers" />
+<Shot name="home" alt="Home page with three things that need attention, request and cost figures, the limits closest to running out and the latest requests" caption="Home: what needs attention first, then the numbers" />
 
 <div class="hp-gallery">
 

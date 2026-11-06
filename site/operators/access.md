@@ -42,6 +42,8 @@ A person who can't sign in is marked **Cannot sign in**; a role set by SSO group
 
 **Settings → People → Invite user**: **Email**, **Display name**, **Role**, and **Signs in with**:
 
+<Shot name="people-invite" alt="Invite user dialog with email, display name and role, over the People list" caption="Invite user. With an SSO provider set up, the dialog also asks how the person signs in." />
+
 - **Password (invitation link)**: Harbor Pilot shows a link. Send it to the person yourself; it lets them choose a
   password and expires after 72 hours. Harbor Pilot does not send email.
 - **An SSO provider**: the person signs in with that provider. Their identity is linked on the first sign-in, if the
@@ -89,6 +91,8 @@ after** 30 days, 90 days, 1 year or **No expiry**. The token (`hpa_…`) is show
 [Terraform provider](/operators/terraform). The list shows when each token **Expires** and was **Last used**. Revoke a
 token from its row.
 
+<Shot name="api-token-issued" alt="API token issued dialog over the demo-terraform tokens list, showing a new hpa_ token once with a copy button and how to send it" caption="An API token is shown once" />
+
 An account created by Terraform is marked **Terraform**; changes made to it in the UI show up as drift.
 
 API tokens can never pass the recent-sign-in check below, so no token can read unredacted content or download
@@ -119,6 +123,8 @@ including Porch's claim shape. They have not been verified against a live Porch 
 
 **Settings → Sign-in & SSO → Add provider.** Choose **OpenID Connect provider** or **Porch**, then follow the three
 steps in the dialog:
+
+<Shot name="sso-add" alt="Add identity provider dialog on OpenID Connect provider: the redirect URI to register with a warning that the public URL is plain http, display name, short name, issuer URL, client ID, client secret and groups claim, group to role mappings, what everyone else gets and how new people are admitted" caption="Add identity provider: register the redirect URI, enter the details, decide who gets in" />
 
 1. **Register this redirect URI with the provider.** The dialog shows it:
    `https://pilot.example.com/api/v1/auth/oidc/callback`. It warns when your public URL is plain http, which most

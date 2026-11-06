@@ -5,7 +5,7 @@ cooldown, a plan is published, a request is blocked. Events are written in the s
 caused them, then relayed to each event destination (Pulse or a signed webhook) and used by alert rules. How to set
 up a destination is in [Events (Pulse and webhooks)](/operators/events).
 
-<Shot name="event-stream" alt="Settings, Event stream tab, filtered to problems: a fallback, two account cooldowns and a rejected quota tracker credential" caption="The event stream; its Catalog tab lists every event below" />
+<Shot name="event-stream" alt="Settings, Event stream tab, filtered to problems: a breaker opened by a manual override, a fallback, two account cooldowns and a rejected quota tracker credential" caption="The event stream; its Catalog tab lists every event below" />
 
 ## Envelope
 

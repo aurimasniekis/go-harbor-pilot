@@ -92,6 +92,8 @@ spends no tokens. The result is stored and shown on the account:
   account is only confirmed by its first real request.
 - No usable credential, when nothing is saved or a reference can't be read.
 
+<Shot name="account-test" alt="Team key 1 account drawer after Test connection, showing Connection works, the provider accepted the credential, checked just now, followed by the account's provider, billing, credential, limits, quota windows and subscription" caption="An account's drawer with a passing connection test" />
+
 A passing test does not prove that the account can use a given model, has quota left, or that its billing is set up.
 
 The same check is `POST /api/v1/provider-accounts/{id}/test`; stored results for all accounts are at

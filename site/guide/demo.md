@@ -46,7 +46,7 @@ rate-limited accounts and fallbacks, so every page has data:
 - **Quota tracking** with one used-up weekly window and one failing credential, so Home has something to show.
 - **Budgets:** a monthly workspace budget and a daily client budget.
 
-<Shot name="home" alt="Demo home page showing a failing quota credential, a used-up weekly limit, 18 requests and the latest requests" caption="The demo's Home page shortly after start" />
+<Shot name="home" alt="Demo home page showing a failing quota credential, a used-up weekly limit, an event that could not be delivered, 20 requests and the latest requests" caption="The demo's Home page. The screenshots add a few states to the plain demo, such as the relay with a failed delivery." />
 
 <Shot name="requests" alt="Requests page grouped by day, with request totals, error rate, fallbacks and latency" caption="Synthetic requests, including two that needed a fallback" />
 

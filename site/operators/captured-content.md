@@ -88,7 +88,10 @@ Every read, download, denial and deletion is written to the [audit log](/operato
 
 **Privacy → Captured content.**
 
-<Shot name="captured" alt="Captured content tab showing a lock notice that explains reading needs a grant from Settings, People, and that every read is audited" caption="Without a content grant you see this notice instead of the content. The demo admin has no grant." />
+<Shot name="captured" alt="Captured content tab with search by request or session id or words in content, a client filter, and three captures from the Private notebook client on the Private only plan, each masked full, kept for about three days" caption="Captured content, for someone with the read grant" />
+
+Without the grant the tab shows a notice instead, explaining that reading needs a grant from **Settings → People** and
+that every read is audited.
 
 - **Find by** switches between **Words in content** (a full-text search over the masked text, which needs the read
   grant) and **Request or session id**. The search index holds only masked text, even for unredacted captures.
@@ -98,6 +101,8 @@ Every read, download, denial and deletion is written to the [audit log](/operato
 
 Opening a capture shows the sections above. An unredacted capture carries a warning that it may include secrets the
 client sent. From a request page in **Requests**, the captured content of that request is one click away.
+
+<Shot name="captured-trace" alt="An opened masked capture: a notice that reading is audited and when it is erased, its client, plan and capture rule, the client request and the request as sent upstream with the API key, password and email replaced, the response, the attempt and the routing decision" caption="One capture: credentials in the prompt are masked in what was kept and in what the provider received" />
 
 **Delete** erases a capture and its search entries now, instead of at expiry. The request details stay in **Requests**.
 

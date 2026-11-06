@@ -85,7 +85,7 @@ The [event catalog reference](/reference/events) has every field.
 
 **Alerts → Event relays.**
 
-<Shot name="relays" alt="Event relays tab listing a Pulse relay and a signed webhook relay with where they send to, which events and their on/off status" caption="Alerts → Event relays: where events are forwarded" />
+<Shot name="relays" alt="Event relays tab listing two signed webhook relays, audit-webhook and siem-webhook, with where they send to, which events and their on/off status, both off" caption="Alerts → Event relays: where events are forwarded" />
 
 The list shows each relay's name, where it **Sends to**, which **Events** it forwards and its **Status** (off shows
 *Off — not relaying*). **Add event relay** opens the relay dialog: a name, **Relay on**, the **Relay type** (Pulse or
@@ -176,6 +176,8 @@ moves on.
 
 Open a relay to see its deliveries: the **Event**, its **Status**, when it **Happened**, the **Attempts**, the **Last
 result** and the **Next try / sent** time.
+
+<Shot name="relay" alt="siem-webhook relay page: switched off, sending to a local webhook address, giving up after 3 attempts or 24 hours, unsigned, and a failed delivery of compat.breaker.closed after 3 attempts with connection failed, a Retry button and Retry 1 failed delivery" caption="A relay whose receiver was unreachable: the delivery gave up after three attempts and can be retried" />
 
 | Status | Meaning |
 |---|---|

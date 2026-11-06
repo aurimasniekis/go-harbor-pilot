@@ -44,6 +44,8 @@ A masked value is replaced with `HPSEC_` followed by 20 random base32 characters
 - **memory-only.** The mapping is never written to disk or logged. It expires after 24 hours idle and is lost on
   restart, after which a repeated placeholder is returned to the tool unchanged.
 
+<Shot name="privacy-test" alt="A masking policy tried on synthetic text: an API key, a password, a credential in a URL and an email address are detected and each is replaced with an HPSEC_ placeholder in the text sent to the provider" caption="What a provider receives: each masked value becomes an HPSEC_ placeholder" />
+
 The vault is bounded: at most 200,000 mappings or 128 MiB in total, and 5,000 mappings or 8 MiB per credential. Over a
 credential's budget, values are still masked, but their placeholders cannot be restored and cannot push out other
 credentials' mappings.

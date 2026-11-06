@@ -165,6 +165,8 @@ paste and shows what would be masked, blocked or warned, and what the provider w
 the sample is neither stored nor logged. Use synthetic samples where you can. Trying a saved policy that has stored secret values needs the `secrets.write` permission,
 because the result would reveal whether a value matches.
 
+<Shot name="privacy-test" alt="Try a policy on sample text with the mask-secrets policy and a synthetic sample: four values masked, the detections highlighted in the text, a table of what was found by which detector, and the text as sent to the provider with placeholders" caption="Trying a masking policy on a synthetic sample" />
+
 ## With Terraform
 
 ```hcl

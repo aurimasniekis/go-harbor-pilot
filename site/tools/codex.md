@@ -56,6 +56,8 @@ codex -c model_provider=harbor-pilot
 **Clients → Set up a tool** with **Codex** selected shows the same TOML for your server and model name, and the
 command that saves the token to a file without echoing it.
 
+<Shot name="client-setup-codex" alt="Set up a tool page with the Codex in CI client and Codex selected: a button to create an access token, the command that saves it to a private file, the config.toml block with the harbor-pilot model provider, base URL and wire_api responses, and the export of HARBOR_PILOT_TOKEN" caption="Set up a tool with Codex selected" />
+
 ## In CI
 
 In a CI job, skip the file and pass the provider on the command line, with the token in a masked secret:

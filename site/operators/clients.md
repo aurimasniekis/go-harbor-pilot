@@ -70,8 +70,12 @@ machine.
 | **Read its own usage** | Requests and costs of this client only |
 | **Create run tokens** | Short-lived tokens for orchestrated runs |
 
+<Shot name="token-create" alt="Create access token dialog for Codex in CI with the token name, Expires set to 90 days, and Permissions: Send requests, List models, with a Change link" caption="Create token: a name, an expiry and its permissions" />
+
 **Access token created** shows the token **once**. Copy it into the tool now; Harbor Pilot stores only a keyed hash (HMAC-SHA256)
 of it and can't show it again.
+
+<Shot name="token-created" alt="Access token created dialog showing a new hpk_ token once with a copy button, followed by the steps to connect Codex: save the token to a private file and the config.toml block that points Codex at Harbor Pilot" caption="The token is shown once, with the steps for the client's tool" />
 
 The tokens table lists each token's permissions, when it was last used and when it expires. **Show revoked** includes
 revoked ones. Tokens an orchestrator minted for a single run appear as **Run token**s under the token that created
@@ -84,6 +88,8 @@ them; see [agent orchestrators](/tools/orchestrators).
 3. Click **Revoke the old token now**, in the same dialog.
 
 Until step 3 both tokens work, so the tool never stops.
+
+<Shot name="token-replace" alt="Access token created dialog for a replacement token, with a Replace the old token notice saying to give the new token to the tool first, then revoke demo ci, and a Revoke the old token now button" caption="Rotating a token: the new one is shown once, the old one is revoked from the same dialog" />
 
 ### Revoke a token
 

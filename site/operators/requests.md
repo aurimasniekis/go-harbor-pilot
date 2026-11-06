@@ -109,6 +109,8 @@ The answer is one of **Same routing today**, **Routing would change** or **Would
 request then and the first choice now. Use it after changing a plan to check that old traffic would still go where you
 expect.
 
+<Shot name="request-replay" alt="Replay with current config drawer over a request page, with Live account health selected and the result Routing would change: served then by openai-team after a rate limit, first choice then anthropic-team-2, first choice now anthropic-team-1" caption="Replay: what the same request would do today" />
+
 The same is available through the API as `POST /api/v1/activity/requests/{id}/replay` with
 `{"health_mode": "current"}` or `{"health_mode": "assume_available"}`.
 
