@@ -59,9 +59,9 @@ See [Backup and restore](/operators/backup).
 
 ## Notes for specific versions
 
-### 0.1.0
+### 0.1.1
 
-The first release: there is nothing to upgrade from.
+The first release: there is nothing to upgrade from. (0.1.0 was tagged but never published.)
 
 ## Rotating the master key
 

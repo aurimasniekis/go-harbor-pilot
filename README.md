@@ -22,7 +22,7 @@
   <img src="site/public/screenshots/home-light.png" alt="Harbor Pilot home: what needs attention, request and cost figures, the limits closest to running out and the latest requests">
 </picture>
 
-> **0.1.0 is the first release.** Every capability is covered by automated tests against fixtures, synthetic upstreams
+> **0.1.1 is the first release.** Every capability is covered by automated tests against fixtures, synthetic upstreams
 > and fake binaries, and the reverse proxy configurations are verified against the real proxies. Runs against real
 > provider accounts are tracked per cell in the
 > [compatibility matrix](https://aurimasniekis.github.io/go-harbor-pilot/reference/compatibility). Until 1.0, minor
