@@ -1,7 +1,7 @@
 # Upgrades and rollback
 
-Harbor Pilot is pre-release. Until 1.0, read the release notes of every version you upgrade to: defaults and the
-configuration can still change between versions, and this page lists the changes that need action from you.
+Until 1.0, read the release notes of every version you upgrade to: a minor version can still change defaults and the
+configuration, and this page lists the changes that need action from you.
 
 ## Upgrade
 
@@ -27,7 +27,8 @@ Then check:
 - **Settings → System & backups → This instance** shows the new **Version**, and **Database schema versions** the
   schema version of the main and captured content databases.
 
-With Docker, images are tagged by version. Pin a tag rather than `latest`, so an upgrade is a deliberate change:
+With Docker, pin a version tag rather than `latest`, so an upgrade is a deliberate change. `0.1` takes patch releases
+of 0.1; moving to `0.2` is an upgrade to read the notes for. Change the tag in your Compose file, then:
 
 ```sh
 docker compose pull && docker compose up -d
@@ -58,29 +59,9 @@ See [Backup and restore](/operators/backup).
 
 ## Notes for specific versions
 
-### Secret references are confined to a prefix
+### 0.1.0
 
-`env:` secret references read only environment variables with an allowed prefix, by default `HP_SECRET_`. `file:`
-references can't read the data directory or the master key files.
-
-Before upgrading:
-
-1. Find your references: export the configuration (`GET /api/v1/config/export`) and search it for `"env:` and
-   `_ref`.
-2. Rename the variables, for example `ANTHROPIC_API_KEY` to `HP_SECRET_ANTHROPIC_API_KEY`, and update the references.
-   Or set `security.secret_env_prefixes` (or `HP_SECRET_ENV_PREFIXES`) to your own prefix. Make sure it covers only
-   secrets: a prefix that is too broad is refused.
-
-A reference that no longer resolves makes requests fail with *environment variable is not allowed as a secret
-reference*, and saving one is refused with the allowed prefixes named.
-
-### SSO no longer links existing accounts by email alone
-
-With **New people: Must be invited first**, an existing account is linked to an SSO identity only after an admin marks
-it for that provider (invite it with that provider, or `PATCH /api/v1/users/{id}` with
-`{"sso_provider": "<slug>"}`). The provider's allowed email domains now apply to these accounts too. Accounts already
-linked are unaffected. Mark the remaining people before upgrading, or they can't sign in through SSO. See
-[Single sign-on](/operators/access#single-sign-on-oidc).
+The first release: there is nothing to upgrade from.
 
 ## Rotating the master key
 

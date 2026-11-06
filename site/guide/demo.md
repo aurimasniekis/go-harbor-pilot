@@ -23,7 +23,7 @@ fresh.
 Container images are published with releases. With an image, publish the port on your loopback address only:
 
 ```sh
-docker run --rm -p 127.0.0.1:8080:8080 docker.io/aurimasniekis/harbor-pilot \
+docker run --rm -p 127.0.0.1:8080:8080 docker.io/aurimasniekis/harbor-pilot:0.1 \
   serve --demo --demo-allow-public
 ```
 

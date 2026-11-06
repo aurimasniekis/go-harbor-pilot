@@ -123,7 +123,7 @@ export default withMermaid(
       },
       search: { provider: 'local' },
       footer: {
-        message: 'Released under the Apache-2.0 License. Pre-release software.',
+        message: 'Released under the Apache-2.0 License.',
         copyright: 'Copyright © 2026 Aurimas Niekis',
       },
     },

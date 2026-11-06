@@ -29,11 +29,23 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
       - name: Test
         run: go test -count=1 ./...
+      # The release notes are the tag's section of CHANGELOG.md; a tag without one fails here.
+      - name: Release notes
+        env:
+          REF: ${{ github.ref_name }}
+        run: |
+          v=${REF#v}
+          awk -v v="$v" '$0 ~ "^## " v "( |$)" {f=1; next} f && /^## / {exit} f' CHANGELOG.md |
+            sed -e '/./,$!d' > "$RUNNER_TEMP/notes.md"
+          if [[ ! -s "$RUNNER_TEMP/notes.md" ]]; then
+            echo "::error::CHANGELOG.md has no section for $v"
+            exit 1
+          fi
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: v2.12.7
-          args: release --clean
+          args: release --clean --release-notes=${{ runner.temp }}/notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

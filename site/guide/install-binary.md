@@ -1,8 +1,21 @@
 # Install the binary (systemd)
 
-Harbor Pilot is one static binary. Releases include archives for Linux and macOS on amd64 and arm64, named
-`harbor-pilot_<version>_<os>_<arch>.tar.gz`, with a checksum file. Each archive also contains the example
-configuration and the systemd unit used below.
+Harbor Pilot is one static binary. Each [release](https://github.com/aurimasniekis/go-harbor-pilot/releases) has
+archives for Linux and macOS on amd64 and arm64, named `harbor-pilot_<version>_<os>_<arch>.tar.gz`, with a
+`checksums.txt` file. Each archive also contains the example configuration and the systemd unit used below.
+
+```sh
+VERSION=0.1.0
+ARCH=amd64          # or arm64
+base=https://github.com/aurimasniekis/go-harbor-pilot/releases/download/v$VERSION
+curl -fLO "$base/harbor-pilot_${VERSION}_linux_${ARCH}.tar.gz"
+curl -fLO "$base/checksums.txt"
+sha256sum --ignore-missing -c checksums.txt
+tar -xzf "harbor-pilot_${VERSION}_linux_${ARCH}.tar.gz"
+./harbor-pilot version
+```
+
+The commands below run from the extracted directory.
 
 To build it yourself instead, you need Go 1.27, Node.js 24 and pnpm:
 

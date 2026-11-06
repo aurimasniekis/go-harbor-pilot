@@ -189,7 +189,7 @@ Every requirement of the original product specification, with the build phase th
 | R17.5 | Secret handling: references, write-only, ephemeral, opt-in token in state | 14 | contract-tested | *_ref fields in specs; secrets_wo + secrets_wo_version (Terraform >= 1.11); ephemeral harborpilot_gateway_token (>= 1.10, revoked on close); store_token_in_state opt-in; tests assert no secret or token in state |
 | R17.6 | Convergence: empty plan after apply | 14 | contract-tested | server-canonical spec kept in private state; empty second plan asserted for every kind and every example |
 | R17.7 | Seven examples | 14 | contract-tested | ../terraform-provider-harbor-pilot/examples/scenarios (7), each applied unchanged in scenario L |
-| R17.8 | Release builds; no Registry claim | 14 | implemented | goreleaser with GPG signing and registry manifest, CI matrix 1.10/1.11/1.14/1.17; not published (blocked: owner, Registry and GPG key) |
+| R17.8 | Release builds and Registry publication | 14 | implemented | goreleaser with GPG signing (repository secrets `GPG_PRIVATE_KEY`, `PASSPHRASE`) and the registry manifest, CI matrix 1.10/1.11/1.14/1.17; 0.1.0 is the first release, and the Registry listing is added by the owner once it is published |
 
 ## §18 UI
 | ID | Requirement | Phase | Status | Evidence |

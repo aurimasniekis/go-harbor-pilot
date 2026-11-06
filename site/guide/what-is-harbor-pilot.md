@@ -56,10 +56,12 @@ client.
 
 ## Status
 
-Harbor Pilot is **pre-release**. Every feature on this site is implemented and covered by automated tests against
-synthetic providers and fake command-line tools. Live runs against real provider accounts are still pending: the
+The current release is **0.1.0**, the first. Every feature on this site is implemented and covered by automated tests
+against synthetic providers and fake command-line tools, and the [reverse proxy configurations](/guide/reverse-proxy)
+are verified against the real proxies. Runs against real provider accounts are still to come: the
 [compatibility matrix](/reference/compatibility) says, for each protocol, provider and tool, exactly what has been
-tested and how.
+tested and how. Until 1.0, a minor version may change configuration; [Upgrades](/operators/upgrades) lists what
+needs action.
 
 ## Next steps
 

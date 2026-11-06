@@ -17,7 +17,7 @@ flowchart LR
   G -. tool calls .-> T
 ```
 
-::: warning Pre-release
+::: warning Not yet run against a real subscription
 The Claude Code bridge is contract-tested against the real `claude` binary (2.1.318) with a synthetic upstream. The
 Codex bridge is contract-tested against a fake binary that emits the documented events. Neither has been run against a
 real subscription yet. See the [compatibility matrix](/reference/compatibility).
