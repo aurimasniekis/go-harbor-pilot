@@ -12,11 +12,14 @@ cd "$(dirname "$0")/.."
 
 PORT=${SCREENSHOT_PORT:-18190}
 OUT=site/public/screenshots
-DATA=$(mktemp -d)
+DATA=$(mktemp -d -t harbor-pilot-demo.XXXXXX)
 trap 'kill "${PID:-}" 2>/dev/null || true; rm -rf "$DATA"' EXIT
 
 make build >/dev/null
-./bin/harbor-pilot serve --demo --listen "127.0.0.1:$PORT" --data-dir "$DATA" >"$DATA/server.log" 2>&1 &
+# Bridge binaries at the standard install paths, so no path from this
+# machine appears in the images.
+HP_CLAUDE_BINARY=/usr/local/bin/claude HP_CODEX_BINARY=/usr/local/bin/codex \
+  ./bin/harbor-pilot serve --demo --listen "127.0.0.1:$PORT" --data-dir "$DATA" >"$DATA/server.log" 2>&1 &
 PID=$!
 for _ in $(seq 1 60); do
   curl -fsS "http://127.0.0.1:$PORT/readyz" >/dev/null 2>&1 && break
