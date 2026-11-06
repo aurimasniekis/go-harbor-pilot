@@ -222,7 +222,11 @@ func (a *App) deadDeliveries(ctx context.Context, snap *cp.Snapshot, add func(At
 		if d := snap.Destinations[id]; d != nil {
 			name = d.Name
 		}
-		add(AttentionItem{ID: "delivery:" + id, Severity: "warning", Area: "delivery", Title: fmt.Sprintf("%d events could not be delivered to %s", r.n, name),
+		noun := "events"
+		if r.n == 1 {
+			noun = "event"
+		}
+		add(AttentionItem{ID: "delivery:" + id, Severity: "warning", Area: "delivery", Title: fmt.Sprintf("%d %s could not be delivered to %s", r.n, noun, name),
 			Link: "/events/destinations/" + id})
 	}
 	var n int
