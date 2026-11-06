@@ -1,0 +1,21 @@
+{
+  "name": "harbor-pilot-site",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@11.23.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "node scripts/check-shots.mjs && vitepress build",
+    "preview": "vitepress preview",
+    "check:shots": "node scripts/check-shots.mjs"
+  },
+  "devDependencies": {
+    "mermaid": "11.17.2",
+    "vitepress": "1.6.4",
+    "vitepress-plugin-mermaid": "2.0.17"
+  }
+}
