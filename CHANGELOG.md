@@ -12,6 +12,16 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
   unchanged. For OpenAI upstreams they become in-place system messages, and for Gemini they become user text. Each
   loss is recorded.
 
+### Fixed
+
+- Run tokens record the parent token that created them (`created_by` and the audit log) instead of `anonymous`.
+- A request refused by a blocking budget shows as **Blocked** and emits `access.request.blocked`, as the operator
+  docs describe. `budget.threshold.exceeded` is still sent once per period.
+- The demo's `spaceman-runs` client pins only `spaceman.fleet` and allows the demo projects, so run tokens can bind
+  their own `spaceman.space` and `project_id`.
+- Docs: the agent orchestrators page now describes how client and run-token references combine, and the
+  `access.credential.issued` data fields match what is sent (`prefix`, `scopes`, `child`).
+
 ## 0.1.1 (2026-11-06)
 
 The first release. A `v0.1.0` tag exists, but its release build stopped on a flaky test and nothing was

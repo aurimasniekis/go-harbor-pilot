@@ -10,8 +10,8 @@ Webhooks carry `X-Harbor-Signature: t=<unix>,v1=<hex>[,v1=<hex>]`, an HMAC-SHA25
 |---|---|---|---|---|---|---|
 | `routing.account.switched` | `harborpilot.routing.account_switched.v1` | info | request_id, binding_id, pool_id, from_account_id, to_account_id | pool, from_account_id, to, reason |  | A pool's serving account changed. |
 | `routing.fallback.selected` | `harborpilot.routing.fallback_selected.v1` | warning | request_id, binding_id, plan_id, pool_id | from, to, step, reason |  | A request was served by a different model or provider than its first choice. |
-| `access.request.blocked` | `harborpilot.access.request_blocked.v1` | warning | request_id, binding_id | reason, requested_model, plan_id, excluded |  | A request was refused by policy (routing restriction, privacy, compatibility). |
-| `access.credential.issued` | `harborpilot.access.credential_issued.v1` | info | credential_id, binding_id | name, scopes |  | A gateway credential was issued. |
+| `access.request.blocked` | `harborpilot.access.request_blocked.v1` | warning | request_id, binding_id | reason, requested_model, plan_id, excluded |  | A request was refused by policy (routing restriction, privacy, compatibility, blocking budget). |
+| `access.credential.issued` | `harborpilot.access.credential_issued.v1` | info | credential_id, binding_id | prefix, scopes, child |  | A gateway credential was issued (child is true for a minted run token). |
 | `access.credential.revoked` | `harborpilot.access.credential_revoked.v1` | info | credential_id, binding_id | reason |  | A gateway credential was revoked. |
 | `quota.window.exhausted` | `harborpilot.quota.window_exhausted.v1` | warning | monitor_id, account_id | monitor, bucket, label, reset_at, source | quota.window.recovered | A monitored global quota window reached its exhaustion threshold. |
 | `quota.window.recovered` | `harborpilot.quota.window_recovered.v1` | info | monitor_id, account_id | monitor, bucket, label |  | A previously exhausted quota window has capacity again. |
