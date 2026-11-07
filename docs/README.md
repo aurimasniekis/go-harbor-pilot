@@ -13,6 +13,7 @@ https://aurimasniekis.github.io/go-harbor-pilot/.
 | [COMPATIBILITY.md](COMPATIBILITY.md) | Status of every protocol, translation, harness, executor and quota adapter, with evidence | A status changes (also `site/reference/compatibility.md`) |
 | [TRACEABILITY.md](TRACEABILITY.md) | Every requirement with its status and evidence | A requirement's status or evidence changes |
 | [SCREENSHOTS.md](SCREENSHOTS.md) | Every documentation screenshot: where it is shown, what it captures, whether it is current | A UI area changes (recapture with `make screenshots`) or a page adds or drops a shot |
+| [RELEASING.md](RELEASING.md) | How a release and its container images are built, and why the image build stages run on the build platform | The release workflow or the Dockerfiles change |
 | [contracts/](contracts/README.md) | Harbor Pilot's gateway, event and configuration contracts, and verified external references | A contract changes |
 
 Status words are defined once, in ARCHITECTURE.md ("Evidence vocabulary"). Never mark anything `live-verified`
