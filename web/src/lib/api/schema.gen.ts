@@ -5298,6 +5298,13 @@ export interface components {
             /** Format: int64 */
             warned: number;
         };
+        SummaryFilters: {
+            binding_id?: string;
+            /** @description Trusted-reference filters (ANDed). */
+            refs?: {
+                [key: string]: string;
+            };
+        };
         TestOutBody: {
             claims: {
                 [key: string]: unknown;
@@ -5413,14 +5420,19 @@ export interface components {
         };
         UsageSummary: {
             categories: string[];
+            /** @description Present when a filter was applied. */
+            filters?: components["schemas"]["SummaryFilters"];
             /** Format: date-time */
             from: string;
             group_by: string;
             groups: components["schemas"]["UsageGroup"][];
+            /** @description With group_by=ref:<key>: present when more groups are available. */
+            next_cursor?: string;
+            /** @description Whole-range fees; filters do not apply to them. */
             subscription_fees: components["schemas"]["SubscriptionFee"][];
             /** Format: date-time */
             to: string;
-            /** @description Per category and currency; categories are never summed together. */
+            /** @description Per category and currency over every matching row (all pages); categories are never summed together. subscription_fee is the whole-range fee and ignores filters. */
             totals: components["schemas"]["CostAmount"][];
         };
         UsageTokens: {
@@ -5762,6 +5774,8 @@ export interface operations {
                 fallbacks?: boolean;
                 /** @description Request id, or a prefix of the requested or served model. */
                 q?: string;
+                /** @description Trusted-reference filter <key>:<value>, split at the first colon. Repeatable (at most 4, ANDed). */
+                ref?: string[];
             };
             header?: never;
             path?: never;
@@ -5863,6 +5877,8 @@ export interface operations {
                 /** @description Maximum items to return. */
                 limit?: number;
                 binding_id?: string;
+                /** @description Sessions with a request carrying these trusted references, e.g. session:<value> for a bound session. Same syntax as on /activity/requests. */
+                ref?: string[];
             };
             header?: never;
             path?: never;
@@ -12330,7 +12346,16 @@ export interface operations {
                 from?: string;
                 /** @description RFC 3339; default now. */
                 to?: string;
-                group_by?: "account" | "provider" | "model" | "binding" | "project" | "workspace" | "billing" | "";
+                /** @description account (default), provider, model, binding, project, workspace, billing, or ref:<key> to group by a trusted reference key (rows without the key form the "" group). */
+                group_by?: string;
+                /** @description Trusted-reference filter <key>:<value>, split at the first colon. Repeatable (at most 4, ANDed). */
+                ref?: string[];
+                /** @description Only usage of this client binding. */
+                binding_id?: string;
+                /** @description With group_by=ref:<key>: opaque cursor from a previous page's next_cursor. Valid only with the same group_by, ref, binding_id, from and to. */
+                cursor?: string;
+                /** @description With group_by=ref:<key>: maximum groups to return. */
+                limit?: number;
             };
             header?: never;
             path?: never;

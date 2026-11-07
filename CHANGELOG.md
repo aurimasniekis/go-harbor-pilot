@@ -12,6 +12,14 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
   unchanged. For OpenAI upstreams they become in-place system messages, and for Gemini they become user text. Each
   loss is recorded.
 
+### Activity and spend
+
+- Filter usage and activity by trusted reference: `ref=<key>:<value>` on `/api/v1/usage/summary`,
+  `/api/v1/activity/requests` and `/api/v1/activity/sessions`, and `group_by=ref:<key>` on the usage summary, so an
+  orchestrator gets per-run totals (for example `group_by=ref:spaceman.run`) and finds a bound session's id. Reference
+  groups are paged with `cursor` and `limit`. The usage summary also takes `binding_id`. Existing history is indexed
+  when the database is upgraded.
+
 ### Fixed
 
 - Run tokens record the parent token that created them (`created_by` and the audit log) instead of `anonymous`.
@@ -21,6 +29,13 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
   their own `spaceman.space` and `project_id`.
 - Docs: the agent orchestrators page now describes how client and run-token references combine, and the
   `access.credential.issued` data fields match what is sent (`prefix`, `scopes`, `child`).
+
+### Upgrade notes
+
+- The first start after the upgrade indexes existing history in one migration, before the server listens. Its time
+  and disk use grow with the number of requests and ledger rows times their trusted references: as a guide, 1M
+  requests plus 1M ledger rows with 3 references each took about 27 s and added about 530 MB. Leave room for that
+  next to the database and its pre-upgrade copy. Rows whose stored references aren't a JSON object are skipped.
 
 ## 0.1.1 (2026-11-06)
 

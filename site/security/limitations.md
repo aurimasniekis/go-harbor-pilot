@@ -63,6 +63,12 @@ See [Masking: guarantees and limits](/security/masking).
   cooldown does that.
 - **Statistics are computed on demand.** A statistics query reads up to 200,000 requests; larger ranges are marked as
   truncated.
+- **Filtering by reference has gaps.** Usage totals filtered by a trusted reference cover every usage entry. Request
+  and session lists filtered by a reference follow request telemetry, which can drop rows when the writer is busy.
+  Usage recorded after a restart carries references only when its request was recorded. A token that can create run
+  tokens chooses their references, so when several clients use the same reference keys, filter by client too.
+  Subscription fees under a filter are still whole-range figures, and the usage-over-time endpoint can't filter by
+  reference yet.
 
 ## Routing and diagnostics
 

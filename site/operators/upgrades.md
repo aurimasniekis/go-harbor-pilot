@@ -59,6 +59,13 @@ See [Backup and restore](/operators/backup).
 
 ## Notes for specific versions
 
+### Unreleased
+
+The first start indexes existing request history by trusted reference (for `ref=` filters and `group_by=ref:<key>`).
+This runs as one migration before the server listens, and its time and disk use grow with requests and ledger rows
+times their references. As a guide, 1M requests plus 1M ledger rows with 3 references each took about 27 s and added
+about 530 MB. Make sure the disk has room for that, the database and the `harbor.db.pre-<version>.bak` copy.
+
 ### 0.1.1
 
 The first release: there is nothing to upgrade from. (0.1.0 was tagged but never published.)

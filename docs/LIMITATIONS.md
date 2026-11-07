@@ -62,6 +62,11 @@ TRACEABILITY.md (`planned`, `in-progress`).
 - **Quota adapter extras are not imported (for now).** Model prices and API-key inventories reported by adapters are
   ignored; usage aggregates and quota buckets are imported.
 - **Statistics on demand.** `/stats` aggregates up to 200,000 requests per query; larger ranges are flagged truncated.
+- **Trusted-ref filters (D-041).** Usage totals by `ref` cover every ledger row, but `/activity/requests` and
+  `/activity/sessions` by `ref` follow request telemetry, which can drop rows under back-pressure. Usage recovered
+  after a restart is attributed to refs only when its request row was written. Refs are trusted per client: a token
+  with `tokens:mint` chooses its runs' values, so filter on `binding_id` too when clients share a ref namespace.
+  `subscription_fees` and the `subscription_fee` total ignore filters. `/usage/series` has no `ref` filter yet.
 
 ## Routing and diagnostics
 

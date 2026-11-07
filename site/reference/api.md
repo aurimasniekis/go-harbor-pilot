@@ -147,3 +147,65 @@ Secret fields are write-only. Responses show only whether a secret is set, where
 | Compatibility | Passthrough settings and Protocol Watch. |
 | Configuration | The effective configuration, revisions, export and atomic import (with dry run). |
 | System | Attention items, CLI bridge status, storage and key status, backups. |
+
+## Usage and activity by reference
+
+Requests made with a token that carries **trusted references** (a run token's `bound_refs`, plus the references set on
+its client) can be filtered and grouped by those references. Headers such as `X-HP-External-Ref` are claims and are
+never filterable. These endpoints need the same permissions as without a filter: `usage.read` for usage and
+`activity.read` for activity.
+
+`ref=<key>:<value>` filters by one reference. The value is everything after the first `:`, so it may contain colons.
+The key uses the same rules as `bound_refs` keys (lowercase, for example `spaceman.run`), and the value is 1 to 256
+bytes. Repeat `ref` up to 4 times to require all of them. A malformed filter returns `422 validation_failed` with
+`location: "query.ref"`.
+
+| Endpoint | Parameters |
+|---|---|
+| `GET /api/v1/usage/summary` | `ref`, `binding_id`, and `group_by=ref:<key>` next to `account`, `provider`, `model`, `binding`, `project`, `workspace` and `billing`. |
+| `GET /api/v1/activity/requests` | `ref`, combined with the other filters, `total` and pagination. |
+| `GET /api/v1/activity/sessions` | `ref`: sessions with a request that carries the references. `ref=session:<value>` finds the session id of a bound session. |
+
+```sh
+# Per-run totals inside one space
+GET /api/v1/usage/summary?ref=spaceman.space:spc_alpha&group_by=ref:spaceman.run
+
+# One run's spend, split by model
+GET /api/v1/usage/summary?ref=spaceman.run:run_a&group_by=model
+
+# One run's failed requests
+GET /api/v1/activity/requests?ref=spaceman.run:run_a&status=error
+
+# The session id of a run's bound session
+GET /api/v1/activity/sessions?ref=session:run_a
+```
+
+```json
+{
+  "group_by": "ref:spaceman.run",
+  "filters": { "refs": { "spaceman.space": "spc_alpha" } },
+  "groups": [
+    { "key": "run_a", "label": "run_a", "attempts": 2, "tokens": { "input": 300, "output": 30 }, "costs": [ … ], "allocated": [ … ] },
+    { "key": "run_b", "label": "run_b", "attempts": 1, "tokens": { "input": 1000, "output": 100 }, "costs": [ … ], "allocated": [ … ] }
+  ],
+  "next_cursor": "…",
+  "totals": [ … ],
+  "subscription_fees": [ … ]
+}
+```
+
+- With `group_by=ref:<key>`, usage without that reference forms the group with key `""`. Empty reference values are
+  not indexed, so usage whose value is empty is in that group too.
+- Reference groups are ordered by key and paged like lists: `limit` (1 to 500, default 50), then `cursor` with the
+  previous `next_cursor`. A cursor only works with the same `group_by`, `ref`, `binding_id`, `from` and `to` as the
+  page it came from; otherwise the response is 422 at `query.cursor`. Other groupings return all their groups, and
+  ignore `cursor` and `limit`.
+- `totals` cover all matching usage in the range, on every page.
+- `subscription_fees` and the `subscription_fee` total are the whole range's fees and ignore filters. Each group's
+  `allocated` share is its part of the account's tokens, so a filtered slice never gets the whole fee.
+- Usage totals include every usage entry. Request and session lists come from request telemetry, which can drop rows
+  when the writer is busy (see [Known limitations](/security/limitations)).
+- A token that can create run tokens chooses their references. When several clients use the same keys, add
+  `binding_id` to stay within one client.
+- `GET /api/v1/usage/series` can't filter by reference yet.
+

@@ -12,7 +12,9 @@ package usageapi
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"net/http"
 	"sort"
 	"strings"
@@ -75,14 +77,22 @@ type SubscriptionFee struct {
 	Currency      string `json:"currency"`
 }
 
+// SummaryFilters echoes the filters a summary was computed with.
+type SummaryFilters struct {
+	Refs      map[string]string `json:"refs,omitempty" doc:"Trusted-reference filters (ANDed)."`
+	BindingID string            `json:"binding_id,omitempty"`
+}
+
 // UsageSummary is a usage report.
 type UsageSummary struct {
 	From       time.Time         `json:"from"`
 	To         time.Time         `json:"to"`
 	GroupBy    string            `json:"group_by"`
+	Filters    *SummaryFilters   `json:"filters,omitempty" required:"false" doc:"Present when a filter was applied."`
 	Groups     []UsageGroup      `json:"groups"`
-	Totals     []CostAmount      `json:"totals" doc:"Per category and currency; categories are never summed together."`
-	Fees       []SubscriptionFee `json:"subscription_fees"`
+	NextCursor string            `json:"next_cursor,omitempty" required:"false" doc:"With group_by=ref:<key>: present when more groups are available."`
+	Totals     []CostAmount      `json:"totals" doc:"Per category and currency over every matching row (all pages); categories are never summed together. subscription_fee is the whole-range fee and ignores filters."`
+	Fees       []SubscriptionFee `json:"subscription_fees" doc:"Whole-range fees; filters do not apply to them."`
 	Categories []string          `json:"categories"`
 }
 
@@ -153,55 +163,199 @@ func moneyList(m map[costKey]money.Amount) []CostAmount {
 	return out
 }
 
-// Summarize builds a usage summary.
-func Summarize(ctx context.Context, q store.Execer, snap *cp.Snapshot, from, to time.Time, by string) (*UsageSummary, error) {
-	col, ok := groupCols[by]
-	if !ok {
-		return nil, api.Invalid("unknown group_by", api.FieldError{Location: "query.group_by", Message: "must be one of account, provider, model, binding, project, workspace, billing"})
+// SummaryQuery selects what a usage summary covers.
+type SummaryQuery struct {
+	From, To time.Time
+	// By is a static dimension (account, provider, model, binding, project,
+	// workspace, billing) or ref:<key> for a trusted reference key.
+	By        string
+	Refs      []api.RefFilter
+	BindingID string
+	// Cursor and Limit page the groups of a ref:<key> grouping, ordered by
+	// group key. Limit 0 returns every group.
+	Cursor string
+	Limit  int
+	// Range is the from and to as the caller gave them (empty when
+	// defaulted). It is bound into the group cursor instead of From and To,
+	// so a range that defaults to now still pages.
+	Range string
+}
+
+// refGroupPrefix marks a group_by on a trusted reference key.
+const refGroupPrefix = "ref:"
+
+// groupSpec is how a group_by dimension maps onto the ledger (aliased l).
+// Column names and SQL come from static code; the ref key is a bound
+// argument of join.
+type groupSpec struct {
+	expr  string
+	join  string
+	args  []any
+	isRef bool
+}
+
+func resolveGroup(by string) (groupSpec, error) {
+	if col, ok := groupCols[by]; ok {
+		return groupSpec{expr: `COALESCE(l.` + col + `, '')`}, nil
 	}
+	if key, ok := strings.CutPrefix(by, refGroupPrefix); ok && cp.ValidRefKey(key) {
+		return groupSpec{expr: `COALESCE(gr.value, '')`, join: ` LEFT JOIN ledger_refs gr ON gr.ledger_id = l.id AND gr.key = ?`,
+			args: []any{key}, isRef: true}, nil
+	}
+	return groupSpec{}, api.Invalid("unknown group_by", api.FieldError{Location: "query.group_by",
+		Message: "must be one of account, provider, model, binding, project, workspace, billing or ref:<key>"})
+}
+
+// filterWhere builds the ledger conditions shared by every summary query:
+// the time range plus the binding and trusted-reference filters.
+func filterWhere(sq SummaryQuery) (string, []any) {
+	from, to := sq.From.UnixMilli(), sq.To.UnixMilli()
+	where := `l.at >= ? AND l.at < ?`
+	args := []any{from, to}
+	if sq.BindingID != "" {
+		where += ` AND l.binding_id = ?`
+		args = append(args, sq.BindingID)
+	}
+	for _, f := range sq.Refs {
+		where += ` AND l.id IN (SELECT ledger_id FROM ledger_refs WHERE key = ? AND value = ? AND at >= ? AND at < ?)`
+		args = append(args, f.Key, f.Value, from, to)
+	}
+	return where, args
+}
+
+const groupCursorPrefix = "g|"
+
+// cursorScope binds a group cursor to the query that produced it: group_by,
+// the filters and the range as given. Reusing a cursor with another query
+// would silently skip groups, so it is rejected instead.
+func cursorScope(sq SummaryQuery) string {
+	refs := make([]string, 0, len(sq.Refs))
+	for _, f := range sq.Refs {
+		refs = append(refs, f.Key+"\x00"+f.Value)
+	}
+	sort.Strings(refs)
+	h := sha256.New()
+	for _, part := range append([]string{sq.By, sq.BindingID, sq.Range}, refs...) {
+		h.Write([]byte(part))
+		h.Write([]byte{0xff}) // never part of valid UTF-8 input
+	}
+	return hex.EncodeToString(h.Sum(nil)[:6]) + "|"
+}
+
+// Summarize builds a usage summary.
+func Summarize(ctx context.Context, q store.Execer, snap *cp.Snapshot, sq SummaryQuery) (*UsageSummary, error) {
+	g, err := resolveGroup(sq.By)
+	if err != nil {
+		return nil, err
+	}
+	fwhere, fargs := filterWhere(sq)
+	usageKinds := ` AND l.kind IN ('usage','unknown_usage','correction')`
+
+	// Page the groups of a ref grouping by key. Totals still cover every
+	// matching row.
+	var pageCond string
+	var pageArgs []any
+	var next string
+	if g.isRef && sq.Limit > 0 {
+		cond, args := fwhere+usageKinds, append([]any{}, fargs...)
+		scope := groupCursorPrefix + cursorScope(sq)
+		if sq.Cursor != "" {
+			after, ok := strings.CutPrefix(sq.Cursor, scope)
+			if !ok {
+				return nil, api.Invalid("invalid cursor", api.FieldError{Location: "query.cursor",
+					Message: "malformed cursor, or from another query (group_by, filters and range must match)"})
+			}
+			cond += ` AND ` + g.expr + ` > ?`
+			args = append(args, after)
+		}
+		keys, err := store.Query(ctx, q, func(r *sql.Rows) (string, error) {
+			var k string
+			return k, r.Scan(&k)
+		}, `SELECT DISTINCT `+g.expr+` FROM ledger l`+g.join+` WHERE `+cond+` ORDER BY 1 LIMIT ?`, //nolint:gosec // expr and join are static
+			append(append(append([]any{}, g.args...), args...), sq.Limit+1)...)
+		if err != nil {
+			return nil, err
+		}
+		if len(keys) > sq.Limit {
+			keys = keys[:sq.Limit]
+			next = api.EncodeCursor(scope + keys[len(keys)-1])
+		}
+		if len(keys) == 0 {
+			pageCond = ` AND 0`
+		} else {
+			pageCond = ` AND ` + g.expr + ` IN (` + strings.TrimSuffix(strings.Repeat("?,", len(keys)), ",") + `)`
+			for _, k := range keys {
+				pageArgs = append(pageArgs, k)
+			}
+		}
+	}
+
 	type row struct {
 		key, kind, cur, billing           string
 		n, in, out, cr, cw, rs, cost, unk int64
 	}
 	rows, err := store.Query(ctx, q, func(r *sql.Rows) (row, error) {
 		var x row
-		var key, cur, billing sql.NullString
-		err := r.Scan(&key, &x.kind, &cur, &billing, &x.n, &x.in, &x.out, &x.cr, &x.cw, &x.rs, &x.cost, &x.unk)
-		x.key, x.cur, x.billing = key.String, cur.String, billing.String
+		var cur, billing sql.NullString
+		err := r.Scan(&x.key, &x.kind, &cur, &billing, &x.n, &x.in, &x.out, &x.cr, &x.cw, &x.rs, &x.cost, &x.unk)
+		x.cur, x.billing = cur.String, billing.String
 		return x, err
-	}, `SELECT `+col+`, cost_kind, currency, MIN(billing), COUNT(*), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0),
-		COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(cache_write_tokens),0), COALESCE(SUM(reasoning_tokens),0), COALESCE(SUM(cost_e10),0),
-		SUM(CASE WHEN kind = 'unknown_usage' THEN 1 ELSE 0 END)
-		FROM ledger WHERE at >= ? AND at < ? AND kind IN ('usage','unknown_usage','correction')
-		GROUP BY `+col+`, cost_kind, currency`, from.UnixMilli(), to.UnixMilli()) //nolint:gosec // col comes from the static map
+	}, `SELECT `+g.expr+`, l.cost_kind, l.currency, MIN(l.billing), COUNT(*), COALESCE(SUM(l.input_tokens),0), COALESCE(SUM(l.output_tokens),0),
+		COALESCE(SUM(l.cache_read_tokens),0), COALESCE(SUM(l.cache_write_tokens),0), COALESCE(SUM(l.reasoning_tokens),0), COALESCE(SUM(l.cost_e10),0),
+		SUM(CASE WHEN l.kind = 'unknown_usage' THEN 1 ELSE 0 END)
+		FROM ledger l`+g.join+` WHERE `+fwhere+usageKinds+pageCond+`
+		GROUP BY 1, l.cost_kind, l.currency`, append(append(append([]any{}, g.args...), fargs...), pageArgs...)...) //nolint:gosec // expr and join are static
 	if err != nil {
 		return nil, err
 	}
 	groups := map[string]*UsageGroup{}
 	gcosts := map[string]map[costKey]money.Amount{}
-	totals := map[costKey]money.Amount{}
 	for _, r := range rows {
-		g := groups[r.key]
-		if g == nil {
-			g = &UsageGroup{Key: r.key, Label: label(snap, by, r.key), Billing: r.billing}
-			groups[r.key] = g
+		gr := groups[r.key]
+		if gr == nil {
+			gr = &UsageGroup{Key: r.key, Label: label(snap, sq.By, r.key), Billing: r.billing}
+			groups[r.key] = gr
 			gcosts[r.key] = map[costKey]money.Amount{}
 		}
-		g.Attempts += r.n
-		g.UsageTokens.Input += r.in
-		g.UsageTokens.Output += r.out
-		g.UsageTokens.CacheRead += r.cr
-		g.UsageTokens.CacheWrite += r.cw
-		g.UsageTokens.Reasoning += r.rs
-		g.UsageTokens.UnknownUsage += r.unk
+		gr.Attempts += r.n
+		gr.UsageTokens.Input += r.in
+		gr.UsageTokens.Output += r.out
+		gr.UsageTokens.CacheRead += r.cr
+		gr.UsageTokens.CacheWrite += r.cw
+		gr.UsageTokens.Reasoning += r.rs
+		gr.UsageTokens.UnknownUsage += r.unk
 		if r.kind != "none" && r.cur != "" {
-			k := costKey{r.kind, r.cur}
-			gcosts[r.key][k] += money.Amount(r.cost)
-			totals[k] += money.Amount(r.cost)
+			gcosts[r.key][costKey{r.kind, r.cur}] += money.Amount(r.cost)
 		}
 	}
-	s := &UsageSummary{From: from, To: to, GroupBy: by, Groups: []UsageGroup{}, Fees: []SubscriptionFee{}, Categories: categories}
-	// Subscription fees prorated to the range and allocated by tokens.
+	// Totals over every matching row, independent of the group page.
+	totals := map[costKey]money.Amount{}
+	type trow struct {
+		kind, cur string
+		cost      int64
+	}
+	trows, err := store.Query(ctx, q, func(r *sql.Rows) (trow, error) {
+		var x trow
+		var cur sql.NullString
+		err := r.Scan(&x.kind, &cur, &x.cost)
+		x.cur = cur.String
+		return x, err
+	}, `SELECT l.cost_kind, l.currency, COALESCE(SUM(l.cost_e10),0) FROM ledger l WHERE `+fwhere+usageKinds+` GROUP BY 1, 2`, fargs...) //nolint:gosec // static SQL
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range trows {
+		if r.kind != "none" && r.cur != "" {
+			totals[costKey{r.kind, r.cur}] += money.Amount(r.cost)
+		}
+	}
+	s := &UsageSummary{From: sq.From, To: sq.To, GroupBy: sq.By, Groups: []UsageGroup{}, NextCursor: next, Fees: []SubscriptionFee{}, Categories: categories}
+	if len(sq.Refs) > 0 || sq.BindingID != "" {
+		s.Filters = &SummaryFilters{Refs: api.RefMap(sq.Refs), BindingID: sq.BindingID}
+	}
+	// Subscription fees prorated to the range (whole-range figures, never
+	// filtered) and allocated by tokens. Under a filter each group gets its
+	// share of the account's unfiltered tokens, not the whole fee.
 	alloc := map[string]map[costKey]money.Amount{}
 	if snap != nil {
 		for _, e := range snap.Entitlements {
@@ -209,23 +363,23 @@ func Summarize(ctx context.Context, q store.Execer, snap *cp.Snapshot, from, to 
 			if err != nil || fee <= 0 {
 				continue
 			}
-			pr := prorate(e.Spec, fee, from, to)
+			pr := prorate(e.Spec, fee, sq.From, sq.To)
 			if pr <= 0 {
 				continue
 			}
 			s.Fees = append(s.Fees, SubscriptionFee{EntitlementID: e.ID, AccountID: e.Spec.AccountID, PlanName: e.Spec.PlanName, Period: e.Spec.Period,
 				Fee: fee.String(), Prorated: pr.String(), Currency: e.Spec.Currency})
 			totals[costKey{"subscription_fee", e.Spec.Currency}] += pr
-			shares, err := tokenShares(ctx, q, col, e.Spec.AccountID, from, to)
+			total, err := accountTokens(ctx, q, e.Spec.AccountID, sq.From, sq.To)
 			if err != nil {
 				return nil, err
 			}
-			var total int64
-			for _, v := range shares {
-				total += v
-			}
 			if total == 0 {
 				continue
+			}
+			shares, err := tokenShares(ctx, q, g, fwhere, fargs, pageCond, pageArgs, e.Spec.AccountID)
+			if err != nil {
+				return nil, err
 			}
 			for key, v := range shares {
 				if alloc[key] == nil {
@@ -235,39 +389,52 @@ func Summarize(ctx context.Context, q store.Execer, snap *cp.Snapshot, from, to 
 			}
 		}
 	}
-	for key, g := range groups {
-		g.Costs = moneyList(gcosts[key])
-		g.Allocated = moneyList(alloc[key])
-		s.Groups = append(s.Groups, *g)
+	for key, gr := range groups {
+		gr.Costs = moneyList(gcosts[key])
+		gr.Allocated = moneyList(alloc[key])
+		s.Groups = append(s.Groups, *gr)
 	}
-	sort.Slice(s.Groups, func(i, j int) bool {
-		ti := s.Groups[i].UsageTokens.Input + s.Groups[i].UsageTokens.Output
-		tj := s.Groups[j].UsageTokens.Input + s.Groups[j].UsageTokens.Output
-		if ti != tj {
-			return ti > tj
-		}
-		return s.Groups[i].Key < s.Groups[j].Key
-	})
+	if g.isRef {
+		// Stable key order, which is also the page order.
+		sort.Slice(s.Groups, func(i, j int) bool { return s.Groups[i].Key < s.Groups[j].Key })
+	} else {
+		sort.Slice(s.Groups, func(i, j int) bool {
+			ti := s.Groups[i].UsageTokens.Input + s.Groups[i].UsageTokens.Output
+			tj := s.Groups[j].UsageTokens.Input + s.Groups[j].UsageTokens.Output
+			if ti != tj {
+				return ti > tj
+			}
+			return s.Groups[i].Key < s.Groups[j].Key
+		})
+	}
 	sort.Slice(s.Fees, func(i, j int) bool { return s.Fees[i].EntitlementID < s.Fees[j].EntitlementID })
 	s.Totals = moneyList(totals)
 	return s, nil
 }
 
-func tokenShares(ctx context.Context, q store.Execer, col, accountID string, from, to time.Time) (map[string]int64, error) {
-	rows, err := store.Query(ctx, q, func(r *sql.Rows) (struct {
+// allocationSum sums the tokens a subscription allocation is split by.
+const allocationSum = `COALESCE(SUM(COALESCE(l.input_tokens,0) + COALESCE(l.output_tokens,0) + COALESCE(l.cache_write_tokens,0)), 0)`
+
+// accountTokens is an account's unfiltered allocation denominator.
+func accountTokens(ctx context.Context, q store.Execer, accountID string, from, to time.Time) (int64, error) {
+	var n int64
+	err := q.QueryRowContext(ctx, `SELECT `+allocationSum+` FROM ledger l WHERE l.account_id = ? AND l.at >= ? AND l.at < ? AND l.kind = 'usage'`,
+		accountID, from.UnixMilli(), to.UnixMilli()).Scan(&n)
+	return n, err
+}
+
+// tokenShares sums an account's filtered tokens per group.
+func tokenShares(ctx context.Context, q store.Execer, g groupSpec, fwhere string, fargs []any, pageCond string, pageArgs []any, accountID string) (map[string]int64, error) {
+	type share struct {
 		k string
 		v int64
-	}, error) {
-		var x struct {
-			k string
-			v int64
-		}
-		var k sql.NullString
-		err := r.Scan(&k, &x.v)
-		x.k = k.String
+	}
+	args := append(append(append(append([]any{}, g.args...), fargs...), pageArgs...), accountID)
+	rows, err := store.Query(ctx, q, func(r *sql.Rows) (share, error) {
+		var x share
+		err := r.Scan(&x.k, &x.v)
 		return x, err
-	}, `SELECT `+col+`, COALESCE(SUM(COALESCE(input_tokens,0) + COALESCE(output_tokens,0) + COALESCE(cache_write_tokens,0)), 0)
-		FROM ledger WHERE account_id = ? AND at >= ? AND at < ? AND kind = 'usage' GROUP BY `+col, accountID, from.UnixMilli(), to.UnixMilli()) //nolint:gosec // static column
+	}, `SELECT `+g.expr+`, `+allocationSum+` FROM ledger l`+g.join+` WHERE `+fwhere+pageCond+` AND l.kind = 'usage' AND l.account_id = ? GROUP BY 1`, args...) //nolint:gosec // static SQL
 	if err != nil {
 		return nil, err
 	}
@@ -475,9 +642,13 @@ func parseRange(c clock.Clock, from, to string, def time.Duration) (time.Time, t
 func Register(a *api.API, d Deps) {
 	tags := []string{"Usage"}
 	type sumIn struct {
-		From    string `query:"from" doc:"RFC 3339; default 30 days before to."`
-		To      string `query:"to" doc:"RFC 3339; default now."`
-		GroupBy string `query:"group_by" enum:"account,provider,model,binding,project,workspace,billing," required:"false"`
+		From      string   `query:"from" doc:"RFC 3339; default 30 days before to."`
+		To        string   `query:"to" doc:"RFC 3339; default now."`
+		GroupBy   string   `query:"group_by" required:"false" pattern:"^(account|provider|model|binding|project|workspace|billing|ref:[a-z0-9][a-z0-9._-]{0,63})?$" doc:"account (default), provider, model, binding, project, workspace, billing, or ref:<key> to group by a trusted reference key (rows without the key form the \"\" group)."`
+		Refs      []string `query:"ref,explode" required:"false" maxItems:"4" doc:"Trusted-reference filter <key>:<value>, split at the first colon. Repeatable (at most 4, ANDed)."`
+		BindingID string   `query:"binding_id" maxLength:"64" doc:"Only usage of this client binding."`
+		Cursor    string   `query:"cursor" doc:"With group_by=ref:<key>: opaque cursor from a previous page's next_cursor. Valid only with the same group_by, ref, binding_id, from and to."`
+		Limit     int      `query:"limit" minimum:"1" maximum:"500" default:"50" doc:"With group_by=ref:<key>: maximum groups to return."`
 	}
 	type sumOut struct{ Body *UsageSummary }
 	api.Register(a, api.Op{ID: "usage-summary", Method: http.MethodGet, Path: "/usage/summary", Summary: "Usage and cost by category",
@@ -490,7 +661,20 @@ func Register(a *api.API, d Deps) {
 		if by == "" {
 			by = "account"
 		}
-		s, err := Summarize(ctx, d.DB().R, d.Snapshot(), from, to, by)
+		refs, err := api.ParseRefFilters(in.Refs)
+		if err != nil {
+			return nil, err
+		}
+		cursor, err := api.DecodeCursor(in.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		limit := in.Limit
+		if limit <= 0 {
+			limit = 50
+		}
+		s, err := Summarize(ctx, d.DB().R, d.Snapshot(), SummaryQuery{From: from, To: to, By: by, Refs: refs, BindingID: in.BindingID,
+			Cursor: cursor, Limit: limit, Range: in.From + "|" + in.To})
 		if err != nil {
 			return nil, err
 		}
