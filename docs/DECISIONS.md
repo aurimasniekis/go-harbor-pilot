@@ -396,8 +396,9 @@ path and adapter version, one work item per fingerprint.
 - **Source.** The list comes from public Anthropic documentation only. The mid-conversation system messages page
   names the supporting models (the Claude 5 generation and Claude Opus 4.8) and says the feature isn't available on
   Claude Sonnet 5. Every earlier model in the public deprecations table is also on the list: Claude Opus 4.7, 4.6,
-  4.5, 4.1 and 4, Claude Sonnet 4.6, 4.5 and 4, Claude Haiku 4.5, and the Claude 3 models. Names match as an alias,
-  a dated snapshot, a `-latest` alias, or with a platform prefix or version suffix.
+  4.5, 4.1 and 4, Claude Sonnet 4.6, 4.5 and 4, Claude Haiku 4.5, and the Claude 3 models. Names match as an alias
+  (including the `-0` aliases `claude-opus-4-0` and `claude-sonnet-4-0`), a dated snapshot, a `-latest` alias, or with
+  a platform prefix or version suffix (`-v1:0`, or a bare `-v2` as in `claude-3-5-sonnet-v2@20241022`).
 - **Not a model-catalog capability.** Provider model `capabilities` are positive and optional, and routing treats an
   empty list as "undeclared". A new positive capability would mark every catalog model that declares capabilities as
   unsupported until an operator added it. So this stays protocol knowledge in the adapter, next to the other

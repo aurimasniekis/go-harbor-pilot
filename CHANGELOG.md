@@ -13,7 +13,8 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
   (`false`) keeps today's behaviour. Provider account budgets aren't checked at mint (decision D-043).
 - `system`-role entries inside `/v1/messages` `messages[]` are sent as user text, with a `mid_conversation_system`
   loss, when the target Anthropic model is known not to support mid-conversation system messages (Claude Sonnet 5,
-  and older models up to Claude Opus 4.7, per Anthropic's public docs). They used to get the provider's 400. Every other model,
+  and older models up to Claude Opus 4.7, per Anthropic's public docs, including the `claude-opus-4-0` and
+  `claude-sonnet-4-0` aliases and Vertex `-v2` versions). They used to get the provider's 400. Every other model,
   including unknown ones, still gets them unchanged (decision D-042).
 
 ### Activity and spend

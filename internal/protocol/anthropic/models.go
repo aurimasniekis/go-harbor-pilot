@@ -20,9 +20,11 @@ var noMidConversationSystem = map[string]bool{
 	"claude-opus-4-5":   true,
 	"claude-opus-4-1":   true,
 	"claude-opus-4":     true,
+	"claude-opus-4-0":   true,
 	"claude-sonnet-4-6": true,
 	"claude-sonnet-4-5": true,
 	"claude-sonnet-4":   true,
+	"claude-sonnet-4-0": true,
 	"claude-haiku-4-5":  true,
 	"claude-3-7-sonnet": true,
 	"claude-3-5-sonnet": true,
@@ -41,7 +43,7 @@ func SupportsMidConversationSystem(model string) bool {
 
 // baseModel reduces a model identifier to its base name: lower case, without
 // a platform prefix ("us.anthropic."), a version suffix ("@20250929",
-// "-v1:0"), a client-side annotation ("[1m]"), a "-latest" alias suffix or a
+// "-v1:0", "-v2"), a client-side annotation ("[1m]"), a "-latest" alias suffix or a
 // trailing snapshot date ("-20250929").
 func baseModel(model string) string {
 	m := strings.ToLower(strings.TrimSpace(model))
@@ -51,7 +53,7 @@ func baseModel(model string) string {
 	if i := strings.IndexAny(m, "@["); i >= 0 {
 		m = m[:i]
 	}
-	if i := strings.LastIndex(m, "-v"); i >= 0 && strings.Contains(m[i:], ":") {
+	if i := strings.LastIndex(m, "-v"); i >= 0 && isVersion(m[i+2:]) {
 		m = m[:i]
 	}
 	m = strings.TrimSuffix(m, "-latest")
@@ -59,6 +61,25 @@ func baseModel(model string) string {
 		m = m[:i]
 	}
 	return m
+}
+
+// isVersion reports whether s is a platform version suffix after "-v": digits,
+// optionally followed by ":" and more digits ("2", "1:0").
+func isVersion(s string) bool {
+	major, minor, colon := strings.Cut(s, ":")
+	return allDigits(major) && (!colon || allDigits(minor))
+}
+
+func allDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func isDate(s string) bool {
