@@ -53,9 +53,10 @@ See [Masking: guarantees and limits](/security/masking).
   Usage that happens outside the gateway shows up only through provider-reported quota and usage, reconciled later.
 - **Budgets can block slightly early, never late.** They count settled costs plus in-flight estimates, and the
   estimate prices input at four characters per token and output at the requested maximum.
-- **Creating a run token doesn't check budgets.** An orchestrator gets a run token even when a blocking budget that
-  covers its client is used up; the token's requests are then refused with `429`. Check the budget before starting a
-  run. See [Agent orchestrators](/tools/orchestrators#budgets).
+- **Creating a run token checks budgets only when asked.** Without `check_budget`, an orchestrator gets a run token
+  even when a blocking budget that covers its client is used up, and the token's requests are then refused with
+  `429`. With `check_budget: true`, client, project, workspace and global budgets are checked, but provider account
+  budgets aren't, because the account is picked per request. See [Agent orchestrators](/tools/orchestrators#budgets).
 - **Quota can be stale or unknown.** Routing treats unknown as unknown, never as zero or unlimited; the plan decides
   what happens next.
 - **Rate-limit headers are short-lived.** Limits read from response headers are fresh for two minutes, are not kept as
@@ -67,8 +68,8 @@ See [Masking: guarantees and limits](/security/masking).
   and session lists filtered by a reference follow request telemetry, which can drop rows when the writer is busy.
   Usage recorded after a restart carries references only when its request was recorded. A token that can create run
   tokens chooses their references, so when several clients use the same reference keys, filter by client too.
-  Subscription fees under a filter are still whole-range figures, and the usage-over-time endpoint can't filter by
-  reference yet, so **Spend** hides its chart, provider billing and fees while a reference filter is on.
+  Subscription fees under a filter are still whole-range figures, so **Spend** hides provider billing and fees while a
+  reference filter is on.
 
 ## Routing and diagnostics
 

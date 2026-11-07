@@ -330,7 +330,7 @@ path and adapter version, one work item per fingerprint.
   direct loopback requests without forwarding headers, never with trusted proxies configured. Demo mode refuses a
   non-loopback address without `--demo-allow-public`.
 
-## D-040: Run token provenance and budget refusals
+## D-040: Run token provenance and budget refusals (mint budget check: see D-043)
 
 - **Refs.** A minted child credential stores its parent's bound refs plus the refs sent at mint. The binding's
   `external_refs` are not copied in; the gateway applies them per request, for keys the credential does not bind. A
@@ -378,7 +378,7 @@ path and adapter version, one work item per fingerprint.
 - **Fees under a filter.** `subscription_fees` and the `subscription_fee` total stay whole-range figures and ignore
   filters. Allocation keeps the account's unfiltered token total as its denominator, so a filtered slice gets its
   share of the fee, not the whole fee.
-- **Not yet.** `/usage/series` has no `ref` filter; that is a follow-up.
+- **Not yet.** `/usage/series` has no `ref` filter; that is a follow-up. (Added in D-043.)
 
 ## D-042: Mid-conversation system messages follow a per-model support list (2026-11-07)
 
@@ -405,3 +405,30 @@ path and adapter version, one work item per fingerprint.
 - **Scope.** The CLI bridge keeps inlining for every model, and explicit native passthrough (breaker open) still
   forwards bytes unchanged.
 
+## D-043: Optional budget check on mint; reference filters on the usage series (2026-11-07)
+
+- **`check_budget` on mint.** `POST /v1/harbor/credentials` accepts an optional boolean `check_budget` (default
+  `false`, so a mint without it behaves exactly as before, D-040). When it is `true` and an enabled `block` budget
+  covering the child's scope has its current period used up, the mint is refused with `429` in the gateway's
+  OpenAI-style error envelope: `type` `insufficient_quota`, `code` `budget_exceeded`, the budget's name and id in
+  `message`, and `budget_id`. Validation runs first, so an invalid mint is still a `400`.
+- **Scope.** The child's scope is what is known before routing: the parent's binding, the project its requests will
+  be attributed to (a bound `project_id` the binding allows, otherwise the binding's own project; the same rule the
+  request path uses, now one helper, `controlplane.CredentialProject`), that project's workspace, and global budgets.
+  Account budgets are skipped: routing picks the account per request. A per-request `X-HP-Project` hint isn't known
+  at mint either.
+- **Same figures.** The check reads each budget with the code behind `GET /api/v1/budgets/status` (settled ledger
+  cost plus active reservations) and applies the request path's test for a request with no estimate: spent plus
+  reserved at or over the limit. A mint that passes can still see its first request refused, because the request
+  adds its own estimate, or because routing picks a paid account whose budget is exhausted. Budgets ignore local and
+  free billing on the request path, but the account isn't known at mint, so the check counts the budget whatever
+  account a request would use.
+- **No audit entry, no event.** A refused mint writes nothing. The audit log records changes, and nothing changed.
+  `budget.threshold.exceeded` was already sent once for the period when the budget ran out (D-027), and
+  `access.request.blocked` describes a gateway request with a request row, which a mint isn't. An orchestrator that
+  retries a refused mint would otherwise fill the outbox with copies of a state that is already known.
+- **Usage series by reference.** `GET /api/v1/usage/series` accepts the same `ref=<key>:<value>` filters (repeatable,
+  at most 4, ANDed, trusted refs only) and `binding_id` as `/usage/summary`, parsed by the shared parser and applied
+  with the same `ledger_refs` conditions (`usageapi.refWhere`), as bound parameters. They combine with `filter`/`value`
+  and with `by`. Over the same range the buckets add up to the summary's totals under the same filter, except
+  `subscription_fee`, which the series never reports. The Spend page now keeps its chart under a reference filter.

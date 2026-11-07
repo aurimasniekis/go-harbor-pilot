@@ -188,12 +188,9 @@ func (g *Gateway) serve(w http.ResponseWriter, r *http.Request, p ir.Protocol, p
 			rc.refs[k] = v
 		}
 	}
-	rc.project = rc.binding.Spec.ProjectID
 	// Mint-time checks already confine bound projects; re-check against the
 	// binding as it is now (its allowed projects may have changed).
-	if pid := cred.BoundRefs["project_id"]; pid != "" && rc.snap.Projects[pid] != nil && cp.ChildProjectAllowed(rc.binding, pid) {
-		rc.project = pid
-	}
+	rc.project = cp.CredentialProject(rc.snap, rc.binding, cred.BoundRefs)
 	if hint := r.Header.Get("X-HP-Project"); hint != "" {
 		rc.claims["project"] = truncate(hint, 128)
 		if rc.binding.Spec.Trust.ProjectHints && slices.Contains(rc.binding.Spec.AllowedProjectIDs, hint) && cred.BoundRefs["project_id"] == "" {

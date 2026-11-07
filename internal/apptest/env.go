@@ -376,11 +376,12 @@ func (e *Env) Plan(name string, o PlanOpts) string {
 
 // BindingOpts configure a client binding.
 type BindingOpts struct {
-	ProjectID      string
-	MaxConcurrency int
-	TrustSessions  bool
-	Harness        string
-	ExternalRefs   map[string]string
+	ProjectID       string
+	AllowedProjects []string
+	MaxConcurrency  int
+	TrustSessions   bool
+	Harness         string
+	ExternalRefs    map[string]string
 }
 
 // Binding creates a client binding.
@@ -389,9 +390,13 @@ func (e *Env) Binding(name, planID string, o BindingOpts) string {
 	if refs == nil {
 		refs = map[string]string{}
 	}
+	allowed := o.AllowedProjects
+	if allowed == nil {
+		allowed = []string{}
+	}
 	var out obj
 	e.Admin.MustDo(201, "POST", "/api/v1/client-bindings", map[string]any{"name": name, "spec": map[string]any{"display_name": name, "owner_kind": "none",
-		"owner_id": "", "plan_id": planID, "project_id": o.ProjectID, "allowed_project_ids": []string{}, "expected_harness": o.Harness,
+		"owner_id": "", "plan_id": planID, "project_id": o.ProjectID, "allowed_project_ids": allowed, "expected_harness": o.Harness,
 		"allowed_models": []string{}, "limits": map[string]any{"requests_per_minute": 0, "max_concurrency": o.MaxConcurrency, "max_request_bytes": 0},
 		"trust": map[string]any{"session_hints": o.TrustSessions, "project_hints": false, "intent_hints": false}, "external_refs": refs, "enabled": true}}, &out)
 	return out.ID

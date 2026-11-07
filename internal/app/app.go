@@ -197,6 +197,7 @@ func New(ctx context.Context, o Options) (*App, error) {
 		HTTP: httpapi.New("harbor-pilot/" + o.Version), Bridges: map[string]executor.Executor{}, DB: a.DB, Clock: a.Clock, Log: a.Log,
 		Metrics: a.Metrics, Limits: gateway.DefaultLimits}
 	a.Gateway.AfterRequest = gateway.NewTransitions(a.DB.W).After
+	a.Gateway.Budgets = a.Budgets
 	a.Gateway.HealthOf = a.Quota.Health
 	a.Privacy = privacy.NewService(a.CP, a.Clock.Now)
 	a.Gateway.Privacy = a.Privacy

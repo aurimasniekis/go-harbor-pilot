@@ -51,9 +51,11 @@ TRACEABILITY.md (`planned`, `in-progress`).
   up only through provider-reported quota and usage, reconciled later.
 - **Budgets block slightly early, never late.** They count settled ledger costs plus in-flight estimates (input at four
   characters per token, output at the requested maximum), within one writer transaction.
-- **Run tokens are created without a budget check.** Minting a child credential never consults budgets; a run token
-  under an exhausted blocking budget is refused (`429 budget_exceeded`) on its first request. A `check_budget` mint
-  option is a proposed follow-up, not implemented.
+- **The mint budget check is opt-in and partial (D-043).** Without `check_budget`, minting a child credential never
+  consults budgets; a run token under an exhausted blocking budget is refused (`429 budget_exceeded`) on its first
+  request. With it, binding, project, workspace and global budgets are checked, but account budgets are not (routing
+  picks the account per request), nor a project chosen later by an `X-HP-Project` hint. A mint that passes can still
+  see its first request refused once that request's own estimate is added.
 - **Quota freshness.** Observations can be stale or unknown; routing treats unknown as unknown, never as zero or
   unlimited.
 - **Response-derived rate limits are short-lived.** Fresh for two minutes, not kept as history, dropped (and counted)
@@ -66,8 +68,8 @@ TRACEABILITY.md (`planned`, `in-progress`).
   `/activity/sessions` by `ref` follow request telemetry, which can drop rows under back-pressure. Usage recovered
   after a restart is attributed to refs only when its request row was written. Refs are trusted per client: a token
   with `tokens:mint` chooses its runs' values, so filter on `binding_id` too when clients share a ref namespace.
-  `subscription_fees` and the `subscription_fee` total ignore filters. `/usage/series` has no `ref` filter yet, so
-  the Spend page hides its chart (and provider billing and fees) while a reference filter is on.
+  `subscription_fees` and the `subscription_fee` total ignore filters, so the Spend page hides provider billing and
+  fees while a reference filter is on.
 
 ## Routing and diagnostics
 

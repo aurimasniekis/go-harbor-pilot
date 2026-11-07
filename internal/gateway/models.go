@@ -1,7 +1,9 @@
 package gateway
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/ratelimit"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/reqmeta"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/gemini"
@@ -10,6 +12,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/aurimasniekis/go-harbor-pilot/internal/accounting"
 	cp "github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/anthropic"
@@ -219,6 +222,9 @@ func (g *Gateway) mintChild(w http.ResponseWriter, r *http.Request) {
 		Scopes     []string          `json:"scopes"`
 		TTLSeconds int64             `json:"ttl_seconds"`
 		BoundRefs  map[string]string `json:"bound_refs"`
+		// CheckBudget refuses the mint when a blocking budget covering the
+		// child's scope is already used up (D-043).
+		CheckBudget bool `json:"check_budget"`
 	}
 	dec := json.NewDecoder(io.LimitReader(r.Body, 64<<10))
 	dec.DisallowUnknownFields()
@@ -226,9 +232,18 @@ func (g *Gateway) mintChild(w http.ResponseWriter, r *http.Request) {
 		g.writeError(w, p, &ir.Error{Kind: ir.ErrInvalidRequest, Message: "invalid body: " + err.Error()}, "")
 		return
 	}
-	c, tok, err := g.CP.MintChild(r.Context(), cred, cp.CredentialInput{Name: in.Name, Scopes: in.Scopes, TTL: time.Duration(in.TTLSeconds) * time.Second,
-		BoundRefs: in.BoundRefs, ManagedBy: cp.ManagedAPI})
+	ci := cp.CredentialInput{Name: in.Name, Scopes: in.Scopes, TTL: time.Duration(in.TTLSeconds) * time.Second,
+		BoundRefs: in.BoundRefs, ManagedBy: cp.ManagedAPI}
+	if in.CheckBudget {
+		ci.BudgetCheck = g.mintBudgetCheck
+	}
+	c, tok, err := g.CP.MintChild(r.Context(), cred, ci)
 	if err != nil {
+		var be *accounting.BudgetExceeded
+		if errors.As(err, &be) {
+			writeMintBudgetError(w, be)
+			return
+		}
 		var ve *cp.ValidationError
 		kind := ir.ErrPermission
 		msg := err.Error()
@@ -241,6 +256,35 @@ func (g *Gateway) mintChild(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	_, _ = w.Write(wire.MustMarshal(map[string]any{"credential": c, "token": tok}))
+}
+
+// mintBudgetCheck refuses a child mint when a blocking budget covering the
+// child's scope is used up. It reads budgets as GET /budgets/status and the
+// request-path reservation do. A refusal writes nothing: no audit entry and
+// no event (D-043).
+func (g *Gateway) mintBudgetCheck(ctx context.Context, sc cp.ChildScope) error {
+	if g.Budgets == nil {
+		return nil
+	}
+	be, err := g.Budgets.Exhausted(ctx, g.DB.R, accounting.Scope{BindingID: sc.BindingID, ProjectID: sc.ProjectID, WorkspaceID: sc.WorkspaceID}, g.Clock.Now())
+	if err != nil {
+		return err
+	}
+	if be != nil {
+		return be
+	}
+	return nil
+}
+
+// writeMintBudgetError answers a mint refused by check_budget: 429 in the
+// gateway's OpenAI-style error envelope, with code budget_exceeded and the
+// budget's id.
+func writeMintBudgetError(w http.ResponseWriter, be *accounting.BudgetExceeded) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusTooManyRequests)
+	_, _ = w.Write(wire.MustMarshal(map[string]any{"error": map[string]any{
+		"message": be.Detail + " (" + be.BudgetID + ")", "type": "insufficient_quota", "param": nil,
+		"code": string(ir.ErrBudget), "budget_id": be.BudgetID}}))
 }
 
 func asValidation(err error, target **cp.ValidationError) bool {

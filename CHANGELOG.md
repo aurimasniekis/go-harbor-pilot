@@ -3,6 +3,30 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
+## Unreleased
+
+### Gateway
+
+- Run tokens can be refused before a run starts: `POST /v1/harbor/credentials` takes an optional `check_budget`.
+  When it is `true` and an enabled blocking budget on the client, the run's project, that project's workspace, or a
+  global budget is used up, the mint is refused with `429` and code `budget_exceeded`, naming the budget. The default
+  (`false`) keeps today's behaviour. Provider account budgets aren't checked at mint (decision D-043).
+- `system`-role entries inside `/v1/messages` `messages[]` are sent as user text, with a `mid_conversation_system`
+  loss, when the target Anthropic model is known not to support mid-conversation system messages (Claude Sonnet 5,
+  and older models up to Claude Opus 4.7, per Anthropic's public docs). They used to get the provider's 400. Every other model,
+  including unknown ones, still gets them unchanged (decision D-042).
+
+### Activity and spend
+
+- `GET /api/v1/usage/series` takes the same `ref=<key>:<value>` filters and `binding_id` as the usage summary, and
+  its buckets add up to the summary's totals under the same filters. **Spend** keeps its chart over time while a
+  reference filter is on.
+
+### Fixed
+
+- End-to-end tests: the accessibility checks wait for the app shell before pressing keys or running axe, and the axe
+  scans retry until the page settles, which removes a flaky failure of the skip-link test.
+
 ## 0.1.2 (2026-11-07)
 
 Trusted-reference filters for usage and activity, `system` messages inside `/v1/messages`, and fixes found

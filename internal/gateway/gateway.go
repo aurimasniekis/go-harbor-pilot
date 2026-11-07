@@ -56,8 +56,10 @@ type Gateway struct {
 	authFails     *ratelimit.Limiter
 	authFailsOnce sync.Once
 
-	CP       *cp.Service
-	Acct     *accounting.Service
+	CP   *cp.Service
+	Acct *accounting.Service
+	// Budgets answers a mint's check_budget (nil = no budgets to check).
+	Budgets  *accounting.Budgets
 	Tel      *telemetry.Writer
 	Sessions *telemetry.Sessions
 	HTTP     *httpapi.Executor

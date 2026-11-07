@@ -26,7 +26,7 @@ Base URLs select a namespace only; they never authenticate. The gateway token is
 | `POST /v1beta/models/{model}:generateContent`, `:streamGenerateContent`, `:countTokens` | Gemini (also under `/gemini`) |
 | `GET /v1/models` | Anthropic shape when `anthropic-version` or `x-api-key` is present, otherwise OpenAI shape |
 | `GET /anthropic/v1/models`, `/openai/v1/models`, `/v1beta/models` | Explicit shapes |
-| `POST /v1/harbor/credentials` | Mint a child credential (requires `tokens:mint`) |
+| `POST /v1/harbor/credentials` | Mint a child credential (requires `tokens:mint`). Body: `name`, `scopes`, `ttl_seconds`, `bound_refs`, and optional `check_budget` (default `false`; when `true`, an exhausted enabled blocking budget on the child's binding, project, workspace or global scope refuses the mint with 429 `budget_exceeded` and `budget_id`, D-043) |
 | `DELETE /v1/harbor/credentials/{id}` | Revoke a child credential (its parent or itself) |
 
 Every response carries `X-Request-ID`, which keys the request in Activity ("Why this route?"). Errors are returned in the client protocol's own error envelope.
