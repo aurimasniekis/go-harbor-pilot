@@ -1,11 +1,14 @@
 package acceptance_test
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/apptest"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/config"
+	cp "github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
 )
 
 func userMsg(text string) map[string]any {
@@ -225,5 +228,63 @@ func TestModelIntentClassifierSeesMaskedContent(t *testing.T) {
 	}
 	if n := e.QueryInt(`SELECT COUNT(*) FROM ledger WHERE idempotency_key LIKE 'classifier:%' AND input_tokens = 30`); n != 1 {
 		t.Fatal("classifier usage not accounted separately")
+	}
+}
+
+// The demo's spaceman-runs client supports the orchestrator flow: each run
+// token binds its own spaceman.space and a demo project, while the fleet
+// reference configured on the client cannot be overridden.
+func TestDemoSpaceManRunsBindingAcceptsPerRunRefs(t *testing.T) {
+	e := apptest.New(t, apptest.WithConfig(func(c *config.Config) { c.Demo.Enabled = true }))
+	ctx := context.Background()
+	binding, err := e.App.CP.Get(ctx, cp.BindingDef, "spaceman-runs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := e.App.CP.Get(ctx, cp.ProjectDef, "data-pipeline")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := e.Token(binding.ID, "gateway:invoke", "gateway:models", "tokens:mint")
+	tests := []struct {
+		name string
+		refs map[string]string
+		want int
+	}{
+		{"per-run space and project", map[string]string{"spaceman.space": "spc_run_a", "spaceman.run": "run_a", "project_id": data.ID}, 201},
+		{"another space", map[string]string{"spaceman.space": "spc_run_b", "spaceman.run": "run_b"}, 201},
+		{"same fleet", map[string]string{"spaceman.fleet": "fleet_synthetic", "spaceman.run": "run_c"}, 201},
+		{"overrides the fleet", map[string]string{"spaceman.fleet": "fleet_other", "spaceman.run": "run_d"}, 400},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := e.Gateway("POST", "/v1/harbor/credentials", parent, map[string]any{"name": "run", "scopes": []string{"gateway:invoke"}, "ttl_seconds": 600,
+				"bound_refs": tt.refs})
+			body := apptest.ReadAll(r)
+			if r.StatusCode != tt.want {
+				t.Fatalf("mint: %d %s", r.StatusCode, body)
+			}
+			if tt.want != 201 {
+				return
+			}
+			var out struct {
+				Credential struct {
+					ParentID  string            `json:"parent_id"`
+					CreatedBy string            `json:"created_by"`
+					BoundRefs map[string]string `json:"bound_refs"`
+				} `json:"credential"`
+			}
+			if err := json.Unmarshal([]byte(body), &out); err != nil {
+				t.Fatal(err)
+			}
+			for k, v := range tt.refs {
+				if out.Credential.BoundRefs[k] != v {
+					t.Errorf("bound_refs[%s] = %q, want %q", k, out.Credential.BoundRefs[k], v)
+				}
+			}
+			if out.Credential.CreatedBy == "anonymous" || out.Credential.CreatedBy != out.Credential.ParentID {
+				t.Errorf("created_by = %q, want the parent %q", out.Credential.CreatedBy, out.Credential.ParentID)
+			}
+		})
 	}
 }
