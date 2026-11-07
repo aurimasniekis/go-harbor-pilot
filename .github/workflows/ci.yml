@@ -77,9 +77,68 @@ jobs:
           name: playwright-report
           path: web/playwright-report
 
+  # Builds both images for every platform the release publishes, without
+  # pushing, so an arm64 regression shows up before a tag. Then loads each
+  # platform's plain image and checks its architecture and version (arm64
+  # runs under QEMU).
   docker:
+    name: docker (${{ matrix.image }})
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: harbor-pilot
+            dockerfile: deploy/Dockerfile
+          - image: harbor-pilot-bridge
+            dockerfile: deploy/Dockerfile.bridge
+    env:
+      VERSION: ci-${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
-      - run: docker build -f deploy/Dockerfile -t harbor-pilot:ci .
-      - run: docker run --rm harbor-pilot:ci version
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: build linux/amd64 and linux/arm64
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: false
+          build-args: VERSION=${{ env.VERSION }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      - name: load linux/amd64
+        if: matrix.image == 'harbor-pilot'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          load: true
+          tags: harbor-pilot:ci-amd64
+          build-args: VERSION=${{ env.VERSION }}
+      - name: load linux/arm64
+        if: matrix.image == 'harbor-pilot'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          load: true
+          tags: harbor-pilot:ci-arm64
+          build-args: VERSION=${{ env.VERSION }}
+      - name: check architecture and version
+        if: matrix.image == 'harbor-pilot'
+        run: |
+          for arch in amd64 arm64; do
+            img="harbor-pilot:ci-$arch"
+            got=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$img")
+            [[ "$got" == "linux/$arch" ]] || { echo "::error::$img is $got, want linux/$arch"; exit 1; }
+            out=$(docker run --rm --platform "linux/$arch" "$img" version)
+            echo "$arch: $out"
+            [[ "$out" == "harbor-pilot $VERSION" ]] || { echo "::error::$img reports '$out'"; exit 1; }
+          done
