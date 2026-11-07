@@ -14813,6 +14813,24 @@ paths:
             maximum: 20
             minimum: 0
             type: integer
+        - description: Trusted-reference filter <key>:<value>, split at the first colon. Repeatable (at most 4, ANDed). Same rules as usage/summary.
+          explode: true
+          in: query
+          name: ref
+          schema:
+            description: Trusted-reference filter <key>:<value>, split at the first colon. Repeatable (at most 4, ANDed). Same rules as usage/summary.
+            items:
+              type: string
+            maxItems: 4
+            type: array
+        - description: Only usage of this client binding.
+          explode: false
+          in: query
+          name: binding_id
+          schema:
+            description: Only usage of this client binding.
+            maxLength: 64
+            type: string
       responses:
         "200":
           content:

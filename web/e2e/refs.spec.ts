@@ -79,7 +79,7 @@ test('spend groups by run with separate totals', async ({ page }) => {
   // Usage without a run is its own row.
   await expect(table.getByText('No run', { exact: true })).toBeVisible()
 
-  // Narrow the page to one run: totals follow, unfilterable parts hide.
+  // Narrow the page to one run: totals and the chart follow, unfilterable parts hide.
   await page.getByRole('button', { name: 'Filter by reference' }).click()
   await page.getByLabel('Value', { exact: true }).fill('run_synthetic_2')
   await page.getByRole('button', { name: 'Add filter' }).click()
@@ -87,7 +87,8 @@ test('spend groups by run with separate totals', async ({ page }) => {
   const totals = page.getByRole('group', { name: /^Spend for the/ })
   await expect(totals.getByText('Requests', { exact: true })).toBeVisible()
   await expect(totals).toContainText(cost2!)
-  await expect(page.getByRole('heading', { name: /Daily cost/ })).toHaveCount(0)
+  // The chart over time follows the filter.
+  await expect(page.getByRole('heading', { name: /Daily cost/ })).toBeVisible()
   await expect(table.getByRole('row').filter({ hasText: 'run_synthetic_1' })).toHaveCount(0)
 
   // A run's row opens its requests.

@@ -12312,6 +12312,10 @@ export interface operations {
                 by?: "account" | "provider" | "model" | "binding" | "project" | "workspace" | "billing" | "";
                 /** @description Groups returned with by (default 6). */
                 top?: number;
+                /** @description Trusted-reference filter <key>:<value>, split at the first colon. Repeatable (at most 4, ANDed). Same rules as usage/summary. */
+                ref?: string[];
+                /** @description Only usage of this client binding. */
+                binding_id?: string;
             };
             header?: never;
             path?: never;
