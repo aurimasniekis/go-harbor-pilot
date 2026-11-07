@@ -25,7 +25,7 @@
 | `request` | Concepts, Connect your first tool, Requests and "why this route", Site landing | A request that failed over: "why this route", route, attempts, candidates (also on a phone) | current |
 | `request-replay` | Requests and "why this route" | Replay with current config drawer with a result | current |
 | `request-run-refs` | Agent orchestrators | A run token's request with its trusted references under Verified context | stale: regenerate (the demo client now pins spaceman.fleet) |
-| `spend` | Site landing, Spend | Spend over time, cost categories kept separate | current |
+| `spend` | Site landing, Spend | Spend over time, cost categories kept separate | stale |
 | `spend-breakdown` | Spend | Spend breakdown by client, project and model | current |
 | `limits` | Limits: quotas and budgets, Site landing | Limits overview: accounts, tightest windows, budgets (also on a phone) | current |
 | `limits-tracking` | Limits: quotas and budgets | Quota tracking: trackers and the accounts they route for | current |

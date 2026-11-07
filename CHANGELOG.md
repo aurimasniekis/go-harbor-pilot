@@ -19,6 +19,11 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
   orchestrator gets per-run totals (for example `group_by=ref:spaceman.run`) and finds a bound session's id. Reference
   groups are paged with `cursor` and `limit`. The usage summary also takes `binding_id`. Existing history is indexed
   when the database is upgraded.
+- The UI filters and groups by trusted reference too. **Requests → More filters → Filter by reference** lists one
+  run's requests (for example **Run: run_42**, up to four references at once), and a request's verified context links
+  to all requests with the same reference. **Spend** has **Filter by reference** and **Group by → Run** (or any other
+  reference key), with **Load more** for long lists. Filters and groupings are kept in the page address. The demo's
+  orchestrator client now makes its requests with two run tokens.
 
 ### Fixed
 

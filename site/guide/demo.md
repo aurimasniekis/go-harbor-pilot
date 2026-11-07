@@ -55,8 +55,10 @@ rate-limited accounts and fallbacks, so every page has data:
 1. Open **Requests**, filter by **Fallbacks**, and open one. The page explains which account was rate limited and
    which one served the request.
 2. Open **Routing → Team default → Test a request** and simulate a request for `claude-sonnet-4-5`.
-3. Open **Limits** and see the used-up weekly window. Routing skips that account until it resets.
-4. Press <kbd>Ctrl</kbd>+<kbd>K</kbd> (<kbd>⌘</kbd>+<kbd>K</kbd> on macOS) to jump anywhere.
+3. Open **Spend**, set **Group by** to **Run**, and see the two orchestrator runs with separate totals. Click one to see
+   its requests.
+4. Open **Limits** and see the used-up weekly window. Routing skips that account until it resets.
+5. Press <kbd>Ctrl</kbd>+<kbd>K</kbd> (<kbd>⌘</kbd>+<kbd>K</kbd> on macOS) to jump anywhere.
 
 <Shot name="palette" alt="Command palette open with the search term budget, listing budget pages and the Add a budget action" caption="The command palette" />
 

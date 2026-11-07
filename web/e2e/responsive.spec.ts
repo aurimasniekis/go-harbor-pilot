@@ -50,3 +50,18 @@ test('detail pages fit a phone screen', async ({ page }) => {
   }
   expect(checked, 'the demo has clients and plans').toBeGreaterThanOrEqual(2)
 })
+
+test('run views fit a phone screen', async ({ page }) => {
+  await signIn(page)
+  const ref = encodeURIComponent(JSON.stringify(['spaceman.run:run_synthetic_1']))
+  for (const path of [`/activity?ref=${ref}`, `/usage?group=ref%3Aspaceman.run&ref=${ref}`, '/usage?group=ref%3Aspaceman.task']) {
+    await page.goto(path)
+    await page.waitForLoadState('networkidle')
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow, path).toBeLessThanOrEqual(1)
+  }
+  // On a phone the grouping is a select with the run option.
+  if ((page.viewportSize()?.width ?? 0) >= 768) return
+  await page.goto('/usage')
+  await expect(page.getByLabel('Group by').and(page.locator('input:not([type="hidden"])')).first()).toBeVisible()
+})

@@ -238,10 +238,35 @@ func Traffic(ctx context.Context, base string, toks Tokens, ups *Upstreams, log 
 			"tools": []any{map[string]any{"type": "function", "name": "shell", "parameters": map[string]any{"type": "object"}}}},
 			"User-Agent", "codex_cli_rs/0.166.0 (synthetic)")
 	}
-	for i := range 3 {
-		post("/v1/messages", toks["spaceman"], map[string]any{"model": "coding/deep", "max_tokens": 8000, "stream": true,
+	// Two orchestrator runs, each with its own run token. The client pins only
+	// spaceman.fleet, so each token binds its space and a trusted spaceman.run
+	// reference, and usage can be filtered and grouped per run.
+	runTok := func(run string) string {
+		raw, _ := json.Marshal(map[string]any{"name": "run " + run, "scopes": []string{cp.ScopeInvoke, cp.ScopeModels}, "ttl_seconds": 24 * 3600,
+			"bound_refs": map[string]string{"spaceman.space": "spc_synthetic", "spaceman.run": run}})
+		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, base+"/v1/harbor/credentials", bytes.NewReader(raw))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+toks["spaceman"])
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Warn("demo.traffic.failed", "error", err)
+			return toks["spaceman"]
+		}
+		defer resp.Body.Close()
+		var out struct {
+			Token string `json:"token"`
+		}
+		if resp.StatusCode != http.StatusCreated || json.NewDecoder(resp.Body).Decode(&out) != nil || out.Token == "" {
+			log.Warn("demo.traffic.failed", "status", resp.StatusCode)
+			return toks["spaceman"]
+		}
+		return out.Token
+	}
+	runs := map[string]string{"run_synthetic_1": runTok("run_synthetic_1"), "run_synthetic_2": runTok("run_synthetic_2")}
+	for i, run := range []string{"run_synthetic_1", "run_synthetic_1", "run_synthetic_2"} {
+		post("/v1/messages", runs[run], map[string]any{"model": "coding/deep", "max_tokens": 8000, "stream": true,
 			"messages": []any{map[string]any{"role": "user", "content": fmt.Sprintf("[synthetic] run step %d", i)}}},
-			"User-Agent", "claude-cli/2.1.318 (external, sdk-cli)", "X-HP-External-Ref", "run_synthetic_1")
+			"User-Agent", "claude-cli/2.1.318 (external, sdk-cli)", "X-HP-External-Ref", run)
 	}
 	for i := range 2 {
 		post("/v1/chat/completions", toks["private"], map[string]any{"model": "anything", "messages": []any{map[string]any{"role": "user", "content": fmt.Sprintf("[synthetic] private %d", i)}}})

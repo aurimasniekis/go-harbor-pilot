@@ -1,6 +1,6 @@
-import { queryOptions } from '@tanstack/react-query'
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 import { ApiError, apiGet } from './client'
-import type { Backup, Stats, StatsBy, Delivery, EventKindInfo, NotificationItem, Breaker, Degradation, ProtocolChange, WorkItem, WorkStatus, BridgeStatus, TraceContent, TraceHit, TraceMeta, BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
+import type { Backup, Stats, StatsBy, Delivery, EventKindInfo, NotificationItem, Breaker, Degradation, ProtocolChange, WorkItem, WorkStatus, BridgeStatus, TraceContent, TraceHit, TraceMeta, BudgetUsage, ExternalUsageRow, Forecast, HistoryPoint, QuotaAdapter, QuotaBoard, QuotaLogin, ReconciliationRow, UsageGroupBy, UsagePoint, UsageSummaryGroupBy, UsageSummary, ObservedSession, RequestDetail, RequestSummary, Credential, Effective, PlanVersion, AuthSettings, Meta, OIDCProvider, Page, SecurityAlert, ServicePrincipal, Session, SystemStatus, User, WebSession, ApiToken, RoutingVariable } from './types'
 
 export const qk = {
   session: ['session'] as const,
@@ -196,10 +196,21 @@ export interface UsageRange {
   to: string
 }
 
-export const usageSummaryQuery = (r: UsageRange, groupBy: UsageGroupBy) =>
+/** Usage summary; `refs` (`key:value`, all must match) narrows it to requests carrying those trusted references. */
+export const usageSummaryQuery = (r: UsageRange, groupBy: UsageGroupBy, refs?: readonly string[]) =>
   queryOptions({
-    queryKey: ['usage', 'summary', r, groupBy],
-    queryFn: ({ signal }) => apiGet<UsageSummary>('/usage/summary', { ...r, group_by: groupBy }, signal),
+    queryKey: ['usage', 'summary', r, groupBy, refs ?? []],
+    queryFn: ({ signal }) => apiGet<UsageSummary>('/usage/summary', { ...r, group_by: groupBy, ref: refs }, signal),
+  })
+
+/** Usage grouped by a trusted reference key, a page of groups at a time. */
+export const usageRefGroupsQuery = (r: UsageRange, groupBy: UsageSummaryGroupBy, refs?: readonly string[], limit = 50) =>
+  infiniteQueryOptions({
+    queryKey: ['usage', 'summary', 'pages', r, groupBy, refs ?? [], limit],
+    initialPageParam: '',
+    queryFn: ({ pageParam, signal }) =>
+      apiGet<UsageSummary>('/usage/summary', { ...r, group_by: groupBy, ref: refs, limit, ...(pageParam ? { cursor: pageParam } : {}) }, signal),
+    getNextPageParam: (last) => last.next_cursor || undefined,
   })
 
 export const usageSeriesQuery = (r: UsageRange, step: 'hour' | 'day', by?: UsageGroupBy) =>

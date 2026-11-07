@@ -246,6 +246,8 @@ export type CostAmount = S['CostAmount']
 export type SubscriptionFee = S['SubscriptionFee']
 export type UsagePoint = S['UsagePoint']
 export type UsageGroupBy = 'account' | 'provider' | 'model' | 'binding' | 'project' | 'workspace' | 'billing'
+/** A usage summary grouping: a dimension, or `ref:<key>` for a trusted reference key (paged, D-041). */
+export type UsageSummaryGroupBy = UsageGroupBy | `ref:${string}`
 
 // ---------- privacy and traces ----------
 export type PrivacyPolicySpec = S['PrivacyPolicySpec']

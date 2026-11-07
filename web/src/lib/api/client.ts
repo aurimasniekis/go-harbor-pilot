@@ -34,15 +34,18 @@ function sessionEnded(path: string, status: number): void {
   if (status === 401 && path !== '/session') onUnauthenticated?.()
 }
 
-type Query = Record<string, string | number | boolean | undefined | null>
+/** Query parameters; an array repeats the parameter once per item (`ref=a&ref=b`). */
+type Query = Record<string, string | number | boolean | readonly string[] | undefined | null>
 
 export const API = '/api/v1'
 
-function buildUrl(path: string, query?: Query): string {
+export function buildUrl(path: string, query?: Query): string {
   const url = new URL(API + path, window.location.origin)
   if (query) {
     for (const [k, v] of Object.entries(query)) {
-      if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v))
+      if (Array.isArray(v)) {
+        for (const item of v) if (item !== '') url.searchParams.append(k, item)
+      } else if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v))
     }
   }
   return url.pathname + url.search

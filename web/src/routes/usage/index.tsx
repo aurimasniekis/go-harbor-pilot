@@ -1,17 +1,20 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
-import { Accordion, Badge, Button, Group, Paper, Progress, SegmentedControl, Skeleton, Stack, Text, Tooltip } from '@mantine/core'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { Accordion, Autocomplete, Badge, Button, Group, Paper, Pill, Progress, SegmentedControl, Select, Skeleton, Stack, Text, Tooltip } from '@mantine/core'
 import { Coins, Download } from 'lucide-react'
 import { QueryError } from '@/components/states'
-import { externalUsageQuery, reconciliationQuery, resourceListQuery, usageSeriesQuery, usageSummaryQuery } from '@/lib/api/queries'
+import { externalUsageQuery, reconciliationQuery, resourceListQuery, usageRefGroupsQuery, usageSeriesQuery, usageSummaryQuery } from '@/lib/api/queries'
 import { byId } from '@/lib/api/resources'
 import type { AccountRes, ReconciliationRow, UsageGroup, UsageGroupBy } from '@/lib/api/types'
 import { presetRange } from '@/features/usage/range'
 import { bucketFor, bucketize, stepFor } from '@/features/usage/buckets'
 import { UsageChart } from '@/features/usage/UsageCharts'
-import { type Column, DataTable, Empty, Section, Stat, StatGrid, StatSkeleton } from '@/ui/kit'
+import { REF_KEY, refKeyLabel, refLabel, withRef } from '@/features/refs/refs'
+import { RefFilterButton, useRefKeyOptions } from '@/features/refs/RefPicker'
+import { type Column, DataTable, Empty, Section, Stat, StatGrid, StatSkeleton, useCompact } from '@/ui/kit'
 import { costKindHelp, money, short } from '@/ui/fmt'
+import { groupChoice, rowSearch, RUN_KEY } from '@/features/usage/spendGroups'
 import { DEFAULT_RANGE, Route as UsageRoute, type SpendSearch } from './route'
 
 export const Route = createFileRoute('/usage/')({
@@ -25,6 +28,9 @@ const groupOptions: { value: UsageGroupBy; label: string }[] = [
   { value: 'project', label: 'Project' },
 ]
 
+/** Group-by choices: the dimensions, then a run, then any other reference key. */
+const groupChoices = [...groupOptions, { value: 'run', label: 'Run' }, { value: 'ref', label: 'Reference…' }]
+
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 const rangeName: Record<string, string> = { '1': 'last 24 hours', '7': 'last 7 days', '30': 'last 30 days', '90': 'last 90 days' }
 
@@ -33,38 +39,28 @@ function estimate(g: UsageGroup, currency: string): number {
   return Number(g.costs.find((c) => c.kind === 'estimated_api_charge' && c.currency === currency)?.amount ?? 0)
 }
 
-/** Where a breakdown row leads: the matching requests. */
-function rowSearch(groupBy: UsageGroupBy, key: string, days: number): Record<string, string | number> | null {
-  if (!key) return null
-  const range = days <= 1 ? 1 : days <= 7 ? 7 : days <= 30 ? 30 : 'all'
-  switch (groupBy) {
-    case 'binding':
-      return { binding_id: key, range }
-    case 'account':
-      return { account_id: key, range }
-    case 'project':
-      return { project_id: key, range }
-    case 'model':
-      return { q: key, range }
-    default:
-      return null
-  }
-}
-
 function SpendPage() {
   const search = UsageRoute.useSearch()
   const navigate = useNavigate()
+  const compact = useCompact()
   const rangeDays = search.range ?? DEFAULT_RANGE
   const preset = String(rangeDays)
-  const groupBy: UsageGroupBy = search.group ?? 'account'
+  const groupBy = search.group ?? 'account'
+  const refKey = groupBy.startsWith('ref:') ? groupBy.slice(4) : null
+  const refs = search.ref
+  const filtered = !!refs?.length
   const mode = search.view ?? 'cost'
   const set = (patch: Partial<SpendSearch>) => void navigate({ to: '/usage', search: { ...search, ...patch }, replace: true })
   const days = Number(preset)
   const bucket = bucketFor(days)
   const range = useMemo(() => presetRange(days), [days])
-  const summary = useQuery(usageSummaryQuery(range, groupBy))
-  const series = useQuery(usageSeriesQuery(range, stepFor(bucket), groupBy))
-  const rec = useQuery(reconciliationQuery(Math.min(days, 90)))
+  // Headline numbers. Reference groups are paged, so the headline comes from
+  // a small complete grouping instead.
+  const summary = useQuery(usageSummaryQuery(range, refKey ? 'billing' : (groupBy as UsageGroupBy), refs))
+  const refGroups = useInfiniteQuery({ ...usageRefGroupsQuery(range, groupBy, refs), enabled: !!refKey })
+  // The chart, provider billing and fees can't be narrowed to a reference.
+  const series = useQuery({ ...usageSeriesQuery(range, stepFor(bucket), refKey ? undefined : (groupBy as UsageGroupBy)), enabled: !filtered })
+  const rec = useQuery({ ...reconciliationQuery(Math.min(days, 90)), enabled: !filtered })
   const rows = useMemo(() => (series.data ? bucketize(series.data.points ?? [], range.from, range.to, bucket) : []), [series.data, range, bucket])
   const groupNames = useMemo(() => Object.fromEntries((summary.data?.groups ?? []).map((g) => [g.key, g.label || g.key])), [summary.data])
   const stacked = useMemo(
@@ -75,11 +71,16 @@ function SpendPage() {
       })),
     [series.data, groupNames, range, bucket],
   )
-  const tokens = useMemo(() => rows.reduce((t, r) => ({ input: t.input + r.input, output: t.output + r.output }), { input: 0, output: 0 }), [rows])
   const s = summary.data
+  const tokens = useMemo(() => {
+    if (!filtered) return rows.reduce((t, r) => ({ input: t.input + r.input, output: t.output + r.output }), { input: 0, output: 0 })
+    return (s?.groups ?? []).reduce((t, g) => ({ input: t.input + g.tokens.input, output: t.output + g.tokens.output }), { input: 0, output: 0 })
+  }, [filtered, rows, s])
+  const requests = (s?.groups ?? []).reduce((n, g) => n + g.attempts, 0)
   const est = s?.totals.find((c) => c.kind === 'estimated_api_charge')
   const currency = est?.currency ?? 'USD'
   const billed = useMemo(() => {
+    if (filtered) return null
     let sum = 0
     let any = false
     for (const r of rec.data?.items ?? []) {
@@ -89,18 +90,29 @@ function SpendPage() {
       }
     }
     return any ? sum : null
-  }, [rec.data, currency])
-  const fees = useMemo(() => (s?.subscription_fees ?? []).reduce((n, f) => n + (f.currency === currency ? Number(f.prorated) : 0), 0), [s, currency])
+  }, [rec.data, currency, filtered])
+  const fees = useMemo(
+    () => (filtered ? 0 : (s?.subscription_fees ?? []).reduce((n, f) => n + (f.currency === currency ? Number(f.prorated) : 0), 0)),
+    [s, currency, filtered],
+  )
   const busyBuckets = rows.filter((r) => r.attempts > 0).length
-  const totalEst = (s?.groups ?? []).reduce((n, g) => n + estimate(g, currency), 0)
+  const breakdown = useMemo(() => (refKey ? (refGroups.data?.pages ?? []).flatMap((p) => p.groups ?? []) : (s?.groups ?? [])), [refKey, refGroups.data, s])
+  const totalEst = refKey ? Number(est?.amount ?? 0) : breakdown.reduce((n, g) => n + estimate(g, currency), 0)
+  // Reference groups arrive in key order a page at a time; keep that order so
+  // "Load more" appends instead of reshuffling.
   const sortedGroups = useMemo(
-    () => [...(s?.groups ?? [])].sort((a, b) => estimate(b, currency) - estimate(a, currency) || b.attempts - a.attempts),
-    [s, currency],
+    () => (refKey ? breakdown : [...breakdown].sort((a, b) => estimate(b, currency) - estimate(a, currency) || b.attempts - a.attempts)),
+    [refKey, breakdown, currency],
   )
   const estAmount = est ? Number(est.amount) : 0
   const outside = billed !== null ? Math.max(0, billed - estAmount) : null
+  const keyName = refKey ? refKeyLabel(refKey) : ''
 
-  const groupLabel = groupOptions.find((g) => g.value === groupBy)?.label ?? 'Name'
+  const groupLabel = refKey ? keyName : (groupOptions.find((g) => g.value === groupBy)?.label ?? 'Name')
+  const groupName = (g: UsageGroup) => {
+    if (refKey && !g.key) return <span className="muted">No {keyName.toLowerCase()}</span>
+    return g.label || g.key || <span className="muted">Not set</span>
+  }
   const columns: Column<UsageGroup>[] = [
     {
       id: 'name',
@@ -108,7 +120,9 @@ function SpendPage() {
       mobile: 'title',
       cell: (g) => (
         <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', minWidth: 0 }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{g.label || <span className="muted">Not set</span>}</span>
+          <span className={refKey ? 'mono' : undefined} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+            {groupName(g)}
+          </span>
           {g.billing === 'local' && groupBy === 'account' && (
             <Badge color="gray" size="xs">
               Local
@@ -160,7 +174,7 @@ function SpendPage() {
         const pct = totalEst > 0 ? (estimate(g, currency) / totalEst) * 100 : 0
         return (
           <Group gap={8} wrap="nowrap">
-            <Progress value={pct} size={6} radius="xl" style={{ flex: 1 }} aria-label={`${g.label} share of cost`} />
+            <Progress value={pct} size={6} radius="xl" style={{ flex: 1 }} aria-label={`${g.label || g.key || 'Not set'} share of cost`} />
             <Text size="xs" c="dimmed" w={34} ta="right" className="num">
               {Math.round(pct)}%
             </Text>
@@ -170,18 +184,57 @@ function SpendPage() {
     },
   ]
 
+  const setGroup = (choice: string) => {
+    if (choice === 'run') set({ group: `ref:${RUN_KEY}` })
+    else if (choice === 'ref') set({ group: `ref:${refKey && refKey !== RUN_KEY ? refKey : 'spaceman.task'}` })
+    else set({ group: choice as SpendSearch['group'] })
+  }
+  const choice = groupChoice(groupBy)
+  const breakdownError = refKey ? refGroups.error : summary.error
+  const breakdownReady = refKey ? !!refGroups.data : !!s
+
   return (
     <Stack gap={28}>
+      <Stack gap="xs">
+        <Group gap={6} wrap="wrap" role="search" aria-label="Filter spend">
+          {(refs ?? []).map((r) => {
+            const label = refLabel(r)
+            const rest = refs!.filter((x) => x !== r)
+            return (
+              <Pill key={r} withRemoveButton onRemove={() => set({ ref: rest.length ? rest : undefined })} removeButtonProps={{ 'aria-label': `Remove ${label}`, 'aria-hidden': false, tabIndex: 0 }}>
+                {label}
+              </Pill>
+            )
+          })}
+          <RefFilterButton existing={refs ?? []} onAdd={(r) => set({ ref: withRef(refs, r) })} size={compact ? 'md' : 'sm'} />
+          {filtered && (
+            <Button variant="subtle" size="compact-sm" color="gray" onClick={() => set({ ref: undefined })}>
+              Clear
+            </Button>
+          )}
+        </Group>
+        {filtered && (
+          <Text size="xs" c="dimmed">
+            Showing only requests with {refs!.length === 1 ? 'this reference' : 'all these references'}. Provider billing, subscription fees and the chart over time
+            can't be narrowed this way, so they are hidden.
+          </Text>
+        )}
+      </Stack>
+
       {summary.isError ? (
         <QueryError error={summary.error} retry={() => void summary.refetch()} />
-      ) : !s || !series.data ? (
+      ) : !s || (!filtered && !series.data) ? (
         <StatSkeleton count={4} />
       ) : (
         <Stack gap={6}>
           <Text size="xs" c="dimmed" fw={500}>
             {cap(rangeName[preset] ?? '')}
+            {filtered ? ` · ${refs!.map(refLabel).join(' · ')}` : ''}
           </Text>
-          <StatGrid cols={(billed !== null ? 3 : 1) + (fees > 0 ? 1 : 0) + 1} label={`Spend for the ${rangeName[preset]}`}>
+          <StatGrid
+            cols={filtered ? 3 : (billed !== null ? 3 : 1) + (fees > 0 ? 1 : 0) + 1}
+            label={`Spend for the ${rangeName[preset]}${filtered ? `, ${refs!.map(refLabel).join(', ')}` : ''}`}
+          >
             {billed !== null && (
               <Stat
                 label="Billed by providers"
@@ -195,7 +248,7 @@ function SpendPage() {
               value={est ? money(est.amount, est.currency) : '—'}
               hint={billed !== null ? 'Estimated from gateway requests' : 'Gateway requests at list price'}
               info={costKindHelp.estimated_api_charge}
-              spark={rows.map((r) => r.costs[`estimated_api_charge|${currency}`] ?? 0)}
+              spark={filtered ? undefined : rows.map((r) => r.costs[`estimated_api_charge|${currency}`] ?? 0)}
             />
             {outside !== null && (
               <Stat
@@ -207,64 +260,130 @@ function SpendPage() {
               />
             )}
             {fees > 0 && <Stat label="Subscription fees" value={money(fees, currency)} hint="Prorated to the range" info={costKindHelp.subscription_fee} />}
-            <Stat label="Tokens" value={short(tokens.input + tokens.output)} hint={`${short(tokens.input)} in · ${short(tokens.output)} out`} spark={rows.map((r) => r.input + r.output)} />
+            {filtered && <Stat label="Requests" value={short(requests)} hint="Attempts, fallbacks included" />}
+            <Stat
+              label="Tokens"
+              value={short(tokens.input + tokens.output)}
+              hint={`${short(tokens.input)} in · ${short(tokens.output)} out`}
+              spark={filtered ? undefined : rows.map((r) => r.input + r.output)}
+            />
           </StatGrid>
         </Stack>
       )}
 
-      <Section
-        title={`${bucket === 'hour' ? 'Hourly' : bucket === 'day' ? 'Daily' : 'Weekly'} ${mode === 'cost' ? 'cost' : 'tokens'}`}
-        actions={
-          <SegmentedControl
-            size="xs"
-            aria-label="Chart"
-            value={mode}
-            onChange={(v) => set({ view: v as 'cost' | 'tokens' })}
-            data={[
-              { value: 'cost', label: 'Cost' },
-              { value: 'tokens', label: 'Tokens' },
-            ]}
-          />
-        }
-      >
-        {series.isError ? (
-          <QueryError error={series.error} retry={() => void series.refetch()} />
-        ) : !series.data ? (
-          <Skeleton height={240} radius="md" />
-        ) : busyBuckets === 0 ? (
-          <Empty icon={<Coins size={22} />} title="No usage in this range" />
-        ) : (
-          <Paper withBorder radius="md" p="md">
-            <UsageChart rows={rows} bucket={bucket} mode={mode} groups={stacked.length > 1 ? stacked : undefined} />
-          </Paper>
-        )}
-      </Section>
+      {!filtered && (
+        <Section
+          title={`${bucket === 'hour' ? 'Hourly' : bucket === 'day' ? 'Daily' : 'Weekly'} ${mode === 'cost' ? 'cost' : 'tokens'}`}
+          actions={
+            <SegmentedControl
+              size="xs"
+              aria-label="Chart"
+              value={mode}
+              onChange={(v) => set({ view: v as 'cost' | 'tokens' })}
+              data={[
+                { value: 'cost', label: 'Cost' },
+                { value: 'tokens', label: 'Tokens' },
+              ]}
+            />
+          }
+        >
+          {series.isError ? (
+            <QueryError error={series.error} retry={() => void series.refetch()} />
+          ) : !series.data ? (
+            <Skeleton height={240} radius="md" />
+          ) : busyBuckets === 0 ? (
+            <Empty icon={<Coins size={22} />} title="No usage in this range" />
+          ) : (
+            <Paper withBorder radius="md" p="md">
+              <UsageChart rows={rows} bucket={bucket} mode={mode} groups={stacked.length > 1 ? stacked : undefined} />
+            </Paper>
+          )}
+        </Section>
+      )}
 
       <Section
         title="Breakdown"
         actions={
-          <SegmentedControl size="xs" aria-label="Group by" value={groupBy} onChange={(v) => set({ group: v as SpendSearch['group'] })} data={groupOptions} />
+          <>
+            {compact ? (
+              <Select aria-label="Group by" size="md" w={150} allowDeselect={false} value={choice} onChange={(v) => v && setGroup(v)} data={groupChoices} />
+            ) : (
+              <SegmentedControl size="xs" aria-label="Group by" value={choice} onChange={setGroup} data={groupChoices} />
+            )}
+            {choice === 'ref' && refKey && <RefKeyInput value={refKey} onChange={(k) => set({ group: `ref:${k}` })} compact={compact} />}
+          </>
         }
       >
-        {!s ? (
+        {breakdownError ? (
+          <QueryError error={breakdownError} retry={() => void (refKey ? refGroups.refetch() : summary.refetch())} />
+        ) : !breakdownReady ? (
           <Skeleton height={160} radius="md" />
         ) : (
-          <DataTable
-            label="Usage by group"
-            rows={sortedGroups}
-            rowKey={(g) => g.key || '(none)'}
-            columns={columns}
-            empty={<Empty title="No usage in this range" />}
-            onRow={(g) => {
-              const to = rowSearch(groupBy, g.key, rangeDays)
-              if (to) void navigate({ to: '/activity', search: to as never })
-            }}
-          />
+          <Stack gap="xs">
+            <DataTable
+              label="Usage by group"
+              rows={sortedGroups}
+              rowKey={(g) => g.key || '(none)'}
+              columns={columns}
+              empty={<Empty title={filtered ? 'No matching usage in this range' : 'No usage in this range'} />}
+              onRow={(g) => {
+                const to = rowSearch(groupBy, g.key, rangeDays, refs)
+                if (to) void navigate({ to: '/activity', search: to as never })
+              }}
+            />
+            {refKey && (
+              <Group justify="space-between" gap="xs">
+                <Text size="xs" c="dimmed">
+                  {sortedGroups.length.toLocaleString('en-US')} {sortedGroups.length === 1 ? keyName.toLowerCase() : `${keyName.toLowerCase()} values`} shown
+                  {refGroups.hasNextPage ? ', more available' : ''}
+                </Text>
+                {refGroups.hasNextPage && (
+                  <Button variant="default" size="xs" loading={refGroups.isFetchingNextPage} onClick={() => void refGroups.fetchNextPage()}>
+                    Load more
+                  </Button>
+                )}
+              </Group>
+            )}
+          </Stack>
         )}
       </Section>
 
-      <ProviderVsGateway rows={rec.data?.items ?? []} loading={!rec.data} error={rec.error} days={Math.min(days, 90)} />
+      {!filtered && <ProviderVsGateway rows={rec.data?.items ?? []} loading={!rec.data} error={rec.error} days={Math.min(days, 90)} />}
     </Stack>
+  )
+}
+
+/** The reference key to group by: suggestions, or any valid key typed in. */
+function RefKeyInput({ value, onChange, compact }: { value: string; onChange: (key: string) => void; compact: boolean }) {
+  const options = useRefKeyOptions().filter((o) => o.value !== RUN_KEY)
+  const [text, setText] = useState(value)
+  useEffect(() => setText(value), [value])
+  const commit = (k: string) => {
+    const key = k.trim()
+    if (REF_KEY.test(key) && key !== value) onChange(key)
+    else setText(value)
+  }
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        commit(text)
+      }}
+    >
+      <Autocomplete
+        aria-label="Reference key"
+        placeholder="spaceman.task"
+        size={compact ? 'md' : 'xs'}
+        w={compact ? 200 : 190}
+        value={text}
+        onChange={setText}
+        onOptionSubmit={commit}
+        onBlur={() => commit(text)}
+        data={options}
+        error={text.trim() && !REF_KEY.test(text.trim()) ? true : undefined}
+        comboboxProps={{ withinPortal: true }}
+      />
+    </form>
   )
 }
 

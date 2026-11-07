@@ -154,11 +154,18 @@ To refuse a run early, check the budget before creating its token, under **Limit
 
 ## See the runs
 
-Runs show up like any other client's traffic: under the orchestrator's client, in **Requests**, and in **Spend**
-broken down by client and project.
+Runs show up like any other client's traffic: under the orchestrator's client, in **Requests**, and in **Spend**.
+To tell them apart in the UI:
 
-To tell runs apart, filter and group by their trusted references through the API, with an API token (`hpa_…`) that has `usage.read`
-and `activity.read`:
+- **Spend → Group by → Run** gives one row per run with its own requests, tokens and cost; click a row for that run's
+  requests. **Filter by reference** narrows the page to one run or space. See [Spend](/operators/spend#per-run-and-by-reference).
+- **Requests → More filters → Filter by reference** lists one run's requests, for example **Run: run_42**. A request's
+  **Verified context** links to **All requests with this run**. See [Requests](/operators/requests#by-run-or-other-reference).
+
+Both views keep their filters in the page address, so you can link to a run.
+
+Through the API, filter and group by trusted references with an API token (`hpa_…`) that has `usage.read` and
+`activity.read`:
 
 ```sh
 # Per-run totals in one space, one group per run (paged with cursor and limit)
@@ -179,7 +186,8 @@ clients could use the same reference values. See [Usage and activity by referenc
 
 The demo has a `spaceman-runs` client with the **Create run tokens** permission, if you want to try this locally. It
 pins only `spaceman.fleet` (`fleet_synthetic`) and allows the `web-app` and `data-pipeline` projects, so each run
-token can bind its own `spaceman.space` and `project_id`. See [Try the demo](/guide/demo).
+token can bind its own `spaceman.space` and `project_id`. The demo's two runs were made with run tokens that bind
+`spaceman.space` and their own `spaceman.run` (`run_synthetic_1` and `run_synthetic_2`). See [Try the demo](/guide/demo).
 
 ## With Terraform
 
