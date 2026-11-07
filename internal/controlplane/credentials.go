@@ -32,6 +32,9 @@ var CredentialScopes = []string{ScopeInvoke, ScopeModels, ScopeUsage, ScopeMint}
 // ErrCredentialInvalid is returned for any authentication failure.
 var ErrCredentialInvalid = errors.New("invalid, expired or revoked gateway credential")
 
+// ErrChildCannotMint is returned when a child credential tries to mint.
+var ErrChildCannotMint = errors.New("child credentials cannot mint further credentials")
+
 // Credential is gateway credential metadata (never the token).
 type Credential struct {
 	ID         string            `json:"id"`
@@ -166,7 +169,7 @@ func (s *Service) MintChild(ctx context.Context, parent *AuthenticatedCredential
 		return nil, "", fmt.Errorf("%w: parent credential lacks %s", ErrCredentialInvalid, ScopeMint)
 	}
 	if parent.ParentID != "" {
-		return nil, "", errors.New("child credentials cannot mint further credentials")
+		return nil, "", ErrChildCannotMint
 	}
 	if in.TTL <= 0 {
 		in.TTL = 12 * time.Hour

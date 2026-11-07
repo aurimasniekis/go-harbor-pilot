@@ -113,6 +113,9 @@ The answer (`201`) holds the new token, shown once, in `token` and its descripti
   [Usage and activity by reference](/reference/api#usage-and-activity-by-reference));
 - can be revoked by its parent or by itself with `DELETE /v1/harbor/credentials/{id}`.
 
+A parent without `tokens:mint` gets `403`. A mint that fails for an internal reason gets a `502` with the generic
+message `could not mint the credential`; the cause is only logged on the server.
+
 Send `"check_budget": true` to refuse the mint when a blocking budget the child would spend under is already used up:
 a budget on the client, on the child's project (its bound `project_id`, otherwise the client's project), on that
 project's workspace, or a global one. The answer is then `429` with code `budget_exceeded` and the budget's id; no

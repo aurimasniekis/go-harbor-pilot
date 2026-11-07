@@ -252,12 +252,17 @@ func (g *Gateway) mintChild(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var ve *cp.ValidationError
-		kind := ir.ErrPermission
-		msg := err.Error()
-		if ok := asValidation(err, &ve); ok {
-			kind = ir.ErrInvalidRequest
+		switch {
+		case asValidation(err, &ve):
+			g.writeError(w, p, &ir.Error{Kind: ir.ErrInvalidRequest, Message: err.Error()}, "")
+		case errors.Is(err, cp.ErrCredentialInvalid), errors.Is(err, cp.ErrChildCannotMint):
+			g.writeError(w, p, &ir.Error{Kind: ir.ErrPermission, Message: err.Error()}, "")
+		default:
+			// Anything else (a failed credential insert, for example) is
+			// internal: the cause is only logged.
+			g.Log.Error("mint.failed", "credential_id", cred.ID, "error", err.Error())
+			g.writeError(w, p, &ir.Error{Kind: ir.ErrInternal, Message: "could not mint the credential"}, "")
 		}
-		g.writeError(w, p, &ir.Error{Kind: kind, Message: msg}, "")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

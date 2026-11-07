@@ -230,3 +230,59 @@ func TestMintCheckBudgetReadFailure(t *testing.T) {
 		t.Fatalf("a failed check issued a credential: %d audit entries, want %d", n, issued)
 	}
 }
+
+// A mint that fails for an internal reason (here a failing credential insert)
+// answers a generic 5xx and only logs the cause; a real permission refusal
+// stays a 403 with its message.
+func TestMintInternalFailureIsGeneric(t *testing.T) {
+	logs := &syncBuffer{}
+	e := apptest.New(t, apptest.WithLog(slog.New(slog.NewTextHandler(logs, nil))))
+	up := apptest.NewUpstream(t, "anthropic")
+	prov := e.Provider("anthropic", "anthropic", up.Srv.URL, apptest.Model{ID: "m", MaxOutput: 1024})
+	acc := e.Account("api", prov, apptest.AccountOpts{Billing: "metered_api"})
+	plan := e.Plan("default", apptest.PlanOpts{DefaultAlias: e.Alias("coding/default", e.Pool("p", "ordered", apptest.Member{Account: acc, Model: "m"}))})
+	binding := e.Binding("runs", plan, apptest.BindingOpts{})
+	parent := e.Token(binding, "gateway:invoke", "tokens:mint")
+	noMint := e.Token(binding, "gateway:invoke")
+	mint := map[string]any{"name": "run", "scopes": []string{"gateway:invoke"}}
+
+	r := e.Gateway("POST", "/v1/harbor/credentials", noMint, mint)
+	if body := apptest.ReadAll(r); r.StatusCode != 403 || !strings.Contains(body, "lacks tokens:mint") {
+		t.Fatalf("mint without tokens:mint: %d %s", r.StatusCode, body)
+	}
+
+	if _, err := e.App.DB.W.Exec(`CREATE TRIGGER fail_credential_insert BEFORE INSERT ON gateway_credentials
+		BEGIN SELECT RAISE(ABORT, 'forced insert failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	r = e.Gateway("POST", "/v1/harbor/credentials", parent, mint)
+	body := apptest.ReadAll(r)
+	if _, err := e.App.DB.W.Exec(`DROP TRIGGER fail_credential_insert`); err != nil {
+		t.Fatal(err)
+	}
+	if r.StatusCode != 502 {
+		t.Fatalf("mint: %d %s", r.StatusCode, body)
+	}
+	var out struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(body), &out); err != nil || out.Error.Message != "could not mint the credential" {
+		t.Fatalf("body %s", body)
+	}
+	for _, leak := range []string{"forced", "insert", "INSERT", "gateway_credentials", "SQL", "sql"} {
+		if strings.Contains(body, leak) {
+			t.Fatalf("body leaks %q: %s", leak, body)
+		}
+	}
+	if logged := logs.String(); !strings.Contains(logged, "mint.failed") || !strings.Contains(logged, "forced insert failure") {
+		t.Fatalf("cause not logged:\n%s", logged)
+	}
+
+	// Once the insert works again, the same mint succeeds.
+	r = e.Gateway("POST", "/v1/harbor/credentials", parent, mint)
+	if body := apptest.ReadAll(r); r.StatusCode != 201 {
+		t.Fatalf("mint after recovery: %d %s", r.StatusCode, body)
+	}
+}
