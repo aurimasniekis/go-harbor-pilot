@@ -1,0 +1,11 @@
+{
+  "model": "claude-opus-5-5",
+  "max_tokens": 1024,
+  "system": "You are a careful assistant for a fictional bakery.",
+  "messages": [
+    {"role": "user", "content": "What time do you open?"},
+    {"role": "assistant", "content": "We open at 7am."},
+    {"role": "user", "content": "And on Sundays?"},
+    {"role": "system", "content": "Terse mode is on: answer in under 20 words."}
+  ]
+}

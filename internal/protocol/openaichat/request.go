@@ -629,11 +629,17 @@ func effortFromBudget(b int) string {
 func buildMessages(m ir.Message, o BuildOptions, losses *ir.Losses) []any {
 	switch m.Role {
 	case ir.RoleSystem, ir.RoleDeveloper:
+		ir.SystemMessageLosses(m, P, losses)
 		var text []string
 		for _, p := range m.Parts {
 			if p.Kind == ir.PartText {
 				text = append(text, p.Text)
 			}
+		}
+		if len(text) == 0 {
+			// Nothing to say (e.g. a settings-only message from another
+			// protocol); an empty system message would change nothing.
+			return nil
 		}
 		return []any{map[string]any{"role": string(m.Role), "content": strings.Join(text, "\n\n")}}
 	case ir.RoleAssistant:

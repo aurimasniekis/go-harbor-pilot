@@ -238,8 +238,14 @@ func parseMessage(raw json.RawMessage) (*ir.Message, error) {
 		m.Role = ir.RoleUser
 	case "assistant":
 		m.Role = ir.RoleAssistant
+	case "system":
+		// A mid-conversation system message (operator instruction appended
+		// to the history). Its placement and content rules are model
+		// dependent and enforced by the upstream; extra fields such as
+		// clear_at and output_config stay in Ext for native use.
+		m.Role = ir.RoleSystem
 	default:
-		return nil, fmt.Errorf("role must be user or assistant")
+		return nil, fmt.Errorf("role must be user, assistant or system")
 	}
 	content, ok := o.TakeRaw("content")
 	if !ok {

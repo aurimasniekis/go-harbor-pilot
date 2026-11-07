@@ -5,6 +5,13 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
 
 ## Unreleased
 
+### Gateway
+
+- `/v1/messages` accepts `system`-role entries inside `messages[]`, as Claude Code sends them on models that support
+  mid-conversation system messages. They used to be rejected with a 400. They now reach Anthropic upstreams
+  unchanged. For OpenAI upstreams they become in-place system messages, and for Gemini they become user text. Each
+  loss is recorded.
+
 ### Activity and spend
 
 - Filter usage and activity by trusted reference: `ref=<key>:<value>` on `/api/v1/usage/summary`,

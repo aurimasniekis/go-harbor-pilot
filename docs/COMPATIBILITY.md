@@ -34,11 +34,25 @@ Sealed reasoning state only crosses within the same family. Every other pair dow
 | OpenAI Responses | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | implemented (through the IR) | implemented (executor contract-tested with a fake binary) |
 | Gemini | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | implemented (through the IR) | implemented (executor contract-tested with a fake binary) |
 
+### Mid-conversation system messages
+
+The Messages API accepts `{"role": "system", ...}` entries inside `messages[]` on the models its documentation lists for mid-conversation system messages. Other models answer 400. The entry is text only, may not be `messages[0]`, must follow a user turn and must be last or followed by an assistant turn. It can carry `clear_at` (turn-scoped, beta) or, with empty `content`, `output_config` (per-message effort, beta). Harbor Pilot checks none of these rules: support is model dependent, so it leaves them to the upstream. Requests are not validated per model. Fixtures: `testdata/protocol/anthropic/messages_system_*.json` (synthetic, written from the public documentation).
+
+| Inbound → upstream | Behaviour | Status | Evidence |
+|---|---|---|---|
+| Anthropic Messages → Anthropic | Passed through unchanged, in place, with `clear_at` and `output_config` | contract-tested (synthetic upstream and demo); live: blocked (credentials) | TestAnthropicMidConversationSystemPassthrough, TestMessagesSystemRoleEntries, TestDemoAcceptsMessagesSystemRole |
+| Anthropic Messages → OpenAI Chat, OpenAI-compatible | A `system` message in place; text blocks joined with a blank line. A settings-only entry (empty `content`) is omitted. `clear_at` and `output_config` are dropped (`system_message_field:*`, drop) | contract-tested | TestAnthropicSystemMessagesTranslated |
+| Anthropic Messages → OpenAI Responses | A `system` input message in place. Message-level fields are dropped as above | contract-tested | TestAnthropicSystemMessagesTranslated, TestMessagesSystemRoleEntries |
+| Anthropic Messages → Gemini | User text in place, because Gemini has a single system instruction ahead of the conversation (`mid_conversation_system`, approximate). Message-level fields are dropped as above | contract-tested | TestAnthropicSystemMessagesTranslated |
+| Anthropic Messages → Claude Code bridge | User text in place (`mid_conversation_system`, approximate). Message-level fields are dropped as above | contract-tested (request builder) | TestAnthropicSystemMessagesInlinedOnRequest |
+| Anthropic Messages → Codex bridge | Not carried: the bridge skips system messages after the first turn | implemented | LIMITATIONS.md |
+| OpenAI Chat or Responses → Anthropic | A later `system` or `developer` message is sent as user text (`mid_conversation_system`, approximate), because the target model may not accept the role | contract-tested | TestChatSystemMessageToAnthropicIsUserText |
+
 ## 3. Harnesses
 
 | Harness | Version tested | Speaks | Configuration | Setup tooling | Status | Evidence |
 |---|---|---|---|---|---|---|
-| Claude Code | 2.1.318 | Anthropic Messages | `settings.json`: `env.ANTHROPIC_BASE_URL`, `env.ANTHROPIC_MODEL`, `apiKeyHelper` (or `ANTHROPIC_AUTH_TOKEN`) | contract-tested | contract-tested (request shape); live: pending | TestScenarioA_StandaloneHarness, TestSetupAndUninstallPreserveUserConfig |
+| Claude Code | 2.1.318 | Anthropic Messages | `settings.json`: `env.ANTHROPIC_BASE_URL`, `env.ANTHROPIC_MODEL`, `apiKeyHelper` (or `ANTHROPIC_AUTH_TOKEN`) | contract-tested | contract-tested (request shape, including mid-conversation system messages); live: pending | TestScenarioA_StandaloneHarness, TestSetupAndUninstallPreserveUserConfig, TestMessagesSystemRoleEntries |
 | Codex | not installed | OpenAI Responses | `config.toml` `[model_providers.<id>]` | contract-tested | contract-tested (setup); live: blocked (binary) | TestSetupAndUninstallPreserveUserConfig |
 | OpenCode | not installed | OpenAI-compatible / Anthropic | `opencode.json` provider options | contract-tested | contract-tested (setup); live: blocked (binary) | TestSetupAndUninstallPreserveUserConfig |
 | Pi | not installed | OpenAI-compatible / Anthropic | `models.json` | contract-tested | contract-tested (setup); live: blocked (binary) | TestSetupAndUninstallPreserveUserConfig |

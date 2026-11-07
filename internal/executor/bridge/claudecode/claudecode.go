@@ -253,7 +253,7 @@ func mcpName(client string) string {
 }
 
 func shapeRequest(r *ir.Request, model string) (*conv, []ir.Loss, error) {
-	body, losses, err := anthropic.BuildRequest(r, anthropic.BuildOptions{Model: model, DefaultMaxTokens: 8192, Stream: true})
+	body, losses, err := anthropic.BuildRequest(r, anthropic.BuildOptions{Model: model, DefaultMaxTokens: 8192, Stream: true, InlineSystemMessages: true})
 	if err != nil {
 		return nil, nil, err
 	}
