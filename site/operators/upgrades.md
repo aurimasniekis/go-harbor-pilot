@@ -59,12 +59,17 @@ See [Backup and restore](/operators/backup).
 
 ## Notes for specific versions
 
-### Unreleased
+### 0.1.2
 
-The first start indexes existing request history by trusted reference (for `ref=` filters and `group_by=ref:<key>`).
-This runs as one migration before the server listens, and its time and disk use grow with requests and ledger rows
-times their references. As a guide, 1M requests plus 1M ledger rows with 3 references each took about 27 s and added
-about 530 MB. Make sure the disk has room for that, the database and the `harbor.db.pre-<version>.bak` copy.
+- **Budget refusals are now policy blocks.** A request that blocking budgets refuse is recorded as **Blocked** and
+  sends `access.request.blocked` for every refused request, with the budget in `reason`; 0.1.1 recorded it as an error
+  without the event. Review alert rules, webhooks and Pulse consumers that subscribe to `access.request.blocked`.
+  `budget.threshold.exceeded` is still sent once per period.
+- The first start indexes existing request history by trusted reference (for `ref=` filters and
+  `group_by=ref:<key>`). This runs as one migration before the server listens, and its time and disk use grow with
+  requests and ledger rows times their references. As a guide, 1M requests plus 1M ledger rows with 3 references each
+  took about 27 s and added about 530 MB. Make sure the disk has room for that, the database and the
+  `harbor.db.pre-<version>.bak` copy.
 
 ### 0.1.1
 

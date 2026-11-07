@@ -56,7 +56,7 @@ client.
 
 ## Status
 
-The current release is **0.1.1**, the first. Every feature on this site is implemented and covered by automated tests
+The current release is **0.1.2**. Every feature on this site is implemented and covered by automated tests
 against synthetic providers and fake command-line tools, and the [reverse proxy configurations](/guide/reverse-proxy)
 are verified against the real proxies. Runs against real provider accounts are still to come: the
 [compatibility matrix](/reference/compatibility) says, for each protocol, provider and tool, exactly what has been
