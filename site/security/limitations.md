@@ -83,10 +83,11 @@ See [Masking: guarantees and limits](/security/masking).
   with low confidence, not as removed. Its baseline lives in memory and is rebuilt at start.
 - **History deduplication needs a session.** Without a trusted session reference or session header, repeated history
   is recorded as uncertain and never merged across conversations.
-- **System messages inside the conversation are not checked per model.** Anthropic accepts a `system` entry inside
-  `messages[]` only on some models. Harbor Pilot passes it on as sent. If your plan maps the model a client asked for
-  to one without support, the provider answers 400, so map such clients to a model that supports it. The Codex bridge
-  does not carry these entries.
+- **System messages inside the conversation follow a fixed model list.** Anthropic accepts a `system` entry inside
+  `messages[]` only on some models. For models the public documentation lists as unsupported, Harbor Pilot sends the
+  entry as user text. Any other model gets it as sent, so a newer model without support would answer 400 until
+  Harbor Pilot's list is updated. There is no setting to override the list. The Codex bridge does not carry these
+  entries.
 - **Passthrough sees little.** In passthrough, usage is read best-effort from the raw stream; tool calls, response
   signals and captured content are not available. Passthrough does not avoid provider flags or restrictions.
 

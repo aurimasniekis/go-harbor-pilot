@@ -198,3 +198,82 @@ func TestChatSystemMessageToAnthropicIsUserText(t *testing.T) {
 		t.Fatalf("system %v", m["system"])
 	}
 }
+
+// Support for a system-role entry inside messages[] depends on the target
+// model (D-042). A supporting model gets it unchanged; a model the public
+// documentation lists as unsupported gets it as user text in place, with the
+// same approximate loss as other non-supporting targets; a model the gateway
+// knows nothing about keeps the pass-through, so the upstream decides.
+func TestAnthropicMidConversationSystemPerModel(t *testing.T) {
+	cases := []struct {
+		name, model string
+		native      bool
+	}{
+		{"supported", "claude-opus-5-5", true},
+		{"supported older generation", "claude-opus-4-8", true},
+		{"unsupported dated snapshot", "claude-sonnet-4-5-20250929", false},
+		{"unsupported alias", "claude-sonnet-5", false},
+		{"unknown", "claude-future-9", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			src := systemFixture(t, "messages_system_before_assistant.json")
+			r, err := anthropic.ParseRequest(src, anthropic.DefaultLimits)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, losses, err := anthropic.BuildRequest(r, anthropic.BuildOptions{Model: tc.model})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := decode(t, body)["messages"].([]any)
+			if tc.native {
+				if len(losses) != 0 {
+					t.Fatalf("pass-through lost features: %s", lossFeatures(losses))
+				}
+				want := sourceMessages(t, src)
+				if !reflect.DeepEqual(got[1], want[1]) || len(got) != len(want) {
+					t.Fatalf("messages changed:\n got %v\nwant %v", got, want)
+				}
+				return
+			}
+			if lf := lossFeatures(losses); lf != "mid_conversation_system(approximate)" {
+				t.Fatalf("losses %s, want only mid_conversation_system(approximate)", lf)
+			}
+			// The instruction joins the user turn it follows, in place,
+			// ahead of the assistant reply.
+			var roles []string
+			for _, m := range got {
+				roles = append(roles, m.(map[string]any)["role"].(string))
+			}
+			if strings.Join(roles, ",") != "user,assistant,user" {
+				t.Fatalf("roles %v: %s", roles, body)
+			}
+			raw, _ := json.Marshal(got[0])
+			for _, s := range []string{"Summarize the example ticket.", "The reader is a new team member.", "Avoid internal jargon."} {
+				if !strings.Contains(string(raw), s) {
+					t.Fatalf("first user turn %s, missing %q", raw, s)
+				}
+			}
+		})
+	}
+	t.Run("unsupported drops message-level fields", func(t *testing.T) {
+		r, err := anthropic.ParseRequest(systemFixture(t, "messages_system_settings.json"), anthropic.DefaultLimits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, losses, err := anthropic.BuildRequest(r, anthropic.BuildOptions{Model: "claude-haiku-4-5-20251001"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(body), `"role":"system"`) {
+			t.Fatalf("system role left in body: %s", body)
+		}
+		lf := lossFeatures(losses)
+		for _, f := range []string{"mid_conversation_system(approximate)", "system_message_field:anthropic_messages:clear_at(drop)", "system_message_field:anthropic_messages:output_config(drop)"} {
+			if !strings.Contains(lf, f) {
+				t.Fatalf("losses %s, missing %s", lf, f)
+			}
+		}
+	})
+}

@@ -49,13 +49,16 @@ only crosses within its own protocol family; for every other pair it is downgrad
 
 On the models it documents for this feature, the Anthropic Messages API accepts `{"role": "system", ...}` entries
 inside `messages[]`: operator instructions added later in a conversation without changing the top-level system
-prompt. Claude Code sends them on models that support them. Harbor Pilot accepts them on `/v1/messages` and doesn't
-check which models allow them or where they may appear. That is left to the provider, which answers 400 for a model
-without support.
+prompt. Claude Code sends them on models that support them. Harbor Pilot accepts them on `/v1/messages`. When the
+plan sends the request to an Anthropic model that the public documentation lists as not supporting them (Claude
+Sonnet 5, and models from before the Claude 5 generation other than Claude Opus 4.8), the entry is sent as user text
+in place and recorded as an approximate loss. Any other model gets the entry unchanged, including models Harbor Pilot
+doesn't know. Where an entry may appear is left to the provider, which answers 400 for a misplaced one.
 
 | Provider speaks | What the provider receives | Status |
 |---|---|---|
 | Anthropic | The entry unchanged and in place, including `clear_at` and `output_config` | contract-tested (synthetic upstream and demo) |
+| Anthropic, on a model without support | User text in place (approximate loss). `clear_at` and `output_config` are left out | contract-tested (synthetic upstream) |
 | OpenAI Chat, OpenAI-compatible, OpenAI Responses | A `system` message in place. An entry that only changes settings (empty `content`) is left out | contract-tested |
 | Gemini | User text in place, since Gemini has a single system instruction before the conversation (recorded as an approximate loss) | contract-tested |
 | Claude Code bridge | User text in place (approximate loss) | contract-tested (request builder) |

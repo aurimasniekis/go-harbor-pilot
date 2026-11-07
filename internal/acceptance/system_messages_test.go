@@ -47,13 +47,17 @@ func TestMessagesSystemRoleEntries(t *testing.T) {
 	e := apptest.New(t)
 	ant := apptest.NewUpstream(t, "anthropic")
 	oai := apptest.NewUpstream(t, "openai")
-	pa := e.Provider("ant", "anthropic", ant.Srv.URL, apptest.Model{ID: "claude-opus-5-5", MaxOutput: 4096})
+	pa := e.Provider("ant", "anthropic", ant.Srv.URL, apptest.Model{ID: "claude-opus-5-5", MaxOutput: 4096}, apptest.Model{ID: "claude-sonnet-4-5-20250929", MaxOutput: 4096})
 	po := e.Provider("oai", "openai", oai.Srv.URL, apptest.Model{ID: "gpt-x", MaxOutput: 4096})
 	aa := e.Account("a", pa, apptest.AccountOpts{})
 	ao := e.Account("o", po, apptest.AccountOpts{})
 	alias := e.Alias("claude", e.Pool("claude", "ordered", apptest.Member{Account: aa, Model: "claude-opus-5-5"}))
 	chat := e.Alias("chat", e.Pool("chat", "ordered", apptest.Member{Account: ao, Model: "gpt-x"}))
 	tok := e.Token(e.Binding("c", e.Plan("p", apptest.PlanOpts{DefaultAlias: alias}), apptest.BindingOpts{}))
+	// A plan that maps the client's model to one the public documentation
+	// lists as not accepting the role (D-042).
+	older := e.Alias("older", e.Pool("older", "ordered", apptest.Member{Account: aa, Model: "claude-sonnet-4-5-20250929"}))
+	olderTok := e.Token(e.Binding("c3", e.Plan("p3", apptest.PlanOpts{DefaultAlias: older}), apptest.BindingOpts{}))
 	chatTok := e.Token(e.Binding("c2", e.Plan("p2", apptest.PlanOpts{DefaultAlias: chat}), apptest.BindingOpts{}))
 
 	for _, tc := range []struct{ fixture, roles string }{
@@ -89,6 +93,24 @@ func TestMessagesSystemRoleEntries(t *testing.T) {
 		b := apptest.ReadAll(r)
 		if r.StatusCode != 400 || ant.Count() != n+1 {
 			t.Fatalf("want the upstream's 400, got %d (upstream calls %d -> %d): %s", r.StatusCode, n, ant.Count(), b)
+		}
+	})
+	t.Run("inlined as user text for a model without support", func(t *testing.T) {
+		r := e.Gateway("POST", "/v1/messages", olderTok, systemFixture(t, "messages_system_before_assistant.json"))
+		if b := apptest.ReadAll(r); r.StatusCode != 200 {
+			t.Fatalf("%d %s", r.StatusCode, b)
+		}
+		sent := ant.Last()
+		if got := sentRoles(sent); got != "user,assistant,user" || !strings.Contains(sent.Raw, "Avoid internal jargon.") || sent.Body["model"] != "claude-sonnet-4-5-20250929" {
+			t.Fatalf("upstream got %s: %s", got, sent.Raw)
+		}
+		e.Flush()
+		var losses string
+		if err := e.App.DB.R.QueryRow(`SELECT losses FROM requests ORDER BY id DESC LIMIT 1`).Scan(&losses); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(losses, "mid_conversation_system") {
+			t.Fatalf("losses %s, want mid_conversation_system", losses)
 		}
 	})
 	t.Run("translated for an OpenAI upstream", func(t *testing.T) {

@@ -81,9 +81,11 @@ TRACEABILITY.md (`planned`, `in-progress`).
   are low-confidence, not proof of removal; the learned baseline is in memory and re-seeded at start.
 - **History deduplication needs a session.** Without a trusted session reference or header, occurrences are recorded
   as uncertain and never merged across conversations.
-- **Mid-conversation system messages are not checked per model.** Anthropic accepts a `system`-role entry inside
-  `messages[]` only on some models. Harbor Pilot passes it through as sent, so a plan that maps the client's model to
-  an upstream model without support gets the provider's 400. Map such clients to a supporting model. From other
+- **Mid-conversation system messages use a fixed model list (D-042).** Anthropic accepts a `system`-role entry
+  inside `messages[]` only on some models. For the models the public documentation lists as unsupported, Harbor
+  Pilot sends the entry as user text and records an approximate loss. Any other model, including one released after
+  this version, gets the entry as sent. If such a model doesn't support it, the client gets the provider's 400 until
+  the list is updated. There is no operator override. Placement rules are still left to the provider. From other
   protocols the entry reaches Anthropic as user text, and the Codex bridge drops it.
 - **Passthrough telemetry.** Usage is read best-effort from the raw stream; tool calls, response intent signals and
   traces are unavailable. Passthrough does not avoid provider flags or restrictions.

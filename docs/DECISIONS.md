@@ -379,3 +379,29 @@ path and adapter version, one work item per fingerprint.
   filters. Allocation keeps the account's unfiltered token total as its denominator, so a filtered slice gets its
   share of the fee, not the whole fee.
 - **Not yet.** `/usage/series` has no `ref` filter; that is a follow-up.
+
+## D-042: Mid-conversation system messages follow a per-model support list (2026-11-07)
+
+- **Problem.** Since 0.1.2 a `system`-role entry inside `/v1/messages` `messages[]` reaches Anthropic upstreams
+  unchanged. A routing plan that maps the request to a model without support for mid-conversation system messages
+  got the provider's 400.
+- **Decision.** The Anthropic request builder (`internal/protocol/anthropic/models.go`) keeps a list of models known
+  not to accept the role. For those it sends the entry as user text in place and records `mid_conversation_system`
+  (approximate), as it already does for other targets without support. Message-level fields (`clear_at`,
+  `output_config`) are dropped and reported as `system_message_field:*` losses. Every other model, including any
+  model the list doesn't name, still gets the entry unchanged.
+- **Default is "supported".** The list is negative on purpose: an unknown or newer model keeps the pass-through, so
+  the provider stays the judge, and a list that is out of date costs one 400 rather than silently rewriting requests
+  to models that support the role.
+- **Source.** The list comes from public Anthropic documentation only. The mid-conversation system messages page
+  names the supporting models (the Claude 5 generation and Claude Opus 4.8) and says the feature isn't available on
+  Claude Sonnet 5. Every earlier model in the public deprecations table is also on the list: Claude Opus 4.7, 4.6,
+  4.5, 4.1 and 4, Claude Sonnet 4.6, 4.5 and 4, Claude Haiku 4.5, and the Claude 3 models. Names match as an alias,
+  a dated snapshot, a `-latest` alias, or with a platform prefix or version suffix.
+- **Not a model-catalog capability.** Provider model `capabilities` are positive and optional, and routing treats an
+  empty list as "undeclared". A new positive capability would mark every catalog model that declares capabilities as
+  unsupported until an operator added it. So this stays protocol knowledge in the adapter, next to the other
+  per-protocol rules. An operator override can be added later if a model is ever missing from the list.
+- **Scope.** The CLI bridge keeps inlining for every model, and explicit native passthrough (breaker open) still
+  forwards bytes unchanged.
+
