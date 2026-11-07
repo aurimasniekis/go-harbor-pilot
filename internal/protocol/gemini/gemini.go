@@ -338,8 +338,16 @@ func BuildRequest(r *ir.Request) ([]byte, []ir.Loss, error) {
 	}
 	for _, m := range r.Messages {
 		role := "user"
-		if m.Role == ir.RoleAssistant {
+		switch m.Role {
+		case ir.RoleAssistant:
 			role = "model"
+		case ir.RoleSystem, ir.RoleDeveloper:
+			// Gemini has only one system instruction, ahead of the
+			// conversation; a later instruction is kept in place as user text.
+			ir.SystemMessageLosses(m, P, &losses)
+			if len(m.Parts) > 0 {
+				losses.Add("mid_conversation_system", "a system/developer message inside the conversation was sent as user text", ir.LossApproximate)
+			}
 		}
 		var parts []any
 		for _, p := range m.Parts {

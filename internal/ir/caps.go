@@ -63,6 +63,23 @@ func rank(s LossSeverity) int {
 	return 0
 }
 
+// SystemMessageLosses reports the message-level fields of a mid-conversation
+// system message that a target protocol cannot carry (for example the
+// Messages API's clear_at and output_config). target is the Ext prefix of the
+// protocol being built; its own fields are not losses.
+func SystemMessageLosses(m Message, target string, l *Losses) {
+	keys := make([]string, 0, len(m.Ext))
+	for k := range m.Ext {
+		if len(k) <= len(target)+1 || k[:len(target)+1] != target+":" {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		l.Add("system_message_field:"+k, "field "+k+" on a mid-conversation system message has no equivalent on the target and was dropped", LossDrop)
+	}
+}
+
 // HasReject reports whether any loss requires explicit policy approval.
 func HasReject(ls []Loss) bool {
 	for _, l := range ls {

@@ -110,6 +110,8 @@ type App struct {
 	Notify   *notify.Engine
 	Budgets  *accounting.Budgets
 	Started  time.Time
+	// DemoUpstreams are the synthetic providers (demo mode only, else nil).
+	DemoUpstreams *demo.Upstreams
 
 	unlock  func()
 	closers []func()
@@ -268,6 +270,7 @@ func New(ctx context.Context, o Options) (*App, error) {
 	a.AddRoutes(a.Gateway.Routes)
 	if c.Demo.Enabled {
 		ups := demo.NewUpstreams()
+		a.DemoUpstreams = ups
 		a.AddRoutes(ups.Routes)
 		base := "http://" + c.Server.Listen
 		toks, err := demo.SeedConfig(ctx, a.CP, base)

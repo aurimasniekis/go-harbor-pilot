@@ -45,6 +45,26 @@ only crosses within its own protocol family; for every other pair it is downgrad
 | OpenAI Responses | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested (OpenAI-compatible endpoint) |
 | Gemini | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested (OpenAI-compatible endpoint) |
 
+### System messages inside the conversation
+
+On the models it documents for this feature, the Anthropic Messages API accepts `{"role": "system", ...}` entries
+inside `messages[]`: operator instructions added later in a conversation without changing the top-level system
+prompt. Claude Code sends them on models that support them. Harbor Pilot accepts them on `/v1/messages` and doesn't
+check which models allow them or where they may appear. That is left to the provider, which answers 400 for a model
+without support.
+
+| Provider speaks | What the provider receives | Status |
+|---|---|---|
+| Anthropic | The entry unchanged and in place, including `clear_at` and `output_config` | contract-tested (synthetic upstream and demo) |
+| OpenAI Chat, OpenAI-compatible, OpenAI Responses | A `system` message in place. An entry that only changes settings (empty `content`) is left out | contract-tested |
+| Gemini | User text in place, since Gemini has a single system instruction before the conversation (recorded as an approximate loss) | contract-tested |
+| Claude Code bridge | User text in place (approximate loss) | contract-tested (request builder) |
+| Codex bridge | Not carried | implemented |
+
+`clear_at` and `output_config` have no equivalent outside Anthropic. They are dropped, and each drop is recorded as a
+loss. In the other direction, a later `system` or `developer` message from an OpenAI client reaches Anthropic as user
+text, because the target model might not accept the role.
+
 ## CLI bridges
 
 The bridges serve subscription accounts through the vendors' own CLIs. They take Harbor Pilot's internal request
@@ -61,7 +81,7 @@ What a bridge can and cannot carry is in [Known limitations](/security/limitatio
 
 | Tool | Speaks | What setup writes | `harbor-pilot harness` | Live |
 |---|---|---|---|---|
-| [Claude Code](/tools/claude-code) | Anthropic Messages | `settings.json`: base URL, model, and an `apiKeyHelper` that reads the token file | contract-tested; request shape contract-tested against 2.1.318 | pending |
+| [Claude Code](/tools/claude-code) | Anthropic Messages | `settings.json`: base URL, model, and an `apiKeyHelper` that reads the token file | contract-tested; request shape contract-tested against 2.1.318, including system messages inside the conversation | pending |
 | [Codex](/tools/codex) | OpenAI Responses | `config.toml`: a `[model_providers.<id>]` entry | contract-tested | blocked: binary not installed |
 | [OpenCode](/tools/opencode) | OpenAI-compatible or Anthropic | `opencode.json` provider options | contract-tested | blocked: binary not installed |
 | [Pi](/tools/pi) | OpenAI-compatible or Anthropic | `models.json` | contract-tested | blocked: binary not installed |

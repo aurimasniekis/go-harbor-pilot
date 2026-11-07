@@ -16,6 +16,10 @@ type BuildOptions struct {
 	// (Anthropic requires max_tokens).
 	DefaultMaxTokens int
 	Stream           bool
+	// InlineSystemMessages renders mid-conversation system messages as user
+	// text even when the client sent them natively, for consumers that only
+	// understand user and assistant turns (the CLI bridge).
+	InlineSystemMessages bool
 }
 
 // BuildRequest renders an IR request as an Anthropic Messages body. Features
@@ -56,26 +60,37 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 	type msg struct {
 		role   string
 		blocks []any
+		native map[string]any // a mid-conversation system message, sent as is
 	}
 	var msgs []msg
 	push := func(role string, blocks []any) {
 		if len(blocks) == 0 {
 			return
 		}
-		if n := len(msgs); n > 0 && msgs[n-1].role == role {
+		if n := len(msgs); n > 0 && msgs[n-1].role == role && msgs[n-1].native == nil {
 			msgs[n-1].blocks = append(msgs[n-1].blocks, blocks...)
 			return
 		}
-		msgs = append(msgs, msg{role, blocks})
+		msgs = append(msgs, msg{role: role, blocks: blocks})
 	}
+	nativeSystem := r.Source == ir.AnthropicMessages && !o.InlineSystemMessages
 	for _, m := range r.Messages {
 		role := "user"
 		switch m.Role {
 		case ir.RoleAssistant:
 			role = "assistant"
 		case ir.RoleSystem, ir.RoleDeveloper:
-			// Mid-conversation instructions become user text (Anthropic has no
-			// in-conversation system role).
+			if nativeSystem && m.Role == ir.RoleSystem {
+				// The client sent a mid-conversation system message on the
+				// Messages API: pass it through unchanged. The upstream
+				// enforces which models accept it and where it may appear.
+				msgs = append(msgs, msg{role: "system", native: buildSystemMessage(m, &losses)})
+				continue
+			}
+			// Instructions from other protocols become user text: whether the
+			// target model accepts an in-conversation system role, and where,
+			// depends on the model, so the portable form is used.
+			ir.SystemMessageLosses(m, "", &losses)
 			var blocks []any
 			for _, p := range m.Parts {
 				if p.Kind == ir.PartText {
@@ -97,6 +112,10 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 	}
 	out := make([]any, 0, len(msgs))
 	for _, m := range msgs {
+		if m.native != nil {
+			out = append(out, m.native)
+			continue
+		}
 		out = append(out, map[string]any{"role": m.role, "content": m.blocks})
 	}
 	body["messages"] = out
@@ -223,6 +242,28 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 	}
 	b, err := wire.Marshal(body)
 	return b, losses.List(), err
+}
+
+// buildSystemMessage renders a mid-conversation system message in its
+// native form. A single plain text part is sent as a string, the documented
+// shape; anything else as blocks. Message-level fields (clear_at,
+// output_config, …) are restored from Ext. An empty content array is kept:
+// it is how a per-message output_config change is expressed.
+func buildSystemMessage(m ir.Message, losses *ir.Losses) map[string]any {
+	out := map[string]any{"role": "system"}
+	if len(m.Parts) == 1 && m.Parts[0].Kind == ir.PartText && m.Parts[0].CacheControl == nil && len(m.Parts[0].Ext) == 0 {
+		out["content"] = m.Parts[0].Text
+	} else {
+		blocks := []any{}
+		for _, p := range m.Parts {
+			if b, ok := buildBlock(p, losses); ok {
+				blocks = append(blocks, b)
+			}
+		}
+		out["content"] = blocks
+	}
+	wire.Restore(out, m.Ext, P)
+	return out
 }
 
 func restorePart(b map[string]any, p ir.Part) {
