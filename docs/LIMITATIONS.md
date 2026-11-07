@@ -55,7 +55,10 @@ TRACEABILITY.md (`planned`, `in-progress`).
   consults budgets; a run token under an exhausted blocking budget is refused (`429 budget_exceeded`) on its first
   request. With it, binding, project, workspace and global budgets are checked, but account budgets are not (routing
   picks the account per request), nor a project chosen later by an `X-HP-Project` hint. A mint that passes can still
-  see its first request refused once that request's own estimate is added.
+  see its first request refused once that request's own estimate is added. The check counts budgets even when the
+  run's requests would all go to `local` or `free` accounts, which budgets ignore, so it can refuse such a run with
+  `429`. It is skipped only when the binding's plan can't reach any other account (for example `allowed_billing`
+  restricted to `local` and `free`).
 - **Quota freshness.** Observations can be stale or unknown; routing treats unknown as unknown, never as zero or
   unlimited.
 - **Response-derived rate limits are short-lived.** Fresh for two minutes, not kept as history, dropped (and counted)

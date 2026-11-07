@@ -56,7 +56,10 @@ See [Masking: guarantees and limits](/security/masking).
 - **Creating a run token checks budgets only when asked.** Without `check_budget`, an orchestrator gets a run token
   even when a blocking budget that covers its client is used up, and the token's requests are then refused with
   `429`. With `check_budget: true`, client, project, workspace and global budgets are checked, but provider account
-  budgets aren't, because the account is picked per request. See [Agent orchestrators](/tools/orchestrators#budgets).
+  budgets aren't, because the account is picked per request. The check also counts budgets when the run would only use
+  local or free accounts, which budgets otherwise ignore, so it can refuse such a run. It skips the check only when
+  the client's routing plan allows nothing but `local` and `free` billing. See
+  [Agent orchestrators](/tools/orchestrators#budgets).
 - **Quota can be stale or unknown.** Routing treats unknown as unknown, never as zero or unlimited; the plan decides
   what happens next.
 - **Rate-limit headers are short-lived.** Limits read from response headers are fresh for two minutes, are not kept as

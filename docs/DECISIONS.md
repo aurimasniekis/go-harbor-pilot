@@ -421,9 +421,14 @@ path and adapter version, one work item per fingerprint.
 - **Same figures.** The check reads each budget with the code behind `GET /api/v1/budgets/status` (settled ledger
   cost plus active reservations) and applies the request path's test for a request with no estimate: spent plus
   reserved at or over the limit. A mint that passes can still see its first request refused, because the request
-  adds its own estimate, or because routing picks a paid account whose budget is exhausted. Budgets ignore local and
-  free billing on the request path, but the account isn't known at mint, so the check counts the budget whatever
-  account a request would use.
+  adds its own estimate, or because routing picks a paid account whose budget is exhausted.
+- **Local and free routes.** Budgets ignore local and free billing on the request path. The account isn't known at
+  mint, so the check is skipped only when no request of the binding could reach a budgeted account: no pool member
+  passes the binding plan's billing and provider restrictions with a billing other than `local` or `free`. Any alias
+  can be requested by name, so every pool counts, not only the plan's mappings. Otherwise the budget is counted
+  whatever account a request would use, so a run whose requests would all go to local or free accounts can still be
+  refused with `429` when the plan could also reach a paid one. Restrict the plan's `allowed_billing` to `local` and
+  `free` to avoid that.
 - **Read failures.** If the check can't read usage, the mint fails with a generic internal error (`502`, code `null`,
   message `could not check budgets`), and the cause is logged on the server, never returned.
 - **No audit entry, no event.** A refused mint writes nothing. The audit log records changes, and nothing changed.

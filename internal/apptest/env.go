@@ -342,6 +342,8 @@ type PlanOpts struct {
 	PrivacyPolicy     string
 	TracePolicy       string
 	Compatibility     map[string]any
+	// AllowedBilling restricts candidates to these billing kinds (empty = any).
+	AllowedBilling []string
 }
 
 // Plan creates and publishes a routing plan.
@@ -358,10 +360,13 @@ func (e *Env) Plan(name string, o PlanOpts) string {
 	if o.MaxAttempts == 0 {
 		o.MaxAttempts = 3
 	}
+	if o.AllowedBilling == nil {
+		o.AllowedBilling = []string{}
+	}
 	var draft obj
 	e.Admin.MustDo(201, "POST", "/api/v1/routing-plans/"+plan.ID+"/versions", map[string]any{"note": "test", "document": map[string]any{
 		"schema_version": 1, "model_mappings": maps, "default_alias_id": o.DefaultAlias,
-		"restrictions": map[string]any{"allowed_provider_ids": []string{}, "denied_provider_ids": []string{}, "allowed_billing": []string{}, "allowed_classifications": []string{}, "required_capabilities": []string{}},
+		"restrictions": map[string]any{"allowed_provider_ids": []string{}, "denied_provider_ids": []string{}, "allowed_billing": o.AllowedBilling, "allowed_classifications": []string{}, "required_capabilities": []string{}},
 		"fallback":     map[string]any{"steps": o.Steps, "max_attempts": o.MaxAttempts, "allow_paid_fallback": o.AllowPaidFallback, "wait_max_seconds": 0},
 		"privacy":      map[string]any{"policy_id": o.PrivacyPolicy, "trace_policy_id": o.TracePolicy},
 		"compatibility": func() map[string]any {

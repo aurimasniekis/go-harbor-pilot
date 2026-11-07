@@ -152,7 +152,13 @@ the mint. If an enabled blocking budget the run would spend under is used up, th
 The budgets checked are the ones on the client, on the run's project (the `project_id` you bind, otherwise the
 client's project), on that project's workspace, and global ones. Budgets on provider accounts aren't checked, because
 the account is picked per request. A run that passes can still be refused on a request, when that request's own
-estimated cost would go over a budget, or when routing picks an account whose budget is used up. A refused mint
+estimated cost would go over a budget, or when routing picks an account whose budget is used up.
+
+Budgets don't apply to local or free accounts. When the client's routing plan can only reach those (for example, its
+restrictions allow only `local` and `free` billing), `check_budget` doesn't refuse the mint. Otherwise it can't tell
+which account a run will use, so it counts the budgets even if every request would go to a local model. If the
+check can't read usage, the mint fails with a `502` and the message `could not check budgets`; retry it or create
+the token without `check_budget`. A refused mint
 writes no audit entry and sends no event: the budget's own `budget.threshold.exceeded` was already sent when it ran
 out.
 

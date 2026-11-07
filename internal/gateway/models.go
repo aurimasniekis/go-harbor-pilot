@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/accounting"
@@ -269,7 +270,7 @@ func (g *Gateway) mintChild(w http.ResponseWriter, r *http.Request) {
 // request-path reservation do. A refusal writes nothing: no audit entry and
 // no event (D-043).
 func (g *Gateway) mintBudgetCheck(ctx context.Context, sc cp.ChildScope) error {
-	if g.Budgets == nil {
+	if g.Budgets == nil || !budgetedRouteReachable(g.CP.Snapshot(), sc.BindingID) {
 		return nil
 	}
 	be, err := g.Budgets.Exhausted(ctx, g.DB.R, accounting.Scope{BindingID: sc.BindingID, ProjectID: sc.ProjectID, WorkspaceID: sc.WorkspaceID}, g.Clock.Now())
@@ -289,6 +290,47 @@ type mintBudgetReadError struct{ err error }
 
 func (e *mintBudgetReadError) Error() string { return "budget check: " + e.err.Error() }
 func (e *mintBudgetReadError) Unwrap() error { return e.err }
+
+// budgetedRouteReachable reports whether a request of the binding could be
+// routed to an account that budgets count, i.e. one not billed as local or
+// free (budgets skip those on the request path). Candidates only ever come
+// from pool members that pass the plan's restrictions, and a request may name
+// any alias directly, so it looks at every pool member, not only the plan's
+// mappings, and errs towards checking: an
+// unknown binding or a plan without a published version counts as reachable.
+func budgetedRouteReachable(snap *cp.Snapshot, bindingID string) bool {
+	if snap == nil {
+		return true
+	}
+	b := snap.Bindings[bindingID]
+	if b == nil {
+		return true
+	}
+	plan := snap.Plans[b.Spec.PlanID]
+	if plan == nil || plan.Published == nil {
+		return true
+	}
+	r := plan.Published.Document.Restrictions
+	for _, pool := range snap.Pools {
+		for _, m := range pool.Spec.Members {
+			acc := snap.Accounts[m.AccountID]
+			if acc == nil || acc.Spec.Billing == cp.BillingLocal || acc.Spec.Billing == cp.BillingFree {
+				continue
+			}
+			if len(r.AllowedBilling) > 0 && !slices.Contains(r.AllowedBilling, acc.Spec.Billing) {
+				continue
+			}
+			if len(r.AllowedProviderIDs) > 0 && !slices.Contains(r.AllowedProviderIDs, acc.Spec.ProviderID) {
+				continue
+			}
+			if slices.Contains(r.DeniedProviderIDs, acc.Spec.ProviderID) {
+				continue
+			}
+			return true
+		}
+	}
+	return false
+}
 
 // writeMintBudgetError answers a mint refused by check_budget: 429 in the
 // gateway's OpenAI-style error envelope, with code budget_exceeded and the

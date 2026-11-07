@@ -137,6 +137,52 @@ func TestMintCheckBudget(t *testing.T) {
 	}
 }
 
+// A mint with check_budget is not refused when no account the binding's plan
+// can route to is budgeted: budgets skip local and free billing, so such a
+// run token's requests are never refused by a budget (D-043).
+func TestMintCheckBudgetSkipsLocalOnlyPlans(t *testing.T) {
+	e := apptest.New(t)
+	up := apptest.NewUpstream(t, "anthropic")
+	price := [2]string{"3", "15"}
+	prov := e.Provider("anthropic", "anthropic", up.Srv.URL, apptest.Model{ID: "m", MaxOutput: 1024, Price: &price})
+	paid := e.Account("api", prov, apptest.AccountOpts{Billing: "metered_api"})
+	local := e.Account("gpu", prov, apptest.AccountOpts{Billing: "local"})
+	free := e.Account("trial", prov, apptest.AccountOpts{Billing: "free"})
+	paidPlan := e.Plan("paid", apptest.PlanOpts{DefaultAlias: e.Alias("paid/default", e.Pool("p", "ordered", apptest.Member{Account: paid, Model: "m"}))})
+	localAlias := e.Alias("local/default", e.Pool("l", "ordered", apptest.Member{Account: local, Model: "m"}, apptest.Member{Account: free, Model: "m", Priority: 1}))
+	// A plan whose default is local still reaches the paid alias by name.
+	mixedPlan := e.Plan("mixed", apptest.PlanOpts{DefaultAlias: localAlias})
+	localPlan := e.Plan("local", apptest.PlanOpts{DefaultAlias: localAlias, AllowedBilling: []string{"free", "local"}})
+
+	up.Push(apptest.Reply{Text: "ok", InputTok: 100, OutputTok: 50})
+	if r := e.Gateway("POST", "/v1/messages", e.Token(e.Binding("spender", paidPlan, apptest.BindingOpts{})), msg("x")); r.StatusCode != 200 {
+		t.Fatalf("spend: %d %s", r.StatusCode, apptest.ReadAll(r))
+	}
+	e.Flush()
+	var budget struct {
+		ID string `json:"id"`
+	}
+	e.Admin.MustDo(201, "POST", "/api/v1/budgets", map[string]any{"name": "global", "spec": map[string]any{"scope": "global", "scope_id": "",
+		"period": "day", "limit": "0.001", "currency": "USD", "enforcement": "block", "enabled": true}}, &budget)
+
+	for _, tt := range []struct {
+		name, plan string
+		want       int
+	}{
+		{"paid plan", paidPlan, 429},
+		{"local default, paid alias reachable by name", mixedPlan, 429},
+		{"only local and free billing allowed", localPlan, 201},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			parent := e.Token(e.Binding("runs-"+tt.plan, tt.plan, apptest.BindingOpts{}), "gateway:invoke", "tokens:mint")
+			r := e.Gateway("POST", "/v1/harbor/credentials", parent, map[string]any{"name": "run", "scopes": []string{"gateway:invoke"}, "check_budget": true})
+			if body := apptest.ReadAll(r); r.StatusCode != tt.want {
+				t.Fatalf("mint: %d %s", r.StatusCode, body)
+			}
+		})
+	}
+}
+
 // A budget check that cannot read usage fails the mint with a generic 5xx
 // (the gateway envelope maps internal errors to 502, as for a failed revoke).
 // The cause is logged, never returned to the client.
