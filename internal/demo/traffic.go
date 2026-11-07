@@ -238,11 +238,12 @@ func Traffic(ctx context.Context, base string, toks Tokens, ups *Upstreams, log 
 			"tools": []any{map[string]any{"type": "function", "name": "shell", "parameters": map[string]any{"type": "object"}}}},
 			"User-Agent", "codex_cli_rs/0.166.0 (synthetic)")
 	}
-	// Two orchestrator runs, each with its own run token carrying a trusted
-	// spaceman.run reference, so usage can be filtered and grouped per run.
+	// Two orchestrator runs, each with its own run token. The client pins only
+	// spaceman.fleet, so each token binds its space and a trusted spaceman.run
+	// reference, and usage can be filtered and grouped per run.
 	runTok := func(run string) string {
 		raw, _ := json.Marshal(map[string]any{"name": "run " + run, "scopes": []string{cp.ScopeInvoke, cp.ScopeModels}, "ttl_seconds": 24 * 3600,
-			"bound_refs": map[string]string{"spaceman.run": run}})
+			"bound_refs": map[string]string{"spaceman.space": "spc_synthetic", "spaceman.run": run}})
 		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, base+"/v1/harbor/credentials", bytes.NewReader(raw))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+toks["spaceman"])

@@ -549,3 +549,24 @@ func TestDemoSpaceManRunsBindingAcceptsPerRunRefs(t *testing.T) {
 		})
 	}
 }
+
+// The demo's run tokens bind their space and run under a client that pins
+// only spaceman.fleet, so every run request carries all three trusted refs.
+func TestDemoRunTokensCarryFleetSpaceAndRun(t *testing.T) {
+	e := apptest.New(t, apptest.WithConfig(func(c *config.Config) { c.Demo.Enabled = true }))
+	const runs = `SELECT count(*) FROM request_refs WHERE key = 'spaceman.run' AND value LIKE 'run_synthetic_%'`
+	deadline := time.Now().Add(30 * time.Second)
+	for e.QueryInt(runs) < 3 && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	if n := e.QueryInt(runs); n != 3 {
+		t.Fatalf("run requests %d, want 3", n)
+	}
+	n := e.QueryInt(`SELECT count(*) FROM request_refs r
+		JOIN request_refs s ON s.request_id = r.request_id AND s.key = 'spaceman.space' AND s.value = 'spc_synthetic'
+		JOIN request_refs f ON f.request_id = r.request_id AND f.key = 'spaceman.fleet' AND f.value = 'fleet_synthetic'
+		WHERE r.key = 'spaceman.run' AND r.value LIKE 'run_synthetic_%'`)
+	if n != 3 {
+		t.Fatalf("run requests with space and fleet refs %d, want 3", n)
+	}
+}
