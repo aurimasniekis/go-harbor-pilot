@@ -3,7 +3,11 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
-## Unreleased
+## 0.1.2 (2026-11-07)
+
+Trusted-reference filters for usage and activity, `system` messages inside `/v1/messages`, and fixes found
+while running agent orchestrators against 0.1.1. Read the upgrade notes first: one behaviour change can affect
+alert rules, and the first start runs a one-off index migration.
 
 ### Gateway
 
@@ -29,7 +33,8 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
 
 - Run tokens record the parent token that created them (`created_by` and the audit log) instead of `anonymous`.
 - A request refused by a blocking budget shows as **Blocked** and emits `access.request.blocked`, as the operator
-  docs describe. `budget.threshold.exceeded` is still sent once per period.
+  docs describe. `budget.threshold.exceeded` is still sent once per period. This is a behaviour change: see the
+  upgrade notes.
 - The demo's `spaceman-runs` client pins only `spaceman.fleet` and allows the demo projects, so run tokens can bind
   their own `spaceman.space` and `project_id`.
 - Docs: the agent orchestrators page now describes how client and run-token references combine, and the
@@ -37,6 +42,11 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
 
 ### Upgrade notes
 
+- **Behaviour change: budget refusals emit `access.request.blocked`.** A request that blocking budgets refuse is now
+  recorded as **Blocked** (error `budget_exceeded`, HTTP 429) and sends `access.request.blocked` for every refused
+  request, with the budget in `reason`. In 0.1.1 it was recorded as an error and sent no event. Alert rules, webhooks
+  and Pulse consumers that subscribe to `access.request.blocked` will see one event per refused request while a budget
+  is used up. `budget.threshold.exceeded` is unchanged and is still sent once per period (decision D-040).
 - The first start after the upgrade indexes existing history in one migration, before the server listens. Its time
   and disk use grow with the number of requests and ledger rows times their trusted references: as a guide, 1M
   requests plus 1M ledger rows with 3 references each took about 27 s and added about 530 MB. Leave room for that
