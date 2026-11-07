@@ -2,6 +2,7 @@ package acceptance_test
 
 import (
 	"encoding/json"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -133,5 +134,53 @@ func TestMintCheckBudget(t *testing.T) {
 	}
 	if code, body := mint(map[string]any{"check_budget": "yes"}); code != 400 {
 		t.Fatalf("non-boolean check_budget: %d %s", code, body)
+	}
+}
+
+// A budget check that cannot read usage fails the mint with a generic 5xx
+// (the gateway envelope maps internal errors to 502, as for a failed revoke).
+// The cause is logged, never returned to the client.
+func TestMintCheckBudgetReadFailure(t *testing.T) {
+	logs := &syncBuffer{}
+	e := apptest.New(t, apptest.WithLog(slog.New(slog.NewTextHandler(logs, nil))))
+	up := apptest.NewUpstream(t, "anthropic")
+	prov := e.Provider("anthropic", "anthropic", up.Srv.URL, apptest.Model{ID: "m", MaxOutput: 1024})
+	acc := e.Account("api", prov, apptest.AccountOpts{Billing: "metered_api"})
+	plan := e.Plan("default", apptest.PlanOpts{DefaultAlias: e.Alias("coding/default", e.Pool("p", "ordered", apptest.Member{Account: acc, Model: "m"}))})
+	parent := e.Token(e.Binding("runs", plan, apptest.BindingOpts{}), "gateway:invoke", "tokens:mint")
+	e.Admin.MustDo(201, "POST", "/api/v1/budgets", map[string]any{"name": "global", "spec": map[string]any{"scope": "global", "scope_id": "",
+		"period": "day", "limit": "1", "currency": "USD", "enforcement": "block", "enabled": true}}, nil)
+
+	issued := e.QueryInt(`SELECT count(*) FROM audit_log WHERE action = 'gateway_credential.issue'`)
+	// Make the budget's usage read fail.
+	if _, err := e.App.DB.W.Exec(`ALTER TABLE ledger RENAME TO ledger_moved`); err != nil {
+		t.Fatal(err)
+	}
+	r := e.Gateway("POST", "/v1/harbor/credentials", parent, map[string]any{"name": "run", "scopes": []string{"gateway:invoke"}, "check_budget": true})
+	body := apptest.ReadAll(r)
+	if _, err := e.App.DB.W.Exec(`ALTER TABLE ledger_moved RENAME TO ledger`); err != nil {
+		t.Fatal(err)
+	}
+	if r.StatusCode != 502 {
+		t.Fatalf("mint: %d %s", r.StatusCode, body)
+	}
+	var out struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(body), &out); err != nil || out.Error.Message != "could not check budgets" {
+		t.Fatalf("body %s", body)
+	}
+	for _, leak := range []string{"ledger", "no such table", "SQL", "sql"} {
+		if strings.Contains(body, leak) {
+			t.Fatalf("body leaks %q: %s", leak, body)
+		}
+	}
+	if logged := logs.String(); !strings.Contains(logged, "mint.budget_check.failed") || !strings.Contains(logged, "ledger") {
+		t.Fatalf("cause not logged:\n%s", logged)
+	}
+	if n := e.QueryInt(`SELECT count(*) FROM audit_log WHERE action = 'gateway_credential.issue'`); n != issued {
+		t.Fatalf("a failed check issued a credential: %d audit entries, want %d", n, issued)
 	}
 }

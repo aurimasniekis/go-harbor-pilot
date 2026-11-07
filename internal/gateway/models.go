@@ -244,6 +244,12 @@ func (g *Gateway) mintChild(w http.ResponseWriter, r *http.Request) {
 			writeMintBudgetError(w, be)
 			return
 		}
+		var re *mintBudgetReadError
+		if errors.As(err, &re) {
+			g.Log.Error("mint.budget_check.failed", "credential_id", cred.ID, "error", re.err.Error())
+			g.writeError(w, p, &ir.Error{Kind: ir.ErrInternal, Message: "could not check budgets"}, "")
+			return
+		}
 		var ve *cp.ValidationError
 		kind := ir.ErrPermission
 		msg := err.Error()
@@ -268,13 +274,21 @@ func (g *Gateway) mintBudgetCheck(ctx context.Context, sc cp.ChildScope) error {
 	}
 	be, err := g.Budgets.Exhausted(ctx, g.DB.R, accounting.Scope{BindingID: sc.BindingID, ProjectID: sc.ProjectID, WorkspaceID: sc.WorkspaceID}, g.Clock.Now())
 	if err != nil {
-		return err
+		return &mintBudgetReadError{err: err}
 	}
 	if be != nil {
 		return be
 	}
 	return nil
 }
+
+// mintBudgetReadError is a budget check that could not read usage. The mint
+// answers a generic internal error (502 in the gateway envelope); the cause
+// is only logged.
+type mintBudgetReadError struct{ err error }
+
+func (e *mintBudgetReadError) Error() string { return "budget check: " + e.err.Error() }
+func (e *mintBudgetReadError) Unwrap() error { return e.err }
 
 // writeMintBudgetError answers a mint refused by check_budget: 429 in the
 // gateway's OpenAI-style error envelope, with code budget_exceeded and the

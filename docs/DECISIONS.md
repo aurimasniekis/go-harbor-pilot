@@ -424,6 +424,8 @@ path and adapter version, one work item per fingerprint.
   adds its own estimate, or because routing picks a paid account whose budget is exhausted. Budgets ignore local and
   free billing on the request path, but the account isn't known at mint, so the check counts the budget whatever
   account a request would use.
+- **Read failures.** If the check can't read usage, the mint fails with a generic internal error (`502`, code `null`,
+  message `could not check budgets`), and the cause is logged on the server, never returned.
 - **No audit entry, no event.** A refused mint writes nothing. The audit log records changes, and nothing changed.
   `budget.threshold.exceeded` was already sent once for the period when the budget ran out (D-027), and
   `access.request.blocked` describes a gateway request with a request row, which a mint isn't. An orchestrator that
