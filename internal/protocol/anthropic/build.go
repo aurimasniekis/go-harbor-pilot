@@ -73,7 +73,7 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 		}
 		msgs = append(msgs, msg{role: role, blocks: blocks})
 	}
-	nativeSystem := r.Source == ir.AnthropicMessages && !o.InlineSystemMessages
+	nativeSystem := r.Source == ir.AnthropicMessages && !o.InlineSystemMessages && SupportsMidConversationSystem(o.Model)
 	for _, m := range r.Messages {
 		role := "user"
 		switch m.Role {
@@ -82,14 +82,15 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 		case ir.RoleSystem, ir.RoleDeveloper:
 			if nativeSystem && m.Role == ir.RoleSystem {
 				// The client sent a mid-conversation system message on the
-				// Messages API: pass it through unchanged. The upstream
-				// enforces which models accept it and where it may appear.
+				// Messages API and the target model is not known to reject
+				// it: pass it through unchanged. The upstream enforces where
+				// it may appear.
 				msgs = append(msgs, msg{role: "system", native: buildSystemMessage(m, &losses)})
 				continue
 			}
-			// Instructions from other protocols become user text: whether the
-			// target model accepts an in-conversation system role, and where,
-			// depends on the model, so the portable form is used.
+			// Instructions from other protocols, or for a model known not to
+			// accept an in-conversation system role, become user text: the
+			// portable form.
 			ir.SystemMessageLosses(m, "", &losses)
 			var blocks []any
 			for _, p := range m.Parts {

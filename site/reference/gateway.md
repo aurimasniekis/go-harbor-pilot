@@ -113,6 +113,21 @@ The answer (`201`) holds the new token, shown once, in `token` and its descripti
   [Usage and activity by reference](/reference/api#usage-and-activity-by-reference));
 - can be revoked by its parent or by itself with `DELETE /v1/harbor/credentials/{id}`.
 
+A parent without `tokens:mint` gets `403`. A mint that fails for an internal reason gets a `502` with the generic
+message `could not mint the credential`; the cause is only logged on the server.
+
+Send `"check_budget": true` to refuse the mint when a blocking budget the child would spend under is already used up:
+a budget on the client, on the child's project (its bound `project_id`, otherwise the client's project), on that
+project's workspace, or a global one. The answer is then `429` with code `budget_exceeded` and the budget's id; no
+token is created and nothing is logged as a change. Budgets on provider accounts aren't checked, since the account is
+picked per request. When the client's routing plan can only reach local or free accounts, which budgets ignore, the
+check is skipped. If budgets can't be read, the mint fails with a `502` (`could not check budgets`). Without
+`check_budget` (the default), budgets are only checked when the token is used.
+
+```json
+{"error": {"message": "budget runs-daily is exhausted for this day (0.00105 of 0.001 USD) (bdg_…)", "type": "insufficient_quota", "param": null, "code": "budget_exceeded", "budget_id": "bdg_…"}}
+```
+
 See [Agent orchestrators](/tools/orchestrators).
 
 ## How a request is handled

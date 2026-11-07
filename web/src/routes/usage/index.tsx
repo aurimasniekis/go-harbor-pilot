@@ -58,8 +58,9 @@ function SpendPage() {
   // a small complete grouping instead.
   const summary = useQuery(usageSummaryQuery(range, refKey ? 'billing' : (groupBy as UsageGroupBy), refs))
   const refGroups = useInfiniteQuery({ ...usageRefGroupsQuery(range, groupBy, refs), enabled: !!refKey })
-  // The chart, provider billing and fees can't be narrowed to a reference.
-  const series = useQuery({ ...usageSeriesQuery(range, stepFor(bucket), refKey ? undefined : (groupBy as UsageGroupBy)), enabled: !filtered })
+  // The chart follows reference filters; provider billing and fees can't be
+  // narrowed to a reference.
+  const series = useQuery(usageSeriesQuery(range, stepFor(bucket), refKey ? undefined : (groupBy as UsageGroupBy), refs))
   const rec = useQuery({ ...reconciliationQuery(Math.min(days, 90)), enabled: !filtered })
   const rows = useMemo(() => (series.data ? bucketize(series.data.points ?? [], range.from, range.to, bucket) : []), [series.data, range, bucket])
   const groupNames = useMemo(() => Object.fromEntries((summary.data?.groups ?? []).map((g) => [g.key, g.label || g.key])), [summary.data])
@@ -215,15 +216,15 @@ function SpendPage() {
         </Group>
         {filtered && (
           <Text size="xs" c="dimmed">
-            Showing only requests with {refs!.length === 1 ? 'this reference' : 'all these references'}. Provider billing, subscription fees and the chart over time
-            can't be narrowed this way, so they are hidden.
+            Showing only requests with {refs!.length === 1 ? 'this reference' : 'all these references'}. Provider billing and subscription fees can't be narrowed this way,
+            so they are hidden.
           </Text>
         )}
       </Stack>
 
       {summary.isError ? (
         <QueryError error={summary.error} retry={() => void summary.refetch()} />
-      ) : !s || (!filtered && !series.data) ? (
+      ) : !s || !series.data ? (
         <StatSkeleton count={4} />
       ) : (
         <Stack gap={6}>
@@ -248,7 +249,7 @@ function SpendPage() {
               value={est ? money(est.amount, est.currency) : '—'}
               hint={billed !== null ? 'Estimated from gateway requests' : 'Gateway requests at list price'}
               info={costKindHelp.estimated_api_charge}
-              spark={filtered ? undefined : rows.map((r) => r.costs[`estimated_api_charge|${currency}`] ?? 0)}
+              spark={rows.map((r) => r.costs[`estimated_api_charge|${currency}`] ?? 0)}
             />
             {outside !== null && (
               <Stat
@@ -265,41 +266,39 @@ function SpendPage() {
               label="Tokens"
               value={short(tokens.input + tokens.output)}
               hint={`${short(tokens.input)} in · ${short(tokens.output)} out`}
-              spark={filtered ? undefined : rows.map((r) => r.input + r.output)}
+              spark={rows.map((r) => r.input + r.output)}
             />
           </StatGrid>
         </Stack>
       )}
 
-      {!filtered && (
-        <Section
-          title={`${bucket === 'hour' ? 'Hourly' : bucket === 'day' ? 'Daily' : 'Weekly'} ${mode === 'cost' ? 'cost' : 'tokens'}`}
-          actions={
-            <SegmentedControl
-              size="xs"
-              aria-label="Chart"
-              value={mode}
-              onChange={(v) => set({ view: v as 'cost' | 'tokens' })}
-              data={[
-                { value: 'cost', label: 'Cost' },
-                { value: 'tokens', label: 'Tokens' },
-              ]}
-            />
-          }
-        >
-          {series.isError ? (
-            <QueryError error={series.error} retry={() => void series.refetch()} />
-          ) : !series.data ? (
-            <Skeleton height={240} radius="md" />
-          ) : busyBuckets === 0 ? (
-            <Empty icon={<Coins size={22} />} title="No usage in this range" />
-          ) : (
-            <Paper withBorder radius="md" p="md">
-              <UsageChart rows={rows} bucket={bucket} mode={mode} groups={stacked.length > 1 ? stacked : undefined} />
-            </Paper>
-          )}
-        </Section>
-      )}
+      <Section
+        title={`${bucket === 'hour' ? 'Hourly' : bucket === 'day' ? 'Daily' : 'Weekly'} ${mode === 'cost' ? 'cost' : 'tokens'}`}
+        actions={
+          <SegmentedControl
+            size="xs"
+            aria-label="Chart"
+            value={mode}
+            onChange={(v) => set({ view: v as 'cost' | 'tokens' })}
+            data={[
+              { value: 'cost', label: 'Cost' },
+              { value: 'tokens', label: 'Tokens' },
+            ]}
+          />
+        }
+      >
+        {series.isError ? (
+          <QueryError error={series.error} retry={() => void series.refetch()} />
+        ) : !series.data ? (
+          <Skeleton height={240} radius="md" />
+        ) : busyBuckets === 0 ? (
+          <Empty icon={<Coins size={22} />} title={filtered ? 'No matching usage in this range' : 'No usage in this range'} />
+        ) : (
+          <Paper withBorder radius="md" p="md">
+            <UsageChart rows={rows} bucket={bucket} mode={mode} groups={stacked.length > 1 ? stacked : undefined} />
+          </Paper>
+        )}
+      </Section>
 
       <Section
         title="Breakdown"

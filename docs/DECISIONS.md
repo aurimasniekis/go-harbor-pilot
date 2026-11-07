@@ -330,7 +330,7 @@ path and adapter version, one work item per fingerprint.
   direct loopback requests without forwarding headers, never with trusted proxies configured. Demo mode refuses a
   non-loopback address without `--demo-allow-public`.
 
-## D-040: Run token provenance and budget refusals
+## D-040: Run token provenance and budget refusals (mint budget check: see D-043)
 
 - **Refs.** A minted child credential stores its parent's bound refs plus the refs sent at mint. The binding's
   `external_refs` are not copied in; the gateway applies them per request, for keys the credential does not bind. A
@@ -378,4 +378,65 @@ path and adapter version, one work item per fingerprint.
 - **Fees under a filter.** `subscription_fees` and the `subscription_fee` total stay whole-range figures and ignore
   filters. Allocation keeps the account's unfiltered token total as its denominator, so a filtered slice gets its
   share of the fee, not the whole fee.
-- **Not yet.** `/usage/series` has no `ref` filter; that is a follow-up.
+- **Not yet.** `/usage/series` has no `ref` filter; that is a follow-up. (Added in D-043.)
+
+## D-042: Mid-conversation system messages follow a per-model support list (2026-11-07)
+
+- **Problem.** Since 0.1.2 a `system`-role entry inside `/v1/messages` `messages[]` reaches Anthropic upstreams
+  unchanged. A routing plan that maps the request to a model without support for mid-conversation system messages
+  got the provider's 400.
+- **Decision.** The Anthropic request builder (`internal/protocol/anthropic/models.go`) keeps a list of models known
+  not to accept the role. For those it sends the entry as user text in place and records `mid_conversation_system`
+  (approximate), as it already does for other targets without support. Message-level fields (`clear_at`,
+  `output_config`) are dropped and reported as `system_message_field:*` losses. Every other model, including any
+  model the list doesn't name, still gets the entry unchanged.
+- **Default is "supported".** The list is negative on purpose: an unknown or newer model keeps the pass-through, so
+  the provider stays the judge, and a list that is out of date costs one 400 rather than silently rewriting requests
+  to models that support the role.
+- **Source.** The list comes from public Anthropic documentation only. The mid-conversation system messages page
+  names the supporting models (the Claude 5 generation and Claude Opus 4.8) and says the feature isn't available on
+  Claude Sonnet 5. Every earlier model in the public deprecations table is also on the list: Claude Opus 4.7, 4.6,
+  4.5, 4.1 and 4, Claude Sonnet 4.6, 4.5 and 4, Claude Haiku 4.5, and the Claude 3 models. Names match as an alias
+  (including the `-0` aliases `claude-opus-4-0` and `claude-sonnet-4-0`), a dated snapshot, a `-latest` alias, or with
+  a platform prefix or version suffix (`-v1:0`, or a bare `-v2` as in `claude-3-5-sonnet-v2@20241022`).
+- **Not a model-catalog capability.** Provider model `capabilities` are positive and optional, and routing treats an
+  empty list as "undeclared". A new positive capability would mark every catalog model that declares capabilities as
+  unsupported until an operator added it. So this stays protocol knowledge in the adapter, next to the other
+  per-protocol rules. An operator override can be added later if a model is ever missing from the list.
+- **Scope.** The CLI bridge keeps inlining for every model, and explicit native passthrough (breaker open) still
+  forwards bytes unchanged.
+
+## D-043: Optional budget check on mint; reference filters on the usage series (2026-11-07)
+
+- **`check_budget` on mint.** `POST /v1/harbor/credentials` accepts an optional boolean `check_budget` (default
+  `false`, so a mint without it behaves exactly as before, D-040). When it is `true` and an enabled `block` budget
+  covering the child's scope has its current period used up, the mint is refused with `429` in the gateway's
+  OpenAI-style error envelope: `type` `insufficient_quota`, `code` `budget_exceeded`, the budget's name and id in
+  `message`, and `budget_id`. Validation runs first, so an invalid mint is still a `400`.
+- **Scope.** The child's scope is what is known before routing: the parent's binding, the project its requests will
+  be attributed to (a bound `project_id` the binding allows, otherwise the binding's own project; the same rule the
+  request path uses, now one helper, `controlplane.CredentialProject`), that project's workspace, and global budgets.
+  Account budgets are skipped: routing picks the account per request. A per-request `X-HP-Project` hint isn't known
+  at mint either.
+- **Same figures.** The check reads each budget with the code behind `GET /api/v1/budgets/status` (settled ledger
+  cost plus active reservations) and applies the request path's test for a request with no estimate: spent plus
+  reserved at or over the limit. A mint that passes can still see its first request refused, because the request
+  adds its own estimate, or because routing picks a paid account whose budget is exhausted.
+- **Local and free routes.** Budgets ignore local and free billing on the request path. The account isn't known at
+  mint, so the check is skipped only when no request of the binding could reach a budgeted account: no pool member
+  passes the binding plan's billing and provider restrictions with a billing other than `local` or `free`. Any alias
+  can be requested by name, so every pool counts, not only the plan's mappings. Otherwise the budget is counted
+  whatever account a request would use, so a run whose requests would all go to local or free accounts can still be
+  refused with `429` when the plan could also reach a paid one. Restrict the plan's `allowed_billing` to `local` and
+  `free` to avoid that.
+- **Read failures.** If the check can't read usage, the mint fails with a generic internal error (`502`, code `null`,
+  message `could not check budgets`), and the cause is logged on the server, never returned.
+- **No audit entry, no event.** A refused mint writes nothing. The audit log records changes, and nothing changed.
+  `budget.threshold.exceeded` was already sent once for the period when the budget ran out (D-027), and
+  `access.request.blocked` describes a gateway request with a request row, which a mint isn't. An orchestrator that
+  retries a refused mint would otherwise fill the outbox with copies of a state that is already known.
+- **Usage series by reference.** `GET /api/v1/usage/series` accepts the same `ref=<key>:<value>` filters (repeatable,
+  at most 4, ANDed, trusted refs only) and `binding_id` as `/usage/summary`, parsed by the shared parser and applied
+  with the same `ledger_refs` conditions (`usageapi.refWhere`), as bound parameters. They combine with `filter`/`value`
+  and with `by`. Over the same range the buckets add up to the summary's totals under the same filter, except
+  `subscription_fee`, which the series never reports. The Spend page now keeps its chart under a reference filter.

@@ -428,6 +428,79 @@ func TestSpaceManPerRunUsageByTrustedRef(t *testing.T) {
 		t.Fatalf("fleet ref rows %d, want 3", n)
 	}
 
+	// The series takes the same filters, and its buckets add up to the
+	// summary's totals over the same range.
+	rng := "from=" + url.QueryEscape(time.Now().Add(-2*time.Hour).UTC().Format(time.RFC3339)) +
+		"&to=" + url.QueryEscape(time.Now().Add(time.Hour).UTC().Format(time.RFC3339))
+	for _, tt := range []struct {
+		name, filter      string
+		attempts, inputTk int64
+	}{
+		{"space", "ref=spaceman.space:spc_alpha", 3, 1300},
+		// The laptop claimed run_a through a header: not counted.
+		{"run", "ref=spaceman.run:run_a", 2, 300},
+		{"run and binding", "ref=spaceman.run:run_a&binding_id=" + binding, 2, 300},
+		{"binding", "binding_id=" + binding, 3, 1300},
+		{"refs ANDed", "ref=spaceman.space:spc_alpha&ref=spaceman.run:run_b", 1, 1000},
+		{"contradicting", "ref=spaceman.run:run_a&ref=spaceman.run:run_b", 0, 0},
+		{"claim only", "ref=spaceman.run:run_c", 0, 0},
+		{"with filter", "ref=spaceman.space:spc_alpha&filter=model&value=m", 3, 1300},
+	} {
+		t.Run("series/"+tt.name, func(t *testing.T) {
+			var sum refUsageSummary
+			e.Admin.MustDo(200, "GET", "/api/v1/usage/summary?group_by=model&"+rng+"&"+tt.filter, nil, &sum)
+			var ser struct {
+				Points []refUsageGroup `json:"points"`
+				Groups []struct {
+					Key    string          `json:"key"`
+					Points []refUsageGroup `json:"points"`
+				} `json:"groups"`
+			}
+			e.Admin.MustDo(200, "GET", "/api/v1/usage/series?step=hour&by=binding&"+rng+"&"+tt.filter, nil, &ser)
+			var attempts, input int64
+			costs := map[string]float64{}
+			for _, p := range ser.Points {
+				attempts += p.Attempts
+				input += p.Tokens.Input
+				for _, c := range p.Costs {
+					costs[c.Kind] += decimal(t, c.Amount)
+				}
+			}
+			if attempts != tt.attempts || input != tt.inputTk {
+				t.Fatalf("series attempts %d input %d, want %d %d", attempts, input, tt.attempts, tt.inputTk)
+			}
+			var sumAttempts int64
+			for _, g := range sum.Groups {
+				sumAttempts += g.Attempts
+			}
+			if sumAttempts != attempts {
+				t.Fatalf("summary attempts %d, series %d", sumAttempts, attempts)
+			}
+			for _, x := range sum.Totals {
+				if x.Kind == "subscription_fee" {
+					continue // whole-range fee, never filtered
+				}
+				if got := costs[x.Kind]; math.Abs(got-decimal(t, x.Amount)) > 1e-9 {
+					t.Fatalf("series %s %v, summary %s", x.Kind, got, x.Amount)
+				}
+				delete(costs, x.Kind)
+			}
+			if len(costs) != 0 {
+				t.Fatalf("series costs not in summary totals: %v", costs)
+			}
+			// The by split carries the filter too.
+			var grouped int64
+			for _, g := range ser.Groups {
+				for _, p := range g.Points {
+					grouped += p.Attempts
+				}
+			}
+			if grouped != attempts {
+				t.Fatalf("grouped series attempts %d, want %d", grouped, attempts)
+			}
+		})
+	}
+
 	// Activity: run_a's requests, paged.
 	var reqs struct {
 		Items []struct {
@@ -475,6 +548,12 @@ func TestTrustedRefFilterValidation(t *testing.T) {
 		{"bad group key", "/api/v1/usage/summary?group_by=ref:BAD", "query.group_by"},
 		{"unknown group", "/api/v1/usage/summary?group_by=refx", "query.group_by"},
 		{"bad cursor", "/api/v1/usage/summary?group_by=ref:spaceman.run&cursor=" + api.EncodeCursor("x"), "query.cursor"},
+		{"series no colon", "/api/v1/usage/series?ref=nocolon", "query.ref"},
+		{"series bad key", "/api/v1/usage/series?ref=Bad.Key:v", "query.ref"},
+		{"series empty value", "/api/v1/usage/series?ref=spaceman.run:", "query.ref"},
+		{"series long value", "/api/v1/usage/series?ref=spaceman.run:" + long, "query.ref"},
+		{"series too many", "/api/v1/usage/series?ref=a:1&ref=b:2&ref=c:3&ref=d:4&ref=e:5", "query.ref"},
+		{"series long binding", "/api/v1/usage/series?binding_id=" + strings.Repeat("b", 65), "query.binding_id"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			code, body, _ := e.Admin.GetRaw(tt.path)
@@ -485,7 +564,8 @@ func TestTrustedRefFilterValidation(t *testing.T) {
 	}
 	// Values may contain colons and commas.
 	for _, path := range []string{"/api/v1/usage/summary?ref=" + url.QueryEscape("git.repo:https://x.example/a,b") + "&group_by=ref:git.repo",
-		"/api/v1/activity/requests?ref=" + url.QueryEscape("git.repo:https://x.example/a,b")} {
+		"/api/v1/activity/requests?ref=" + url.QueryEscape("git.repo:https://x.example/a,b"),
+		"/api/v1/usage/series?ref=" + url.QueryEscape("git.repo:https://x.example/a,b")} {
 		if code, body, _ := e.Admin.GetRaw(path); code != 200 {
 			t.Fatalf("%s: %d %s", path, code, body)
 		}

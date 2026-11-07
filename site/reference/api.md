@@ -163,6 +163,7 @@ bytes. Repeat `ref` up to 4 times to require all of them. A malformed filter ret
 | Endpoint | Parameters |
 |---|---|
 | `GET /api/v1/usage/summary` | `ref`, `binding_id`, and `group_by=ref:<key>` next to `account`, `provider`, `model`, `binding`, `project`, `workspace` and `billing`. |
+| `GET /api/v1/usage/series` | `ref` and `binding_id`, combined with `filter`/`value` and `by`. Over the same range, the buckets add up to the summary's totals under the same filters. |
 | `GET /api/v1/activity/requests` | `ref`, combined with the other filters, `total` and pagination. |
 | `GET /api/v1/activity/sessions` | `ref`: sessions with a request that carries the references. `ref=session:<value>` finds the session id of a bound session. |
 
@@ -172,6 +173,9 @@ GET /api/v1/usage/summary?ref=spaceman.space:spc_alpha&group_by=ref:spaceman.run
 
 # One run's spend, split by model
 GET /api/v1/usage/summary?ref=spaceman.run:run_a&group_by=model
+
+# One run's spend per hour
+GET /api/v1/usage/series?ref=spaceman.run:run_a&step=hour
 
 # One run's failed requests
 GET /api/v1/activity/requests?ref=spaceman.run:run_a&status=error
@@ -207,5 +211,3 @@ GET /api/v1/activity/sessions?ref=session:run_a
   when the writer is busy (see [Known limitations](/security/limitations)).
 - A token that can create run tokens chooses their references. When several clients use the same keys, add
   `binding_id` to stay within one client.
-- `GET /api/v1/usage/series` can't filter by reference yet.
-

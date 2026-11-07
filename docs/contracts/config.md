@@ -74,7 +74,8 @@ A plan holds metadata only. Routing logic lives in immutable versions under `/ro
   - live at most 7 days;
   - can only narrow the parent's scopes;
   - cannot mint further children;
-  - inherit the parent's trusted `bound_refs` and cannot override them.
+  - inherit the parent's trusted `bound_refs` and cannot override them;
+  - are checked against budgets at mint only when the request sets `check_budget` (D-043).
 - **Revocation.** Revoking a parent revokes its children.
 
 ## Export and import

@@ -342,6 +342,8 @@ type PlanOpts struct {
 	PrivacyPolicy     string
 	TracePolicy       string
 	Compatibility     map[string]any
+	// AllowedBilling restricts candidates to these billing kinds (empty = any).
+	AllowedBilling []string
 }
 
 // Plan creates and publishes a routing plan.
@@ -358,10 +360,13 @@ func (e *Env) Plan(name string, o PlanOpts) string {
 	if o.MaxAttempts == 0 {
 		o.MaxAttempts = 3
 	}
+	if o.AllowedBilling == nil {
+		o.AllowedBilling = []string{}
+	}
 	var draft obj
 	e.Admin.MustDo(201, "POST", "/api/v1/routing-plans/"+plan.ID+"/versions", map[string]any{"note": "test", "document": map[string]any{
 		"schema_version": 1, "model_mappings": maps, "default_alias_id": o.DefaultAlias,
-		"restrictions": map[string]any{"allowed_provider_ids": []string{}, "denied_provider_ids": []string{}, "allowed_billing": []string{}, "allowed_classifications": []string{}, "required_capabilities": []string{}},
+		"restrictions": map[string]any{"allowed_provider_ids": []string{}, "denied_provider_ids": []string{}, "allowed_billing": o.AllowedBilling, "allowed_classifications": []string{}, "required_capabilities": []string{}},
 		"fallback":     map[string]any{"steps": o.Steps, "max_attempts": o.MaxAttempts, "allow_paid_fallback": o.AllowPaidFallback, "wait_max_seconds": 0},
 		"privacy":      map[string]any{"policy_id": o.PrivacyPolicy, "trace_policy_id": o.TracePolicy},
 		"compatibility": func() map[string]any {
@@ -376,11 +381,12 @@ func (e *Env) Plan(name string, o PlanOpts) string {
 
 // BindingOpts configure a client binding.
 type BindingOpts struct {
-	ProjectID      string
-	MaxConcurrency int
-	TrustSessions  bool
-	Harness        string
-	ExternalRefs   map[string]string
+	ProjectID       string
+	AllowedProjects []string
+	MaxConcurrency  int
+	TrustSessions   bool
+	Harness         string
+	ExternalRefs    map[string]string
 }
 
 // Binding creates a client binding.
@@ -389,9 +395,13 @@ func (e *Env) Binding(name, planID string, o BindingOpts) string {
 	if refs == nil {
 		refs = map[string]string{}
 	}
+	allowed := o.AllowedProjects
+	if allowed == nil {
+		allowed = []string{}
+	}
 	var out obj
 	e.Admin.MustDo(201, "POST", "/api/v1/client-bindings", map[string]any{"name": name, "spec": map[string]any{"display_name": name, "owner_kind": "none",
-		"owner_id": "", "plan_id": planID, "project_id": o.ProjectID, "allowed_project_ids": []string{}, "expected_harness": o.Harness,
+		"owner_id": "", "plan_id": planID, "project_id": o.ProjectID, "allowed_project_ids": allowed, "expected_harness": o.Harness,
 		"allowed_models": []string{}, "limits": map[string]any{"requests_per_minute": 0, "max_concurrency": o.MaxConcurrency, "max_request_bytes": 0},
 		"trust": map[string]any{"session_hints": o.TrustSessions, "project_hints": false, "intent_hints": false}, "external_refs": refs, "enabled": true}}, &out)
 	return out.ID

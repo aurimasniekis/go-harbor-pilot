@@ -69,6 +69,7 @@ The answer is `201 Created` with the credential's details and its token, shown t
 | `scopes` | A subset of the parent's, never `tokens:mint`. Defaults to sending requests and listing models. |
 | `ttl_seconds` | Lifetime. Defaults to 12 hours, at most 7 days, and never longer than the parent's. |
 | `bound_refs` | References tied to the token, as `key: value` strings. |
+| `check_budget` | Optional, default `false`. When `true`, refuse with `429` if a blocking budget the run would spend under is used up. See [Budgets](#budgets). |
 
 `bound_refs` in the answer are the references stored on the run token: the parent token's own references plus the
 ones you sent. References configured on the client are not copied in; they are added to each request (see below).
@@ -139,9 +140,31 @@ token gets `404`.
 
 ## Budgets
 
-Creating a run token does not check budgets: a run token is created even when a blocking budget that covers the
-client or its project is already used up. Its requests are then refused with `429` and the error code
-`budget_exceeded`, the first time it is used.
+Send `"check_budget": true` when creating a run token to refuse the run before it starts. This is the authoritative
+pre-launch check: it reads budgets the same way as `GET /api/v1/budgets/status` and the request path, at the moment of
+the mint. If an enabled blocking budget the run would spend under is used up, the answer is `429` with code
+`budget_exceeded`, the budget's name and id in `message`, and `budget_id`, and no token is created:
+
+```json
+{"error": {"message": "budget runs-daily is exhausted for this day (0.00105 of 0.001 USD) (bdg_…)", "type": "insufficient_quota", "param": null, "code": "budget_exceeded", "budget_id": "bdg_…"}}
+```
+
+The budgets checked are the ones on the client, on the run's project (the `project_id` you bind, otherwise the
+client's project), on that project's workspace, and global ones. Budgets on provider accounts aren't checked, because
+the account is picked per request. A run that passes can still be refused on a request, when that request's own
+estimated cost would go over a budget, or when routing picks an account whose budget is used up.
+
+Budgets don't apply to local or free accounts. When the client's routing plan can only reach those (for example, its
+restrictions allow only `local` and `free` billing), `check_budget` doesn't refuse the mint. Otherwise it can't tell
+which account a run will use, so it counts the budgets even if every request would go to a local model. If the
+check can't read usage, the mint fails with a `502` and the message `could not check budgets`; retry it or create
+the token without `check_budget`. A refused mint
+writes no audit entry and sends no event: the budget's own `budget.threshold.exceeded` was already sent when it ran
+out.
+
+Without `check_budget` (the default), creating a run token does not check budgets: a run token is created even when a
+blocking budget that covers the client or its project is already used up. Its requests are then refused with `429`
+and the error code `budget_exceeded`, the first time it is used.
 
 To follow budget refusals:
 
@@ -149,8 +172,7 @@ To follow budget refusals:
 - `access.request.blocked` is sent for **every** request a blocking budget refuses, with the budget in `reason`. The
   request shows as **Blocked** in **Requests**.
 
-To refuse a run early, check the budget before creating its token, under **Limits** or with
-`GET /api/v1/budgets/status`.
+To see every budget's state, open **Limits** or call `GET /api/v1/budgets/status`.
 
 ## See the runs
 

@@ -51,9 +51,14 @@ TRACEABILITY.md (`planned`, `in-progress`).
   up only through provider-reported quota and usage, reconciled later.
 - **Budgets block slightly early, never late.** They count settled ledger costs plus in-flight estimates (input at four
   characters per token, output at the requested maximum), within one writer transaction.
-- **Run tokens are created without a budget check.** Minting a child credential never consults budgets; a run token
-  under an exhausted blocking budget is refused (`429 budget_exceeded`) on its first request. A `check_budget` mint
-  option is a proposed follow-up, not implemented.
+- **The mint budget check is opt-in and partial (D-043).** Without `check_budget`, minting a child credential never
+  consults budgets; a run token under an exhausted blocking budget is refused (`429 budget_exceeded`) on its first
+  request. With it, binding, project, workspace and global budgets are checked, but account budgets are not (routing
+  picks the account per request), nor a project chosen later by an `X-HP-Project` hint. A mint that passes can still
+  see its first request refused once that request's own estimate is added. The check counts budgets even when the
+  run's requests would all go to `local` or `free` accounts, which budgets ignore, so it can refuse such a run with
+  `429`. It is skipped only when the binding's plan can't reach any other account (for example `allowed_billing`
+  restricted to `local` and `free`).
 - **Quota freshness.** Observations can be stale or unknown; routing treats unknown as unknown, never as zero or
   unlimited.
 - **Response-derived rate limits are short-lived.** Fresh for two minutes, not kept as history, dropped (and counted)
@@ -66,8 +71,8 @@ TRACEABILITY.md (`planned`, `in-progress`).
   `/activity/sessions` by `ref` follow request telemetry, which can drop rows under back-pressure. Usage recovered
   after a restart is attributed to refs only when its request row was written. Refs are trusted per client: a token
   with `tokens:mint` chooses its runs' values, so filter on `binding_id` too when clients share a ref namespace.
-  `subscription_fees` and the `subscription_fee` total ignore filters. `/usage/series` has no `ref` filter yet, so
-  the Spend page hides its chart (and provider billing and fees) while a reference filter is on.
+  `subscription_fees` and the `subscription_fee` total ignore filters, so the Spend page hides provider billing and
+  fees while a reference filter is on.
 
 ## Routing and diagnostics
 
@@ -81,9 +86,11 @@ TRACEABILITY.md (`planned`, `in-progress`).
   are low-confidence, not proof of removal; the learned baseline is in memory and re-seeded at start.
 - **History deduplication needs a session.** Without a trusted session reference or header, occurrences are recorded
   as uncertain and never merged across conversations.
-- **Mid-conversation system messages are not checked per model.** Anthropic accepts a `system`-role entry inside
-  `messages[]` only on some models. Harbor Pilot passes it through as sent, so a plan that maps the client's model to
-  an upstream model without support gets the provider's 400. Map such clients to a supporting model. From other
+- **Mid-conversation system messages use a fixed model list (D-042).** Anthropic accepts a `system`-role entry
+  inside `messages[]` only on some models. For the models the public documentation lists as unsupported, Harbor
+  Pilot sends the entry as user text and records an approximate loss. Any other model, including one released after
+  this version, gets the entry as sent. If such a model doesn't support it, the client gets the provider's 400 until
+  the list is updated. There is no operator override. Placement rules are still left to the provider. From other
   protocols the entry reaches Anthropic as user text, and the Codex bridge drops it.
 - **Passthrough telemetry.** Usage is read best-effort from the raw stream; tool calls, response intent signals and
   traces are unavailable. Passthrough does not avoid provider flags or restrictions.

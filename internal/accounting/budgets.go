@@ -185,12 +185,9 @@ func (bs *Budgets) Check(ctx context.Context, tx *sql.Tx, in ReserveInput, now t
 		if in.Currency == b.Spec.Currency {
 			next += in.EstimatedCost
 		}
-		over := next > u.Limit || (in.EstimatedCost == 0 && u.Spent+u.Reserved >= u.Limit)
+		over := next > u.Limit || (in.EstimatedCost == 0 && exhausted(u))
 		if over && b.Spec.Enforcement == "block" {
-			return &BudgetExceeded{CapacityError: CapacityError{Limit: "budget:" + b.ID,
-				Detail: fmt.Sprintf("budget %s is exhausted for this %s (%s of %s %s)", b.Name, b.Spec.Period,
-					(u.Spent + u.Reserved).String(), (u.Limit).String(), b.Spec.Currency)},
-				BudgetID: b.ID, BudgetName: b.Name, PeriodStart: u.PeriodStart, Spent: u.Spent + u.Reserved, Limit: u.Limit, Currency: b.Spec.Currency}
+			return exceededError(b, u)
 		}
 		frac := 0.0
 		if u.Limit > 0 {
@@ -207,6 +204,56 @@ func (bs *Budgets) Check(ctx context.Context, tx *sql.Tx, in ReserveInput, now t
 		}
 	}
 	return nil
+}
+
+// exhausted reports whether a budget's period is used up: settled spend plus
+// in-flight reservations reach the limit. It is the test Check applies to a
+// request with no estimated cost, and Status's "exceeded" state for a
+// positive limit.
+func exhausted(u BudgetUsage) bool { return u.Spent+u.Reserved >= u.Limit }
+
+func exceededError(b *cp.Res[cp.BudgetSpec], u BudgetUsage) *BudgetExceeded {
+	return &BudgetExceeded{CapacityError: CapacityError{Limit: "budget:" + b.ID,
+		Detail: fmt.Sprintf("budget %s is exhausted for this %s (%s of %s %s)", b.Name, b.Spec.Period,
+			(u.Spent + u.Reserved).String(), (u.Limit).String(), b.Spec.Currency)},
+		BudgetID: b.ID, BudgetName: b.Name, PeriodStart: u.PeriodStart, Spent: u.Spent + u.Reserved, Limit: u.Limit, Currency: b.Spec.Currency}
+}
+
+// Scope is what a credential will spend in before routing picks an account:
+// its client binding, project and the project's workspace.
+type Scope struct {
+	BindingID, ProjectID, WorkspaceID string
+}
+
+// Exhausted returns the first enabled blocking budget covering scope whose
+// current period is used up, or nil. It reads usage as Status does and
+// applies Check's test for a request with no estimate (D-043). Account
+// budgets never match: the account is only known once routing picks one.
+func (bs *Budgets) Exhausted(ctx context.Context, q store.Execer, scope Scope, now time.Time) (*BudgetExceeded, error) {
+	snap := bs.Snapshot()
+	if snap == nil {
+		return nil, nil
+	}
+	ids := make([]string, 0, len(snap.Budgets))
+	for id := range snap.Budgets {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	in := ReserveInput{BindingID: scope.BindingID, ProjectID: scope.ProjectID, WorkspaceID: scope.WorkspaceID}
+	for _, id := range ids {
+		b := snap.Budgets[id]
+		if !b.Spec.Enabled || b.Spec.Enforcement != "block" || b.Spec.Scope == cp.BudgetAccount || !applies(b, in) {
+			continue
+		}
+		u, err := usage(ctx, q, b, now)
+		if err != nil {
+			return nil, err
+		}
+		if exhausted(u) {
+			return exceededError(b, u), nil
+		}
+	}
+	return nil, nil
 }
 
 // recordThreshold writes one event per budget, period and threshold.

@@ -1,15 +1,19 @@
 package gateway
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/ratelimit"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/reqmeta"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/gemini"
 	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
+	"slices"
 	"time"
 
+	"github.com/aurimasniekis/go-harbor-pilot/internal/accounting"
 	cp "github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/anthropic"
@@ -219,6 +223,9 @@ func (g *Gateway) mintChild(w http.ResponseWriter, r *http.Request) {
 		Scopes     []string          `json:"scopes"`
 		TTLSeconds int64             `json:"ttl_seconds"`
 		BoundRefs  map[string]string `json:"bound_refs"`
+		// CheckBudget refuses the mint when a blocking budget covering the
+		// child's scope is already used up (D-043).
+		CheckBudget bool `json:"check_budget"`
 	}
 	dec := json.NewDecoder(io.LimitReader(r.Body, 64<<10))
 	dec.DisallowUnknownFields()
@@ -226,21 +233,119 @@ func (g *Gateway) mintChild(w http.ResponseWriter, r *http.Request) {
 		g.writeError(w, p, &ir.Error{Kind: ir.ErrInvalidRequest, Message: "invalid body: " + err.Error()}, "")
 		return
 	}
-	c, tok, err := g.CP.MintChild(r.Context(), cred, cp.CredentialInput{Name: in.Name, Scopes: in.Scopes, TTL: time.Duration(in.TTLSeconds) * time.Second,
-		BoundRefs: in.BoundRefs, ManagedBy: cp.ManagedAPI})
+	ci := cp.CredentialInput{Name: in.Name, Scopes: in.Scopes, TTL: time.Duration(in.TTLSeconds) * time.Second,
+		BoundRefs: in.BoundRefs, ManagedBy: cp.ManagedAPI}
+	if in.CheckBudget {
+		ci.BudgetCheck = g.mintBudgetCheck
+	}
+	c, tok, err := g.CP.MintChild(r.Context(), cred, ci)
 	if err != nil {
-		var ve *cp.ValidationError
-		kind := ir.ErrPermission
-		msg := err.Error()
-		if ok := asValidation(err, &ve); ok {
-			kind = ir.ErrInvalidRequest
+		var be *accounting.BudgetExceeded
+		if errors.As(err, &be) {
+			writeMintBudgetError(w, be)
+			return
 		}
-		g.writeError(w, p, &ir.Error{Kind: kind, Message: msg}, "")
+		var re *mintBudgetReadError
+		if errors.As(err, &re) {
+			g.Log.Error("mint.budget_check.failed", "credential_id", cred.ID, "error", re.err.Error())
+			g.writeError(w, p, &ir.Error{Kind: ir.ErrInternal, Message: "could not check budgets"}, "")
+			return
+		}
+		var ve *cp.ValidationError
+		switch {
+		case asValidation(err, &ve):
+			g.writeError(w, p, &ir.Error{Kind: ir.ErrInvalidRequest, Message: err.Error()}, "")
+		case errors.Is(err, cp.ErrCredentialInvalid), errors.Is(err, cp.ErrChildCannotMint):
+			g.writeError(w, p, &ir.Error{Kind: ir.ErrPermission, Message: err.Error()}, "")
+		default:
+			// Anything else (a failed credential insert, for example) is
+			// internal: the cause is only logged.
+			g.Log.Error("mint.failed", "credential_id", cred.ID, "error", err.Error())
+			g.writeError(w, p, &ir.Error{Kind: ir.ErrInternal, Message: "could not mint the credential"}, "")
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	_, _ = w.Write(wire.MustMarshal(map[string]any{"credential": c, "token": tok}))
+}
+
+// mintBudgetCheck refuses a child mint when a blocking budget covering the
+// child's scope is used up. It reads budgets as GET /budgets/status and the
+// request-path reservation do. A refusal writes nothing: no audit entry and
+// no event (D-043).
+func (g *Gateway) mintBudgetCheck(ctx context.Context, sc cp.ChildScope) error {
+	if g.Budgets == nil || !budgetedRouteReachable(g.CP.Snapshot(), sc.BindingID) {
+		return nil
+	}
+	be, err := g.Budgets.Exhausted(ctx, g.DB.R, accounting.Scope{BindingID: sc.BindingID, ProjectID: sc.ProjectID, WorkspaceID: sc.WorkspaceID}, g.Clock.Now())
+	if err != nil {
+		return &mintBudgetReadError{err: err}
+	}
+	if be != nil {
+		return be
+	}
+	return nil
+}
+
+// mintBudgetReadError is a budget check that could not read usage. The mint
+// answers a generic internal error (502 in the gateway envelope); the cause
+// is only logged.
+type mintBudgetReadError struct{ err error }
+
+func (e *mintBudgetReadError) Error() string { return "budget check: " + e.err.Error() }
+func (e *mintBudgetReadError) Unwrap() error { return e.err }
+
+// budgetedRouteReachable reports whether a request of the binding could be
+// routed to an account that budgets count, i.e. one not billed as local or
+// free (budgets skip those on the request path). Candidates only ever come
+// from pool members that pass the plan's restrictions, and a request may name
+// any alias directly, so it looks at every pool member, not only the plan's
+// mappings, and errs towards checking: an
+// unknown binding or a plan without a published version counts as reachable.
+func budgetedRouteReachable(snap *cp.Snapshot, bindingID string) bool {
+	if snap == nil {
+		return true
+	}
+	b := snap.Bindings[bindingID]
+	if b == nil {
+		return true
+	}
+	plan := snap.Plans[b.Spec.PlanID]
+	if plan == nil || plan.Published == nil {
+		return true
+	}
+	r := plan.Published.Document.Restrictions
+	for _, pool := range snap.Pools {
+		for _, m := range pool.Spec.Members {
+			acc := snap.Accounts[m.AccountID]
+			if acc == nil || acc.Spec.Billing == cp.BillingLocal || acc.Spec.Billing == cp.BillingFree {
+				continue
+			}
+			if len(r.AllowedBilling) > 0 && !slices.Contains(r.AllowedBilling, acc.Spec.Billing) {
+				continue
+			}
+			if len(r.AllowedProviderIDs) > 0 && !slices.Contains(r.AllowedProviderIDs, acc.Spec.ProviderID) {
+				continue
+			}
+			if slices.Contains(r.DeniedProviderIDs, acc.Spec.ProviderID) {
+				continue
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// writeMintBudgetError answers a mint refused by check_budget: 429 in the
+// gateway's OpenAI-style error envelope, with code budget_exceeded and the
+// budget's id.
+func writeMintBudgetError(w http.ResponseWriter, be *accounting.BudgetExceeded) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusTooManyRequests)
+	_, _ = w.Write(wire.MustMarshal(map[string]any{"error": map[string]any{
+		"message": be.Detail + " (" + be.BudgetID + ")", "type": "insufficient_quota", "param": nil,
+		"code": string(ir.ErrBudget), "budget_id": be.BudgetID}}))
 }
 
 func asValidation(err error, target **cp.ValidationError) bool {

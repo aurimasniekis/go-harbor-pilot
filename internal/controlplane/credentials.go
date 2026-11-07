@@ -32,6 +32,9 @@ var CredentialScopes = []string{ScopeInvoke, ScopeModels, ScopeUsage, ScopeMint}
 // ErrCredentialInvalid is returned for any authentication failure.
 var ErrCredentialInvalid = errors.New("invalid, expired or revoked gateway credential")
 
+// ErrChildCannotMint is returned when a child credential tries to mint.
+var ErrChildCannotMint = errors.New("child credentials cannot mint further credentials")
+
 // Credential is gateway credential metadata (never the token).
 type Credential struct {
 	ID         string            `json:"id"`
@@ -57,6 +60,17 @@ type CredentialInput struct {
 	TTL       time.Duration
 	BoundRefs map[string]string
 	ManagedBy string
+	// BudgetCheck, when set, runs on a child mint once the request is valid
+	// and before anything is written, with the scope the child will spend
+	// in. A non-nil error refuses the mint (D-043).
+	BudgetCheck func(ctx context.Context, scope ChildScope) error
+}
+
+// ChildScope is what a child credential will spend in before routing picks
+// an account: its parent's binding, the project its requests are attributed
+// to, and that project's workspace.
+type ChildScope struct {
+	BindingID, ProjectID, WorkspaceID string
 }
 
 const credCols = `id, prefix, binding_id, name, scopes, parent_id, bound_refs, managed_by, expires_at, revoked_at, created_by, created_at, last_used_at, last_used_ip` //nolint:gosec // column list, not a credential
@@ -155,7 +169,7 @@ func (s *Service) MintChild(ctx context.Context, parent *AuthenticatedCredential
 		return nil, "", fmt.Errorf("%w: parent credential lacks %s", ErrCredentialInvalid, ScopeMint)
 	}
 	if parent.ParentID != "" {
-		return nil, "", errors.New("child credentials cannot mint further credentials")
+		return nil, "", ErrChildCannotMint
 	}
 	if in.TTL <= 0 {
 		in.TTL = 12 * time.Hour
@@ -178,7 +192,8 @@ func (s *Service) MintChild(ctx context.Context, parent *AuthenticatedCredential
 	for k, v := range parent.BoundRefs {
 		merged[k] = v
 	}
-	binding := s.Snapshot().Bindings[parent.BindingID]
+	snap := s.Snapshot()
+	binding := snap.Bindings[parent.BindingID]
 	for k, v := range in.BoundRefs {
 		if pv, ok := parent.BoundRefs[k]; ok && pv != v {
 			return nil, "", &ValidationError{Errors: []FieldError{{Location: "body.bound_refs." + k, Message: "cannot override a reference bound to the parent credential"}}}
@@ -189,6 +204,15 @@ func (s *Service) MintChild(ctx context.Context, parent *AuthenticatedCredential
 		merged[k] = v
 	}
 	in.BoundRefs = merged
+	if in.BudgetCheck != nil {
+		sc := ChildScope{BindingID: parent.BindingID, ProjectID: CredentialProject(snap, binding, merged)}
+		if pr := snap.Projects[sc.ProjectID]; pr != nil {
+			sc.WorkspaceID = pr.Spec.WorkspaceID
+		}
+		if err := in.BudgetCheck(ctx, sc); err != nil {
+			return nil, "", err
+		}
+	}
 	// The minting credential is the creator: it is recorded as created_by
 	// and as the audit actor (the gateway request has no console principal).
 	ctx = auth.WithPrincipal(ctx, &auth.Principal{Kind: auth.KindCredential, ID: parent.ID, Name: parent.Name, AuthMethod: "gateway_token"})
@@ -202,6 +226,19 @@ func ChildProjectAllowed(binding *Res[BindingSpec], project string) bool {
 		return false
 	}
 	return project == binding.Spec.ProjectID || slices.Contains(binding.Spec.AllowedProjectIDs, project)
+}
+
+// CredentialProject is the project a credential's requests are attributed
+// to before any request hint: a bound project_id that exists and that the
+// binding still allows, otherwise the binding's own project.
+func CredentialProject(snap *Snapshot, binding *Res[BindingSpec], boundRefs map[string]string) string {
+	if binding == nil {
+		return ""
+	}
+	if pid := boundRefs["project_id"]; pid != "" && snap != nil && snap.Projects[pid] != nil && ChildProjectAllowed(binding, pid) {
+		return pid
+	}
+	return binding.Spec.ProjectID
 }
 
 // checkChildRef limits what a minter may bind: a project must be one the

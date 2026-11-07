@@ -210,13 +210,21 @@ func resolveGroup(by string) (groupSpec, error) {
 // the time range plus the binding and trusted-reference filters.
 func filterWhere(sq SummaryQuery) (string, []any) {
 	from, to := sq.From.UnixMilli(), sq.To.UnixMilli()
-	where := `l.at >= ? AND l.at < ?`
-	args := []any{from, to}
-	if sq.BindingID != "" {
+	where, args := refWhere(sq.BindingID, sq.Refs, from, to)
+	return `l.at >= ? AND l.at < ?` + where, append([]any{from, to}, args...)
+}
+
+// refWhere builds the binding and trusted-reference conditions on the
+// ledger (aliased l) that the summary and the series share. Each condition
+// starts with " AND "; every value is a bound argument.
+func refWhere(bindingID string, refs []api.RefFilter, from, to int64) (string, []any) {
+	var where string
+	var args []any
+	if bindingID != "" {
 		where += ` AND l.binding_id = ?`
-		args = append(args, sq.BindingID)
+		args = append(args, bindingID)
 	}
-	for _, f := range sq.Refs {
+	for _, f := range refs {
 		where += ` AND l.id IN (SELECT ledger_id FROM ledger_refs WHERE key = ? AND value = ? AND at >= ? AND at < ?)`
 		args = append(args, f.Key, f.Value, from, to)
 	}
@@ -470,13 +478,34 @@ func prorate(e cp.EntitlementSpec, fee money.Amount, from, to time.Time) money.A
 	return money.Amount(float64(fee) * float64(end.Sub(start)) / period)
 }
 
-// Series builds a time series over hour or day buckets.
-func Series(ctx context.Context, q store.Execer, from, to time.Time, step string, filterCol, filterVal string) ([]UsagePoint, error) {
+// SeriesFilter narrows a usage series. Col is a ledger column from a static
+// map (never from input); BindingID and Refs are the same filters as the
+// summary's (D-041) and are ANDed with it.
+type SeriesFilter struct {
+	Col, Value string
+	BindingID  string
+	Refs       []api.RefFilter
+}
+
+// cond returns the filter's ledger condition (without a leading AND) and
+// its bound arguments.
+func (f SeriesFilter) cond(from, to time.Time) (string, []any) {
 	var cond string
-	var cargs []any
-	if filterCol != "" {
-		cond, cargs = filterCol+` = ?`, []any{filterVal}
+	var args []any
+	if f.Col != "" {
+		cond, args = `l.`+f.Col+` = ?`, []any{f.Value}
 	}
+	rw, rargs := refWhere(f.BindingID, f.Refs, from.UnixMilli(), to.UnixMilli())
+	if rw != "" {
+		cond = strings.TrimPrefix(cond+rw, " AND ")
+		args = append(args, rargs...)
+	}
+	return cond, args
+}
+
+// Series builds a time series over hour, day or week buckets.
+func Series(ctx context.Context, q store.Execer, from, to time.Time, step string, f SeriesFilter) ([]UsagePoint, error) {
+	cond, cargs := f.cond(from, to)
 	return seriesWhere(ctx, q, from, to, step, cond, cargs)
 }
 
@@ -515,7 +544,7 @@ func seriesWhere(ctx context.Context, q store.Execer, from, to time.Time, step, 
 	}, `SELECT (at / ?) * ?, cost_kind, currency, COUNT(*), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0),
 		COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(cache_write_tokens),0), COALESCE(SUM(reasoning_tokens),0), COALESCE(SUM(cost_e10),0),
 		SUM(CASE WHEN kind = 'unknown_usage' THEN 1 ELSE 0 END)
-		FROM ledger WHERE `+where+` GROUP BY 1, cost_kind, currency ORDER BY 1`, args...) //nolint:gosec // filterCol is from a static map
+		FROM ledger l WHERE `+where+` GROUP BY 1, cost_kind, currency ORDER BY 1`, args...) //nolint:gosec // columns are from static maps
 	if err != nil {
 		return nil, err
 	}
@@ -557,16 +586,14 @@ type SeriesGroup struct {
 	Points []UsagePoint `json:"points"`
 }
 
-func seriesGroups(ctx context.Context, q store.Execer, from, to time.Time, step, filterCol, filterVal, byCol string, top int) ([]SeriesGroup, error) {
+func seriesGroups(ctx context.Context, q store.Execer, from, to time.Time, step string, f SeriesFilter, byCol string, top int) ([]SeriesGroup, error) {
 	if top <= 0 {
 		top = 6
 	}
 	base := `at >= ? AND at < ? AND kind IN ('usage','unknown_usage','correction')`
 	args := []any{from.UnixMilli(), to.UnixMilli()}
-	var fcond string
-	var fargs []any
-	if filterCol != "" {
-		fcond, fargs = filterCol+` = ?`, []any{filterVal}
+	fcond, fargs := f.cond(from, to)
+	if fcond != "" {
 		base += ` AND ` + fcond
 		args = append(args, fargs...)
 	}
@@ -575,7 +602,7 @@ func seriesGroups(ctx context.Context, q store.Execer, from, to time.Time, step,
 		var n int64
 		err := r.Scan(&k, &n)
 		return k.String, err
-	}, `SELECT COALESCE(`+byCol+`, ''), COUNT(*) FROM ledger WHERE `+base+` GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT ?`, append(args, top+1)...) //nolint:gosec // byCol is from a static map
+	}, `SELECT COALESCE(`+byCol+`, ''), COUNT(*) FROM ledger l WHERE `+base+` GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT ?`, append(args, top+1)...) //nolint:gosec // byCol is from a static map
 	if err != nil {
 		return nil, err
 	}
@@ -681,13 +708,15 @@ func Register(a *api.API, d Deps) {
 		return &sumOut{Body: s}, nil
 	})
 	type serIn struct {
-		From    string `query:"from"`
-		To      string `query:"to"`
-		Step    string `query:"step" enum:"hour,day,week," required:"false"`
-		Filter  string `query:"filter" enum:"account,provider,model,binding,project,workspace,billing," required:"false"`
-		FilterV string `query:"value" maxLength:"200"`
-		By      string `query:"by" enum:"account,provider,model,binding,project,workspace,billing," required:"false" doc:"Also split the series by this dimension (top groups by attempts, the rest as other)."`
-		Top     int    `query:"top" minimum:"0" maximum:"20" doc:"Groups returned with by (default 6)."`
+		From      string   `query:"from"`
+		To        string   `query:"to"`
+		Step      string   `query:"step" enum:"hour,day,week," required:"false"`
+		Filter    string   `query:"filter" enum:"account,provider,model,binding,project,workspace,billing," required:"false"`
+		FilterV   string   `query:"value" maxLength:"200"`
+		By        string   `query:"by" enum:"account,provider,model,binding,project,workspace,billing," required:"false" doc:"Also split the series by this dimension (top groups by attempts, the rest as other)."`
+		Top       int      `query:"top" minimum:"0" maximum:"20" doc:"Groups returned with by (default 6)."`
+		Refs      []string `query:"ref,explode" required:"false" maxItems:"4" doc:"Trusted-reference filter <key>:<value>, split at the first colon. Repeatable (at most 4, ANDed). Same rules as usage/summary."`
+		BindingID string   `query:"binding_id" maxLength:"64" doc:"Only usage of this client binding."`
 	}
 	type serBody struct {
 		From   time.Time     `json:"from"`
@@ -717,17 +746,21 @@ func Register(a *api.API, d Deps) {
 		if step == "hour" && to.Sub(from) > 31*24*time.Hour {
 			return nil, api.Invalid("range too long for hourly steps", api.FieldError{Location: "query.step", Message: "use day for ranges over 31 days"})
 		}
-		col := ""
-		if in.Filter != "" {
-			col = groupCols[in.Filter]
+		refs, err := api.ParseRefFilters(in.Refs)
+		if err != nil {
+			return nil, err
 		}
-		pts, err := Series(ctx, d.DB().R, from, to, step, col, in.FilterV)
+		f := SeriesFilter{BindingID: in.BindingID, Refs: refs}
+		if in.Filter != "" {
+			f.Col, f.Value = groupCols[in.Filter], in.FilterV
+		}
+		pts, err := Series(ctx, d.DB().R, from, to, step, f)
 		if err != nil {
 			return nil, err
 		}
 		body := serBody{From: from, To: to, Step: step, Points: pts}
 		if in.By != "" {
-			if body.Groups, err = seriesGroups(ctx, d.DB().R, from, to, step, col, in.FilterV, groupCols[in.By], in.Top); err != nil {
+			if body.Groups, err = seriesGroups(ctx, d.DB().R, from, to, step, f, groupCols[in.By], in.Top); err != nil {
 				return nil, err
 			}
 		}

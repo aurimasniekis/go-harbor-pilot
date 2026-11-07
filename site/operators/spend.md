@@ -51,7 +51,7 @@ narrowed by them:
   shows the whole range unsplit.
 - **Filter by reference** narrows the page to requests that carry a reference, for example **Run: run_42**. Add up to
   four to require all of them. The tiles become **Estimated cost**, **Requests** and **Tokens** for the matching
-  requests, and the breakdown covers only them. Provider billing, subscription fees, the chart and **Provider vs
+  requests, and the chart and the breakdown cover only them. Provider billing, subscription fees and **Provider vs
   gateway** can't be narrowed this way, so they are hidden while a filter is on.
 
 Both are part of the page address, so `/usage?group=ref:spaceman.run` is a link to per-run spend. A run's row opens

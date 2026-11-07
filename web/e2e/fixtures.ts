@@ -39,6 +39,21 @@ export async function signIn(page: Page, who = DEMO_ADMIN): Promise<void> {
   await page.waitForURL((u) => !u.pathname.startsWith('/login'))
 }
 
+/**
+ * Waits until the signed-in application shell has rendered and the page has
+ * finished loading its data. The root renders nothing until the session
+ * probe answers, and routes are code-split, so `networkidle` alone can fire
+ * before the page is on screen: keyboard and accessibility checks must not
+ * start until the skip link and main landmark exist and no loading skeleton
+ * (`aria-busy`) is left.
+ */
+export async function waitForShell(page: Page): Promise<void> {
+  await expect(page.getByRole('link', { name: 'Skip to content' })).toBeAttached()
+  await expect(page.locator('#main')).toBeVisible()
+  await page.waitForLoadState('networkidle')
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
+}
+
 /** Pages reachable from the navigation for an administrator. */
 export const ADMIN_PAGES = [
   '/', '/account', '/activity', '/activity/sessions', '/clients', '/clients/setup', '/routing', '/routing/plans', '/providers', '/routing/pools', '/quotas', '/quotas/monitors', '/usage', '/usage/breakdown', '/privacy', '/privacy/sandbox', '/privacy/trace-policies', '/traces',

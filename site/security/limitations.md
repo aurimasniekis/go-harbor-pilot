@@ -53,9 +53,13 @@ See [Masking: guarantees and limits](/security/masking).
   Usage that happens outside the gateway shows up only through provider-reported quota and usage, reconciled later.
 - **Budgets can block slightly early, never late.** They count settled costs plus in-flight estimates, and the
   estimate prices input at four characters per token and output at the requested maximum.
-- **Creating a run token doesn't check budgets.** An orchestrator gets a run token even when a blocking budget that
-  covers its client is used up; the token's requests are then refused with `429`. Check the budget before starting a
-  run. See [Agent orchestrators](/tools/orchestrators#budgets).
+- **Creating a run token checks budgets only when asked.** Without `check_budget`, an orchestrator gets a run token
+  even when a blocking budget that covers its client is used up, and the token's requests are then refused with
+  `429`. With `check_budget: true`, client, project, workspace and global budgets are checked, but provider account
+  budgets aren't, because the account is picked per request. The check also counts budgets when the run would only use
+  local or free accounts, which budgets otherwise ignore, so it can refuse such a run. It skips the check only when
+  the client's routing plan allows nothing but `local` and `free` billing. See
+  [Agent orchestrators](/tools/orchestrators#budgets).
 - **Quota can be stale or unknown.** Routing treats unknown as unknown, never as zero or unlimited; the plan decides
   what happens next.
 - **Rate-limit headers are short-lived.** Limits read from response headers are fresh for two minutes, are not kept as
@@ -67,8 +71,8 @@ See [Masking: guarantees and limits](/security/masking).
   and session lists filtered by a reference follow request telemetry, which can drop rows when the writer is busy.
   Usage recorded after a restart carries references only when its request was recorded. A token that can create run
   tokens chooses their references, so when several clients use the same reference keys, filter by client too.
-  Subscription fees under a filter are still whole-range figures, and the usage-over-time endpoint can't filter by
-  reference yet, so **Spend** hides its chart, provider billing and fees while a reference filter is on.
+  Subscription fees under a filter are still whole-range figures, so **Spend** hides provider billing and fees while a
+  reference filter is on.
 
 ## Routing and diagnostics
 
@@ -83,10 +87,11 @@ See [Masking: guarantees and limits](/security/masking).
   with low confidence, not as removed. Its baseline lives in memory and is rebuilt at start.
 - **History deduplication needs a session.** Without a trusted session reference or session header, repeated history
   is recorded as uncertain and never merged across conversations.
-- **System messages inside the conversation are not checked per model.** Anthropic accepts a `system` entry inside
-  `messages[]` only on some models. Harbor Pilot passes it on as sent. If your plan maps the model a client asked for
-  to one without support, the provider answers 400, so map such clients to a model that supports it. The Codex bridge
-  does not carry these entries.
+- **System messages inside the conversation follow a fixed model list.** Anthropic accepts a `system` entry inside
+  `messages[]` only on some models. For models the public documentation lists as unsupported, Harbor Pilot sends the
+  entry as user text. Any other model gets it as sent, so a newer model without support would answer 400 until
+  Harbor Pilot's list is updated. There is no setting to override the list. The Codex bridge does not carry these
+  entries.
 - **Passthrough sees little.** In passthrough, usage is read best-effort from the raw stream; tool calls, response
   signals and captured content are not available. Passthrough does not avoid provider flags or restrictions.
 

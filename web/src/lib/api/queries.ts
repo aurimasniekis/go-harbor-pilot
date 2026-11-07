@@ -213,13 +213,14 @@ export const usageRefGroupsQuery = (r: UsageRange, groupBy: UsageSummaryGroupBy,
     getNextPageParam: (last) => last.next_cursor || undefined,
   })
 
-export const usageSeriesQuery = (r: UsageRange, step: 'hour' | 'day', by?: UsageGroupBy) =>
+/** Usage over time; `refs` narrows it like the summary's, so buckets add up to the summary's totals. */
+export const usageSeriesQuery = (r: UsageRange, step: 'hour' | 'day', by?: UsageGroupBy, refs?: readonly string[]) =>
   queryOptions({
-    queryKey: ['usage', 'series', r, step, by ?? ''],
+    queryKey: ['usage', 'series', r, step, by ?? '', refs ?? []],
     queryFn: ({ signal }) =>
       apiGet<{ from: string; to: string; step: string; points: UsagePoint[]; groups?: { key: string; points: UsagePoint[] }[] }>(
         '/usage/series',
-        { ...r, step, ...(by ? { by, top: 6 } : {}) },
+        { ...r, step, ref: refs, ...(by ? { by, top: 6 } : {}) },
         signal,
       ),
   })
