@@ -705,6 +705,9 @@ func buildItems(m ir.Message, losses *ir.Losses) []any {
 	if m.Role == ir.RoleTool {
 		role = "user"
 	}
+	if m.Role == ir.RoleSystem || m.Role == ir.RoleDeveloper {
+		ir.SystemMessageLosses(m, P, losses)
+	}
 	flush := func() {
 		if len(content) == 0 {
 			return

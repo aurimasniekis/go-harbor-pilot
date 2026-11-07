@@ -1,0 +1,13 @@
+{
+  "model": "claude-opus-5-5",
+  "max_tokens": 1024,
+  "messages": [
+    {"role": "user", "content": "Summarize the example ticket."},
+    {"role": "system", "content": [
+      {"type": "text", "text": "The reader is a new team member."},
+      {"type": "text", "text": "Avoid internal jargon."}
+    ]},
+    {"role": "assistant", "content": "The ticket asks for a larger font on the receipt."},
+    {"role": "user", "content": "Thanks. What is the next step?"}
+  ]
+}
