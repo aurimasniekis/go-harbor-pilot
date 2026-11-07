@@ -5,7 +5,9 @@
 # bridges use deploy/Dockerfile.bridge.
 
 # ---- Frontend build ----
-FROM node:24.11.1-alpine3.22 AS web
+# Runs on the build host's platform: the web assets are the same for every
+# target, and an emulated pnpm install is slow and can hang (docs/RELEASING.md).
+FROM --platform=$BUILDPLATFORM node:24.11.1-alpine3.22 AS web
 WORKDIR /src/web
 RUN corepack enable && corepack prepare pnpm@11.23.0 --activate
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml web/.npmrc ./
@@ -14,7 +16,9 @@ COPY web/ ./
 RUN mkdir -p /src/internal/web/dist && pnpm run build
 
 # ---- Backend build ----
-FROM golang:1.27.3-alpine3.23 AS go
+# Also on the build host's platform; the binary is cross-compiled for the
+# target (pure Go, CGO_ENABLED=0).
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine3.23 AS go
 WORKDIR /src
 ENV CGO_ENABLED=0 GOFLAGS=-trimpath
 COPY go.mod go.sum ./
@@ -25,7 +29,8 @@ COPY migrations ./migrations
 COPY api ./api
 COPY --from=web /src/internal/web/dist ./internal/web/dist
 ARG VERSION=docker
-RUN go build -ldflags "-s -w -X main.version=${VERSION}" -o /out/harbor-pilot ./cmd/harbor-pilot \
+ARG TARGETOS TARGETARCH
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags "-s -w -X main.version=${VERSION}" -o /out/harbor-pilot ./cmd/harbor-pilot \
  && mkdir -p /out/data
 
 # ---- Runtime ----
