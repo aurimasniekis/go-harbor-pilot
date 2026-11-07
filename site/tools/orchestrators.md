@@ -6,7 +6,8 @@ dangerous to leak one. Harbor Pilot instead lets the orchestrator create a **run
 narrower than its parent, and carrying references that identify the run.
 
 ::: info Status
-Run tokens are contract-tested (`TestMintChildConfinesBoundRefs` and the SpaceMan acceptance scenario). SpaceMan does
+Run tokens are contract-tested (`TestMintChildConfinesBoundRefs`, `TestMintChildRecordsParentAsCreator`, the SpaceMan
+acceptance scenario and `TestDemoSpaceManRunsBindingAcceptsPerRunRefs` against the demo seed). SpaceMan does
 not create run tokens yet; this page describes the Harbor Pilot side, which any orchestrator can use.
 :::
 
@@ -17,7 +18,7 @@ sequenceDiagram
   participant O as Orchestrator
   participant HP as Harbor Pilot
   participant A as Agent run (Claude Code, Codex…)
-  O->>HP: POST /v1/harbor/credentials<br/>parent token (Create run tokens)<br/>bound_refs {spaceman.run: run_…}
+  O->>HP: POST /v1/harbor/credentials<br/>parent token (Create run tokens)<br/>bound_refs {spaceman.space: spc_…, spaceman.run: run_…}
   HP-->>O: 201 {credential, token}
   O->>A: start with ANTHROPIC_BASE_URL + run token
   A->>HP: /v1/messages with the run token
@@ -41,7 +42,7 @@ curl https://pilot.example.com/v1/harbor/credentials \
     "name": "run run_01JD…",
     "scopes": ["gateway:invoke"],
     "ttl_seconds": 7200,
-    "bound_refs": {"spaceman.run": "run_01JD…", "session": "run_01JD…"}
+    "bound_refs": {"spaceman.space": "spc_…", "spaceman.run": "run_01JD…", "session": "run_01JD…", "project_id": "prj_…"}
   }'
 ```
 
@@ -54,7 +55,8 @@ The answer is `201 Created` with the credential's details and its token, shown t
     "binding_id": "cbn_…",
     "parent_id": "crd_…",
     "scopes": ["gateway:invoke"],
-    "bound_refs": {"spaceman.space": "spc_…", "spaceman.run": "run_01JD…", "session": "run_01JD…"},
+    "bound_refs": {"project_id": "prj_…", "session": "run_01JD…", "spaceman.run": "run_01JD…", "spaceman.space": "spc_…"},
+    "created_by": "crd_…",
     "expires_at": "…"
   },
   "token": "hpk_…"
@@ -67,6 +69,11 @@ The answer is `201 Created` with the credential's details and its token, shown t
 | `scopes` | A subset of the parent's, never `tokens:mint`. Defaults to sending requests and listing models. |
 | `ttl_seconds` | Lifetime. Defaults to 12 hours, at most 7 days, and never longer than the parent's. |
 | `bound_refs` | References tied to the token, as `key: value` strings. |
+
+`bound_refs` in the answer are the references stored on the run token: the parent token's own references plus the
+ones you sent. References configured on the client are not copied in; they are added to each request (see below).
+`created_by` is the parent token's id, so the client's **Access tokens** tab and the audit log show which token created
+each run token.
 
 A run token belongs to the same client as its parent, so it uses the same plan, limits and allowed models. It can't
 create further tokens.
@@ -83,15 +90,21 @@ Harbor Pilot records them on every request the token makes.
 | `project_id` | Charges the run to a project. It must be the client's project or one of its allowed projects. |
 | anything else | Recorded as a trusted reference for reporting, for example `spaceman.space`. |
 
-Every trusted reference, whatever its key, can filter and group usage and activity (see below).
+A run token carries the parent's references, copied in when it is created. The references configured on the client
+(under the client's **References** setting) are applied when each request is made, for every key the token doesn't
+bind itself. A run token can add references, but it can't change either kind: sending a key the parent or the client
+already sets, with a different value, is refused with `400`. Sending the same value is accepted.
 
-A run token inherits the parent's references and the references configured on the client (under the client's
-**References** setting). It can add to them, but it can't override either.
+So configure on the client only what every run shares, for example `spaceman.fleet`, and bind what differs per run
+(`spaceman.space`, `spaceman.run`, `project_id`) when you create the run token. A client that pins `spaceman.space`
+can serve only that one space.
+
+Every trusted reference, whatever its key, can filter and group usage and activity (see below).
 
 Headers the agent sends, such as `X-HP-Session` or `X-HP-External-Ref`, are hints. They are recorded as claims next to
 the trusted references, and never decide access or billing.
 
-<Shot name="request-run-refs" alt="A request made with a run token of the spaceman-runs client, with Verified context open: client, project, workspace, protocol and required capabilities, then the trusted references spaceman.run run_synthetic_2, spaceman.space spc_synthetic and spaceman.task tsk_synthetic_7" caption="A run token's request: its trusted references under Verified context" />
+<Shot name="request-run-refs" alt="A request made with a run token of the spaceman-runs client, with Verified context open: client, project, workspace, protocol and required capabilities, then the trusted references spaceman.fleet fleet_synthetic, spaceman.run run_synthetic_2, spaceman.space spc_synthetic and spaceman.task tsk_synthetic_7" caption="A run token's request: its trusted references under Verified context" />
 
 ## Hand the token to the run
 
@@ -123,6 +136,21 @@ curl -X DELETE https://pilot.example.com/v1/harbor/credentials/crd_… \
 
 Either the parent token or the run token itself may revoke a run token; the answer is `204 No Content`. Any other
 token gets `404`.
+
+## Budgets
+
+Creating a run token does not check budgets: a run token is created even when a blocking budget that covers the
+client or its project is already used up. Its requests are then refused with `429` and the error code
+`budget_exceeded`, the first time it is used.
+
+To follow budget refusals:
+
+- `budget.threshold.exceeded` is sent **once per budget period**, when the budget is first used up.
+- `access.request.blocked` is sent for **every** request a blocking budget refuses, with the budget in `reason`. The
+  request shows as **Blocked** in **Requests**.
+
+To refuse a run early, check the budget before creating its token, under **Limits** or with
+`GET /api/v1/budgets/status`.
 
 ## See the runs
 
@@ -156,8 +184,10 @@ clients could use the same reference values. See [Usage and activity by referenc
 
 <Shot name="client" alt="A client page with recent requests, its access tokens and the setup steps for its tool" caption="The orchestrator's client: its requests and tokens" />
 
-The demo has a `spaceman-runs` client with the **Create run tokens** permission and a `spaceman.space` reference, and
-two runs made with run tokens (`run_synthetic_1` and `run_synthetic_2`), if you want to try this locally. See [Try the demo](/guide/demo).
+The demo has a `spaceman-runs` client with the **Create run tokens** permission, if you want to try this locally. It
+pins only `spaceman.fleet` (`fleet_synthetic`) and allows the `web-app` and `data-pipeline` projects, so each run
+token can bind its own `spaceman.space` and `project_id`. The demo's two runs were made with run tokens that bind
+`spaceman.space` and their own `spaceman.run` (`run_synthetic_1` and `run_synthetic_2`). See [Try the demo](/guide/demo).
 
 ## With Terraform
 

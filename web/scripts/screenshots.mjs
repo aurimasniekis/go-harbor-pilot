@@ -116,7 +116,7 @@ async function seed(page) {
           name: 'run run_synthetic_2',
           scopes: ['gateway:invoke', 'gateway:models'],
           ttl_seconds: 3600,
-          bound_refs: { 'spaceman.run': 'run_synthetic_2', 'spaceman.task': 'tsk_synthetic_7' },
+          bound_refs: { 'spaceman.space': 'spc_synthetic', 'spaceman.run': 'run_synthetic_2', 'spaceman.task': 'tsk_synthetic_7' },
         },
         request: { model: 'coding/deep', max_tokens: 2048, messages: [{ role: 'user', content: '[synthetic] run step 4' }] },
       },

@@ -416,8 +416,27 @@ func (g *Gateway) dispatch(ctx context.Context, w http.ResponseWriter, rc *reqCt
 	if lastErr == nil {
 		lastErr = &ir.Error{Kind: ir.ErrQuotaExhausted, Message: "no candidate could serve the request"}
 	}
-	g.finish(ctx, rc, "error", lastErr, nil)
+	status := "error"
+	if budgetRefusedAll(rc.outcome.Attempts) {
+		// Blocking budgets refused every candidate at reservation, before
+		// any provider was contacted: a policy refusal, reported like other
+		// blocks (D-040).
+		status = "blocked"
+		rc.outcome.Blocked, rc.outcome.BlockReason = true, lastErr.Message
+	}
+	g.finish(ctx, rc, status, lastErr, nil)
 	g.writeError(w, rc.inbound, lastErr, rc.id)
+}
+
+// budgetRefusedAll reports whether there were attempts and a blocking
+// budget refused each of them.
+func budgetRefusedAll(attempts []AttemptOutcome) bool {
+	for _, a := range attempts {
+		if a.Err == nil || a.Err.Kind != ir.ErrBudget {
+			return false
+		}
+	}
+	return len(attempts) > 0
 }
 
 // finish records the final request state and runs post-request hooks.

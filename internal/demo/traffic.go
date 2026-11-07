@@ -153,8 +153,11 @@ func SeedConfig(ctx context.Context, svc *cp.Service, origin string) (Tokens, er
 		ExpectedHarness: "claude_code", Trust: cp.BindingTrust{SessionHints: true}, Enabled: true}, nil)
 	bCI := s.create(cp.BindingDef, "codex-ci", cp.BindingSpec{DisplayName: "Codex in CI", PlanID: plan, ProjectID: data, ExpectedHarness: "codex",
 		Limits: cp.BindingLimits{MaxConcurrency: 4}, Enabled: true, ExternalRefs: map[string]string{"ci.provider": "synthetic-ci"}}, nil)
-	bSpace := s.create(cp.BindingDef, "spaceman-runs", cp.BindingSpec{DisplayName: "SpaceMan runs", PlanID: plan, ProjectID: web, ExpectedHarness: "claude_code",
-		Enabled: true, ExternalRefs: map[string]string{"spaceman.space": "spc_synthetic"}}, nil)
+	// The orchestrator client pins only its fleet: each run token binds its
+	// own spaceman.space and may charge any demo project.
+	bSpace := s.create(cp.BindingDef, "spaceman-runs", cp.BindingSpec{DisplayName: "SpaceMan runs", PlanID: plan, ProjectID: web,
+		AllowedProjectIDs: []string{web, data}, ExpectedHarness: "claude_code",
+		Enabled: true, ExternalRefs: map[string]string{"spaceman.fleet": "fleet_synthetic"}}, nil)
 	bPrivate := s.create(cp.BindingDef, "private-notebook", cp.BindingSpec{DisplayName: "Private notebook", PlanID: private, ExpectedHarness: "generic", Enabled: true}, nil)
 	_ = alFast
 	// Quota monitors read the synthetic quota simulator. Two feed routing
