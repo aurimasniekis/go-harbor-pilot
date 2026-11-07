@@ -330,6 +330,23 @@ path and adapter version, one work item per fingerprint.
   direct loopback requests without forwarding headers, never with trusted proxies configured. Demo mode refuses a
   non-loopback address without `--demo-allow-public`.
 
+## D-040: Run token provenance and budget refusals
+
+- **Refs.** A minted child credential stores its parent's bound refs plus the refs sent at mint. The binding's
+  `external_refs` are not copied in; the gateway applies them per request, for keys the credential does not bind. A
+  mint that sends a parent or binding key with a different value is refused with `400`. Orchestrator bindings should
+  pin only what every run shares (for example `spaceman.fleet`) and leave per-run keys (`spaceman.space`,
+  `spaceman.run`, `project_id`) to the mint.
+- **Creator.** The gateway mint endpoint has no console principal, so the minting credential acts as one (principal
+  kind `credential`, id `crd_…`). It is the child's `created_by` and the audit actor of `gateway_credential.issue`.
+- **Budget refusals are policy blocks.** When blocking budgets refuse every candidate at reservation, the request is
+  recorded as `blocked` (error `budget_exceeded`, HTTP 429) and emits `access.request.blocked` per request, like the
+  other policy refusals. `budget.threshold.exceeded` stays a once-per-period transition (D-027). A request that
+  reached a provider on an earlier attempt stays `error`.
+- **Mint does not check budgets.** A `check_budget` mint option (429 when a covering blocking budget is exhausted) is
+  deferred: account-scoped budgets can't be resolved before routing picks an account, and the option would be new API
+  surface for the mint contract. Orchestrators can read `GET /api/v1/budgets/status` before minting.
+
 ## D-041: Usage and activity filter and group by trusted references
 
 - **Shape.** `GET /api/v1/usage/summary`, `/activity/requests` and `/activity/sessions` accept `ref=<key>:<value>`,

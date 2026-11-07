@@ -85,8 +85,8 @@ A destination can narrow what it receives:
 |---|---|---|---|---|
 | `routing.account.switched` | info | request_id, binding_id, pool_id, from_account_id, to_account_id | pool, from_account_id, to, reason | A group's serving account changed. |
 | `routing.fallback.selected` | warning | request_id, binding_id, plan_id, pool_id | from, to, step, reason | A request was served by a different model or provider than its first choice. |
-| `access.request.blocked` | warning | request_id, binding_id | reason, requested_model, plan_id, excluded | A request was refused by policy (a routing restriction, privacy or compatibility). |
-| `access.credential.issued` | info | credential_id, binding_id | name, scopes | A gateway token was issued. |
+| `access.request.blocked` | warning | request_id, binding_id | reason, requested_model, plan_id, excluded | A request was refused by policy (a routing restriction, privacy, compatibility or a blocking budget). |
+| `access.credential.issued` | info | credential_id, binding_id | prefix, scopes, child | A gateway token was issued. `prefix` is the token's non-secret prefix; `child` is true for a run token. |
 | `access.credential.revoked` | info | credential_id, binding_id | reason | A gateway token was revoked. |
 | `quota.window.exhausted` | warning | monitor_id, account_id | monitor, bucket, label, reset_at, source | A tracked quota window reached its exhaustion threshold. Resolved by `quota.window.recovered`. |
 | `quota.window.recovered` | info | monitor_id, account_id | monitor, bucket, label | An exhausted quota window has capacity again. |

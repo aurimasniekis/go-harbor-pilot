@@ -31,9 +31,8 @@ func TestTraceIndexHoldsNoMaskedValuesAndErases(t *testing.T) {
 	if b := apptest.ReadAll(resp); resp.StatusCode != 200 {
 		t.Fatalf("%d %s", resp.StatusCode, b)
 	}
-	r.e.Flush()
+	r.waitTraces(1)
 	ts := r.e.App.TraceSvc
-	ts.Flush(context.Background())
 
 	var hits struct {
 		Items []struct {

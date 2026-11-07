@@ -207,6 +207,15 @@ func TestBudgetBlocksMeteredSpend(t *testing.T) {
 	e.Eventually(func() bool {
 		return e.QueryInt(`SELECT count(*) FROM event_outbox WHERE type = 'harborpilot.budget.threshold_exceeded.v1'`) == 1
 	}, "budget exceeded event")
+	// The refusal is a policy block: the request shows as blocked and emits
+	// access.request.blocked, as other policy refusals do.
+	e.Flush()
+	if n := e.QueryInt(`SELECT count(*) FROM requests WHERE status = 'blocked' AND error_kind = 'budget_exceeded'`); n != 1 {
+		t.Fatalf("blocked budget requests %d", n)
+	}
+	e.Eventually(func() bool {
+		return e.QueryInt(`SELECT count(*) FROM event_outbox WHERE type = 'harborpilot.access.request_blocked.v1'`) == 1
+	}, "request blocked event")
 	var st struct {
 		Items []struct {
 			State string `json:"state"`

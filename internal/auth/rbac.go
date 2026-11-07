@@ -112,6 +112,9 @@ const (
 	KindUser      PrincipalKind = "user"
 	KindService   PrincipalKind = "service"
 	KindSystem    PrincipalKind = "system"
+	// KindCredential is a gateway credential acting on the control plane,
+	// for example a parent credential minting a run token. ID is its crd_ id.
+	KindCredential PrincipalKind = "credential"
 )
 
 // Principal is the authenticated caller of a control-plane request.

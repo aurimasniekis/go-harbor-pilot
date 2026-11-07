@@ -13,6 +13,16 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
   groups are paged with `cursor` and `limit`. The usage summary also takes `binding_id`. Existing history is indexed
   when the database is upgraded.
 
+### Fixed
+
+- Run tokens record the parent token that created them (`created_by` and the audit log) instead of `anonymous`.
+- A request refused by a blocking budget shows as **Blocked** and emits `access.request.blocked`, as the operator
+  docs describe. `budget.threshold.exceeded` is still sent once per period.
+- The demo's `spaceman-runs` client pins only `spaceman.fleet` and allows the demo projects, so run tokens can bind
+  their own `spaceman.space` and `project_id`.
+- Docs: the agent orchestrators page now describes how client and run-token references combine, and the
+  `access.credential.issued` data fields match what is sent (`prefix`, `scopes`, `child`).
+
 ### Upgrade notes
 
 - The first start after the upgrade indexes existing history in one migration, before the server listens. Its time

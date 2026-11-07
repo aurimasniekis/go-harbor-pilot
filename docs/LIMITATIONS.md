@@ -51,6 +51,9 @@ TRACEABILITY.md (`planned`, `in-progress`).
   up only through provider-reported quota and usage, reconciled later.
 - **Budgets block slightly early, never late.** They count settled ledger costs plus in-flight estimates (input at four
   characters per token, output at the requested maximum), within one writer transaction.
+- **Run tokens are created without a budget check.** Minting a child credential never consults budgets; a run token
+  under an exhausted blocking budget is refused (`429 budget_exceeded`) on its first request. A `check_budget` mint
+  option is a proposed follow-up, not implemented.
 - **Quota freshness.** Observations can be stale or unknown; routing treats unknown as unknown, never as zero or
   unlimited.
 - **Response-derived rate limits are short-lived.** Fresh for two minutes, not kept as history, dropped (and counted)
