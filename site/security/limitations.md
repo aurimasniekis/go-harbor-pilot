@@ -53,6 +53,11 @@ See [Masking: guarantees and limits](/security/masking).
   Usage that happens outside the gateway shows up only through provider-reported quota and usage, reconciled later.
 - **Budgets can block slightly early, never late.** They count settled costs plus in-flight estimates, and the
   estimate prices input at four characters per token and output at the requested maximum.
+- **Long-running one-time budgets cost more per request.** A one-time budget adds up all spend in its scope since it
+  started counting each time a request is reserved, so on a busy instance a budget that has run for months adds tens
+  to hundreds of milliseconds per request (about 165 ms for a project with 200,000 recorded requests in a year). Set
+  an end date, or use **Start over**, for budgets that run that long. Re-creating a one-time budget without
+  **Count spend from** starts a new count.
 - **Creating a run token checks budgets only when asked.** Without `check_budget`, an orchestrator gets a run token
   even when a blocking budget that covers its client is used up, and the token's requests are then refused with
   `429`. With `check_budget: true`, client, project, workspace and global budgets are checked, but provider account

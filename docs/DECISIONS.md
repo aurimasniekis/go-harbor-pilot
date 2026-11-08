@@ -162,6 +162,7 @@ the format, scope and lifetime.
   currency, counting only the listed cost categories (by default estimated and actual API charges, never
   subscription list-equivalents).
 - Budgets are checked inside the reservation transaction; threshold events are written to the outbox once per period.
+  One-time budgets and re-arming on a limit raise: D-044.
 - Tokens from in-app sign-in are sealed under the master key in `quota_oauth_tokens`.
 
 ## D-028: Claude Code bridge conversation model
@@ -408,6 +409,8 @@ path and adapter version, one work item per fingerprint.
 
 ## D-043: Optional budget check on mint; reference filters on the usage series (2026-11-07)
 
+(One-time budgets are checked the same way, inside their window only: D-044.)
+
 - **`check_budget` on mint.** `POST /v1/harbor/credentials` accepts an optional boolean `check_budget` (default
   `false`, so a mint without it behaves exactly as before, D-040). When it is `true` and an enabled `block` budget
   covering the child's scope has its current period used up, the mint is refused with `429` in the gateway's
@@ -440,3 +443,39 @@ path and adapter version, one work item per fingerprint.
   with the same `ledger_refs` conditions (`usageapi.refWhere`), as bound parameters. They combine with `filter`/`value`
   and with `by`. Over the same range the buckets add up to the summary's totals under the same filter, except
   `subscription_fee`, which the series never reports. The Spend page now keeps its chart under a reference filter.
+
+## D-044: One-time budgets (2026-11-08)
+
+- **Shape.** A budget with `period: "once"` has a total limit that never resets. Existing day/week/month budgets are
+  unchanged. Two optional RFC 3339 spec fields, `starts_at` and `ends_at`, apply only to one-time budgets and are
+  rejected on recurring ones; so is a non-empty `timezone`, since a one-time budget has no period boundaries. Both
+  are stored in UTC, truncated to the second.
+- **Window.** Spend counts from `starts_at`, or from the budget's creation when it is empty, so an omitted field
+  (Terraform sends `""`) never moves the window. A backdated `starts_at` counts earlier spend. After `ends_at` the
+  budget no longer applies (state `expired`); before `starts_at` it doesn't apply yet (state `scheduled`). Recreating
+  a budget starts a new window unless `starts_at` is set.
+- **Changes.** Raising the limit keeps the window and spend; it unblocks at once and re-arms threshold events for
+  that window (this also applies to recurring budgets; `budget_state` records the limit each event fired at, and a
+  threshold fires again only when the current limit is higher). `POST /api/v1/budgets/{id}/reset` (`config.write`,
+  If-Match) sets `starts_at` to the server's time through the normal mutation path: audit, history, outbox,
+  snapshot, with the revision summary `reset budget <name>`. On a Terraform-managed budget it shows as drift.
+- **Same figures.** `usage()` reads the window from one helper (`BudgetSpec.Window`); `Check`, the mint check (D-043)
+  and `GET /budgets/status` use the same `applies()`, `exhausted()` and a new `active()` predicate, so they never
+  disagree.
+- **Status and events.** `period_end` is `null` for an open-ended one-time budget, `projected_spend_e10` is `null`
+  without an end (and outside the window), and every item gains `remaining_e10`. State precedence: `disabled` >
+  `expired` > `scheduled` > `exceeded` > `warning` > `ok`. `budget.threshold.*` stays once per window (D-027): once
+  ever for a one-time budget, again after a reset or a limit raise. Payload keys are unchanged. Client-facing texts
+  say "in total" instead of "this <period>".
+- **Ledger cost.** A one-time budget sums the ledger since its start on each reservation, inside the writer
+  transaction, so the check's cost grows with the window. `BenchmarkCheckOneTimeBudget` (200,000 rows over 12 months)
+  measured about 165 ms per check for a project scope and 215 ms for a workspace, against 14 and 23 ms for a monthly
+  budget on the same data. A `ledger(workspace_id, at)` index did not help (half the rows match), and covering indexes
+  only halved it, so neither was added; running totals are deferred. The docs suggest an `ends_at` or a reset for
+  long-running one-time budgets. The ledger is never purged today; any future retention must keep the windows of
+  active one-time budgets.
+- **Also in this change.** `GET /api/v1/system` (version, commit, started_at, schema_version; `config.read`, so a
+  service-principal token can read it; no host names, data directory, key ids or secrets), and
+  `GET /api/v1/budgets/status` filters: `project_id` (+ `binding_id`) returns budgets covering that scope by the
+  request path's `applies()`, whatever their state; `scope`/`scope_id` returns budgets defined on exactly that object.
+  The commit comes from a `main.commit` build flag, falling back to the Go build info.

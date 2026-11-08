@@ -3,6 +3,33 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
+## Unreleased
+
+One-time budgets, a system information endpoint and budget status filters. One migration adds two nullable columns
+to `budget_state`; no configuration changes.
+
+### Budgets
+
+- **One-time budgets (D-044).** `period: "once"` is a total limit that never resets, with optional `starts_at`
+  (empty: from the budget's creation) and `ends_at` (empty: never). Before `starts_at` a budget is `scheduled`, after
+  `ends_at` it is `expired` and no longer blocks or warns. `timezone` must be empty for them. In the UI: **Repeats:
+  One time**, **Count spend from** and **Ends**, "$x left", **Never** / **Ends in…**, and **Scheduled** / **Ended**
+  badges.
+- **Start over.** `POST /api/v1/budgets/{id}/reset` (`config.write`, `If-Match`) sets a one-time budget's
+  `starts_at` to now; **Start over…** in the budget's row menu does the same.
+- **Re-armed alerts.** Raising a budget's limit lets `budget.threshold.warning` and `.exceeded` fire again in the
+  same period, for recurring budgets too.
+- **Status.** `GET /api/v1/budgets/status` items gain `remaining_e10`; `period_end` is `null` for a one-time budget
+  without an end, and `state` can be `scheduled` or `expired`. Clients that read `period_end` as always set need to
+  handle `null`. New filters: `project_id` (optionally with `binding_id`) for the budgets that cover a project, and
+  `scope` + `scope_id` for budgets defined on exactly one object.
+- **Cost.** A long-running one-time budget sums its whole window on each request; see the limitations.
+
+### System
+
+- **`GET /api/v1/system`** returns `version`, `commit`, `started_at` and `schema_version` to any principal with
+  `config.read`, including service-principal tokens. Builds record the commit (`-X main.commit=…`).
+
 ## 0.1.3 (2026-11-07)
 
 An optional budget check when minting run tokens, per-model handling of `system` messages inside `/v1/messages`,

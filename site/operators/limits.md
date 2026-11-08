@@ -104,34 +104,55 @@ fixtures and local fakes. Rate limits read from response headers are contract-te
 **+ Add budget** (here, on Spend, or from the [command palette](/operators/#finding-your-way-around)) opens the budget
 dialog.
 
-<Shot name="budget-add" alt="Add budget dialog with name, limit in USD, applies to, period and what happens when the limit is reached" caption="A budget: how much, for what, per which period, and what happens at the limit" />
+<Shot name="budget-add" alt="Add budget dialog with name, limit in USD, applies to, how it repeats and what happens when the limit is reached" caption="A budget: how much, for what, how often it resets, and what happens at the limit" />
 
 | Field | Options | Default |
 |---|---|---|
 | **Name** | | |
 | **Limit** | An amount greater than 0 | |
 | **Applies to** | **Everything**, **Workspace**, **Project**, **Client** or **Provider account** | Workspace |
-| **Period** | **Day**, **Week (Monday start)** or **Month** | Month |
+| **Repeats** | **Daily**, **Weekly (Monday start)**, **Monthly** or **One time (never resets)** | Monthly |
 | **When the limit is reached** | **Block new requests** or **Warn only** | Block new requests |
 | **Warn at** (advanced) | 1–100 % | 80 % |
 | **Currency** (advanced) | Only costs in this currency count | USD |
-| **Time zone** (advanced) | Where each period starts | |
+| **Time zone** (advanced) | Where each period starts. Hidden for one-time budgets | |
+| **Count spend from** (advanced, one time) | When spend starts counting. Empty: when the budget is created. May be in the past, to count earlier spend | When the budget is created |
+| **Ends** (advanced, one time) | After this time the budget no longer applies | Never |
 | **Budget on** (advanced) | **Estimated cost**, **Billed cost**, **Subscription usage at list prices** | Estimated and billed cost |
 
 **Subscription usage at list prices** is not money spent. Tick it only to cap how much of a subscription gets used.
 
-The budgets table shows each budget's spend this period (for example "$0.11 of $50.00") with a **Forecast** marker for
-where the period is heading, its status (**On track**, **Near limit**, **Over budget**, or **Blocking** when a blocking
-budget is used up), whether it **Blocks requests** or **Warns only**, and when it resets.
+The budgets table shows each budget's spend in its current period, or since a one-time budget started counting (for
+example "$0.11 of $50.00 · $49.89 left"), with a **Forecast** of where the period is heading, its status (**On track**,
+**Near limit**, **Over budget**, **Blocking** when a blocking budget is used up, **Scheduled** before a one-time
+budget starts counting, **Ended** after it ends, or **Off**), whether it **Blocks requests** or **Warns only**, and in
+**Resets / ends** when it resets ("in 3d 19h"), when a one-time budget ends ("Ends in 3d"), or **Never**.
+
+### One-time budgets
+
+A one-time budget (**Repeats: One time**) is a total that never resets: a trial credit, a project's allowance, a
+prepaid amount. It counts all spend from **Count spend from** (or from when you created it) and keeps counting until
+**Ends**, if you set one. After that it no longer blocks or warns and shows as **Ended**; extending **Ends** brings it
+back. It has no time zone and no forecast unless it has an end.
+
+- **Top up** by editing the limit. Spend so far still counts, a blocked budget unblocks at once, and its warning and
+  used-up alerts can fire again.
+- **Start over…** in the row menu starts counting again from now. Spend before that stays in [Spend](/operators/spend)
+  but stops counting toward the budget. On a Terraform-managed budget this shows as drift on `starts_at`.
+- Re-creating a budget (for example a Terraform replacement) starts a new count unless **Count spend from** is set.
+- A long-running one-time budget sums every request since it started on each new request. Give it an **Ends** date, or
+  start it over now and then, when it will run for months on a busy instance (see
+  [Limitations](/security/limitations)).
 
 ### How blocking works
 
 A blocking budget is checked when the gateway **reserves** a request, inside the same database transaction that
 records the reservation. Two requests can't both slip under the limit at once. When a request finishes, the
 reservation is settled with the real cost. Requests in the budget's scope are then refused with a clear error until
-the period resets or you raise the limit; they show as **Blocked** in [Requests](/operators/requests). Each refusal
-sends `access.request.blocked`; `budget.threshold.exceeded` is sent once per period, when the budget is first used up
-(see [Events](/reference/events)).
+the period resets (a one-time budget never does: start it over or raise the limit) or you raise the limit; they show
+as **Blocked** in [Requests](/operators/requests). Each refusal sends `access.request.blocked`;
+`budget.threshold.exceeded` is sent once per period, when the budget is first used up, and again after the limit is
+raised (see [Events](/reference/events)).
 
 ## On a phone
 

@@ -115,7 +115,7 @@ Each resource is one Harbor Pilot object. The middle column is the name you see 
 | `harborpilot_client_binding` | Clients |
 | `harborpilot_gateway_credential` | A client's access tokens |
 | `harborpilot_quota_monitor` | Limits → quota tracking |
-| `harborpilot_budget` | Limits → budgets |
+| `harborpilot_budget` | Limits → budgets (also one-time budgets, `period = "once"`) |
 | `harborpilot_privacy_policy` | Privacy → Masking |
 | `harborpilot_trace_policy` | Privacy → Content capture |
 | `harborpilot_event_destination` | Alerts → Event relays |
@@ -185,6 +185,33 @@ resource "harborpilot_routing_plan_version" "default" {
   })
 }
 ```
+
+### One-time budgets
+
+A budget with `period = "once"` is a total that never resets. Managing one needs a provider release that knows
+`starts_at` and `ends_at`; an older provider or server rejects `period = "once"` with a field error.
+
+```hcl
+resource "harborpilot_budget" "trial" {
+  name = "trial-credit"
+  spec = jsonencode({
+    scope     = "project"
+    scope_id  = harborpilot_project.checkout.id
+    period    = "once"
+    limit     = "10"
+    currency  = "USD"
+    starts_at = "2026-11-01T00:00:00Z" # optional; empty counts from creation
+    ends_at   = "2027-03-31T23:59:59Z" # optional; empty never ends
+    enabled   = true
+  })
+}
+```
+
+- Leave `timezone` out: it must be empty for one-time budgets.
+- With `starts_at` empty, spend counts from when the budget was created, so a replacement starts a new count. Set
+  `starts_at` when the count must survive a replacement.
+- **Start over** in the UI (or `POST /api/v1/budgets/{id}/reset`) changes `starts_at` on the server, which shows as
+  drift; the next plan offers to set it back. Change `starts_at` in your configuration instead.
 
 ## Secrets stay out of state
 
