@@ -1,19 +1,21 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Group, Progress, Stack, Text, Tooltip } from '@mantine/core'
-import { AlertTriangle, CheckCircle2, CircleHelp, Clock3, KeyRound, OctagonAlert, PauseCircle, Pencil, Plus, RefreshCw, ShieldAlert } from 'lucide-react'
+import { Group, Menu, Progress, Stack, Text, Tooltip } from '@mantine/core'
+import { AlertTriangle, CalendarClock, CheckCircle2, CircleHelp, Clock3, KeyRound, OctagonAlert, PauseCircle, Pencil, Plus, RefreshCw, RotateCcw, ShieldAlert } from 'lucide-react'
 import { Badge, Banner, Button, QuotaBar } from '@/components/ui'
 import { ConfirmDialog, FormDrawer, MutationError } from '@/components/form'
 import { QueryError, TableSkeleton } from '@/components/states'
 import { apiSend } from '@/lib/api/client'
 import { budgetStatusQuery, quotaBoardQuery, resourceListQuery } from '@/lib/api/queries'
-import { byId, useDeleteResource } from '@/lib/api/resources'
+import { byId, useDeleteResource, useResetBudget } from '@/lib/api/resources'
+import { TerraformEditWarning } from '@/components/ResourceBadges'
 import type { AccountHealthView, AccountRes, BindingRes, BucketView, BudgetRes, BudgetUsage, MonitorView, ProjectRes, QuotaMonitorRes, WorkspaceRes } from '@/lib/api/types'
 import { fmtDateTime, fmtDuration, fmtRelative, fmtTime, serverNow } from '@/lib/format'
 import { MonitorDialog } from '@/features/quota/MonitorDialog'
 import { useCan } from '@/lib/session'
 import { BudgetDialog } from '@/features/budgets/BudgetDialog'
+import { budgetBadge, periodLabel, windowEnd } from '@/features/budgets/budgetSpec'
 import { BucketRow } from '@/features/quota/BucketRow'
 import { BucketDialog } from '@/features/quota/BucketDialog'
 import { e10 } from '@/features/quota/quota'
@@ -143,17 +145,47 @@ export function resetsIn(iso: string | null | undefined): string {
   return left > 0 ? `resets in ${fmtDuration(left)}` : 'reset due'
 }
 
-/** Reset time for a "Resets" column: "in 3d 19h", absolute time on hover. */
-export function ResetCell({ iso }: { iso: string | null | undefined }) {
+/**
+ * Reset time for a "Resets" column: "in 3d 19h", absolute time on hover.
+ * The ends variant reads "Ends in 3d" (a one-time budget's end).
+ */
+export function ResetCell({ iso, variant = 'resets' }: { iso: string | null | undefined; variant?: 'resets' | 'ends' }) {
   if (!iso) return <Text size="xs" c="dimmed">—</Text>
   const left = new Date(iso).getTime() - serverNow()
+  const ends = variant === 'ends'
   return (
     <Tooltip label={fmtDateTime(iso)}>
       <Text size="xs" c="dimmed" span>
-        {left > 0 ? `in ${fmtDuration(left)}` : 'Due now'}
+        {left > 0 ? `${ends ? 'Ends in' : 'in'} ${fmtDuration(left)}` : ends ? 'Ended' : 'Due now'}
       </Text>
     </Tooltip>
   )
+}
+
+/** The "Resets / ends" cell of a budget row. */
+function BudgetEndCell({ u }: { u: BudgetUsage }) {
+  const w = windowEnd(u)
+  if (w.kind === 'never') return <Text size="xs" c="dimmed">Never</Text>
+  if (w.kind === 'ended') return <Text size="xs" c="dimmed">Ended</Text>
+  return <ResetCell iso={w.iso} variant={w.kind} />
+}
+
+function BudgetBadge({ u }: { u: BudgetUsage }) {
+  switch (budgetBadge(u)) {
+    case 'blocking':
+      return <Badge tone="error" icon={OctagonAlert}>Blocking</Badge>
+    case 'over':
+      return <Badge tone="error" icon={OctagonAlert}>Over budget</Badge>
+    case 'near':
+      return <Badge tone="warning" icon={AlertTriangle}>Near limit</Badge>
+    case 'off':
+      return <Badge>Off</Badge>
+    case 'scheduled':
+      return <Badge icon={CalendarClock}>Scheduled</Badge>
+    case 'ended':
+      return <Badge>Ended</Badge>
+  }
+  return <Badge tone="success" icon={CheckCircle2}>On track</Badge>
 }
 
 export function leftColor(left: number): string {
@@ -256,7 +288,9 @@ function Budgets({ onAdd }: { onAdd: () => void }) {
   const res = byId(list.data?.items)
   const [editing, setEditing] = useState<BudgetRes | null>(null)
   const [deleting, setDeleting] = useState<BudgetRes | null>(null)
+  const [resetting, setResetting] = useState<{ b: BudgetRes; u: BudgetUsage } | null>(null)
   const del = useDeleteResource('budgets')
+  const reset = useResetBudget()
   const items = status.data?.items ?? []
   const cols: Column<BudgetUsage>[] = [
     {
@@ -269,14 +303,14 @@ function Budgets({ onAdd }: { onAdd: () => void }) {
             {u.name}
           </Text>
           <Text size="xs" c="dimmed" truncate>
-            {u.scope === 'global' ? 'Everything' : `${scopeNoun[u.scope] ?? u.scope} ${scopeName(u.scope_id)}`} · per {u.period}
+            {u.scope === 'global' ? 'Everything' : `${scopeNoun[u.scope] ?? u.scope} ${scopeName(u.scope_id)}`} · {periodLabel(u.period)}
           </Text>
         </Stack>
       ),
     },
     {
       id: 'spend',
-      header: 'Spent this period',
+      header: 'Spent',
       mobile: 'line',
       width: '34%',
       cell: (u) => {
@@ -285,7 +319,7 @@ function Budgets({ onAdd }: { onAdd: () => void }) {
           <Stack gap={4}>
             <Group justify="space-between" gap="xs" wrap="nowrap">
               <Text size="xs" className="num">
-                {money(e10(u.spent_e10) ?? 0, u.currency)} of {money(e10(u.limit_e10) ?? 0, u.currency)}
+                {money(e10(u.spent_e10) ?? 0, u.currency)} of {money(e10(u.limit_e10) ?? 0, u.currency)} · {money(e10(u.remaining_e10) ?? 0, u.currency)} left
               </Text>
               {projected && (
                 <Tooltip label="Where spend ends this period at the current rate">
@@ -305,16 +339,7 @@ function Budgets({ onAdd }: { onAdd: () => void }) {
       header: 'Status',
       mobile: 'aside',
       width: 130,
-      cell: (u) =>
-        u.state === 'exceeded' ? (
-          <Badge tone="error" icon={OctagonAlert}>{u.enforcement === 'block' ? 'Blocking' : 'Over budget'}</Badge>
-        ) : u.state === 'warning' ? (
-          <Badge tone="warning" icon={AlertTriangle}>Near limit</Badge>
-        ) : u.state === 'disabled' ? (
-          <Badge>Off</Badge>
-        ) : (
-          <Badge tone="success" icon={CheckCircle2}>On track</Badge>
-        ),
+      cell: (u) => <BudgetBadge u={u} />,
     },
     {
       id: 'mode',
@@ -327,7 +352,7 @@ function Budgets({ onAdd }: { onAdd: () => void }) {
         </Text>
       ),
     },
-    { id: 'reset', header: 'Resets', mobile: 'meta', width: 110, cell: (u) => <ResetCell iso={u.period_end} /> },
+    { id: 'reset', header: 'Resets / ends', mobile: 'meta', width: 120, cell: (u) => <BudgetEndCell u={u} /> },
     {
       id: 'actions',
       header: <span className="visually-hidden">Actions</span>,
@@ -336,13 +361,25 @@ function Budgets({ onAdd }: { onAdd: () => void }) {
       mobile: 'hidden',
       cell: (u) =>
         res[u.budget_id] && canWrite ? (
-          <RowMenu name={u.name} onEdit={() => setEditing(res[u.budget_id]!)} onDelete={() => setDeleting(res[u.budget_id]!)} />
+          <RowMenu
+            name={u.name}
+            onEdit={() => setEditing(res[u.budget_id]!)}
+            onDelete={() => setDeleting(res[u.budget_id]!)}
+            extra={
+              u.period === 'once' && (
+                <Menu.Item leftSection={<RotateCcw size={14} />} onClick={() => setResetting({ b: res[u.budget_id]!, u })} aria-label={`Start over ${u.name}`}>
+                  Start over…
+                </Menu.Item>
+              )
+            }
+          />
         ) : null,
     },
   ]
   return (
     <Section title="Budgets" id="budgets" info="Spend caps per workspace, project, client or account. A blocking budget stops new requests before the limit is crossed.">
       <MutationError error={del.error} />
+      <MutationError error={reset.error} />
       {status.isError ? (
         <QueryError error={status.error} retry={() => void status.refetch()} />
       ) : !status.data ? (
@@ -371,6 +408,26 @@ function Budgets({ onAdd }: { onAdd: () => void }) {
         onConfirm={() => {
           if (deleting) del.mutate({ id: deleting.id, revision: deleting.revision })
           setDeleting(null)
+        }}
+      />
+      <ConfirmDialog
+        open={!!resetting}
+        title={`Start ${resetting?.u.name ?? ''} over?`}
+        message={
+          <Stack gap="sm">
+            <TerraformEditWarning r={resetting?.b ?? null} />
+            <Text size="sm">
+              Start counting again from now? {resetting ? money(e10(resetting.u.spent_e10) ?? 0, resetting.u.currency) : ''} already spent stops counting toward this budget.
+              It stays in usage reports.
+            </Text>
+          </Stack>
+        }
+        confirmLabel="Start over"
+        danger={false}
+        onCancel={() => setResetting(null)}
+        onConfirm={() => {
+          if (resetting) reset.mutate({ id: resetting.b.id, revision: resetting.b.revision })
+          setResetting(null)
         }}
       />
     </Section>
