@@ -1,7 +1,8 @@
 import { choose, deleteRow, expect, rowAction, signIn, test } from './fixtures'
 
 // The demo seeds quota monitors backed by the synthetic quota simulator
-// (with backfilled history), two budgets and synthetic gateway traffic.
+// (with backfilled history), three budgets (one of them one-time) and
+// synthetic gateway traffic.
 
 test('limits show account status, trackers and a forecast', async ({ page }) => {
   await signIn(page)
@@ -115,4 +116,73 @@ test('usage keeps cost categories apart and budgets show status', async ({ page 
 
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Closest to a limit' })).toBeVisible()
+})
+
+test.describe('one-time budgets on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('show what is left and never reset, and can be created', async ({ page }) => {
+    await signIn(page)
+    await page.goto('/quotas#budgets')
+    const budgets = page.getByRole('region', { name: 'Budgets' })
+    const trial = budgets.getByRole('listitem').filter({ hasText: 'trial-credit' })
+    await expect(trial).toContainText('· one time')
+    await expect(trial).toContainText('left')
+    await expect(trial).toContainText('Never')
+
+    const name = `once-${Date.now().toString(36)}`
+    await page.getByRole('button', { name: 'Add budget' }).first().click()
+    const d = page.getByRole('dialog')
+    await d.getByLabel('Name', { exact: true }).fill(name)
+    await choose(d, 'Applies to', 'global')
+    await d.getByLabel('Limit', { exact: true }).fill('10')
+    await choose(d, 'Repeats', 'once')
+    await expect(d).toContainText('never resets')
+    await d.getByRole('button', { name: 'Advanced' }).click()
+    await expect(d.getByLabel('Time zone')).toHaveCount(0)
+    await expect(d.getByText('Count spend from')).toBeVisible()
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow).toBeLessThanOrEqual(1)
+    await d.getByRole('button', { name: 'Save budget' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    const item = budgets.getByRole('listitem').filter({ hasText: name })
+    await expect(item).toContainText('· one time')
+    await expect(item).toContainText('Never')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1)
+  })
+})
+
+test('a one-time budget can start over', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/quotas#budgets')
+  const budgets = page.getByRole('region', { name: 'Budgets' })
+  const name = `once-${Date.now().toString(36)}`
+  await page.getByRole('button', { name: 'Add budget' }).first().click()
+  const d = page.getByRole('dialog')
+  await d.getByLabel('Name', { exact: true }).fill(name)
+  await choose(d, 'Applies to', 'global')
+  await d.getByLabel('Limit', { exact: true }).fill('10')
+  await choose(d, 'Repeats', 'once')
+  await d.getByRole('button', { name: 'Save budget' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  const row = budgets.getByRole('row', { name: new RegExp(name) })
+  await expect(row).toContainText('Never')
+
+  await rowAction(page, name, 'Start over')
+  const confirm = page.getByRole('dialog', { name: new RegExp(`Start ${name} over`) })
+  await expect(confirm).toContainText('stops counting toward this budget')
+  await confirm.getByRole('button', { name: 'Start over' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  // The reset stamps the server's time as the start of counting (the demo
+  // clock is frozen, so spend at that instant still counts).
+  await expect
+    .poll(async () => {
+      const r = await page.request.get(`/api/v1/budgets/${name}`)
+      return ((await r.json()) as { spec: { starts_at?: string } }).spec.starts_at
+    })
+    .toBe('2026-11-05T12:00:00Z')
+  await expect(row).toContainText('On track')
+
+  await deleteRow(page, name)
+  await expect(row).toHaveCount(0)
 })

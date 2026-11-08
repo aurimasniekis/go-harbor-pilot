@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Select, SimpleGrid } from '@mantine/core'
+import { Select, SimpleGrid, Text } from '@mantine/core'
 import { Button } from '@/components/ui'
-import { Advanced, Checkbox, Dialog, DialogActions, MutationError, NameField, nameError, NumberField, SelectField, useFieldErrors } from '@/components/form'
+import { Advanced, Checkbox, DateTimeField, Dialog, DialogActions, MutationError, NameField, nameError, NumberField, SelectField, useFieldErrors } from '@/components/form'
+import { fmtDateTime, serverNow } from '@/lib/format'
 import { TerraformEditWarning } from '@/components/ResourceBadges'
 import { resourceListQuery, type ResourcePlural } from '@/lib/api/queries'
 import { useSaveResource } from '@/lib/api/resources'
 import type { BudgetRes, BudgetSpec, ResourceMeta } from '@/lib/api/types'
 import { toggle } from '@/features/config/constants'
 import c from '@/features/config/config.module.css'
+import { buildBudgetSpec, periodOptions, windowOnPeriodChange } from './budgetSpec'
 
 type Scope = BudgetSpec['scope']
 
@@ -60,6 +62,9 @@ export function BudgetDialog({ budget, onClose }: { budget: BudgetRes | null; on
   const [warnAt, setWarnAt] = useState<number | null>(Math.round((init?.warn_at ?? 0.8) * 100))
   const [tz, setTz] = useState(init?.timezone ?? '')
   const [enabled, setEnabled] = useState(init?.enabled ?? true)
+  const [startsAt, setStartsAt] = useState(init?.starts_at ?? '')
+  const [endsAt, setEndsAt] = useState(init?.ends_at ?? '')
+  const once = period === 'once'
   const target = scope === 'global' ? undefined : scopeKinds[scope]
   const options = useQuery({ ...resourceListQuery<ResourceMeta>(target?.plural ?? 'workspaces'), enabled: !!target })
   const save = useSaveResource<BudgetSpec>('budgets')
@@ -76,18 +81,7 @@ export function BudgetDialog({ budget, onClose }: { budget: BudgetRes | null; on
   const currencies = CURRENCIES.includes(currency as (typeof CURRENCIES)[number]) ? [...CURRENCIES] : [...CURRENCIES, currency]
 
   const submit = () => {
-    const spec: BudgetSpec = {
-      scope,
-      scope_id: scope === 'global' ? '' : scopeID,
-      period,
-      limit: String(limit ?? ''),
-      currency,
-      cost_kinds: kinds,
-      enforcement,
-      warn_at: (warnAt ?? 80) / 100,
-      timezone: tz === 'UTC' ? '' : tz,
-      enabled,
-    }
+    const spec = buildBudgetSpec({ scope, scopeID, period, limit, currency, kinds, enforcement, warnAt, tz, startsAt, endsAt, enabled })
     save.mutate({ existing: budget ?? undefined, body: { name, spec } }, { onSuccess: onClose })
   }
   const ready = !!name && !nameError(name) && limit !== null && !limitError(limit) && (scope === 'global' || !!scopeID) && kinds.length > 0 && warnValid
@@ -127,16 +121,26 @@ export function BudgetDialog({ budget, onClose }: { budget: BudgetRes | null; on
             options={(options.data?.items ?? []).map((o) => ({ value: o.id, label: o.name }))}
           />
         )}
-        <SelectField
-          label="Period"
-          value={period}
-          onChange={edit(setPeriod)}
-          options={[
-            { value: 'day', label: 'Day' },
-            { value: 'week', label: 'Week (Monday start)' },
-            { value: 'month', label: 'Month' },
-          ]}
-        />
+        <div>
+          <SelectField
+            label="Repeats"
+            value={period}
+            onChange={edit((v: BudgetSpec['period']) => {
+              const w = windowOnPeriodChange(v, { startsAt, endsAt }, init, new Date(serverNow()))
+              setPeriod(v)
+              setStartsAt(w.startsAt)
+              setEndsAt(w.endsAt)
+            })}
+            options={periodOptions}
+          />
+          {once && (
+            <Text size="xs" c="dimmed" mt={4}>
+              Counts all spend{' '}
+              {startsAt ? `from ${fmtDateTime(startsAt)}` : init ? 'from when the budget was created' : 'from when the budget is created'} and
+              never resets.
+            </Text>
+          )}
+        </div>
         <SelectField
           label="When the limit is reached"
           value={enforcement}
@@ -168,18 +172,26 @@ export function BudgetDialog({ budget, onClose }: { budget: BudgetRes | null; on
             onChange={(v) => v && edit(setCurrency)(v)}
             comboboxProps={{ withinPortal: true }}
           />
-          <Select
-            label="Time zone"
-            description="Where each period starts."
-            data={zones}
-            value={tz || 'UTC'}
-            searchable
-            allowDeselect={false}
-            onChange={(v) => v && edit(setTz)(v)}
-            error={errs.timezone}
-            comboboxProps={{ withinPortal: true }}
-          />
+          {!once && (
+            <Select
+              label="Time zone"
+              description="Where each period starts."
+              data={zones}
+              value={tz || 'UTC'}
+              searchable
+              allowDeselect={false}
+              onChange={(v) => v && edit(setTz)(v)}
+              error={errs.timezone}
+              comboboxProps={{ withinPortal: true }}
+            />
+          )}
         </SimpleGrid>
+        {once && (
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+            <DateTimeField label="Count spend from" value={startsAt} onChange={edit(setStartsAt)} placeholder="When the budget is created" error={errs.starts_at} />
+            <DateTimeField label="Ends" value={endsAt} onChange={edit(setEndsAt)} placeholder="Never" error={errs.ends_at} />
+          </SimpleGrid>
+        )}
         <fieldset className={c.checks} style={{ flexDirection: 'column' }}>
           <legend className={c.legend}>What counts</legend>
           {costKinds.map((k) => (

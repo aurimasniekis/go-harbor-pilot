@@ -178,6 +178,10 @@ func SeedConfig(ctx context.Context, svc *cp.Service, origin string) (Tokens, er
 		Enforcement: "warn", WarnAt: 0.8, Enabled: true}, nil)
 	s.create(cp.BudgetDef, "ci-daily", cp.BudgetSpec{Scope: cp.BudgetBinding, ScopeID: bCI, Period: "day", Limit: "2", Currency: "USD",
 		Enforcement: "block", WarnAt: 0.8, Enabled: true}, nil)
+	// A one-time budget (D-044): a total that never resets, counted from
+	// when the demo was seeded.
+	s.create(cp.BudgetDef, "trial-credit", cp.BudgetSpec{Scope: cp.BudgetProject, ScopeID: web, Period: cp.PeriodOnce, Limit: "25", Currency: "USD",
+		Enforcement: "warn", WarnAt: 0.8, Enabled: true}, nil)
 	if s.err != nil {
 		return nil, s.err
 	}

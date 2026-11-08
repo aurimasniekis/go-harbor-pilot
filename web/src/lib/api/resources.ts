@@ -46,3 +46,13 @@ export function byId<T extends { id: string }>(items: T[] | undefined | null): R
   for (const it of items ?? []) out[it.id] = it
   return out
 }
+
+/** Start a one-time budget over: POST /budgets/{id}/reset with If-Match. */
+export function useResetBudget() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, revision }: { id: string; revision: number }) =>
+      apiSend<unknown>('POST', `/budgets/${encodeURIComponent(id)}/reset`, undefined, { ifMatch: revision }),
+    onSuccess: () => invalidateAfterWrite(qc, 'budgets'),
+  })
+}

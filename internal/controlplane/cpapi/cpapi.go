@@ -230,6 +230,7 @@ func Register(a *api.API, svc func() *cp.Service, publicOrigin func() string) {
 	RegisterKind(a, svc, cp.BindingDef)
 	RegisterKind(a, svc, cp.QuotaMonitorDef)
 	RegisterKind(a, svc, cp.BudgetDef)
+	registerBudgetReset(a, svc)
 	RegisterKind(a, svc, cp.PrivacyPolicyDef)
 	RegisterKind(a, svc, cp.TracePolicyDef)
 	RegisterKind(a, svc, cp.DestinationDef)
@@ -238,6 +239,33 @@ func Register(a *api.API, svc func() *cp.Service, publicOrigin func() string) {
 	registerVersions(a, svc)
 	registerCredentials(a, svc, publicOrigin)
 	registerConfig(a, svc)
+}
+
+// registerBudgetReset adds POST /budgets/{id}/reset ("Start over" for a
+// one-time budget, D-044).
+func registerBudgetReset(a *api.API, svc func() *cp.Service) {
+	type one struct {
+		ETag string `header:"ETag"`
+		Body Resource[cp.BudgetSpec]
+	}
+	type resetIn struct {
+		ManagedByHeader
+		ID      string `path:"id" maxLength:"255" doc:"Budget id or name."`
+		IfMatch string `header:"If-Match" doc:"Current ETag; recommended for all clients."`
+	}
+	api.Register(a, api.Op{ID: "reset-budget", Method: http.MethodPost, Path: "/budgets/{id}/reset", Summary: "Start a one-time budget over",
+		Description: "Sets spec.starts_at to the server's current time, truncated to the second (spend recorded earlier in that second still counts), " +
+			"so spend counts again from now and threshold events can fire again. " +
+			"Earlier spend stays in usage reports. Only one-time budgets (period once) can be reset; a budget whose ends_at has passed " +
+			"must be extended or cleared first. On a Terraform-managed budget this shows as drift.",
+		Tags: []string{cp.BudgetDef.Title + "s"}, Permission: auth.PermConfigWrite}, func(ctx context.Context, in *resetIn) (*one, error) {
+		o, err := svc().ResetBudget(ctx, in.ID, cp.Mutation{ManagedBy: managedBy(ctx, in.ManagedBy), IfMatch: in.IfMatch})
+		if err != nil {
+			return nil, mapErr(err)
+		}
+		d, err := toDTO[cp.BudgetSpec](o)
+		return &one{ETag: api.ETag(o.Revision), Body: d}, err
+	})
 }
 
 // HistoryList is a list of resource revisions.

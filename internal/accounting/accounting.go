@@ -49,8 +49,9 @@ type Service struct {
 	clock clock.Clock
 	log   *slog.Logger
 	// BudgetCheck, when set, is evaluated inside the reservation transaction
-	// (installed by the budgets module).
-	BudgetCheck func(ctx context.Context, tx *sql.Tx, in ReserveInput, now time.Time) error
+	// (installed by the budgets module). The func it returns, when not nil,
+	// runs once the transaction has committed.
+	BudgetCheck func(ctx context.Context, tx *sql.Tx, in ReserveInput, now time.Time) (func(), error)
 	// OnBudgetExceeded records a blocked reservation after its transaction
 	// rolled back (one event per budget period).
 	OnBudgetExceeded func(ctx context.Context, be *BudgetExceeded, now time.Time)
@@ -97,6 +98,7 @@ func (s *Service) Reserve(ctx context.Context, in ReserveInput) (*Reservation, e
 		in.Lease = 15 * time.Minute
 	}
 	r := &Reservation{ID: ids.NewAt(ids.Reservation, now), LeaseUntil: now.Add(in.Lease)}
+	var committed func()
 	err := s.db.Tx(ctx, func(tx *sql.Tx) error {
 		if in.AccountMax > 0 {
 			var n int
@@ -119,7 +121,8 @@ func (s *Service) Reserve(ctx context.Context, in ReserveInput) (*Reservation, e
 			}
 		}
 		if s.BudgetCheck != nil {
-			if err := s.BudgetCheck(ctx, tx, in, now); err != nil {
+			var err error
+			if committed, err = s.BudgetCheck(ctx, tx, in, now); err != nil {
 				return err
 			}
 		}
@@ -134,6 +137,9 @@ func (s *Service) Reserve(ctx context.Context, in ReserveInput) (*Reservation, e
 			s.OnBudgetExceeded(context.WithoutCancel(ctx), be, now)
 		}
 		return nil, err
+	}
+	if committed != nil {
+		committed()
 	}
 	return r, nil
 }

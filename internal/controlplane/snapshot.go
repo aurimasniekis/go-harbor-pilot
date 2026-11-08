@@ -20,6 +20,9 @@ type Res[S any] struct {
 	Spec      S
 	Revision  int64
 	ManagedBy string
+	// CreatedAt is when the object was created (a one-time budget with an
+	// empty starts_at counts from it).
+	CreatedAt time.Time
 }
 
 // PlanView is a routing plan with its published version (if any).
@@ -106,13 +109,13 @@ func Compile(ctx context.Context, q store.Execer, now time.Time) (*Snapshot, err
 	}
 	type row struct {
 		id, kind, name, spec, managedBy string
-		rev                             int64
+		rev, created                    int64
 	}
 	rows, err := store.Query(ctx, q, func(r *sql.Rows) (row, error) {
 		var x row
-		err := r.Scan(&x.id, &x.kind, &x.name, &x.spec, &x.rev, &x.managedBy)
+		err := r.Scan(&x.id, &x.kind, &x.name, &x.spec, &x.rev, &x.managedBy, &x.created)
 		return x, err
-	}, `SELECT id, kind, name, spec, revision, managed_by FROM resources ORDER BY id`)
+	}, `SELECT id, kind, name, spec, revision, managed_by, created_at FROM resources ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -121,39 +124,39 @@ func Compile(ctx context.Context, q store.Execer, now time.Time) (*Snapshot, err
 		var derr error
 		switch x.kind {
 		case KindWorkspace:
-			derr = put(s.Workspaces, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Workspaces, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindProject:
-			derr = put(s.Projects, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Projects, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindProvider:
-			derr = put(s.Providers, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Providers, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindAccount:
-			derr = put(s.Accounts, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Accounts, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindEntitlement:
-			derr = put(s.Entitlements, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Entitlements, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindPool:
-			derr = put(s.Pools, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Pools, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindAlias:
-			derr = put(s.Aliases, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Aliases, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindPlan:
 			var spec PlanSpec
 			derr = json.Unmarshal(raw, &spec)
-			s.Plans[x.id] = &PlanView{Res: Res[PlanSpec]{ID: x.id, Name: x.name, Spec: spec, Revision: x.rev, ManagedBy: x.managedBy}}
+			s.Plans[x.id] = &PlanView{Res: Res[PlanSpec]{ID: x.id, Name: x.name, Spec: spec, Revision: x.rev, ManagedBy: x.managedBy, CreatedAt: time.UnixMilli(x.created).UTC()}}
 		case KindClientBinding:
-			derr = put(s.Bindings, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Bindings, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindQuotaMonitor:
-			derr = put(s.Monitors, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Monitors, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindBudget:
-			derr = put(s.Budgets, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Budgets, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindPrivacyPolicy:
-			derr = put(s.Privacy, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Privacy, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindTracePolicy:
-			derr = put(s.TracePols, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.TracePols, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindDestination:
-			derr = put(s.Destinations, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Destinations, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindChannel:
-			derr = put(s.Channels, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Channels, x.id, x.name, x.rev, x.managedBy, raw)
 		case KindNotificationRule:
-			derr = put(s.Rules, x.id, x.name, x.rev, x.managedBy, raw)
+			derr = put(x.created, s.Rules, x.id, x.name, x.rev, x.managedBy, raw)
 		default:
 			if h, ok := extraKinds[x.kind]; ok {
 				derr = h(s, x.id, x.name, x.rev, x.managedBy, raw)
@@ -285,12 +288,12 @@ func Compile(ctx context.Context, q store.Execer, now time.Time) (*Snapshot, err
 	return s, nil
 }
 
-func put[S any](m map[string]*Res[S], id, name string, rev int64, mb string, raw json.RawMessage) error {
+func put[S any](created int64, m map[string]*Res[S], id, name string, rev int64, mb string, raw json.RawMessage) error {
 	var spec S
 	if err := json.Unmarshal(raw, &spec); err != nil {
 		return err
 	}
-	m[id] = &Res[S]{ID: id, Name: name, Spec: spec, Revision: rev, ManagedBy: mb}
+	m[id] = &Res[S]{ID: id, Name: name, Spec: spec, Revision: rev, ManagedBy: mb, CreatedAt: time.UnixMilli(created).UTC()}
 	return nil
 }
 

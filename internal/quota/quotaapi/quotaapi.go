@@ -205,9 +205,22 @@ func Register(a *api.API, d Deps) {
 			Items []accounting.BudgetUsage `json:"items"`
 		}
 	}
-	api.Register(a, api.Op{ID: "budget-status", Method: http.MethodGet, Path: "/budgets/status", Summary: "Current period spend for every budget",
-		Tags: []string{"Budget"}, Permission: auth.PermUsageRead}, func(ctx context.Context, _ *struct{}) (*budOut, error) {
-		items, err := d.Budgets.Status(ctx, d.DB().R, d.Clock.Now())
+	type budIn struct {
+		ProjectID string `query:"project_id" maxLength:"64" doc:"Budgets covering this project: global, its workspace and the project itself, whatever their state."`
+		BindingID string `query:"binding_id" maxLength:"64" doc:"With project_id: also the client binding's budgets, as a mint check_budget for that binding and project counts them."`
+		Scope     string `query:"scope" enum:"global,workspace,project,binding,account," doc:"Budgets defined on exactly this scope (with scope_id; empty for global)."`
+		ScopeID   string `query:"scope_id" maxLength:"64"`
+	}
+	api.Register(a, api.Op{ID: "budget-status", Method: http.MethodGet, Path: "/budgets/status", Summary: "Current window spend for every budget",
+		Description: "Without filters, every budget. project_id (optionally with binding_id) returns the budgets that cover that scope on the request " +
+			"path, including disabled, scheduled and expired ones: read state. scope and scope_id return budgets defined on exactly that object. " +
+			"The list is bounded by the number of budgets and is not paginated.",
+		Tags: []string{"Budget"}, Permission: auth.PermUsageRead}, func(ctx context.Context, in *budIn) (*budOut, error) {
+		f, err := budgetFilter(d.Budgets.Snapshot(), in.ProjectID, in.BindingID, in.Scope, in.ScopeID)
+		if err != nil {
+			return nil, err
+		}
+		items, err := d.Budgets.Status(ctx, d.DB().R, d.Clock.Now(), f)
 		if err != nil {
 			return nil, err
 		}
@@ -215,6 +228,36 @@ func Register(a *api.API, d Deps) {
 		out.Body.Items = items
 		return out, nil
 	})
+}
+
+// budgetFilter resolves the budget status query parameters.
+func budgetFilter(snap *cp.Snapshot, projectID, bindingID, scope, scopeID string) (accounting.StatusFilter, error) {
+	switch {
+	case projectID != "" && (scope != "" || scopeID != ""):
+		return accounting.StatusFilter{}, api.Errorf(http.StatusBadRequest, "invalid_request", "use either project_id or scope")
+	case bindingID != "" && projectID == "":
+		return accounting.StatusFilter{}, api.Errorf(http.StatusBadRequest, "invalid_request", "binding_id requires project_id")
+	case scopeID != "" && scope == "":
+		return accounting.StatusFilter{}, api.Errorf(http.StatusBadRequest, "invalid_request", "scope_id requires scope")
+	case projectID != "":
+		var p *cp.Res[cp.ProjectSpec]
+		if snap != nil {
+			p = snap.Projects[projectID]
+		}
+		if p == nil {
+			return accounting.StatusFilter{}, api.NotFound("project")
+		}
+		if bindingID != "" && snap.Bindings[bindingID] == nil {
+			return accounting.StatusFilter{}, api.NotFound("client binding")
+		}
+		return accounting.StatusFilter{Cover: &accounting.Scope{ProjectID: p.ID, WorkspaceID: p.Spec.WorkspaceID, BindingID: bindingID}}, nil
+	case scope != "":
+		if (scope == cp.BudgetGlobal) != (scopeID == "") {
+			return accounting.StatusFilter{}, api.Errorf(http.StatusBadRequest, "invalid_request", "scope_id is required for scoped budgets and must be empty for global")
+		}
+		return accounting.StatusFilter{Exact: true, Scope: scope, ScopeID: scopeID}, nil
+	}
+	return accounting.StatusFilter{}, nil
 }
 
 func sortedAccountIDs(s *cp.Snapshot) []string {

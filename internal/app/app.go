@@ -68,8 +68,11 @@ type Options struct {
 	// shrink it to exercise back-pressure.
 	TelemetryQueue int
 	Version        string
-	Log            *slog.Logger
-	Env            func(string) string
+	// Commit is the source revision the binary was built from; empty falls
+	// back to the Go build info.
+	Commit string
+	Log    *slog.Logger
+	Env    func(string) string
 	// QuotaTransport overrides the quota adapters' outbound transport
 	// (tests point adapters at local fakes).
 	QuotaTransport http.RoundTripper
@@ -88,6 +91,7 @@ type Options struct {
 type App struct {
 	Cfg     config.Config
 	Version string
+	Commit  string
 	Log     *slog.Logger
 	Clock   clock.Clock
 	Metrics *observability.Metrics
@@ -133,7 +137,7 @@ func New(ctx context.Context, o Options) (*App, error) {
 		o.Env = os.Getenv
 	}
 	c := o.Config
-	a := &App{Cfg: c, Version: o.Version, Log: o.Log, Metrics: observability.NewMetrics()}
+	a := &App{Cfg: c, Version: o.Version, Commit: buildCommit(o.Commit), Log: o.Log, Metrics: observability.NewMetrics()}
 	a.Clock = clock.Real{}
 	if c.Demo.Clock != "" {
 		t, _ := time.Parse(time.RFC3339, c.Demo.Clock)
@@ -185,6 +189,8 @@ func New(ctx context.Context, o Options) (*App, error) {
 	a.Budgets = &accounting.Budgets{Snapshot: a.CP.Snapshot}
 	a.Acct.BudgetCheck = a.Budgets.Check
 	a.Acct.OnBudgetExceeded = a.Budgets.Exceeded(a.DB.W)
+	a.CP.OnSwap(func(*controlplane.Snapshot) { a.Budgets.Prime() })
+	a.AddBackground(a.Budgets.RunPrimer(a.DB.R, a.Clock.Now, a.Log))
 	if _, err := a.Acct.RecoverStartup(ctx); err != nil {
 		return fail(fmt.Errorf("accounting recovery: %w", err))
 	}

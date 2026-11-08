@@ -152,6 +152,10 @@ func (e *Env) SessionClient(token string) *Client {
 	return c
 }
 
+// SignIn returns a fresh administrator session, for tests that advance a
+// fake clock past the session timeouts.
+func (e *Env) SignIn() *Client { return e.newAdmin() }
+
 func (e *Env) newAdmin() *Client {
 	jar, _ := cookiejar.New(nil)
 	c := &Client{t: e.T, e: e, hc: &http.Client{Jar: jar}}

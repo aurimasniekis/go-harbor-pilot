@@ -146,7 +146,7 @@ Secret fields are write-only. Responses show only whether a secret is set, where
 | Events and alerts | Events, event destinations and deliveries, alert channels and rules, notifications. |
 | Compatibility | Passthrough settings and Protocol Watch. |
 | Configuration | The effective configuration, revisions, export and atomic import (with dry run). |
-| System | Attention items, CLI bridge status, storage and key status, backups. |
+| System | Build and schema version, attention items, CLI bridge status, storage and key status, backups. |
 
 ## Usage and activity by reference
 
@@ -211,3 +211,43 @@ GET /api/v1/activity/sessions?ref=session:run_a
   when the writer is busy (see [Known limitations](/security/limitations)).
 - A token that can create run tokens chooses their references. When several clients use the same keys, add
   `binding_id` to stay within one client.
+
+## Budgets and their status
+
+`GET /api/v1/budgets/status` (`usage.read`) returns each budget's current window: `period_start`, `period_end` (`null`
+for a one-time budget without an end), `limit_e10`, `spent_e10`, `reserved_e10`, `remaining_e10` (the limit minus spent
+and reserved, never below 0), `fraction`, `projected_spend_e10` (`null` without an end or early in the window) and
+`state`: `ok`, `warning`, `exceeded`, `disabled`, `scheduled` (a one-time budget before `starts_at`) or `expired`
+(after `ends_at`; it no longer applies). The list isn't paginated: it is bounded by the number of budgets.
+
+| Parameter | Returns |
+|---|---|
+| `project_id` | Budgets that cover requests charged to that project: global, the project's workspace and the project itself. Disabled, scheduled and expired ones are included; read `state`. |
+| `binding_id` | With `project_id` only. Also the client's own budgets, the scope a run token's `check_budget` counts. |
+| `scope`, `scope_id` | Budgets defined on exactly that object, for example `scope=account&scope_id=acc_…`, or `scope=global` with no id. |
+
+Combining `project_id` with `scope` is a `400 invalid_request`, and so is `binding_id` without `project_id`. An unknown
+project or client is a `404`. Provider account budgets never match `project_id`, because routing picks the account
+per request.
+
+```sh
+# What can stop a run charged to this project and client?
+GET /api/v1/budgets/status?project_id=prj_…&binding_id=cbd_…
+```
+
+`POST /api/v1/budgets/{id}/reset` (`config.write`; send `If-Match`) starts a one-time budget over: it sets
+`spec.starts_at` to the server's current time, truncated to the second (spend recorded earlier in that second still
+counts), and returns the budget with its new `ETag`. Spend before that stays in
+usage reports. A recurring budget, or one whose `ends_at` has passed, answers `422`.
+
+## System information
+
+`GET /api/v1/system` (`config.read`, so a service-principal token with read access works) identifies the running
+build for automation:
+
+```json
+{ "version": "0.1.4", "commit": "2e957c7…", "started_at": "2026-11-08T06:00:00Z", "schema_version": 20261108100000000 }
+```
+
+`commit` is empty when the build didn't record it. The response holds no host names, data directory, key ids or
+secrets; `GET /api/v1/system/status` (`system.manage`) has the storage details.

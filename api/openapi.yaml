@@ -895,6 +895,9 @@ components:
           type: string
         enabled:
           type: boolean
+        ends_at:
+          description: "One-time budgets only: RFC 3339 time after which the budget no longer applies. Empty = never."
+          type: string
         enforcement:
           description: block rejects new attempts once the limit would be exceeded; warn only emits events.
           enum:
@@ -905,10 +908,12 @@ components:
           description: Decimal amount in currency.
           type: string
         period:
+          description: "How the budget repeats: day, week (Monday start) or month; once never resets."
           enum:
             - day
             - week
             - month
+            - once
           type: string
         scope:
           enum:
@@ -921,8 +926,11 @@ components:
         scope_id:
           description: Id of the workspace, project, client binding or provider account. Empty for global.
           type: string
+        starts_at:
+          description: "One-time budgets only: RFC 3339 time from which spend counts. Empty = when the budget was created. May be in the past (to count earlier spend) or the future. Changing a recurring budget to once with this empty counts all spend since the budget was created."
+          type: string
         timezone:
-          description: IANA timezone for period boundaries. Empty = UTC.
+          description: IANA timezone for period boundaries. Empty = UTC. Must be empty for one-time budgets.
           type: string
         warn_at:
           description: Fraction of the limit that emits a warning event. 0 = 0.8.
@@ -968,8 +976,11 @@ components:
         period:
           type: string
         period_end:
+          description: End of the window (exclusive). Null for a one-time budget without ends_at.
           format: date-time
-          type: string
+          type:
+            - string
+            - "null"
         period_start:
           format: date-time
           type: string
@@ -978,6 +989,10 @@ components:
           type:
             - integer
             - "null"
+        remaining_e10:
+          description: "What is left of the limit: limit - spent - reserved, never below 0."
+          format: int64
+          type: integer
         reserved_e10:
           format: int64
           type: integer
@@ -989,11 +1004,14 @@ components:
           format: int64
           type: integer
         state:
+          description: "scheduled: a one-time budget before starts_at; expired: after ends_at (it no longer applies)."
           enum:
             - ok
             - warning
             - exceeded
             - disabled
+            - scheduled
+            - expired
           type: string
         warn_at:
           format: double
@@ -1013,6 +1031,7 @@ components:
         - limit_e10
         - spent_e10
         - reserved_e10
+        - remaining_e10
         - by_kind_e10
         - fraction
         - warn_at
@@ -6557,6 +6576,27 @@ components:
           description: Trusted-reference filters (ANDed).
           type: object
       type: object
+    SystemDTO:
+      additionalProperties: false
+      properties:
+        commit:
+          description: Source revision the binary was built from; empty when unknown.
+          type: string
+        schema_version:
+          description: Latest applied migration of the main database.
+          format: int64
+          type: integer
+        started_at:
+          format: date-time
+          type: string
+        version:
+          type: string
+      required:
+        - version
+        - commit
+        - started_at
+        - schema_version
+      type: object
     TestOutBody:
       additionalProperties: false
       properties:
@@ -8599,7 +8639,45 @@ paths:
       x-permission: config.write
   /budgets/status:
     get:
+      description: "Without filters, every budget. project_id (optionally with binding_id) returns the budgets that cover that scope on the request path, including disabled, scheduled and expired ones: read state. scope and scope_id return budgets defined on exactly that object. The list is bounded by the number of budgets and is not paginated."
       operationId: budget-status
+      parameters:
+        - description: "Budgets covering this project: global, its workspace and the project itself, whatever their state."
+          explode: false
+          in: query
+          name: project_id
+          schema:
+            description: "Budgets covering this project: global, its workspace and the project itself, whatever their state."
+            maxLength: 64
+            type: string
+        - description: "With project_id: also the client binding's budgets, as a mint check_budget for that binding and project counts them."
+          explode: false
+          in: query
+          name: binding_id
+          schema:
+            description: "With project_id: also the client binding's budgets, as a mint check_budget for that binding and project counts them."
+            maxLength: 64
+            type: string
+        - description: Budgets defined on exactly this scope (with scope_id; empty for global).
+          explode: false
+          in: query
+          name: scope
+          schema:
+            description: Budgets defined on exactly this scope (with scope_id; empty for global).
+            enum:
+              - global
+              - workspace
+              - project
+              - binding
+              - account
+              - ""
+            type: string
+        - explode: false
+          in: query
+          name: scope_id
+          schema:
+            maxLength: 64
+            type: string
       responses:
         "200":
           content:
@@ -8613,7 +8691,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
           description: Error
-      summary: Current period spend for every budget
+      summary: Current window spend for every budget
       tags:
         - Budget
       x-permission: usage.read
@@ -8780,6 +8858,59 @@ paths:
       tags:
         - Budgets
       x-permission: config.read
+  /budgets/{id}/reset:
+    post:
+      description: Sets spec.starts_at to the server's current time, truncated to the second (spend recorded earlier in that second still counts), so spend counts again from now and threshold events can fire again. Earlier spend stays in usage reports. Only one-time budgets (period once) can be reset; a budget whose ends_at has passed must be extended or cleared first. On a Terraform-managed budget this shows as drift.
+      operationId: reset-budget
+      parameters:
+        - description: Change source; Terraform sends terraform.
+          in: header
+          name: X-HP-Managed-By
+          schema:
+            description: Change source; Terraform sends terraform.
+            enum:
+              - ui
+              - api
+              - terraform
+              - cli
+              - import
+              - ""
+            type: string
+        - description: Budget id or name.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Budget id or name.
+            maxLength: 255
+            type: string
+        - description: Current ETag; recommended for all clients.
+          in: header
+          name: If-Match
+          schema:
+            description: Current ETag; recommended for all clients.
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceBudgetSpec"
+          description: OK
+          headers:
+            ETag:
+              schema:
+                type: string
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Start a one-time budget over
+      tags:
+        - Budgets
+      x-permission: config.write
   /client-bindings:
     get:
       operationId: list-client-bindings
@@ -14093,6 +14224,27 @@ paths:
       summary: Revision history of a Subscription entitlement
       tags:
         - Subscription entitlements
+      x-permission: config.read
+  /system:
+    get:
+      description: Readable by any principal with config.read, including service-principal tokens. It exposes only the version, commit, start time and the main database's migration number.
+      operationId: get-system
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemDTO"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      summary: Build and schema version of the running server
+      tags:
+        - System
       x-permission: config.read
   /system/backups:
     get:

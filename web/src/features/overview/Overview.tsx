@@ -10,6 +10,7 @@ import { useCan } from '@/lib/session'
 import { fmtDateTime, fmtDuration, fmtRelative, serverNow } from '@/lib/format'
 import { QuotaBar } from '@/components/ui'
 import { delta, series, useDayStats } from '@/features/activity/useDayStats'
+import { periodLabel } from '@/features/budgets/budgetSpec'
 import { Empty, PageHeader, Stat, StatGrid, StatSkeleton, StatusDot } from '@/ui/kit'
 import { costKindHelp, harnessName, money, ms, short } from '@/ui/fmt'
 import o from './overview.module.css'
@@ -234,7 +235,7 @@ function ClosestToLimit() {
             label={
               <span className={o.limitLabel}>
                 <span>Budget {b.name}</span>
-                <span className="muted">per {b.period}</span>
+                <span className="muted">{periodLabel(b.period)}</span>
               </span>
             }
             srLabel={`Budget ${b.name} remaining`}

@@ -3,6 +3,43 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
+## Unreleased
+
+One-time budgets, a system information endpoint and budget status filters. One migration adds two nullable columns
+to `budget_state`; no configuration changes.
+
+### Budgets
+
+- **One-time budgets (D-044).** `period: "once"` is a total limit that never resets, with optional `starts_at`
+  (empty: from the budget's creation) and `ends_at` (empty: never). Before `starts_at` a budget is `scheduled`, after
+  `ends_at` it is `expired` and no longer blocks or warns. `timezone` must be empty for them. In the UI: **Repeats:
+  One time**, **Count spend from** and **Ends**, "$x left", **Never** / **Ends in…**, and **Scheduled** / **Ended**
+  badges.
+- **Start over.** `POST /api/v1/budgets/{id}/reset` (`config.write`, `If-Match`) sets a one-time budget's
+  `starts_at` to now, truncated to the second; **Start over…** in the budget's row menu does the same (not on an
+  ended budget).
+- **Re-armed alerts.** Raising a budget's limit lets `budget.threshold.warning` and `.exceeded` fire again in the
+  same period, for recurring budgets too.
+- **Status.** `GET /api/v1/budgets/status` items gain `remaining_e10`; `period_end` is `null` for a one-time budget
+  without an end, and `state` can be `scheduled` or `expired`. Clients that read `period_end` as always set need to
+  handle `null`. New filters: `project_id` (optionally with `binding_id`) for the budgets that cover a project, and
+  `scope` + `scope_id` for budgets defined on exactly one object.
+- **Spend cache.** Budgets keep their settled spend in memory and read only new ledger rows per request, so a
+  one-time budget's check no longer grows with its window (about 0.4 ms instead of 165 to 300 ms per budget over
+  200,000 rows in a year). The first read after a restart or a budget change sums the whole window once, in the
+  background where possible; see the limitations.
+
+### System
+
+- **`GET /api/v1/system`** returns `version`, `commit`, `started_at` and `schema_version` to any principal with
+  `config.read`, including service-principal tokens. Builds record the commit (`-X main.commit=…`), and so do
+  `make docker` and the CI images.
+
+### Upgrading
+
+- Budgets that already sent `budget.threshold.warning` or `.exceeded` in the current period send it once more after
+  the upgrade: the new limit columns start empty, which counts as a raised limit.
+
 ## 0.1.3 (2026-11-07)
 
 An optional budget check when minting run tokens, per-model handling of `system` messages inside `/v1/messages`,

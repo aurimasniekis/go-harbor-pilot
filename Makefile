@@ -1,6 +1,7 @@
 SHELL := /bin/bash
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS := -s -w -X main.version=$(VERSION)
+COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null)
+LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 GO ?= go
 PNPM ?= pnpm
 BIN := bin/harbor-pilot
@@ -107,7 +108,7 @@ e2e: build
 	cd web && HP_E2E_PORT=$(E2E_PORT) HP_E2E_BIN=$(CURDIR)/$(BIN) HP_E2E_CLOCK=$(DEMO_CLOCK) $(PNPM) exec playwright test
 
 docker:
-	docker build --build-arg VERSION=$(VERSION) -f deploy/Dockerfile -t harbor-pilot:$(VERSION) -t harbor-pilot:latest .
+	docker build --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) -f deploy/Dockerfile -t harbor-pilot:$(VERSION) -t harbor-pilot:latest .
 
 docker-up:
 	docker compose -f deploy/docker-compose.yml up --build

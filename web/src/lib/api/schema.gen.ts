@@ -359,7 +359,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Current period spend for every budget */
+        /**
+         * Current window spend for every budget
+         * @description Without filters, every budget. project_id (optionally with binding_id) returns the budgets that cover that scope on the request path, including disabled, scheduled and expired ones: read state. scope and scope_id return budgets defined on exactly that object. The list is bounded by the number of budgets and is not paginated.
+         */
         get: operations["budget-status"];
         put?: never;
         post?: never;
@@ -399,6 +402,26 @@ export interface paths {
         get: operations["history-budget"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/budgets/{id}/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a one-time budget over
+         * @description Sets spec.starts_at to the server's current time, truncated to the second (spend recorded earlier in that second still counts), so spend counts again from now and threshold events can fire again. Earlier spend stays in usage reports. Only one-time budgets (period once) can be reset; a budget whose ends_at has passed must be extended or cleared first. On a Terraform-managed budget this shows as drift.
+         */
+        post: operations["reset-budget"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2058,6 +2081,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Build and schema version of the running server
+         * @description Readable by any principal with config.read, including service-principal tokens. It exposes only the version, commit, start time and the main database's migration number.
+         */
+        get: operations["get-system"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/system/backups": {
         parameters: {
             query?: never;
@@ -2892,6 +2935,8 @@ export interface components {
             /** @description ISO currency; only costs in this currency count. */
             currency: string;
             enabled: boolean;
+            /** @description One-time budgets only: RFC 3339 time after which the budget no longer applies. Empty = never. */
+            ends_at?: string;
             /**
              * @description block rejects new attempts once the limit would be exceeded; warn only emits events.
              * @enum {string}
@@ -2899,13 +2944,18 @@ export interface components {
             enforcement?: "block" | "warn";
             /** @description Decimal amount in currency. */
             limit: string;
-            /** @enum {string} */
-            period: "day" | "week" | "month";
+            /**
+             * @description How the budget repeats: day, week (Monday start) or month; once never resets.
+             * @enum {string}
+             */
+            period: "day" | "week" | "month" | "once";
             /** @enum {string} */
             scope: "global" | "workspace" | "project" | "binding" | "account";
             /** @description Id of the workspace, project, client binding or provider account. Empty for global. */
             scope_id?: string;
-            /** @description IANA timezone for period boundaries. Empty = UTC. */
+            /** @description One-time budgets only: RFC 3339 time from which spend counts. Empty = when the budget was created. May be in the past (to count earlier spend) or the future. Changing a recurring budget to once with this empty counts all spend since the budget was created. */
+            starts_at?: string;
+            /** @description IANA timezone for period boundaries. Empty = UTC. Must be empty for one-time budgets. */
             timezone?: string;
             /**
              * Format: double
@@ -2928,20 +2978,31 @@ export interface components {
             limit_e10: number;
             name: string;
             period: string;
-            /** Format: date-time */
-            period_end: string;
+            /**
+             * Format: date-time
+             * @description End of the window (exclusive). Null for a one-time budget without ends_at.
+             */
+            period_end: string | null;
             /** Format: date-time */
             period_start: string;
             /** Format: int64 */
             projected_spend_e10: number | null;
+            /**
+             * Format: int64
+             * @description What is left of the limit: limit - spent - reserved, never below 0.
+             */
+            remaining_e10: number;
             /** Format: int64 */
             reserved_e10: number;
             scope: string;
             scope_id: string;
             /** Format: int64 */
             spent_e10: number;
-            /** @enum {string} */
-            state: "ok" | "warning" | "exceeded" | "disabled";
+            /**
+             * @description scheduled: a one-time budget before starts_at; expired: after ends_at (it no longer applies).
+             * @enum {string}
+             */
+            state: "ok" | "warning" | "exceeded" | "disabled" | "scheduled" | "expired";
             /** Format: double */
             warn_at: number;
         };
@@ -5305,6 +5366,18 @@ export interface components {
                 [key: string]: string;
             };
         };
+        SystemDTO: {
+            /** @description Source revision the binary was built from; empty when unknown. */
+            commit: string;
+            /**
+             * Format: int64
+             * @description Latest applied migration of the main database.
+             */
+            schema_version: number;
+            /** Format: date-time */
+            started_at: string;
+            version: string;
+        };
         TestOutBody: {
             claims: {
                 [key: string]: unknown;
@@ -6584,7 +6657,15 @@ export interface operations {
     };
     "budget-status": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Budgets covering this project: global, its workspace and the project itself, whatever their state. */
+                project_id?: string;
+                /** @description With project_id: also the client binding's budgets, as a mint check_budget for that binding and project counts them. */
+                binding_id?: string;
+                /** @description Budgets defined on exactly this scope (with scope_id; empty for global). */
+                scope?: "global" | "workspace" | "project" | "binding" | "account" | "";
+                scope_id?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6738,6 +6819,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "reset-budget": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Change source; Terraform sends terraform. */
+                "X-HP-Managed-By"?: "ui" | "api" | "terraform" | "cli" | "import" | "";
+                /** @description Current ETag; recommended for all clients. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Budget id or name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceBudgetSpec"];
                 };
             };
             /** @description Error */
@@ -11642,6 +11761,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HistoryList"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemDTO"];
                 };
             };
             /** @description Error */

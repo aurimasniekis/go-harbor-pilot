@@ -8,7 +8,7 @@ you will not find one here.
 <Shot name="spend" alt="Spend overview with billed by providers, through Harbor Pilot, not through Harbor Pilot, subscription fees and tokens tiles, a daily cost chart stacked by account, and a breakdown table" caption="Spend overview for the last 30 days" />
 
 Pick the range at the top right: **24h**, **7d**, **30d** or **90d**. **+ Add budget** opens the
-[budget dialog](/operators/limits#budgets).
+[budget dialog](/operators/limits#budgets). One-time budgets show what is left instead of a forecast.
 
 ## The kinds of cost
 
