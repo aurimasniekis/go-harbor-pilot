@@ -56,7 +56,9 @@ See [Masking: guarantees and limits](/security/masking).
 - **The first budget check after a restart or a change is slower.** Harbor Pilot keeps each budget's spend in memory
   and reads only new usage on each request. Right after a restart, **Start over**, or an edit to a budget's dates or
   scope, it adds up the budget's whole window once: up to about 0.3 s for a one-time budget that has seen 200,000
-  requests in a year. It does this in the background straight away, so usually no request waits for it.
+  requests in a year. It does this in the background straight away, but on a busy server the first request after a
+  restart or a change can still get there first and wait for it. It also refreshes every budget every 30 seconds, so
+  a budget on a quiet project doesn't fall far behind while other projects keep spending.
   Re-creating a one-time budget without **Count spend from** starts a new count.
 - **Creating a run token checks budgets only when asked.** Without `check_budget`, an orchestrator gets a run token
   even when a blocking budget that covers its client is used up, and the token's requests are then refused with

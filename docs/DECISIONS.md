@@ -484,7 +484,19 @@ path and adapter version, one work item per fingerprint.
   and recurring budgets use it too. A primer refreshes every budget on the read pool at start-up and after each
   configuration change, so a miss rarely lands in the writer. Measured warm, with one new row per reservation:
   0.4 ms for each single once budget and 0.7 ms for the three together (a monthly budget: 0.4 ms; 0.8 ms for three).
-  A cold miss still costs the full read (174 to 704 ms for the cases above). The ledger is never purged today; any
+  A cold miss still costs the full read (174 to 704 ms for the cases above). The rowid walk past a watermark visits
+  every row settled since then in any scope, so a primed budget on a quiet project or binding paid for other
+  projects' traffic inside the writer (`BenchmarkCheckQuietScopeGap`: 28 ms for a 50,000-row gap and 109 ms for
+  200,000, where an indexed read of the month took about 2 ms). Each entry therefore also counts its rows, and a
+  refresh re-reads the window through the scope (or `at`) index, replacing the entry, once the gap exceeds both
+  2,048 rows and ten times that count. The walk measured 0.3 to 0.5 µs per gap row and the indexed read 2.5 to
+  5.5 µs per counted row. `NOT INDEXED` stays on the walk: EXPLAIN QUERY PLAN shows that without `ANALYZE` statistics
+  the planner takes the scope index for the delta, which visits the whole window. The primer also runs every 30 s (`PrimeEvery`), so a quiet
+  budget's gap stays short, and that pass drops entries of deleted budgets. With the bound, 200,000 foreign rows
+  cost about 2 ms for a monthly project budget and about 23 ms for a year-long one-time budget holding 4,000 rows,
+  the price of reading its own window. An entry is stored only while its key is still the budget's key in the
+  current snapshot at that time, so a check that read before a reset or an edit and commits after it cannot
+  replace the new window's entry. The ledger is never purged today; any
   future retention must keep the windows of active one-time budgets and drop the cache.
 - **Also in this change.** `GET /api/v1/system` (version, commit, started_at, schema_version; `config.read`, so a
   service-principal token can read it; no host names, data directory, key ids or secrets), and
