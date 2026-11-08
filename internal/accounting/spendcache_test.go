@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -165,6 +166,102 @@ func TestSpendCacheMatchesFullScan(t *testing.T) {
 	})
 }
 
+func cacheEntry(bs *Budgets, id string) spendEntry {
+	bs.sums.mu.Lock()
+	defer bs.sums.mu.Unlock()
+	return bs.sums.m[id]
+}
+
+func TestWalkGap(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		mark, rows int64
+		gap        int64
+		walk       bool
+	}{
+		{"small gap, no rows", 100, 0, 10, true},
+		{"at the floor", 100, 0, gapFloor, true},
+		{"past the floor, no rows", 100, 0, gapFloor + 1, false},
+		{"past the floor, many rows", 100, 10_000, 50_000, true},
+		{"at the ratio", 100, 10_000, gapPerRow * 10_000, true},
+		{"past the ratio", 100, 10_000, gapPerRow*10_000 + 1, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := walkGap(spendEntry{mark: tt.mark, rows: tt.rows}, tt.mark+tt.gap); got != tt.walk {
+				t.Fatalf("walkGap = %v, want %v", got, tt.walk)
+			}
+		})
+	}
+}
+
+// A quiet project's budget stays exact when other projects settle more
+// rows than walkGap allows, and its row count matches a full read.
+func TestSpendCacheLargeForeignGap(t *testing.T) {
+	ctx := context.Background()
+	db := openDB(t)
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	created := now.AddDate(0, -1, 0)
+	once := budget("bdg_once", created, cp.BudgetSpec{Period: "once", Limit: "100"})
+	month := budget("bdg_month", created, cp.BudgetSpec{Period: "month", Limit: "100"})
+	bs := budgets(once, month)
+	for i := range 20 {
+		row(t, db.W, now.Add(-time.Duration(i)*time.Hour), "prj_a", cp.CostEstimatedAPI, "USD", 1e9)
+	}
+	assertMatchesScan(t, db, bs, now)
+	for _, gap := range []int{gapFloor / 2, gapFloor * 3} {
+		before := cacheEntry(bs, once.ID)
+		fillLedger(t, db, gap, now.Add(-time.Hour), now, func(int) (string, string) { return "wsp_b", "prj_b" })
+		row(t, db.W, now.Add(-time.Minute), "prj_a", cp.CostEstimatedAPI, "USD", 2e9)
+		if walk := walkGap(before, before.mark+int64(gap)+1); walk != (gap <= gapFloor) {
+			t.Fatalf("gap %d: walkGap %v", gap, walk)
+		}
+		assertMatchesScan(t, db, bs, now)
+		got := cacheEntry(bs, once.ID)
+		fresh := budgets(once)
+		if _, err := fresh.Status(ctx, db.R, now, StatusFilter{}); err != nil {
+			t.Fatal(err)
+		}
+		if want := cacheEntry(fresh, once.ID); got.rows != want.rows || got.mark != want.mark || got.rows != before.rows+1 {
+			t.Fatalf("gap %d: entry rows %d mark %d, full read rows %d mark %d (before %d rows)", gap, got.rows, got.mark, want.rows, want.mark, before.rows)
+		}
+	}
+}
+
+// A Check that read on the snapshot before a reset and commits after it
+// must not replace the reset window's entry with the old one.
+func TestSpendCacheKeepsCurrentKey(t *testing.T) {
+	ctx := context.Background()
+	db := openDB(t)
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	b := budget("bdg_once", now.AddDate(0, -1, 0), cp.BudgetSpec{Period: "once", Limit: "100"})
+	var cur atomic.Pointer[cp.Snapshot]
+	cur.Store(&cp.Snapshot{Budgets: map[string]*cp.Res[cp.BudgetSpec]{b.ID: b}})
+	bs := &Budgets{Snapshot: cur.Load}
+	row(t, db.W, now.Add(-time.Hour), "prj_a", cp.CostEstimatedAPI, "USD", 1e9)
+	in := ReserveInput{ProjectID: "prj_a", WorkspaceID: "wsp_a", BindingID: "cbd_a", Billing: cp.BillingMetered, Currency: "USD"}
+	var committed func()
+	if err := db.Tx(ctx, func(tx *sql.Tx) error {
+		var err error
+		committed, err = bs.Check(ctx, tx, in, now)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Start over lands, and the primer stores the new window first.
+	reset := *b
+	reset.Spec.StartsAt = now.Add(-30 * time.Minute).Format(time.RFC3339)
+	cur.Store(&cp.Snapshot{Budgets: map[string]*cp.Res[cp.BudgetSpec]{b.ID: &reset}})
+	if _, err := bs.Status(ctx, db.R, now, StatusFilter{}); err != nil {
+		t.Fatal(err)
+	}
+	want := cacheEntry(bs, b.ID).key
+	committed()
+	if got := cacheEntry(bs, b.ID).key; got != want {
+		t.Fatalf("a late commit replaced the current key %+v with %+v", want, got)
+	}
+	assertMatchesScan(t, db, bs, now)
+}
+
 // The primer fills the cache off the request path at start and on Prime.
 func TestBudgetPrimer(t *testing.T) {
 	db := openDB(t)
@@ -195,4 +292,134 @@ func TestBudgetPrimer(t *testing.T) {
 	waitMark(2)
 	cancel()
 	<-done
+}
+
+// Without a Prime, the periodic pass still moves a quiet budget's watermark
+// up to the ledger head.
+func TestBudgetPrimerTicks(t *testing.T) {
+	db := openDB(t)
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	b := budget("bdg_month", now.AddDate(0, -1, 0), cp.BudgetSpec{Period: "month", Limit: "100"})
+	bs := budgets(b)
+	bs.PrimeEvery = 5 * time.Millisecond
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		bs.RunPrimer(db.R, func() time.Time { return now }, slog.New(slog.DiscardHandler))(ctx)
+	}()
+	for i := range 3 {
+		row(t, db.W, now.Add(-time.Hour), "prj_b", cp.CostEstimatedAPI, "USD", 1e9) // another project
+		want := int64(i + 1)
+		deadline := time.Now().Add(5 * time.Second)
+		for cacheMark(bs, b.ID) != want {
+			if time.Now().After(deadline) {
+				t.Fatalf("watermark %d, want %d", cacheMark(bs, b.ID), want)
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	cancel()
+	<-done
+}
+
+// fillLedger inserts n USD rows at evenly spaced times in [from, to), in a
+// workspace and project chosen by pick(i).
+func fillLedger(tb testing.TB, db *store.DB, n int, from, to time.Time, pick func(i int) (ws, prj string)) {
+	tb.Helper()
+	ctx := context.Background()
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		st, err := tx.PrepareContext(ctx, `INSERT INTO ledger(id, at, kind, workspace_id, project_id, binding_id, account_id, usage_source,
+			cost_e10, currency, cost_kind, idempotency_key) VALUES (?, ?, 'usage', ?, ?, ?, 'acc_a', 'estimated', 1000, 'USD', 'estimated_api_charge', ?)`)
+		if err != nil {
+			return err
+		}
+		defer st.Close()
+		step := to.Sub(from) / time.Duration(n)
+		for i := range n {
+			ledgerSeq++
+			ws, prj := pick(i)
+			if _, err := st.ExecContext(ctx, fmt.Sprintf("led_g%d", ledgerSeq), from.Add(step*time.Duration(i)).UnixMilli(), ws, prj, "cbd_"+prj,
+				fmt.Sprintf("g%d", ledgerSeq)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		tb.Fatal(err)
+	}
+}
+
+// BenchmarkCheckQuietScopeGap measures the request-path check of a primed
+// budget on a quiet project after other projects settled gap ledger rows
+// since its watermark (round 3 of D-044's spend cache). Each iteration
+// restores the primed entry, so every check reads the same gap.
+func BenchmarkCheckQuietScopeGap(b *testing.B) {
+	ctx := context.Background()
+	db := openDB(b)
+	now := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+	start := now.AddDate(-1, 0, 0)
+	// 200k rows over a year; 1 in 50 is the quiet project's (about 330 in
+	// the last month).
+	fillLedger(b, db, 200_000, start, now, func(i int) (string, string) {
+		if i%50 == 0 {
+			return "wsp_0", "prj_quiet"
+		}
+		return fmt.Sprintf("wsp_%d", i%2), fmt.Sprintf("prj_%d", i%4)
+	})
+	if _, err := db.W.ExecContext(ctx, `ANALYZE`); err != nil {
+		b.Fatal(err)
+	}
+	month := budget("bdg_month", start, cp.BudgetSpec{Period: "month", Scope: cp.BudgetProject, ScopeID: "prj_quiet", Limit: "1000000"})
+	once := budget("bdg_once", start, cp.BudgetSpec{Period: "once", Scope: cp.BudgetProject, ScopeID: "prj_quiet", Limit: "1000000"})
+	in := ReserveInput{ProjectID: "prj_quiet", WorkspaceID: "wsp_0", BindingID: "cbd_prj_quiet", Billing: cp.BillingMetered, Currency: "USD", EstimatedCost: 1}
+	type primed struct {
+		bs    *Budgets
+		entry spendEntry
+	}
+	prime := map[string]primed{}
+	for _, bud := range []*cp.Res[cp.BudgetSpec]{month, once} {
+		bs := budgets(bud)
+		if _, err := bs.Status(ctx, db.R, now, StatusFilter{}); err != nil {
+			b.Fatal(err)
+		}
+		bs.sums.mu.Lock()
+		prime[bud.Spec.Period] = primed{bs, bs.sums.m[bud.ID]}
+		bs.sums.mu.Unlock()
+	}
+	added := 0
+	for _, gap := range []int{1_000, 50_000, 200_000} {
+		// Foreign traffic since the watermark, in the last hour.
+		fillLedger(b, db, gap-added, now.Add(-time.Hour), now, func(i int) (string, string) {
+			return fmt.Sprintf("wsp_%d", i%2), fmt.Sprintf("prj_%d", i%4)
+		})
+		added = gap
+		for _, period := range []string{"month", "once"} {
+			p := prime[period]
+			b.Run(fmt.Sprintf("%s/gap=%d", period, gap), func(b *testing.B) {
+				for b.Loop() {
+					p.bs.sums.mu.Lock()
+					p.bs.sums.m[p.entry.key.budgetID] = p.entry
+					p.bs.sums.mu.Unlock()
+					if err := check(ctx, db, p.bs, in, now); err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+		}
+	}
+	for _, period := range []string{"month", "once"} {
+		p := prime[period]
+		b.Run(period+"/full-read", func(b *testing.B) {
+			for b.Loop() {
+				p.bs.sums.mu.Lock()
+				delete(p.bs.sums.m, p.entry.key.budgetID)
+				p.bs.sums.mu.Unlock()
+				if err := check(ctx, db, p.bs, in, now); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
 }

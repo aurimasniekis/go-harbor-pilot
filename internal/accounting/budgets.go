@@ -37,9 +37,17 @@ type Budgets struct {
 	// sums caches each budget's settled spend per cost kind (spendCache).
 	sums spendCache
 
+	// PrimeEvery is how often RunPrimer refreshes the cache without a
+	// Prime; 0 means DefaultPrimeEvery.
+	PrimeEvery time.Duration
+
 	primeOnce sync.Once
 	primeCh   chan struct{}
 }
+
+// DefaultPrimeEvery keeps entries of budgets that see no requests close to
+// the ledger head, so the first check after a quiet spell reads a short gap.
+const DefaultPrimeEvery = 30 * time.Second
 
 func (bs *Budgets) primes() chan struct{} {
 	bs.primeOnce.Do(func() { bs.primeCh = make(chan struct{}, 1) })
@@ -56,14 +64,22 @@ func (bs *Budgets) Prime() {
 }
 
 // RunPrimer refreshes every budget's spend cache entry on q, a read-only
-// handle, at start and after each Prime. A cache miss (start-up, a reset, an
-// edited window or scope) otherwise reads the whole window inside the
-// reservation's write transaction; primed, the check reads only new rows.
-// A reservation that arrives before the primer finishes still gets exact
-// figures, it just pays for the full read itself.
+// handle, at start, after each Prime and every PrimeEvery. A cache miss
+// (start-up, a reset, an edited window or scope) otherwise reads the whole
+// window inside the reservation's write transaction; primed, the check
+// reads only new rows. The periodic pass keeps quiet budgets' watermarks
+// near the ledger head while other scopes settle, and drops entries of
+// deleted budgets (Status). A reservation that arrives before the primer
+// finishes still gets exact figures, it just pays for the read itself.
 func (bs *Budgets) RunPrimer(q store.Execer, now func() time.Time, log *slog.Logger) func(ctx context.Context) {
 	return func(ctx context.Context) {
 		ch := bs.primes()
+		every := bs.PrimeEvery
+		if every <= 0 {
+			every = DefaultPrimeEvery
+		}
+		tick := time.NewTicker(every)
+		defer tick.Stop()
 		for {
 			if _, err := bs.Status(ctx, q, now(), StatusFilter{}); err != nil && ctx.Err() == nil {
 				log.Warn("budget.prime.failed", "error", err.Error())
@@ -72,9 +88,29 @@ func (bs *Budgets) RunPrimer(q store.Execer, now func() time.Time, log *slog.Log
 			case <-ctx.Done():
 				return
 			case <-ch:
+			case <-tick.C:
 			}
 		}
 	}
+}
+
+// keep stores a refreshed entry when k is still the key of its budget in
+// the current snapshot at now. A read that started on an older snapshot
+// (a Check committing after a reset or an edit) must not replace the
+// current key's entry, or the next check would miss and read the window.
+func (bs *Budgets) keep(k spendKey, e spendEntry, now time.Time) {
+	snap := bs.Snapshot()
+	if snap == nil {
+		return
+	}
+	b := snap.Budgets[k.budgetID]
+	if b == nil {
+		return
+	}
+	if start, end, open := b.Spec.Window(now, b.CreatedAt); spendKeyOf(b, start, end, open) != k {
+		return
+	}
+	bs.sums.store(k, e)
 }
 
 // BudgetUsage is the state of one budget in its current window: the
@@ -205,7 +241,7 @@ func (bs *Budgets) usage(ctx context.Context, q store.Execer, b *cp.Res[cp.Budge
 			stage(key, entry)
 		}
 	} else {
-		bs.sums.store(key, entry)
+		bs.keep(key, entry, now)
 	}
 	counted := map[string]bool{}
 	for _, k := range b.Spec.CostKinds {
@@ -272,7 +308,7 @@ func (bs *Budgets) Check(ctx context.Context, tx *sql.Tx, in ReserveInput, now t
 	stage := func(k spendKey, e spendEntry) { staged = append(staged, stagedSum{k, e}) }
 	committed := func() {
 		for _, st := range staged {
-			bs.sums.store(st.key, st.entry)
+			bs.keep(st.key, st.entry, now)
 		}
 	}
 	ids := make([]string, 0, len(snap.Budgets))

@@ -44,7 +44,33 @@ type spendKey struct {
 type spendEntry struct {
 	key    spendKey
 	mark   int64
+	rows   int64 // ledger rows counted in byKind: what an indexed read visits
 	byKind map[string]int64
+}
+
+// A refresh walks the rowid range past the watermark, which visits every
+// row settled since then in any scope. A budget on a quiet project or
+// binding, while others keep settling, would pay for the whole gap inside
+// the writer transaction, so past a point it re-reads its window through
+// the scope (or at) index instead, which visits only its own rows.
+// BenchmarkCheckQuietScopeGap (and the same queries in the sqlite3 shell)
+// measured the walk at 0.3 to 0.5 µs per gap row and the indexed read at
+// 2.5 to 5.5 µs per counted row (its table fetches are scattered), about
+// ten times as much. Hence:
+const (
+	// gapFloor: below this many rows the walk costs about a millisecond at
+	// most, so it is always taken.
+	gapFloor = 2048
+	// gapPerRow: above the floor, the walk is taken while the gap is at most
+	// this many times the rows the entry counts.
+	gapPerRow = 10
+)
+
+// walkGap reports whether reading rows (base.mark, mark] by rowid is
+// cheaper than re-reading base's window through an index.
+func walkGap(base spendEntry, mark int64) bool {
+	gap := mark - base.mark
+	return gap <= gapFloor || gap <= gapPerRow*base.rows
 }
 
 type stagedSum struct {
@@ -71,7 +97,9 @@ func (c *spendCache) lookup(k spendKey) spendEntry {
 }
 
 // store keeps e unless the cache already holds the same key at a later
-// watermark (a read on an older snapshot finishing late).
+// watermark (a read on an older snapshot finishing late). Callers go
+// through Budgets.keep, which drops entries of a key that is no longer
+// current.
 func (c *spendCache) store(k spendKey, e spendEntry) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -96,7 +124,8 @@ func (c *spendCache) retain(budgets map[string]*cp.Res[cp.BudgetSpec]) {
 }
 
 // refresh returns k's spend over every ledger row q can see, reading only
-// the rows past the cached watermark. It does not store the result.
+// the rows past the cached watermark, or the whole window when the gap is
+// large (walkGap). It does not store the result.
 //
 // The watermark is read first and the sum is bounded by it: a later
 // statement sees at least the rows the first one saw, and no row at or
@@ -122,10 +151,14 @@ func (c *spendCache) refresh(ctx context.Context, q store.Execer, k spendKey) (s
 		where += " AND " + col + " = ?"
 		args = append(args, k.scopeID)
 	}
+	if base.mark > 0 && !walkGap(base, mark) {
+		base = spendEntry{key: k}
+	}
 	from := "ledger"
 	if base.mark > 0 {
 		// Only the rows past the watermark: walk the rowid range rather
-		// than an index over the whole window.
+		// than an index over the whole window, which the planner takes
+		// for this query without ANALYZE statistics.
 		from = "ledger NOT INDEXED"
 		where += " AND rowid > ? AND rowid <= ?"
 		args = append(args, base.mark, mark)
@@ -136,25 +169,26 @@ func (c *spendCache) refresh(ctx context.Context, q store.Execer, k spendKey) (s
 		args = append(args, mark)
 	}
 	rows, err := store.Query(ctx, q, func(r *sql.Rows) (struct {
-		kind string
-		sum  int64
+		kind      string
+		sum, rows int64
 	}, error) {
 		var x struct {
-			kind string
-			sum  int64
+			kind      string
+			sum, rows int64
 		}
-		err := r.Scan(&x.kind, &x.sum)
+		err := r.Scan(&x.kind, &x.sum, &x.rows)
 		return x, err
-	}, `SELECT cost_kind, COALESCE(SUM(cost_e10), 0) FROM `+from+` WHERE `+where+` AND cost_e10 IS NOT NULL GROUP BY cost_kind`, args...) //nolint:gosec // where is built from static column names
+	}, `SELECT cost_kind, COALESCE(SUM(cost_e10), 0), COUNT(*) FROM `+from+` WHERE `+where+` AND cost_e10 IS NOT NULL GROUP BY cost_kind`, args...) //nolint:gosec // where is built from static column names
 	if err != nil {
 		return base, err
 	}
-	next := spendEntry{key: k, mark: mark, byKind: make(map[string]int64, len(base.byKind)+len(rows))}
+	next := spendEntry{key: k, mark: mark, rows: base.rows, byKind: make(map[string]int64, len(base.byKind)+len(rows))}
 	for kind, sum := range base.byKind {
 		next.byKind[kind] = sum
 	}
 	for _, r := range rows {
 		next.byKind[r.kind] += r.sum
+		next.rows += r.rows
 	}
 	return next, nil
 }
