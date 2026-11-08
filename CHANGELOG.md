@@ -3,10 +3,11 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
-## Unreleased
+## 0.1.4 (2026-11-08)
 
-One-time budgets, a system information endpoint and budget status filters. One migration adds two nullable columns
-to `budget_state`; no configuration changes.
+One-time budgets, a spend cache that makes budget checks fast for every period, a system information endpoint and
+budget status filters. One migration (`20261108100000000_add_budget_state_limits`) adds two nullable columns to
+`budget_state`; no configuration changes. See the upgrade note below: some budget alerts are sent once more.
 
 ### Budgets
 
@@ -24,16 +25,16 @@ to `budget_state`; no configuration changes.
   without an end, and `state` can be `scheduled` or `expired`. Clients that read `period_end` as always set need to
   handle `null`. New filters: `project_id` (optionally with `binding_id`) for the budgets that cover a project, and
   `scope` + `scope_id` for budgets defined on exactly one object.
-- **Spend cache.** Budgets keep their settled spend in memory and read only new ledger rows per request, so a
-  one-time budget's check no longer grows with its window (about 0.4 ms instead of 165 to 300 ms per budget over
-  200,000 rows in a year). The first read after a restart or a budget change sums the whole window once, in the
-  background where possible; see the limitations.
+- **Spend cache.** Budgets of every period keep their settled spend in memory and read only new ledger rows per
+  request, so a budget check no longer grows with its window (for a one-time budget, about 0.4 ms instead of 165 to
+  300 ms per budget over 200,000 rows in a year). A background primer sums each window once after start-up and each
+  configuration change, and refreshes every budget every 30 s; see the limitations.
 
 ### System
 
 - **`GET /api/v1/system`** returns `version`, `commit`, `started_at` and `schema_version` to any principal with
-  `config.read`, including service-principal tokens. Builds record the commit (`-X main.commit=…`), and so do
-  `make docker` and the CI images.
+  `config.read`, including service-principal tokens. Builds record the commit (`-X main.commit=…`): release
+  binaries, the release and CI images, and `make docker`.
 
 ### Upgrading
 
