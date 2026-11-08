@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -31,6 +32,32 @@ type MetaDTO struct {
 	StartedAt  time.Time `json:"started_at"`
 }
 
+// SystemDTO identifies the running build for automation (D-044). It holds
+// nothing beyond the public /meta and the migration number: no data
+// directory, key ids or secrets.
+type SystemDTO struct {
+	Version       string    `json:"version"`
+	Commit        string    `json:"commit" doc:"Source revision the binary was built from; empty when unknown."`
+	StartedAt     time.Time `json:"started_at"`
+	SchemaVersion int64     `json:"schema_version" doc:"Latest applied migration of the main database."`
+}
+
+// buildCommit returns the build-time commit, or the VCS revision from the Go
+// build info, or "".
+func buildCommit(set string) string {
+	if set != "" {
+		return set
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		for _, s := range bi.Settings {
+			if s.Key == "vcs.revision" {
+				return s.Value
+			}
+		}
+	}
+	return ""
+}
+
 // StatusDTO describes storage and key state for operators.
 type StatusDTO struct {
 	SchemaVersion       int64  `json:"schema_version"`
@@ -46,6 +73,16 @@ func (a *App) registerSystem(ap *api.API) {
 		Tags: []string{"System"}, Permission: auth.PermPublic}, func(ctx context.Context, _ *struct{}) (*metaOut, error) {
 		return &metaOut{Body: MetaDTO{Product: "Harbor Pilot", Version: a.Version, APIVersion: api.Version, Demo: a.Cfg.Demo.Enabled,
 			ServerTime: a.Clock.Now().UTC(), PublicURL: a.Cfg.Server.PublicURL, StartedAt: a.Started.UTC()}}, nil
+	})
+	type systemOut struct{ Body SystemDTO }
+	api.Register(ap, api.Op{ID: "get-system", Method: http.MethodGet, Path: "/system", Summary: "Build and schema version of the running server",
+		Description: "Readable by any principal with config.read, including service-principal tokens. It exposes only the version, commit, start time and the main database's migration number.",
+		Tags:        []string{"System"}, Permission: auth.PermConfigRead}, func(ctx context.Context, _ *struct{}) (*systemOut, error) {
+		v, err := a.DB.SchemaVersion(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return &systemOut{Body: SystemDTO{Version: a.Version, Commit: a.Commit, StartedAt: a.Started.UTC(), SchemaVersion: v}}, nil
 	})
 	type statusOut struct{ Body StatusDTO }
 	api.Register(ap, api.Op{ID: "get-system-status", Method: http.MethodGet, Path: "/system/status", Summary: "Storage and key status",

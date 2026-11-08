@@ -1,6 +1,9 @@
 package controlplane
 
 import (
+	"context"
+	"database/sql"
+	"encoding/json"
 	"slices"
 	"strings"
 	"time"
@@ -87,17 +90,20 @@ const (
 	CostListEquivalent = "list_equivalent"
 )
 
-// BudgetSpec limits spending for a scope over a calendar period.
+// BudgetSpec limits spending for a scope over a calendar period, or in
+// total over one window for a one-time budget (period "once", D-044).
 type BudgetSpec struct {
 	Scope       string   `json:"scope" enum:"global,workspace,project,binding,account"`
 	ScopeID     string   `json:"scope_id" required:"false" doc:"Id of the workspace, project, client binding or provider account. Empty for global."`
-	Period      string   `json:"period" enum:"day,week,month"`
+	Period      string   `json:"period" enum:"day,week,month,once" doc:"How the budget repeats: day, week (Monday start) or month; once never resets."`
+	StartsAt    string   `json:"starts_at" required:"false" doc:"One-time budgets only: RFC 3339 time from which spend counts. Empty = when the budget was created. May be in the past (to count earlier spend) or the future. Changing a recurring budget to once with this empty counts all spend since the budget was created."`
+	EndsAt      string   `json:"ends_at" required:"false" doc:"One-time budgets only: RFC 3339 time after which the budget no longer applies. Empty = never."`
 	Limit       string   `json:"limit" doc:"Decimal amount in currency."`
 	Currency    string   `json:"currency" doc:"ISO currency; only costs in this currency count."`
 	CostKinds   []string `json:"cost_kinds" required:"false" doc:"Cost categories that count. Default: estimated_api_charge and actual_api_charge. list_equivalent (subscription usage priced at list rates) counts only when listed."`
 	Enforcement string   `json:"enforcement" required:"false" enum:"block,warn" doc:"block rejects new attempts once the limit would be exceeded; warn only emits events."`
 	WarnAt      float64  `json:"warn_at" required:"false" minimum:"0" maximum:"1" doc:"Fraction of the limit that emits a warning event. 0 = 0.8."`
-	Timezone    string   `json:"timezone" required:"false" doc:"IANA timezone for period boundaries. Empty = UTC."`
+	Timezone    string   `json:"timezone" required:"false" doc:"IANA timezone for period boundaries. Empty = UTC. Must be empty for one-time budgets."`
 	Enabled     bool     `json:"enabled"`
 }
 
@@ -113,12 +119,52 @@ func normalizeBudget(s *BudgetSpec) {
 	if s.WarnAt == 0 {
 		s.WarnAt = 0.8
 	}
+	s.StartsAt = canonicalTime(s.StartsAt)
+	s.EndsAt = canonicalTime(s.EndsAt)
+}
+
+// PeriodOnce is the period of a one-time budget: a total limit over one
+// window that never resets by itself (D-044).
+const PeriodOnce = "once"
+
+// budgetTimeLayout is the canonical form of starts_at and ends_at.
+const budgetTimeLayout = "2006-01-02T15:04:05Z"
+
+// canonicalTime re-encodes an RFC 3339 time in UTC, truncated to the second.
+// Values that do not parse are kept for the validator to report.
+func canonicalTime(v string) string {
+	if v == "" {
+		return ""
+	}
+	t, err := time.Parse(time.RFC3339Nano, v)
+	if err != nil {
+		return v
+	}
+	return t.UTC().Truncate(time.Second).Format(budgetTimeLayout)
+}
+
+// FormatBudgetTime renders t in the canonical starts_at/ends_at form.
+func FormatBudgetTime(t time.Time) string {
+	return t.UTC().Truncate(time.Second).Format(budgetTimeLayout)
 }
 
 func validateBudget(v *Validator, s *BudgetSpec) {
 	v.Check(slices.Contains([]string{BudgetGlobal, BudgetWorkspace, BudgetProject, BudgetBinding, BudgetAccount}, s.Scope), "spec.scope", "must be global, workspace, project, binding or account")
 	v.Check((s.Scope == BudgetGlobal) == (s.ScopeID == ""), "spec.scope_id", "is required for scoped budgets and must be empty for global ones")
-	v.Check(slices.Contains([]string{"day", "week", "month"}, s.Period), "spec.period", "must be day, week or month")
+	v.Check(slices.Contains([]string{"day", "week", "month", PeriodOnce}, s.Period), "spec.period", "must be day, week, month or once")
+	if s.Period == PeriodOnce {
+		v.Check(s.Timezone == "", "spec.timezone", "must be empty: one-time budgets have no period boundaries")
+		start, serr := time.Parse(time.RFC3339, s.StartsAt)
+		end, eerr := time.Parse(time.RFC3339, s.EndsAt)
+		v.Check(s.StartsAt == "" || serr == nil, "spec.starts_at", "must be an RFC 3339 time")
+		v.Check(s.EndsAt == "" || eerr == nil, "spec.ends_at", "must be an RFC 3339 time")
+		if s.StartsAt != "" && s.EndsAt != "" && serr == nil && eerr == nil {
+			v.Check(end.After(start), "spec.ends_at", "must be after starts_at")
+		}
+	} else {
+		v.Check(s.StartsAt == "", "spec.starts_at", "only for one-time budgets")
+		v.Check(s.EndsAt == "", "spec.ends_at", "only for one-time budgets")
+	}
 	if a, err := money.ParseDecimal(s.Limit); err != nil || a <= 0 {
 		v.Fail("spec.limit", "must be a positive decimal")
 	}
@@ -127,7 +173,7 @@ func validateBudget(v *Validator, s *BudgetSpec) {
 		v.Check(slices.Contains([]string{CostEstimatedAPI, CostActualAPI, CostListEquivalent}, k), "spec.cost_kinds", "unknown cost kind at index "+itoaCP(i))
 	}
 	v.Check(s.Enforcement == "block" || s.Enforcement == "warn", "spec.enforcement", "must be block or warn")
-	if s.Timezone != "" {
+	if s.Timezone != "" && s.Period != PeriodOnce {
 		_, err := time.LoadLocation(s.Timezone)
 		v.Check(err == nil, "spec.timezone", "unknown timezone")
 	}
@@ -165,6 +211,26 @@ func (s BudgetSpec) PeriodStart(t time.Time) time.Time {
 	return day
 }
 
+// Window returns the counting window at now. For a recurring budget it is
+// the calendar period containing now. For a one-time budget it starts at
+// starts_at, or at created when that is empty, and ends at ends_at; open is
+// true (and end zero) when ends_at is empty. A one-time window never moves.
+func (s BudgetSpec) Window(now, created time.Time) (start, end time.Time, open bool) {
+	if s.Period != PeriodOnce {
+		start = s.PeriodStart(now)
+		return start, s.PeriodEnd(start), false
+	}
+	start = created.UTC()
+	if t, err := time.Parse(time.RFC3339, s.StartsAt); err == nil {
+		start = t.UTC()
+	}
+	t, err := time.Parse(time.RFC3339, s.EndsAt)
+	if s.EndsAt == "" || err != nil {
+		return start, time.Time{}, true
+	}
+	return start, t.UTC(), false
+}
+
 // PeriodEnd returns the end (exclusive) of the period starting at start.
 func (s BudgetSpec) PeriodEnd(start time.Time) time.Time {
 	switch s.Period {
@@ -199,3 +265,47 @@ var (
 			return nil
 		}}
 )
+
+// ResetBudget starts a one-time budget's window over: it sets starts_at to
+// the server's current time (to the second) through the normal mutation path,
+// so If-Match, history, audit, outbox and the snapshot behave as for a
+// replace. Spend before the new start stays in the ledger and stops counting
+// toward the budget (D-044).
+func (s *Service) ResetBudget(ctx context.Context, idOrName string, m Mutation) (*Object, error) {
+	if m.ManagedBy == "" {
+		m.ManagedBy = ManagedAPI
+	}
+	var id string
+	err := s.mutate(ctx, func(tx *sql.Tx, now time.Time, rev int64) (string, error) {
+		cur, err := s.get(ctx, tx, BudgetDef, idOrName)
+		if err != nil {
+			return "", err
+		}
+		if err := checkIfMatch(m.IfMatch, cur.Revision); err != nil {
+			return "", err
+		}
+		spec, err := Decode[BudgetSpec](cur.Spec)
+		if err != nil {
+			return "", err
+		}
+		if spec.Period != PeriodOnce {
+			return "", &ValidationError{Errors: []FieldError{{Location: "body.spec.period", Message: "only one-time budgets can be reset; recurring budgets reset each period"}}}
+		}
+		spec.StartsAt = FormatBudgetTime(now)
+		if spec.EndsAt != "" {
+			if end, err := time.Parse(time.RFC3339, spec.EndsAt); err == nil && !end.After(now.Truncate(time.Second)) {
+				return "", &ValidationError{Errors: []FieldError{{Location: "body.spec.ends_at", Message: "the budget has ended; extend or clear ends_at first"}}}
+			}
+		}
+		raw, err := json.Marshal(spec)
+		if err != nil {
+			return "", err
+		}
+		id, _, err = s.ReplaceTx(ctx, tx, now, rev, BudgetDef, cur.ID, "", raw, nil, m)
+		return "reset budget " + cur.Name, err
+	}, m)
+	if err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, BudgetDef, id)
+}

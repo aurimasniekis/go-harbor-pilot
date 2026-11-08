@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aurimasniekis/go-harbor-pilot/internal/accounting"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/api"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/auth"
 	cp "github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
@@ -89,7 +90,7 @@ func (a *App) Attention(ctx context.Context) ([]AttentionItem, error) {
 	}
 
 	// Budgets at or over their warning threshold.
-	usage, err := a.Budgets.Status(ctx, a.DB.R, now)
+	usage, err := a.Budgets.Status(ctx, a.DB.R, now, accounting.StatusFilter{})
 	if err != nil {
 		return nil, err
 	}
@@ -105,10 +106,10 @@ func (a *App) Attention(ctx context.Context) ([]AttentionItem, error) {
 				title += "; new requests in its scope are blocked"
 			}
 			add(AttentionItem{ID: "budget:" + u.BudgetID, Severity: "critical", Area: "budget", Title: title,
-				Detail: pct + " of " + u.Currency + " " + u.Limit.String() + " this " + u.Period + ".", Link: "/usage/budgets"})
+				Detail: pct + " of " + u.Currency + " " + u.Limit.String() + " " + accounting.PeriodPhrase(u.Period) + ".", Link: "/usage/budgets"})
 		case "warning":
 			add(AttentionItem{ID: "budget:" + u.BudgetID, Severity: "warning", Area: "budget", Title: "Budget " + u.Name + " is at " + pct,
-				Detail: u.Currency + " " + u.Limit.String() + " per " + u.Period + ".", Link: "/usage/budgets"})
+				Detail: u.Currency + " " + u.Limit.String() + " " + perPeriod(u.Period) + ".", Link: "/usage/budgets"})
 		}
 	}
 
@@ -279,4 +280,13 @@ func (a *App) registerAttention(ap *api.API) {
 		o.Body.Items = items
 		return o, nil
 	})
+}
+
+// perPeriod names a budget's limit: "per month", or "in total" for a
+// one-time budget.
+func perPeriod(period string) string {
+	if period == cp.PeriodOnce {
+		return accounting.PeriodPhrase(period)
+	}
+	return "per " + period
 }

@@ -27,7 +27,11 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/migrations"
 )
 
-var version = "dev"
+var (
+	version = "dev"
+	// commit is the source revision, set at build time (-X main.commit=...).
+	commit = ""
+)
 
 const usage = `Harbor Pilot connects coding agents to models and subscriptions, routes each
 request through explicit policies, and explains what happened.
@@ -150,7 +154,7 @@ func cmdServe(args []string, _ io.Writer) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	a, err := app.New(ctx, app.Options{Config: cfg, Version: version, Log: log})
+	a, err := app.New(ctx, app.Options{Config: cfg, Version: version, Commit: commit, Log: log})
 	if err != nil {
 		return err
 	}

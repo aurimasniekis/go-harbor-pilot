@@ -33,15 +33,20 @@ type Budgets struct {
 	Snapshot func() *cp.Snapshot
 }
 
-// BudgetUsage is the state of one budget in its current period.
+// BudgetUsage is the state of one budget in its current window: the
+// calendar period for a recurring budget, or the one-time window (D-044).
 type BudgetUsage struct {
-	BudgetID    string       `json:"budget_id"`
-	Name        string       `json:"name"`
-	Scope       string       `json:"scope"`
-	ScopeID     string       `json:"scope_id"`
-	Period      string       `json:"period"`
-	PeriodStart time.Time    `json:"period_start"`
-	PeriodEnd   time.Time    `json:"period_end"`
+	BudgetID string `json:"budget_id"`
+	Name     string `json:"name"`
+	Scope    string `json:"scope"`
+	ScopeID  string `json:"scope_id"`
+	Period   string `json:"period"`
+	// PeriodStart is the window start: the period start, or a one-time
+	// budget's starts_at (its creation time when that is empty).
+	PeriodStart time.Time `json:"period_start"`
+	// PeriodEnd is the window end (exclusive); null for a one-time budget
+	// without ends_at.
+	PeriodEnd   *time.Time   `json:"period_end" doc:"End of the window (exclusive). Null for a one-time budget without ends_at."`
 	Currency    string       `json:"currency"`
 	CostKinds   []string     `json:"cost_kinds"`
 	Enforcement string       `json:"enforcement"`
@@ -51,15 +56,18 @@ type BudgetUsage struct {
 	Spent money.Amount `json:"spent_e10"`
 	// Reserved is the estimated cost of in-flight attempts.
 	Reserved money.Amount `json:"reserved_e10"`
+	// Remaining is max(limit - spent - reserved, 0).
+	Remaining money.Amount `json:"remaining_e10" doc:"What is left of the limit: limit - spent - reserved, never below 0."`
 	// ByKind breaks Spent down by cost category.
 	ByKind map[string]money.Amount `json:"by_kind_e10"`
 	// Fraction is (spent+reserved)/limit.
 	Fraction float64 `json:"fraction"`
 	WarnAt   float64 `json:"warn_at"`
-	// ProjectedSpend linearly extrapolates the period's spend rate to its
-	// end; nil early in the period when the rate is not meaningful.
+	// ProjectedSpend linearly extrapolates the window's spend rate to its
+	// end; nil early in the window when the rate is not meaningful, for a
+	// window without an end, and outside a one-time window.
 	ProjectedSpend *money.Amount `json:"projected_spend_e10"`
-	State          string        `json:"state" enum:"ok,warning,exceeded,disabled"`
+	State          string        `json:"state" enum:"ok,warning,exceeded,disabled,scheduled,expired" doc:"scheduled: a one-time budget before starts_at; expired: after ends_at (it no longer applies)."`
 }
 
 func scopeColumn(scope string) string {
@@ -92,16 +100,54 @@ func applies(b *cp.Res[cp.BudgetSpec], in ReserveInput) bool {
 	return false
 }
 
+// windowState reports where now is relative to a budget's window:
+// "scheduled" before the start, "expired" at or after a set end, "" inside.
+// Recurring windows always contain now.
+func windowState(start, end time.Time, open bool, now time.Time) string {
+	switch {
+	case now.Before(start):
+		return "scheduled"
+	case !open && !now.Before(end):
+		return "expired"
+	}
+	return ""
+}
+
+// active reports whether b can block or warn at now: enabled and, for a
+// one-time budget, inside its window. Check, Exhausted and Status's state
+// all use it (with applies and exhausted), so they never disagree.
+func active(b *cp.Res[cp.BudgetSpec], now time.Time) bool {
+	if !b.Spec.Enabled {
+		return false
+	}
+	start, end, open := b.Spec.Window(now, b.CreatedAt)
+	return windowState(start, end, open, now) == ""
+}
+
+// PeriodPhrase is how texts name a budget's window: "this month" for a
+// recurring budget, "in total" for a one-time one.
+func PeriodPhrase(period string) string {
+	if period == cp.PeriodOnce {
+		return "in total"
+	}
+	return "this " + period
+}
+
 // usage computes spend for one budget. q may be a transaction.
 func usage(ctx context.Context, q store.Execer, b *cp.Res[cp.BudgetSpec], now time.Time) (BudgetUsage, error) {
-	start := b.Spec.PeriodStart(now)
-	end := b.Spec.PeriodEnd(start)
+	start, end, open := b.Spec.Window(now, b.CreatedAt)
 	limit, _ := money.ParseDecimal(b.Spec.Limit)
 	u := BudgetUsage{BudgetID: b.ID, Name: b.Name, Scope: b.Spec.Scope, ScopeID: b.Spec.ScopeID, Period: b.Spec.Period,
-		PeriodStart: start.UTC(), PeriodEnd: end.UTC(), Currency: b.Spec.Currency, CostKinds: b.Spec.CostKinds, Enforcement: b.Spec.Enforcement,
+		PeriodStart: start.UTC(), Currency: b.Spec.Currency, CostKinds: b.Spec.CostKinds, Enforcement: b.Spec.Enforcement,
 		Enabled: b.Spec.Enabled, Limit: limit, ByKind: map[string]money.Amount{}, WarnAt: b.Spec.WarnAt}
-	where := "at >= ? AND at < ? AND currency = ?"
-	args := []any{start.UnixMilli(), end.UnixMilli(), b.Spec.Currency}
+	where := "at >= ? AND currency = ?"
+	args := []any{start.UnixMilli(), b.Spec.Currency}
+	if !open {
+		e := end.UTC()
+		u.PeriodEnd = &e
+		where = "at >= ? AND at < ? AND currency = ?"
+		args = []any{start.UnixMilli(), end.UnixMilli(), b.Spec.Currency}
+	}
 	rwhere := "status = 'active' AND currency = ?"
 	rargs := []any{b.Spec.Currency}
 	if col := scopeColumn(b.Spec.Scope); col != "" {
@@ -139,17 +185,28 @@ func usage(ctx context.Context, q store.Execer, b *cp.Res[cp.BudgetSpec], now ti
 		return u, err
 	}
 	u.Reserved = money.Amount(reserved)
-	if limit > 0 {
-		u.Fraction = float64(u.Spent+u.Reserved) / float64(limit)
+	finish(&u, b, start, end, open, now)
+	return u, nil
+}
+
+// finish derives the figures that follow from spend: fraction, remaining,
+// projection and state.
+func finish(u *BudgetUsage, b *cp.Res[cp.BudgetSpec], start, end time.Time, open bool, now time.Time) {
+	if u.Limit > 0 {
+		u.Fraction = float64(u.Spent+u.Reserved) / float64(u.Limit)
 	}
+	u.Remaining = max(u.Limit-u.Spent-u.Reserved, 0)
+	ws := windowState(start, end, open, now)
 	elapsed := now.Sub(start)
-	if total := end.Sub(start); elapsed > total/20 && elapsed > time.Hour {
+	if total := end.Sub(start); !open && ws == "" && elapsed > total/20 && elapsed > time.Hour {
 		p := money.Amount(float64(u.Spent) * float64(total) / float64(elapsed))
 		u.ProjectedSpend = &p
 	}
 	switch {
 	case !b.Spec.Enabled:
 		u.State = "disabled"
+	case ws != "":
+		u.State = ws
 	case u.Fraction >= 1:
 		u.State = "exceeded"
 	case u.Fraction >= b.Spec.WarnAt:
@@ -157,7 +214,6 @@ func usage(ctx context.Context, q store.Execer, b *cp.Res[cp.BudgetSpec], now ti
 	default:
 		u.State = "ok"
 	}
-	return u, nil
 }
 
 // Check is installed as Service.BudgetCheck. It runs inside the reservation
@@ -174,7 +230,7 @@ func (bs *Budgets) Check(ctx context.Context, tx *sql.Tx, in ReserveInput, now t
 	sort.Strings(ids)
 	for _, id := range ids {
 		b := snap.Budgets[id]
-		if !b.Spec.Enabled || !applies(b, in) {
+		if !active(b, now) || !applies(b, in) {
 			continue
 		}
 		u, err := usage(ctx, tx, b, now)
@@ -213,9 +269,12 @@ func (bs *Budgets) Check(ctx context.Context, tx *sql.Tx, in ReserveInput, now t
 func exhausted(u BudgetUsage) bool { return u.Spent+u.Reserved >= u.Limit }
 
 func exceededError(b *cp.Res[cp.BudgetSpec], u BudgetUsage) *BudgetExceeded {
-	return &BudgetExceeded{CapacityError: CapacityError{Limit: "budget:" + b.ID,
-		Detail: fmt.Sprintf("budget %s is exhausted for this %s (%s of %s %s)", b.Name, b.Spec.Period,
-			(u.Spent + u.Reserved).String(), (u.Limit).String(), b.Spec.Currency)},
+	figures := fmt.Sprintf("%s of %s %s", (u.Spent + u.Reserved).String(), (u.Limit).String(), b.Spec.Currency)
+	detail := fmt.Sprintf("budget %s is exhausted for %s (%s)", b.Name, PeriodPhrase(b.Spec.Period), figures)
+	if b.Spec.Period == cp.PeriodOnce {
+		detail = fmt.Sprintf("budget %s is exhausted (%s %s)", b.Name, figures, PeriodPhrase(b.Spec.Period))
+	}
+	return &BudgetExceeded{CapacityError: CapacityError{Limit: "budget:" + b.ID, Detail: detail},
 		BudgetID: b.ID, BudgetName: b.Name, PeriodStart: u.PeriodStart, Spent: u.Spent + u.Reserved, Limit: u.Limit, Currency: b.Spec.Currency}
 }
 
@@ -225,8 +284,8 @@ type Scope struct {
 	BindingID, ProjectID, WorkspaceID string
 }
 
-// Exhausted returns the first enabled blocking budget covering scope whose
-// current period is used up, or nil. It reads usage as Status does and
+// Exhausted returns the first active blocking budget covering scope whose
+// current window is used up, or nil. It reads usage as Status does and
 // applies Check's test for a request with no estimate (D-043). Account
 // budgets never match: the account is only known once routing picks one.
 func (bs *Budgets) Exhausted(ctx context.Context, q store.Execer, scope Scope, now time.Time) (*BudgetExceeded, error) {
@@ -242,7 +301,7 @@ func (bs *Budgets) Exhausted(ctx context.Context, q store.Execer, scope Scope, n
 	in := ReserveInput{BindingID: scope.BindingID, ProjectID: scope.ProjectID, WorkspaceID: scope.WorkspaceID}
 	for _, id := range ids {
 		b := snap.Budgets[id]
-		if !b.Spec.Enabled || b.Spec.Enforcement != "block" || b.Spec.Scope == cp.BudgetAccount || !applies(b, in) {
+		if !active(b, now) || b.Spec.Enforcement != "block" || b.Spec.Scope == cp.BudgetAccount || !applies(b, in) {
 			continue
 		}
 		u, err := usage(ctx, q, b, now)
@@ -256,17 +315,20 @@ func (bs *Budgets) Exhausted(ctx context.Context, q store.Execer, scope Scope, n
 	return nil, nil
 }
 
-// recordThreshold writes one event per budget, period and threshold.
+// recordThreshold writes one event per budget, window and threshold. A
+// threshold fires again in the same window only when the limit was raised
+// since it last fired (D-044).
 func recordThreshold(ctx context.Context, ex store.Execer, b *cp.Res[cp.BudgetSpec], u BudgetUsage, kind string, now time.Time) error {
-	col := "warned_at"
+	col, lim := "warned_at", "warned_limit_e10"
 	action := "warning"
 	sev := events.SeverityWarning
 	if kind == "exceeded" {
-		col, action, sev = "exceeded_at", "exceeded", events.SeverityCritical
+		col, lim, action, sev = "exceeded_at", "exceeded_limit_e10", "exceeded", events.SeverityCritical
 	}
-	res, err := ex.ExecContext(ctx, `INSERT INTO budget_state(budget_id, period_start, `+col+`) VALUES (?, ?, ?)
-		ON CONFLICT(budget_id, period_start) DO UPDATE SET `+col+` = excluded.`+col+` WHERE budget_state.`+col+` IS NULL`,
-		b.ID, u.PeriodStart.UnixMilli(), now.UnixMilli())
+	res, err := ex.ExecContext(ctx, `INSERT INTO budget_state(budget_id, period_start, `+col+`, `+lim+`) VALUES (?, ?, ?, ?)
+		ON CONFLICT(budget_id, period_start) DO UPDATE SET `+col+` = excluded.`+col+`, `+lim+` = excluded.`+lim+`
+		WHERE budget_state.`+col+` IS NULL OR budget_state.`+lim+` IS NULL OR budget_state.`+lim+` < excluded.`+lim,
+		b.ID, u.PeriodStart.UnixMilli(), now.UnixMilli(), int64(u.Limit))
 	if err != nil {
 		return err
 	}
@@ -314,14 +376,37 @@ func (bs *Budgets) Exceeded(db *sql.DB) func(ctx context.Context, be *BudgetExce
 	}
 }
 
-// Status reports every budget's current period.
-func (bs *Budgets) Status(ctx context.Context, q store.Execer, now time.Time) ([]BudgetUsage, error) {
+// StatusFilter narrows Status. The zero value returns every budget.
+type StatusFilter struct {
+	// Cover keeps budgets that apply to this scope on the request path
+	// (applies), whatever their state. Account budgets never match.
+	Cover *Scope
+	// Exact keeps budgets defined on exactly Scope and ScopeID.
+	Exact          bool
+	Scope, ScopeID string
+}
+
+func (f StatusFilter) keep(b *cp.Res[cp.BudgetSpec]) bool {
+	switch {
+	case f.Cover != nil:
+		return applies(b, ReserveInput{BindingID: f.Cover.BindingID, ProjectID: f.Cover.ProjectID, WorkspaceID: f.Cover.WorkspaceID})
+	case f.Exact:
+		return b.Spec.Scope == f.Scope && b.Spec.ScopeID == f.ScopeID
+	}
+	return true
+}
+
+// Status reports the current window of every budget that f keeps.
+func (bs *Budgets) Status(ctx context.Context, q store.Execer, now time.Time, f StatusFilter) ([]BudgetUsage, error) {
 	snap := bs.Snapshot()
 	out := []BudgetUsage{}
 	if snap == nil {
 		return out, nil
 	}
 	for _, b := range snap.Budgets {
+		if !f.keep(b) {
+			continue
+		}
 		u, err := usage(ctx, q, b, now)
 		if err != nil {
 			return nil, err

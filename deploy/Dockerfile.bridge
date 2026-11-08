@@ -34,8 +34,9 @@ COPY migrations ./migrations
 COPY api ./api
 COPY --from=web /src/internal/web/dist ./internal/web/dist
 ARG VERSION=docker
+ARG COMMIT=
 ARG TARGETOS TARGETARCH
-RUN GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags "-s -w -X main.version=${VERSION}" -o /out/harbor-pilot ./cmd/harbor-pilot
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" -o /out/harbor-pilot ./cmd/harbor-pilot
 
 # ---- Runtime ----
 FROM node:24.11.1-bookworm-slim
