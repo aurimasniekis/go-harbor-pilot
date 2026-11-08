@@ -15,7 +15,7 @@ import { fmtDateTime, fmtDuration, fmtRelative, fmtTime, serverNow } from '@/lib
 import { MonitorDialog } from '@/features/quota/MonitorDialog'
 import { useCan } from '@/lib/session'
 import { BudgetDialog } from '@/features/budgets/BudgetDialog'
-import { budgetBadge, periodLabel, windowEnd } from '@/features/budgets/budgetSpec'
+import { budgetBadge, canStartOver, periodLabel, windowEnd } from '@/features/budgets/budgetSpec'
 import { BucketRow } from '@/features/quota/BucketRow'
 import { BucketDialog } from '@/features/quota/BucketDialog'
 import { e10 } from '@/features/quota/quota'
@@ -366,7 +366,7 @@ function Budgets({ onAdd }: { onAdd: () => void }) {
             onEdit={() => setEditing(res[u.budget_id]!)}
             onDelete={() => setDeleting(res[u.budget_id]!)}
             extra={
-              u.period === 'once' && (
+              canStartOver(u) && (
                 <Menu.Item leftSection={<RotateCcw size={14} />} onClick={() => setResetting({ b: res[u.budget_id]!, u })} aria-label={`Start over ${u.name}`}>
                   Start over…
                 </Menu.Item>

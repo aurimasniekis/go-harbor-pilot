@@ -126,7 +126,7 @@ export function BudgetDialog({ budget, onClose }: { budget: BudgetRes | null; on
             label="Repeats"
             value={period}
             onChange={edit((v: BudgetSpec['period']) => {
-              const w = windowOnPeriodChange(v, { startsAt, endsAt }, init?.period, new Date(serverNow()))
+              const w = windowOnPeriodChange(v, { startsAt, endsAt }, init, new Date(serverNow()))
               setPeriod(v)
               setStartsAt(w.startsAt)
               setEndsAt(w.endsAt)
@@ -135,7 +135,9 @@ export function BudgetDialog({ budget, onClose }: { budget: BudgetRes | null; on
           />
           {once && (
             <Text size="xs" c="dimmed" mt={4}>
-              Counts all spend {startsAt ? `from ${fmtDateTime(startsAt)}` : 'from the start'} and never resets.
+              Counts all spend{' '}
+              {startsAt ? `from ${fmtDateTime(startsAt)}` : init ? 'from when the budget was created' : 'from when the budget is created'} and
+              never resets.
             </Text>
           )}
         </div>

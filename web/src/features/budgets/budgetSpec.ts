@@ -55,18 +55,20 @@ export function buildBudgetSpec(f: BudgetForm): BudgetSpec {
 /**
  * The window fields after the "Repeats" select changes. Switching an
  * existing recurring budget to one time starts counting now (an empty start
- * would count everything since the budget was created); switching to a
- * recurring period clears both.
+ * would count everything since the budget was created); switching back to a
+ * saved one-time budget restores its saved window; switching to a recurring
+ * period clears both.
  */
 export function windowOnPeriodChange(
   next: Period,
   cur: { startsAt: string; endsAt: string },
-  saved: Period | undefined,
+  saved: Pick<BudgetSpec, 'period' | 'starts_at' | 'ends_at'> | undefined,
   now: Date,
 ): { startsAt: string; endsAt: string } {
   if (next !== 'once') return { startsAt: '', endsAt: '' }
-  if (saved && saved !== 'once' && !cur.startsAt) return { startsAt: now.toISOString(), endsAt: cur.endsAt }
-  return cur
+  if (cur.startsAt || cur.endsAt || !saved) return cur
+  if (saved.period === 'once') return { startsAt: saved.starts_at ?? '', endsAt: saved.ends_at ?? '' }
+  return { startsAt: now.toISOString(), endsAt: '' }
 }
 
 /** The subtitle part naming how a budget repeats: "per month" or "one time". */
@@ -101,4 +103,9 @@ export function windowEnd(u: Pick<BudgetUsage, 'period' | 'period_end' | 'state'
   if (u.state === 'expired') return { kind: 'ended' }
   if (!u.period_end) return { kind: 'never' }
   return { kind: 'ends', iso: u.period_end }
+}
+
+/** Whether a row offers "Start over…": one-time budgets that have not ended. */
+export function canStartOver(u: Pick<BudgetUsage, 'period' | 'state'>): boolean {
+  return u.period === 'once' && u.state !== 'expired'
 }
