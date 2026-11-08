@@ -59,8 +59,11 @@ See [Backup and restore](/operators/backup).
 
 ## Notes for specific versions
 
-### Next release (unreleased)
+### 0.1.4
 
+- **One migration.** `20261108100000000_add_budget_state_limits` adds two nullable limit columns to `budget_state`.
+  It is quick and needs no action; the server writes `harbor.db.pre-<version>.bak` before applying it, so rolling
+  back means restoring a backup.
 - **One repeated budget alert.** A budget that already sent `budget.threshold.warning` or `budget.threshold.exceeded`
   in its current period sends it once more after the upgrade. Alerts now re-arm when a budget's limit is raised, and
   budgets upgraded mid-period have no recorded limit yet, which counts as raised.
