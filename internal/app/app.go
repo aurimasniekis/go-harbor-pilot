@@ -189,6 +189,8 @@ func New(ctx context.Context, o Options) (*App, error) {
 	a.Budgets = &accounting.Budgets{Snapshot: a.CP.Snapshot}
 	a.Acct.BudgetCheck = a.Budgets.Check
 	a.Acct.OnBudgetExceeded = a.Budgets.Exceeded(a.DB.W)
+	a.CP.OnSwap(func(*controlplane.Snapshot) { a.Budgets.Prime() })
+	a.AddBackground(a.Budgets.RunPrimer(a.DB.R, a.Clock.Now, a.Log))
 	if _, err := a.Acct.RecoverStartup(ctx); err != nil {
 		return fail(fmt.Errorf("accounting recovery: %w", err))
 	}

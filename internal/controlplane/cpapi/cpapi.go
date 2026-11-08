@@ -254,7 +254,8 @@ func registerBudgetReset(a *api.API, svc func() *cp.Service) {
 		IfMatch string `header:"If-Match" doc:"Current ETag; recommended for all clients."`
 	}
 	api.Register(a, api.Op{ID: "reset-budget", Method: http.MethodPost, Path: "/budgets/{id}/reset", Summary: "Start a one-time budget over",
-		Description: "Sets spec.starts_at to the server's current time, so spend counts again from now and threshold events can fire again. " +
+		Description: "Sets spec.starts_at to the server's current time, truncated to the second (spend recorded earlier in that second still counts), " +
+			"so spend counts again from now and threshold events can fire again. " +
 			"Earlier spend stays in usage reports. Only one-time budgets (period once) can be reset; a budget whose ends_at has passed " +
 			"must be extended or cleared first. On a Terraform-managed budget this shows as drift.",
 		Tags: []string{cp.BudgetDef.Title + "s"}, Permission: auth.PermConfigWrite}, func(ctx context.Context, in *resetIn) (*one, error) {

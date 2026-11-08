@@ -66,6 +66,21 @@ func budgets(bs ...*cp.Res[cp.BudgetSpec]) *Budgets {
 	return &Budgets{Snapshot: func() *cp.Snapshot { return snap }}
 }
 
+// check runs Check in a write transaction as Service.Reserve does: the
+// spend cache is updated only once the transaction commits.
+func check(ctx context.Context, db *store.DB, bs *Budgets, in ReserveInput, now time.Time) error {
+	var committed func()
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		var err error
+		committed, err = bs.Check(ctx, tx, in, now)
+		return err
+	})
+	if err == nil && committed != nil {
+		committed()
+	}
+	return err
+}
+
 func usd(s string) money.Amount {
 	a, err := money.ParseDecimal(s)
 	if err != nil {
@@ -99,7 +114,7 @@ func TestBudgetUsageWindow(t *testing.T) {
 		{"start is inclusive, end exclusive", cp.BudgetSpec{Period: "once", Limit: "100", StartsAt: "2026-01-20T12:00:00Z", EndsAt: "2026-03-05T00:00:00Z"}, "6", true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			u, err := usage(ctx, db.R, budget("bdg_x", created, tt.spec), now)
+			u, err := budgets().usage(ctx, db.R, budget("bdg_x", created, tt.spec), now, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -262,7 +277,7 @@ func TestBudgetCheckWindow(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			bs := budgets(budget("bdg_x", now.AddDate(0, -2, 0), tt.spec))
-			err := db.Tx(ctx, func(tx *sql.Tx) error { return bs.Check(ctx, tx, in, now) })
+			err := check(ctx, db, bs, in, now)
 			var be *BudgetExceeded
 			if errors.As(err, &be) != tt.blocked {
 				t.Fatalf("Check: %v, want blocked %v", err, tt.blocked)
@@ -328,7 +343,9 @@ func TestBudgetStatusFilter(t *testing.T) {
 
 // BenchmarkCheckOneTimeBudget measures the request-path budget check for an
 // open-ended one-time budget over 200k ledger rows spread across 12 months
-// (the ledger scan risk of D-044).
+// (the ledger scan risk of D-044), with one new ledger row settled before
+// each reservation. ns/op is the warm path (spend cache hit plus the new
+// rows); cold-ms is the first check, which reads the whole window.
 func BenchmarkCheckOneTimeBudget(b *testing.B) {
 	ctx := context.Background()
 	db := openDB(b)
@@ -359,26 +376,49 @@ func BenchmarkCheckOneTimeBudget(b *testing.B) {
 	if _, err := db.W.ExecContext(ctx, `ANALYZE`); err != nil {
 		b.Fatal(err)
 	}
+	seq := rows
 	for _, sc := range []struct {
 		name   string
 		period string
-		scope  string
-		id     string
+		scopes []string // budget scopes, all covering prj_0
 	}{
-		{"once/project", "once", cp.BudgetProject, "prj_0"},
-		{"once/workspace", "once", cp.BudgetWorkspace, "wsp_0"},
-		// Baselines: the same data under a monthly budget.
-		{"month/project", "month", cp.BudgetProject, "prj_0"},
-		{"month/workspace", "month", cp.BudgetWorkspace, "wsp_0"},
+		{"once/project", "once", []string{cp.BudgetProject}},
+		{"once/workspace", "once", []string{cp.BudgetWorkspace}},
+		{"once/global", "once", []string{cp.BudgetGlobal}},
+		{"once/global+workspace+project", "once", []string{cp.BudgetGlobal, cp.BudgetWorkspace, cp.BudgetProject}},
+		// Baselines: the same data under monthly budgets.
+		{"month/project", "month", []string{cp.BudgetProject}},
+		{"month/workspace", "month", []string{cp.BudgetWorkspace}},
+		{"month/global+workspace+project", "month", []string{cp.BudgetGlobal, cp.BudgetWorkspace, cp.BudgetProject}},
 	} {
 		b.Run(sc.name, func(b *testing.B) {
-			bs := budgets(budget("bdg_x", start, cp.BudgetSpec{Period: sc.period, Scope: sc.scope, ScopeID: sc.id, Limit: "1000000"}))
+			var list []*cp.Res[cp.BudgetSpec]
+			for _, scope := range sc.scopes {
+				id := map[string]string{cp.BudgetGlobal: "", cp.BudgetWorkspace: "wsp_0", cp.BudgetProject: "prj_0"}[scope]
+				list = append(list, budget("bdg_"+scope, start, cp.BudgetSpec{Period: sc.period, Scope: scope, ScopeID: id, Limit: "1000000"}))
+			}
+			bs := budgets(list...)
 			in := ReserveInput{ProjectID: "prj_0", WorkspaceID: "wsp_0", BindingID: "cbd_prj_0", Billing: cp.BillingMetered, Currency: "USD", EstimatedCost: 1}
+			// The first check after start-up, a spec edit or a reset reads
+			// the whole window (a spend cache miss); reported as cold-ms.
+			t0 := time.Now()
+			if err := check(ctx, db, bs, in, now); err != nil {
+				b.Fatal(err)
+			}
+			cold := time.Since(t0)
 			for b.Loop() {
-				if err := db.Tx(ctx, func(tx *sql.Tx) error { return bs.Check(ctx, tx, in, now) }); err != nil {
+				// Traffic keeps settling: one new row per reservation.
+				seq++
+				if _, err := db.W.ExecContext(ctx, `INSERT INTO ledger(id, at, kind, workspace_id, project_id, binding_id, account_id, usage_source,
+					cost_e10, currency, cost_kind, idempotency_key) VALUES (?, ?, 'usage', 'wsp_0', 'prj_0', 'cbd_prj_0', 'acc_a', 'estimated', 1000, 'USD', 'estimated_api_charge', ?)`,
+					fmt.Sprintf("led_%d", seq), now.Add(-time.Minute).UnixMilli(), fmt.Sprintf("b%d", seq)); err != nil {
+					b.Fatal(err)
+				}
+				if err := check(ctx, db, bs, in, now); err != nil {
 					b.Fatal(err)
 				}
 			}
+			b.ReportMetric(float64(cold.Microseconds())/1000, "cold-ms")
 		})
 	}
 }

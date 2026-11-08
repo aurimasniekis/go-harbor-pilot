@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"sort"
+	"sync"
 	"time"
 
 	cp "github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
@@ -31,6 +33,48 @@ func (e *BudgetExceeded) Unwrap() error { return &e.CapacityError }
 // Budgets enforces budget resources from the configuration snapshot.
 type Budgets struct {
 	Snapshot func() *cp.Snapshot
+
+	// sums caches each budget's settled spend per cost kind (spendCache).
+	sums spendCache
+
+	primeOnce sync.Once
+	primeCh   chan struct{}
+}
+
+func (bs *Budgets) primes() chan struct{} {
+	bs.primeOnce.Do(func() { bs.primeCh = make(chan struct{}, 1) })
+	return bs.primeCh
+}
+
+// Prime asks the primer (RunPrimer) to refresh the spend cache, for example
+// after a configuration change. It never blocks.
+func (bs *Budgets) Prime() {
+	select {
+	case bs.primes() <- struct{}{}:
+	default:
+	}
+}
+
+// RunPrimer refreshes every budget's spend cache entry on q, a read-only
+// handle, at start and after each Prime. A cache miss (start-up, a reset, an
+// edited window or scope) otherwise reads the whole window inside the
+// reservation's write transaction; primed, the check reads only new rows.
+// A reservation that arrives before the primer finishes still gets exact
+// figures, it just pays for the full read itself.
+func (bs *Budgets) RunPrimer(q store.Execer, now func() time.Time, log *slog.Logger) func(ctx context.Context) {
+	return func(ctx context.Context) {
+		ch := bs.primes()
+		for {
+			if _, err := bs.Status(ctx, q, now(), StatusFilter{}); err != nil && ctx.Err() == nil {
+				log.Warn("budget.prime.failed", "error", err.Error())
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ch:
+			}
+		}
+	}
 }
 
 // BudgetUsage is the state of one budget in its current window: the
@@ -120,6 +164,9 @@ func active(b *cp.Res[cp.BudgetSpec], now time.Time) bool {
 	if !b.Spec.Enabled {
 		return false
 	}
+	if b.Spec.Period != cp.PeriodOnce {
+		return true // a recurring window always contains now
+	}
 	start, end, open := b.Spec.Window(now, b.CreatedAt)
 	return windowState(start, end, open, now) == ""
 }
@@ -133,52 +180,48 @@ func PeriodPhrase(period string) string {
 	return "this " + period
 }
 
-// usage computes spend for one budget. q may be a transaction.
-func usage(ctx context.Context, q store.Execer, b *cp.Res[cp.BudgetSpec], now time.Time) (BudgetUsage, error) {
+// usage computes spend for one budget. q may be a transaction. Settled
+// spend comes from the spend cache: only ledger rows past its watermark are
+// read. When q is not a transaction the refreshed entry is stored at once
+// (q only sees committed rows); inside a transaction it is handed to stage,
+// which must store it only after the transaction commits.
+func (bs *Budgets) usage(ctx context.Context, q store.Execer, b *cp.Res[cp.BudgetSpec], now time.Time, stage func(spendKey, spendEntry)) (BudgetUsage, error) {
 	start, end, open := b.Spec.Window(now, b.CreatedAt)
 	limit, _ := money.ParseDecimal(b.Spec.Limit)
 	u := BudgetUsage{BudgetID: b.ID, Name: b.Name, Scope: b.Spec.Scope, ScopeID: b.Spec.ScopeID, Period: b.Spec.Period,
 		PeriodStart: start.UTC(), Currency: b.Spec.Currency, CostKinds: b.Spec.CostKinds, Enforcement: b.Spec.Enforcement,
 		Enabled: b.Spec.Enabled, Limit: limit, ByKind: map[string]money.Amount{}, WarnAt: b.Spec.WarnAt}
-	where := "at >= ? AND currency = ?"
-	args := []any{start.UnixMilli(), b.Spec.Currency}
 	if !open {
 		e := end.UTC()
 		u.PeriodEnd = &e
-		where = "at >= ? AND at < ? AND currency = ?"
-		args = []any{start.UnixMilli(), end.UnixMilli(), b.Spec.Currency}
 	}
-	rwhere := "status = 'active' AND currency = ?"
-	rargs := []any{b.Spec.Currency}
-	if col := scopeColumn(b.Spec.Scope); col != "" {
-		where += " AND " + col + " = ?"
-		args = append(args, b.Spec.ScopeID)
-		rwhere += " AND " + col + " = ?"
-		rargs = append(rargs, b.Spec.ScopeID)
-	}
-	rows, err := store.Query(ctx, q, func(r *sql.Rows) (struct {
-		kind string
-		sum  int64
-	}, error) {
-		var x struct {
-			kind string
-			sum  int64
-		}
-		err := r.Scan(&x.kind, &x.sum)
-		return x, err
-	}, `SELECT cost_kind, COALESCE(SUM(cost_e10), 0) FROM ledger WHERE `+where+` AND cost_e10 IS NOT NULL GROUP BY cost_kind`, args...)
+	key := spendKeyOf(b, start, end, open)
+	entry, err := bs.sums.refresh(ctx, q, key)
 	if err != nil {
 		return u, err
+	}
+	if _, inTx := q.(*sql.Tx); inTx {
+		if stage != nil {
+			stage(key, entry)
+		}
+	} else {
+		bs.sums.store(key, entry)
 	}
 	counted := map[string]bool{}
 	for _, k := range b.Spec.CostKinds {
 		counted[k] = true
 	}
-	for _, r := range rows {
-		u.ByKind[r.kind] = money.Amount(r.sum)
-		if counted[r.kind] {
-			u.Spent += money.Amount(r.sum)
+	for kind, sum := range entry.byKind {
+		u.ByKind[kind] = money.Amount(sum)
+		if counted[kind] {
+			u.Spent += money.Amount(sum)
 		}
+	}
+	rwhere := "status = 'active' AND currency = ?"
+	rargs := []any{b.Spec.Currency}
+	if col := scopeColumn(b.Spec.Scope); col != "" {
+		rwhere += " AND " + col + " = ?"
+		rargs = append(rargs, b.Spec.ScopeID)
 	}
 	var reserved int64
 	if err := q.QueryRowContext(ctx, `SELECT COALESCE(SUM(est_cost_e10), 0) FROM reservations WHERE `+rwhere, rargs...).Scan(&reserved); err != nil {
@@ -217,11 +260,20 @@ func finish(u *BudgetUsage, b *cp.Res[cp.BudgetSpec], start, end time.Time, open
 }
 
 // Check is installed as Service.BudgetCheck. It runs inside the reservation
-// transaction, so concurrent reservations are serialized by the writer.
-func (bs *Budgets) Check(ctx context.Context, tx *sql.Tx, in ReserveInput, now time.Time) error {
+// transaction, so concurrent reservations are serialized by the writer. The
+// returned func, when not nil, must be called once tx has committed: it
+// stores the spend cache entries Check refreshed (never after a rollback).
+func (bs *Budgets) Check(ctx context.Context, tx *sql.Tx, in ReserveInput, now time.Time) (func(), error) {
 	snap := bs.Snapshot()
 	if snap == nil || len(snap.Budgets) == 0 || in.Billing == cp.BillingLocal || in.Billing == cp.BillingFree {
-		return nil
+		return nil, nil
+	}
+	var staged []stagedSum
+	stage := func(k spendKey, e spendEntry) { staged = append(staged, stagedSum{k, e}) }
+	committed := func() {
+		for _, st := range staged {
+			bs.sums.store(st.key, st.entry)
+		}
 	}
 	ids := make([]string, 0, len(snap.Budgets))
 	for id := range snap.Budgets {
@@ -230,12 +282,12 @@ func (bs *Budgets) Check(ctx context.Context, tx *sql.Tx, in ReserveInput, now t
 	sort.Strings(ids)
 	for _, id := range ids {
 		b := snap.Budgets[id]
-		if !active(b, now) || !applies(b, in) {
+		if !applies(b, in) || !active(b, now) {
 			continue
 		}
-		u, err := usage(ctx, tx, b, now)
+		u, err := bs.usage(ctx, tx, b, now, stage)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		next := u.Spent + u.Reserved
 		if in.Currency == b.Spec.Currency {
@@ -243,7 +295,7 @@ func (bs *Budgets) Check(ctx context.Context, tx *sql.Tx, in ReserveInput, now t
 		}
 		over := next > u.Limit || (in.EstimatedCost == 0 && exhausted(u))
 		if over && b.Spec.Enforcement == "block" {
-			return exceededError(b, u)
+			return nil, exceededError(b, u)
 		}
 		frac := 0.0
 		if u.Limit > 0 {
@@ -255,11 +307,11 @@ func (bs *Budgets) Check(ctx context.Context, tx *sql.Tx, in ReserveInput, now t
 				kind = "exceeded"
 			}
 			if err := recordThreshold(ctx, tx, b, u, kind, now); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
-	return nil
+	return committed, nil
 }
 
 // exhausted reports whether a budget's period is used up: settled spend plus
@@ -301,10 +353,10 @@ func (bs *Budgets) Exhausted(ctx context.Context, q store.Execer, scope Scope, n
 	in := ReserveInput{BindingID: scope.BindingID, ProjectID: scope.ProjectID, WorkspaceID: scope.WorkspaceID}
 	for _, id := range ids {
 		b := snap.Budgets[id]
-		if !active(b, now) || b.Spec.Enforcement != "block" || b.Spec.Scope == cp.BudgetAccount || !applies(b, in) {
+		if b.Spec.Enforcement != "block" || b.Spec.Scope == cp.BudgetAccount || !applies(b, in) || !active(b, now) {
 			continue
 		}
-		u, err := usage(ctx, q, b, now)
+		u, err := bs.usage(ctx, q, b, now, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -407,12 +459,13 @@ func (bs *Budgets) Status(ctx context.Context, q store.Execer, now time.Time, f 
 		if !f.keep(b) {
 			continue
 		}
-		u, err := usage(ctx, q, b, now)
+		u, err := bs.usage(ctx, q, b, now, nil)
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, u)
 	}
+	bs.sums.retain(snap.Budgets)
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
 }

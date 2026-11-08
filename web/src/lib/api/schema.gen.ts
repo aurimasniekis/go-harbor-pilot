@@ -419,7 +419,7 @@ export interface paths {
         put?: never;
         /**
          * Start a one-time budget over
-         * @description Sets spec.starts_at to the server's current time, so spend counts again from now and threshold events can fire again. Earlier spend stays in usage reports. Only one-time budgets (period once) can be reset; a budget whose ends_at has passed must be extended or cleared first. On a Terraform-managed budget this shows as drift.
+         * @description Sets spec.starts_at to the server's current time, truncated to the second (spend recorded earlier in that second still counts), so spend counts again from now and threshold events can fire again. Earlier spend stays in usage reports. Only one-time budgets (period once) can be reset; a budget whose ends_at has passed must be extended or cleared first. On a Terraform-managed budget this shows as drift.
          */
         post: operations["reset-budget"];
         delete?: never;
