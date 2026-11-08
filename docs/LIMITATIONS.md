@@ -51,12 +51,13 @@ TRACEABILITY.md (`planned`, `in-progress`).
   up only through provider-reported quota and usage, reconciled later.
 - **Budgets block slightly early, never late.** They count settled ledger costs plus in-flight estimates (input at four
   characters per token, output at the requested maximum), within one writer transaction.
-- **One-time budgets sum their whole window (D-044).** A one-time budget (`period: "once"`) adds up every ledger row
-  in its scope since `starts_at` on each reservation, inside the writer transaction, so the check grows with the
-  window: measured at about 165 ms per check for a project and 215 ms for a workspace over 200,000 rows in 12 months
-  (a monthly budget over the same data: 14 and 23 ms). There are no running totals yet. Give long-running one-time
-  budgets an `ends_at`, or start them over now and then. Re-creating a one-time budget with an empty `starts_at`
-  starts a new count; any future ledger retention must keep the windows of active one-time budgets.
+- **A budget's first read after start-up or a change reads its whole window (D-044).** Budgets keep an in-memory
+  sum of settled spend and read only new ledger rows on each reservation (about 0.4 ms per budget over 200,000 rows
+  in 12 months). After a restart, a reset, an edited window or scope, or for a recurring budget a new period, the
+  first read sums the whole window: up to about 0.3 s per long-running one-time budget on that data. A background
+  primer does that read off the request path right after start-up and each configuration change, so it only lands
+  on a reservation that arrives first. Re-creating a one-time budget with an empty `starts_at` starts a new count;
+  any future ledger retention must keep the windows of active one-time budgets.
 - **The mint budget check is opt-in and partial (D-043).** Without `check_budget`, minting a child credential never
   consults budgets; a run token under an exhausted blocking budget is refused (`429 budget_exceeded`) on its first
   request. With it, binding, project, workspace and global budgets are checked, but account budgets are not (routing

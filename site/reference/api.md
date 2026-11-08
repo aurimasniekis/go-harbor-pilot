@@ -236,7 +236,8 @@ GET /api/v1/budgets/status?project_id=prj_…&binding_id=cbd_…
 ```
 
 `POST /api/v1/budgets/{id}/reset` (`config.write`; send `If-Match`) starts a one-time budget over: it sets
-`spec.starts_at` to the server's current time and returns the budget with its new `ETag`. Spend before that stays in
+`spec.starts_at` to the server's current time, truncated to the second (spend recorded earlier in that second still
+counts), and returns the budget with its new `ETag`. Spend before that stays in
 usage reports. A recurring budget, or one whose `ends_at` has passed, answers `422`.
 
 ## System information

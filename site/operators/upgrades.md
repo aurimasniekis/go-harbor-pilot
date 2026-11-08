@@ -59,6 +59,12 @@ See [Backup and restore](/operators/backup).
 
 ## Notes for specific versions
 
+### Next release (unreleased)
+
+- **One repeated budget alert.** A budget that already sent `budget.threshold.warning` or `budget.threshold.exceeded`
+  in its current period sends it once more after the upgrade. Alerts now re-arm when a budget's limit is raised, and
+  budgets upgraded mid-period have no recorded limit yet, which counts as raised.
+
 ### 0.1.2
 
 - **Budget refusals are now policy blocks.** A request that blocking budgets refuse is recorded as **Blocked** and
