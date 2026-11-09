@@ -2,6 +2,7 @@ package anthropic
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -96,6 +97,7 @@ func TestBuildRequestNormalizesCacheControl(t *testing.T) {
 		body     string
 		want     []string // nil: the input's markers, unchanged
 		wantLoss []string
+		auto     string // the top-level marker expected, when set
 	}{
 		{
 			name: "well-formed 1h then 5m is unchanged",
@@ -140,6 +142,17 @@ func TestBuildRequestNormalizesCacheControl(t *testing.T) {
 			want: []string{cc1h, cc1h, cc1h, cc5m}, wantLoss: []string{LossCacheLimit},
 		},
 		{
+			name: "automatic 1h after an explicit 5m",
+			body: req(`,"cache_control":{"type":"ephemeral","ttl":"1h"}`, []string{text("s1", cc5m)}, user(text("q1", ""))),
+			want: []string{cc5m}, wantLoss: []string{LossCacheTTLOrder},
+			auto: cc5m,
+		},
+		{
+			name: "automatic 1h after explicit 1h is unchanged",
+			body: req(`,"cache_control":{"type":"ephemeral","ttl":"1h"}`, []string{text("s1", cc1h)}, user(text("q1", ""))),
+			auto: cc1h,
+		},
+		{
 			name: "automatic breakpoint takes a slot",
 			body: req(`,"cache_control":{"type":"ephemeral"}`, []string{text("s1", cc5m), text("s2", cc5m)},
 				user(text("q1", cc5m), text("q2", cc5m))),
@@ -161,6 +174,18 @@ func TestBuildRequestNormalizesCacheControl(t *testing.T) {
 			}
 			if got := cacheMarkers(t, out); !slices.Equal(got, want) {
 				t.Errorf("markers\n got %v\nwant %v\nbody %s", got, want, out)
+			}
+			if tc.auto != "" {
+				var top struct {
+					CC json.RawMessage `json:"cache_control"`
+				}
+				_ = json.Unmarshal(out, &top)
+				var got, want any
+				_ = json.Unmarshal(top.CC, &got)
+				_ = json.Unmarshal([]byte(tc.auto), &want)
+				if g, w := fmt.Sprint(got), fmt.Sprint(want); g != w {
+					t.Errorf("top-level marker %s, want %s", top.CC, tc.auto)
+				}
 			}
 			for _, f := range []string{LossCacheTTLOrder, LossCacheLimit} {
 				if hasLoss(losses, f) != slices.Contains(tc.wantLoss, f) {

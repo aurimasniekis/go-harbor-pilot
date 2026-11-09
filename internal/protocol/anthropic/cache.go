@@ -118,6 +118,14 @@ func normalizeCacheControl(body map[string]any, losses *ir.Losses) {
 			losses.Add(LossCacheTTLOrder, "a 1h cache breakpoint followed a 5m one; it was lowered to 5m (TTLs must not increase across tools, system and messages)", ir.LossApproximate)
 		}
 	}
+	// The top-level automatic breakpoint lands on the last cacheable block,
+	// after every explicit one.
+	if _, ok := body["cache_control"]; ok {
+		if auto := (cacheSlot{block: body}); auto.ttl() == "1h" && seenShort {
+			auto.lower()
+			losses.Add(LossCacheTTLOrder, "the automatic 1h cache breakpoint followed a 5m one; it was lowered to 5m", ir.LossApproximate)
+		}
+	}
 }
 
 func collectCacheSlots(body map[string]any) []cacheSlot {

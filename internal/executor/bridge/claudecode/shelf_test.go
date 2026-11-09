@@ -3,6 +3,8 @@ package claudecode
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -321,5 +323,167 @@ func TestShelfClearedOnCloseAndPrune(t *testing.T) {
 	shelveFile(t, b, "kept", "late", 10, time.Hour)
 	if len(shelfKeys(b)) != 0 {
 		t.Fatal("shelved after shutdown")
+	}
+}
+
+// A synthetic session file in the shape harness-wire-facts §1.5 records: a
+// user turn and an assistant turn ending in a pending tool call.
+func syntheticSession(t *testing.T, version string) string {
+	t.Helper()
+	lines := []string{
+		`{"type":"queue-operation","operation":"enqueue","sessionId":"s1"}`,
+		`{"parentUuid":null,"isSidechain":false,"type":"user","message":{"role":"user","content":[{"type":"text","text":"weather?"}]},"uuid":"u1","userType":"external","entrypoint":"sdk-cli","cwd":"/w/p1","sessionId":"s1","version":"` + version + `"}`,
+		`{"parentUuid":"u1","isSidechain":false,"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"mcp__client__get_weather","input":{"city":"Vilnius"}}]},"uuid":"a1","userType":"external","entrypoint":"sdk-cli","cwd":"/w/p1","sessionId":"s1","version":"` + version + `"}`,
+		`{"type":"tools-used","tools":["mcp__client__get_weather"],"sessionId":"s1"}`,
+	}
+	path := filepath.Join(t.TempDir(), "s1.jsonl")
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+const toolResultContent = `[{"type":"tool_result","tool_use_id":"toolu_1","content":[{"type":"text","text":"sunny, 21C"}]}]`
+
+func TestAppendToolResults(t *testing.T) {
+	path := syntheticSession(t, "2.1.321")
+	if !sessionHolds(path, []string{"toolu_1"}) || sessionHolds(path, []string{"toolu_1", "toolu_2"}) || sessionHolds(path+".missing", nil) {
+		t.Fatal("sessionHolds")
+	}
+	now := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+	if err := appendToolResults(path, json.RawMessage(toolResultContent), now); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(path)
+	lines := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
+	if len(lines) != 5 {
+		t.Fatalf("%d lines", len(lines))
+	}
+	var e struct {
+		ParentUUID string `json:"parentUuid"`
+		Type       string `json:"type"`
+		UUID       string `json:"uuid"`
+		Source     string `json:"sourceToolAssistantUUID"`
+		SessionID  string `json:"sessionId"`
+		Version    string `json:"version"`
+		Cwd        string `json:"cwd"`
+		Timestamp  string `json:"timestamp"`
+		Message    struct {
+			Role    string           `json:"role"`
+			Content []map[string]any `json:"content"`
+		} `json:"message"`
+		Result []map[string]any `json:"toolUseResult"`
+	}
+	if err := json.Unmarshal([]byte(lines[4]), &e); err != nil {
+		t.Fatal(err)
+	}
+	// Chained to the last entry with a uuid (the assistant's tool call), not
+	// to the bookkeeping line after it.
+	if e.ParentUUID != "a1" || e.Source != "a1" || e.Type != "user" || e.UUID == "" || e.SessionID != "s1" || e.Version != "2.1.321" ||
+		e.Cwd != "/w/p1" || e.Timestamp != "2026-11-09T12:00:00.000Z" || e.Message.Role != "user" ||
+		len(e.Message.Content) != 1 || e.Message.Content[0]["tool_use_id"] != "toolu_1" || len(e.Result) != 1 {
+		t.Fatalf("entry %+v", e)
+	}
+	if st, _ := os.Stat(path); st.Mode().Perm() != 0o600 {
+		t.Fatalf("mode %v", st.Mode())
+	}
+}
+
+// The appended entry shape was verified for specific CLI versions only; a
+// session written by any other version is left untouched.
+func TestAppendToolResultsRefusesUnverifiedCLI(t *testing.T) {
+	for _, v := range []string{"9.9.9", ""} {
+		path := syntheticSession(t, v)
+		before, _ := os.ReadFile(path)
+		err := appendToolResults(path, json.RawMessage(toolResultContent), time.Now())
+		var uv *unverifiedCLIError
+		if !errors.As(err, &uv) || uv.version != v {
+			t.Fatalf("version %q: %v", v, err)
+		}
+		if after, _ := os.ReadFile(path); string(after) != string(before) {
+			t.Fatal("session changed")
+		}
+	}
+	// Logged once per version.
+	var logs strings.Builder
+	b := &Bridge{o: Options{Log: slog.New(slog.NewTextHandler(&logs, nil))}}
+	b.warnUnverified("9.9.9")
+	b.warnUnverified("9.9.9")
+	b.warnUnverified("9.9.8")
+	if n := strings.Count(logs.String(), "bridge.shelf.unverified_cli_version"); n != 2 {
+		t.Fatalf("%d warnings: %s", n, logs.String())
+	}
+}
+
+// A shelved entry put back after a failed spawn (no free slot) does not get
+// the tool results a second time.
+func TestAddResultsOnce(t *testing.T) {
+	b, _ := shelfRig(t, Options{})
+	e := &shelfEntry{path: syntheticSession(t, "2.1.321"), pending: []string{"toolu_1"}}
+	for range 2 {
+		if err := b.addResults(e, json.RawMessage(toolResultContent)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw, _ := os.ReadFile(e.path)
+	if n := strings.Count(string(raw), `"sourceToolAssistantUUID"`); n != 1 {
+		t.Fatalf("results appended %d times", n)
+	}
+}
+
+// A conversation is shelved only while its cache can still be warm: the
+// entry expires the TTL after the conversation was last used.
+func TestShelfCandidateExpiresFromLastUse(t *testing.T) {
+	now := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+	b := &Bridge{o: Options{}}
+	mk := func(ttl string, idle time.Duration, st procState) *proc {
+		return &proc{b: b, accountID: "acc", sid: "s", cacheTTL: ttl, fp: "fp", state: st, lastUsed: now.Add(-idle)}
+	}
+	for _, tc := range []struct {
+		name   string
+		p      *proc
+		reason string
+		want   time.Duration // expiry after now; 0: not shelved
+	}{
+		{"5m conversation idle 2m", mk("5m", 2*time.Minute, stateIdle), "idle timeout", 3 * time.Minute},
+		{"5m conversation idle 10m", mk("5m", 10*time.Minute, stateIdle), "idle timeout", 0},
+		{"1h conversation idle 10m", mk("1h", 10*time.Minute, stateIdle), "idle timeout", 50 * time.Minute},
+		{"1h conversation waiting 70m for tools", mk("1h", 70*time.Minute, stateAwaitingTools), "idle timeout", 0},
+		{"busy", mk("1h", 0, stateBusy), "idle timeout", 0},
+		{"client went away", mk("1h", 0, stateIdle), "client went away", 0},
+	} {
+		e := tc.p.shelfCandidate(tc.reason, now)
+		switch {
+		case tc.want == 0 && e != nil:
+			t.Errorf("%s: shelved until %v", tc.name, e.expires)
+		case tc.want != 0 && (e == nil || !e.expires.Equal(now.Add(tc.want))):
+			t.Errorf("%s: %+v, want expiry now+%v", tc.name, e, tc.want)
+		}
+	}
+}
+
+// The CLI's per-process files (config/sessions/<pid>.*) are swept once no
+// live process owns them.
+func TestSweepRemovesLeftoverCLIProcessFiles(t *testing.T) {
+	b, now := shelfRig(t, Options{})
+	dir := filepath.Join(b.o.Root, "accounts", "acc", "config", "sessions")
+	_ = os.MkdirAll(dir, 0o700)
+	old, fresh := []string{"4242.json", "4242.abcd.key"}, "4343.json"
+	for _, f := range append(old, fresh) {
+		_ = os.WriteFile(filepath.Join(dir, f), []byte("{}"), 0o600)
+	}
+	past := now.Add(-2 * time.Minute)
+	for _, f := range old {
+		_ = os.Chtimes(filepath.Join(dir, f), past, past)
+	}
+	_ = os.Chtimes(filepath.Join(dir, fresh), *now, *now)
+	b.sweepConversationFiles(*now)
+	for _, f := range old {
+		if _, err := os.Stat(filepath.Join(dir, f)); err == nil {
+			t.Errorf("%s kept", f)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, fresh)); err != nil {
+		t.Error("a just-written file was removed")
 	}
 }

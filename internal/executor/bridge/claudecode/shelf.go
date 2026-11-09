@@ -40,10 +40,14 @@ type shelfEntry struct {
 	// pending lists the tool calls the conversation waits for; empty when
 	// it ended after a complete reply.
 	pending []string
-	path    string
-	size    int64
-	created time.Time
-	expires time.Time
+	// appended is set once the client's tool results were added to the
+	// session file, so a retry (no free process slot) does not add them
+	// twice.
+	appended bool
+	path     string
+	size     int64
+	created  time.Time
+	expires  time.Time
 }
 
 // shelvable reports whether a process that ended for reason may keep its
@@ -69,6 +73,22 @@ func cacheTTLDuration(ttl string) time.Duration {
 // prompt, tools and the conversation fingerprint.
 func shelfKey(accountID, scope, model string, c conv, sysKey, toolsKey, fp string) string {
 	return hashOf(accountID, scope, model, c.CacheTTL, c.Effort, strconv.Itoa(c.MaxOut), sysKey, toolsKey, fp)
+}
+
+// shelfCandidate is the shelf entry for a process ending for reason, or
+// nil: only between turns, for a shelvable reason, and only while the
+// upstream cache can still hold the prompt. The entry expires the cache TTL
+// after the conversation was last used, the most its cache can live without
+// a request. Called with p.mu held.
+func (p *proc) shelfCandidate(reason string, now time.Time) *shelfEntry {
+	if (p.state != stateIdle && p.state != stateAwaitingTools) || p.fp == "" || !shelvable(reason) {
+		return nil
+	}
+	expires := p.lastUsed.Add(cacheTTLDuration(p.cacheTTL))
+	if !now.Before(expires) {
+		return nil
+	}
+	return &shelfEntry{key: p.shelfKey(), accountID: p.accountID, sid: p.sid, pending: append([]string(nil), p.pending...), expires: expires}
 }
 
 // shelfKey must be called with p.mu held.
@@ -221,6 +241,37 @@ func (b *Bridge) clearShelf() {
 	b.sweepShelf(time.Time{}, map[string]bool{})
 }
 
+// verifiedCLIVersions are the CLI versions whose session format was checked
+// for appended tool results (harness-wire-facts §1.5). The CLI updates
+// itself; for any other version the results are not written into its
+// session and the turn is served from a rebuilt transcript.
+var verifiedCLIVersions = map[string]bool{"2.1.318": true, "2.1.319": true, "2.1.321": true}
+
+type unverifiedCLIError struct{ version string }
+
+func (e *unverifiedCLIError) Error() string {
+	return "session written by unverified CLI version " + e.version
+}
+
+// addResults appends the client's tool results to a shelved session once.
+func (b *Bridge) addResults(e *shelfEntry, content json.RawMessage) error {
+	if e.appended {
+		return nil
+	}
+	if err := appendToolResults(e.path, content, b.o.Now()); err != nil {
+		return err
+	}
+	e.appended = true
+	return nil
+}
+
+// warnUnverified logs an unverified CLI version once.
+func (b *Bridge) warnUnverified(version string) {
+	if _, seen := b.warned.LoadOrStore(version, true); !seen {
+		b.o.Log.Warn("bridge.shelf.unverified_cli_version", "version", version)
+	}
+}
+
 // appendToolResults adds the client's tool results to a shelved session
 // that ended waiting for them, as the user entry the CLI itself writes
 // after a tool call (chained to the session's last entry). Without it, a
@@ -242,6 +293,9 @@ func appendToolResults(path string, content json.RawMessage, now time.Time) erro
 	}
 	if last == nil {
 		return errors.New("the shelved session has no entries")
+	}
+	if v, _ := last["version"].(string); !verifiedCLIVersions[v] {
+		return &unverifiedCLIError{version: v}
 	}
 	var blocks []any
 	if err := json.Unmarshal(content, &blocks); err != nil {

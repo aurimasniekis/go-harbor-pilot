@@ -118,10 +118,16 @@ TRACEABILITY.md (`planned`, `in-progress`).
   read the data directory or the master key. Codex's code-mode wrapper and patch tool remain, contained only by the
   read-only sandbox and the fail-closed check (D-038).
 - **Parked processes are local state.** A Claude Code process that ends between turns leaves its CLI session on a
-  shelf for up to its prompt-cache TTL (D-045), and the next turn resumes it. After that, after a restart (the shelf
+  shelf for up to its prompt-cache TTL after the conversation was last used (D-045), and the next turn resumes it. A
+  conversation waiting for tool results is resumed this way only with CLI versions whose session format was verified;
+  with others it falls back to the rebuilt transcript. After that, after a restart (the shelf
   index is in memory) or when the shelf limits evicted it, the next request resumes from a rebuilt transcript with a
-  recorded loss. Conversation content therefore stays on disk up to 1 hour after its process ends (0600 files under
-  the bridge's data directory).
+  recorded loss. Conversation content therefore stays on disk up to 1 hour after the conversation's last turn (0600
+  files under the bridge's data directory).
+- **Claude Code 400s.** The CLI reports an upstream 400 without its error type. The bridge treats it as the client's
+  error (no failover), except the documented account-level ones it recognises by their text (credit balance, billing,
+  a disabled organization), which fail over and cool the account down. An account-level 400 worded differently is
+  returned to the client instead of failing over.
 - **Claude Code fidelity.** The model sees a system prompt prefixed with the CLI's identity line and an environment
   note (`system_prompt`, approximate: inherent to running the CLI); client tools appear with an `mcp__client__` prefix
   (mapped back). Sampling parameters, stop sequences and forced tool choice are not passed, each recorded as an

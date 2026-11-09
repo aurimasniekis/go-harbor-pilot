@@ -126,6 +126,8 @@ func TestAnthropicCacheControlReachesUpstreamValid(t *testing.T) {
 			"messages": []any{user(text("q1", ""), text("q2", ""), text("q3", ""), text("q4", ""))}}},
 		{"consecutive user messages merged", map[string]any{"model": "chat", "max_tokens": 16,
 			"messages": []any{user(text("q1", "")), user(text("q2", "1h"))}}},
+		{"automatic 1h after an explicit 5m", map[string]any{"model": "chat", "max_tokens": 16, "cache_control": cc("1h"),
+			"system": []any{text("sys", "")}, "messages": []any{user(map[string]any{"type": "text", "text": "q"})}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			up.Push(apptest.Reply{Text: "ok"})
@@ -146,6 +148,16 @@ func TestAnthropicCacheControlReachesUpstreamValid(t *testing.T) {
 	defer res.Body.Close()
 	if res.StatusCode != 400 {
 		t.Fatalf("synthetic upstream accepted a 1h breakpoint after a 5m one: %d", res.StatusCode)
+	}
+	auto := `{"model":"m","max_tokens":16,"cache_control":{"type":"ephemeral","ttl":"1h"},
+		"system":[{"type":"text","text":"s","cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":"q"}]}`
+	res2, err := up.Srv.Client().Post(up.Srv.URL+"/v1/messages", "application/json", strings.NewReader(auto))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res2.Body.Close()
+	if res2.StatusCode != 400 {
+		t.Fatalf("synthetic upstream accepted an automatic 1h breakpoint after a 5m one: %d", res2.StatusCode)
 	}
 }
 

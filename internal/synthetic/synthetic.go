@@ -455,10 +455,17 @@ func checkAnthropicCache(body map[string]any) string {
 		}
 	}
 	n := len(marks)
-	if _, ok := body["cache_control"]; ok {
+	if auto, ok := body["cache_control"].(map[string]any); ok {
+		// The automatic breakpoint lands on the last cacheable block.
+		ttl, _ := auto["ttl"].(string)
+		if ttl == "" {
+			ttl = "5m"
+		}
+		marks = append(marks, mark{"cache_control", ttl})
+	} else if _, ok := body["cache_control"]; ok {
 		n++
 	}
-	if n > 4 {
+	if n = max(n, len(marks)); n > 4 {
 		return fmt.Sprintf("A maximum of 4 blocks with cache_control may be provided. Found %d.", n)
 	}
 	short := false

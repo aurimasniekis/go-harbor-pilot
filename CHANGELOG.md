@@ -17,8 +17,14 @@ attributed to the account they reached. No migrations. New options: `bridges.cla
   or 1 hour) and the next turn resumes it with `--resume`, so the prompt prefix is the CLI's own and the cache is
   read rather than written again. A conversation waiting for tool results resumes with the results added to the
   session. Bounded by `bridges.claude_code.shelf_max_per_account` (default 16) and `shelf_max_bytes` (default 256 MiB),
-  oldest first; deleted at expiry, on account removal and at shutdown. This changes the privacy rule that
-  conversation files are removed when the process ends: content may now stay up to 1 hour after it.
+  oldest first; deleted at expiry, on account removal and at shutdown. An entry expires the TTL after the
+  conversation's last turn, and a conversation whose cache has already expired is not kept. Tool results are written
+  into a kept session only for CLI versions whose session format was verified (2.1.318, 2.1.319, 2.1.321). This
+  changes the privacy rule that conversation files are removed when the process ends: content may now stay up to
+  1 hour after the conversation's last turn.
+- **CLI leftovers removed.** The CLI's per-process files (`config/sessions/<pid>.json` and `.key`, holding a peer
+  token, the session id and the working directory) were left behind when a process was killed. They are removed with
+  the process and swept when no live process owns them.
 - **Which session served a turn** is recorded in the ledger provenance (`bridge_session`: `live_process`,
   `shelved_session`, `transcript`, `new_session`) and shown on the request page next to the cache figures.
 - **Output settings are passed.** `max_tokens` goes to the CLI (`CLAUDE_CODE_MAX_OUTPUT_TOKENS`, up to the model's
@@ -44,12 +50,14 @@ attributed to the account they reached. No migrations. New options: `bridges.cla
 - **Claude Code bridge: an upstream 400 is no longer failed over.** The CLI reports the upstream's 400 without an
   error type, so the bridge passed it on as a generic upstream error, and the gateway retried it on the next
   subscription account, which refused it the same way. It is now `invalid_request`: one attempt, and the client gets
-  a 400. Rate limits, overload and server errors are still retried.
+  a 400. Rate limits, overload and server errors are still retried, and so are the documented account-level 400s
+  (credit balance, billing, a disabled organization).
 - **Prompt-cache rules on Anthropic requests.** The request builder now enforces the Messages API's breakpoint rules on
   the body it sends, since merging, inlining or dropping blocks can break a request the client sent correctly. At most
   four breakpoints (a top-level automatic one counts): the earliest are removed and the last four kept
   (`cache_control_limit`, drop). TTLs must not increase across tools, system and messages, tool-result content
-  included: a `1h` breakpoint after a `5m` one is lowered to `5m` (`cache_control_ttl`, approximate). A request that
+  included, and a top-level automatic breakpoint last: a `1h` breakpoint after a `5m` one is lowered to `5m`
+  (`cache_control_ttl`, approximate). A request that
   already follows the rules is sent unchanged. `cache_control` on blocks inside a tool result is now kept; it used to
   be dropped silently.
 - **Failed requests are attributed.** A request that failed after reaching an account used to be recorded and logged

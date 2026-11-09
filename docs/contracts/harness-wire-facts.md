@@ -123,6 +123,8 @@ Observed as in 1.3 and 1.4 (synthetic upstream, synthetic token, the bridge's fl
 | Resume with a pending tool call | verified (observed) | Without a recorded result the CLI inserts an "interrupted" `tool_result` and a stdin `tool_result` arrives as "(no content)", so the client's result is lost. With the result appended as above, the CLI sends it, inserts "No response requested." and continues with the typed turn. |
 | `CLAUDE_CODE_MAX_OUTPUT_TOKENS` | verified (observed) | Sets the request's `max_tokens` (default 32000; values above 128000 were sent as 128000 for an unknown model). |
 | `--effort <level>` | verified (help, observed) | Sets `output_config.effort`; without it the CLI sent `high`. |
+| Per-process files | verified (observed) | The CLI writes `CLAUDE_CONFIG_DIR/sessions/<pid>.json` and `<pid>.<hash>.key` (0600: a peer token, the session id, the working directory) and leaves them when it is killed; 0.1.4's flags left them too. The bridge removes them when it reaps the process and sweeps those of no live process. |
+| Appended tool results | verified for 2.1.318, 2.1.319, 2.1.321 | The bridge reads `version` from the session's last entry and appends only for these versions. |
 | Mid-conversation system entries | not verified | No documented session entry carries caller-provided system text; the bridge keeps inlining it as user text. |
 
 ## 2. Codex (not installed; doc-claim)

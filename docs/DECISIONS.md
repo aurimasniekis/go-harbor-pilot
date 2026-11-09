@@ -512,7 +512,8 @@ path and adapter version, one work item per fingerprint.
   wrote the whole conversation to its prompt cache again: on a `1h` cache that is twice the input price for every
   token of history. A long conversation paused past the idle timeout paid that on every resumption.
 - **Decision.** Conversation content may stay on disk after its process ends, **up to the conversation's prompt-cache
-  TTL** (5 minutes or 1 hour, the `CLAUDE_CODE_PROMPT_CACHE_TTL` the process ran with). This amends D-026 ("content
+  TTL after the conversation was last used** (5 minutes or 1 hour, the `CLAUDE_CODE_PROMPT_CACHE_TTL` the process ran
+  with): as long as the upstream cache can still hold the prompt, and no longer. This amends D-026 ("content
   does not outlive processes"); the owner approved the change.
   - A process that ends between turns (idle, or waiting for tool results; reasons `idle timeout`, `evicted`, `process
     exited`) has its CLI session file moved to a per-account shelf (`<data_dir>/bridges/claude_code/accounts/<id>/shelf`,
@@ -522,8 +523,14 @@ path and adapter version, one work item per fingerprint.
   - Execute tries a parked process, then a shelved session (a new process with `--resume <its id>`; only the new turn
     is typed, and for pending tool calls the results are appended to the session in the CLI's own entry shape and the
     turn continues with "Continue."), then a rebuilt transcript. A shelved session is used once.
+  - Appending tool results writes an undocumented entry shape, so it is done only for CLI versions it was verified
+    with (2.1.318, 2.1.319, 2.1.321, read from the session's last entry). For any other version the turn is served
+    from the rebuilt transcript and `bridge.shelf.unverified_cli_version` is logged once per version. Resuming a
+    session after a complete turn writes nothing into it (plain `--resume` and the typed turn), so it is not
+    version-gated.
   - Ended by the client going away, an upstream error or shutdown: nothing is kept, as before.
-- **Bounds.** Each entry expires at its TTL from when the process ended and is deleted by the sweeper (every 15 s).
+- **Bounds.** Each entry expires the TTL after the conversation's last use; a process that ends after that is not
+  shelved at all. Expired entries are deleted by the sweeper (every 15 s).
   At most `shelf_max_per_account` entries per account (default 16) and `shelf_max_bytes` in total (default 256 MiB);
   the oldest go first. Pruned accounts lose their entries. Shutdown deletes the shelf; the index is in memory, so
   files found after a restart are deleted at the next sweep, not reused.

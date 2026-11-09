@@ -113,7 +113,7 @@ See [Masking: guarantees and limits](/security/masking).
   defence in depth, run the bridge image or service under a separate user, or in a container that cannot read the data
   directory and the master key.
 - **Parked processes are local state.** When a Claude Code process ends between turns, its session is kept on disk for
-  up to the conversation's prompt-cache lifetime (at most an hour) and the next turn continues it. After a restart, or
+  up to the conversation's prompt-cache lifetime after its last turn (at most an hour) and the next turn continues it. After a restart, or
   once that time has passed, the next request resumes from a transcript rebuilt from your tool's history, with the
   loss recorded, and the prompt cache is usually written again.
 - **Claude Code bridge fidelity.** The model sees a system prompt prefixed with the CLI's identity line and an

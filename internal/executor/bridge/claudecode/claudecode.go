@@ -103,6 +103,8 @@ type Bridge struct {
 	// shelf holds CLI sessions of ended processes by conversation key.
 	shelf  map[string]*shelfEntry
 	closed bool
+	// warned records CLI versions already logged as unverified.
+	warned sync.Map
 	stop   chan struct{}
 	once   sync.Once
 }
@@ -218,8 +220,12 @@ func cacheDirs(home, work string) []string {
 func (b *Bridge) sweepConversationFiles(now time.Time) {
 	b.mu.Lock()
 	live := map[string]bool{}
+	livePids := map[string]bool{}
 	for _, p := range b.procs {
 		live[p.workDir], live[p.runDir], live[p.sessDir] = true, true, true
+		if p.cmd.Process != nil {
+			livePids[strconv.Itoa(p.cmd.Process.Pid)] = true
+		}
 		for _, d := range cacheDirs(p.home, p.workDir) {
 			live[d] = true
 		}
@@ -233,6 +239,19 @@ func (b *Bridge) sweepConversationFiles(now time.Time) {
 			filepath.Join(a, "home", ".cache", "claude-cli-nodejs"))
 	}
 	parents = append(parents, filepath.Join(b.o.Root, "w"), filepath.Join(b.o.Root, "r"))
+	// The CLI's per-process files (config/sessions/<pid>.json and
+	// <pid>.<hash>.key: a peer token, the session id, the working
+	// directory) are left behind when it is killed; those of no live
+	// process go once they are a minute old.
+	for _, a := range accounts {
+		files, _ := os.ReadDir(filepath.Join(a, "config", "sessions"))
+		for _, f := range files {
+			pid, _, _ := strings.Cut(f.Name(), ".")
+			if info, err := f.Info(); err == nil && !livePids[pid] && now.Sub(info.ModTime()) > time.Minute {
+				_ = os.RemoveAll(filepath.Join(a, "config", "sessions", f.Name()))
+			}
+		}
+	}
 	for _, parent := range parents {
 		entries, err := os.ReadDir(parent)
 		if err != nil {
@@ -725,29 +744,36 @@ func (p *proc) kill(reason string) {
 	// A process that ends between turns (idle or waiting for tool results)
 	// holds a complete conversation: its session is shelved so the next
 	// turn can continue it with the same prompt prefix (D-045).
-	var shelf *shelfEntry
-	if (p.state == stateIdle || p.state == stateAwaitingTools) && p.fp != "" && shelvable(reason) {
-		shelf = &shelfEntry{key: p.shelfKey(), accountID: p.accountID, sid: p.sid, pending: append([]string(nil), p.pending...),
-			expires: p.b.o.Now().Add(cacheTTLDuration(p.cacheTTL))}
-	}
+	shelf := p.shelfCandidate(reason, p.b.o.Now())
 	p.state = stateDead
 	p.mu.Unlock()
-	if shelf != nil && len(shelf.pending) > 0 {
-		// The CLI records a tool call in its session shortly after
-		// streaming it; give it that moment before the process goes.
-		src := filepath.Join(p.sessDir, p.sid+".jsonl")
-		for i := 0; i < 100 && !sessionHolds(src, shelf.pending); i++ {
-			time.Sleep(20 * time.Millisecond)
-		}
+	stop := func() {
+		bridge.KillTree(p.cmd)
+		p.sess.Close()
+		_ = p.stdin.Close()
 	}
-	bridge.KillTree(p.cmd)
-	p.sess.Close()
-	_ = p.stdin.Close()
+	// The CLI records a pending tool call in its session shortly after
+	// streaming it; that moment is waited for in the background, so the
+	// reaper never stalls on it.
+	waitForSession := shelf != nil && len(shelf.pending) > 0
+	if !waitForSession {
+		stop()
+	}
 	p.b.mu.Lock()
 	delete(p.b.procs, p.id)
 	p.b.mu.Unlock()
 	go func() {
+		if waitForSession {
+			src := filepath.Join(p.sessDir, p.sid+".jsonl")
+			for i := 0; i < 100 && !sessionHolds(src, shelf.pending); i++ {
+				time.Sleep(20 * time.Millisecond)
+			}
+			stop()
+		}
 		_ = p.cmd.Wait()
+		if p.cmd.Process != nil {
+			removePidFiles(filepath.Join(filepath.Dir(filepath.Dir(p.sessDir)), "sessions"), p.cmd.Process.Pid)
+		}
 		if shelf != nil {
 			p.b.shelve(shelf, filepath.Join(p.sessDir, p.sid+".jsonl"))
 		}
@@ -763,6 +789,14 @@ func (p *proc) kill(reason string) {
 		}
 	}()
 	p.b.o.Log.Debug("bridge.process.ended", "process", p.id, "account_id", p.accountID, "reason", reason, "shelved", shelf != nil)
+}
+
+// removePidFiles deletes the CLI's per-process files of an ended process.
+func removePidFiles(dir string, pid int) {
+	files, _ := filepath.Glob(filepath.Join(dir, strconv.Itoa(pid)+".*"))
+	for _, f := range files {
+		_ = os.Remove(f)
+	}
 }
 
 func randID(n int) string {
@@ -1167,8 +1201,14 @@ func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credential
 					Content json.RawMessage `json:"content"`
 				}
 				_ = json.Unmarshal(last, &lm)
-				if err := appendToolResults(sh.path, lm.Content, b.o.Now()); err != nil {
-					b.o.Log.Warn("bridge.unshelve.failed", "account_id", t.Account.ID, "error", err.Error())
+				if err := b.addResults(sh, lm.Content); err != nil {
+					var uv *unverifiedCLIError
+					if errors.As(err, &uv) {
+						b.warnUnverified(uv.version)
+					} else {
+						b.o.Log.Warn("bridge.unshelve.failed", "account_id", t.Account.ID, "error", err.Error())
+					}
+					// The rebuilt transcript serves the turn instead.
 					b.dropShelved(sh)
 					sh = nil
 				}
