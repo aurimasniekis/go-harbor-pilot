@@ -6,13 +6,16 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/executor"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/executor/bridge"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/credentials"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/synthetic"
@@ -485,5 +488,116 @@ func TestSweepRemovesLeftoverCLIProcessFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, fresh)); err != nil {
 		t.Error("a just-written file was removed")
+	}
+}
+
+// fakeProc is a parked process without the CLI: a sleeping child in its
+// own process group, with a session file in a session directory last
+// touched long ago (the CLI appends in place, so the directory keeps its
+// spawn time).
+func fakeProc(t *testing.T, b *Bridge, age time.Duration) *proc {
+	t.Helper()
+	root := b.o.Root
+	work := filepath.Join(root, "w", "p1")
+	sessDir := filepath.Join(root, "accounts", "acc", "config", "projects", unsafePath.ReplaceAllString(work, "-"))
+	runDir := filepath.Join(root, "r", "run1")
+	for _, d := range []string{work, sessDir, runDir} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sid := newUUID()
+	if err := os.WriteFile(filepath.Join(sessDir, sid+".jsonl"), []byte(`{"uuid":"u1","type":"user"}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	old := b.o.Now().Add(-age)
+	for _, d := range []string{work, sessDir, runDir} {
+		_ = os.Chtimes(d, old, old)
+	}
+	cmd := exec.Command("sleep", "60")
+	bridge.Isolate(cmd)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	sess, err := b.mcp.NewSession(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &proc{b: b, id: "p1", accountID: "acc", sid: sid, cacheTTL: "1h", fp: "fp", state: stateIdle, lastUsed: b.o.Now(),
+		cmd: cmd, stdin: stdin, sess: sess, workDir: work, runDir: runDir, sessDir: sessDir, lines: make(chan line, 1)}
+	b.mu.Lock()
+	b.procs[p.id] = p
+	b.mu.Unlock()
+	return p
+}
+
+// The reaper ends a process and sweeps right after: the sweep must not
+// delete the session of a process whose cleanup (and shelving) is still
+// running, even when its directories are older than the sweep's grace.
+func TestReaperSweepKeepsSessionBeingShelved(t *testing.T) {
+	for range 3 {
+		b, now := shelfRig(t, Options{})
+		p := fakeProc(t, b, 2*time.Hour)
+		p.kill("idle timeout")
+		b.sweepConversationFiles(*now)
+		deadline := time.Now().Add(5 * time.Second)
+		for len(shelfKeys(b)) == 0 && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
+		}
+		if len(shelfKeys(b)) != 1 {
+			t.Fatal("the sweep removed the session before it was shelved")
+		}
+		b.Close()
+	}
+}
+
+// Close waits for processes still in their cleanup and leaves no process
+// group running.
+func TestCloseWaitsForCleanup(t *testing.T) {
+	b, _ := shelfRig(t, Options{})
+	p := fakeProc(t, b, 0)
+	p.mu.Lock()
+	p.state, p.pending = stateAwaitingTools, []string{"toolu_never_recorded"}
+	p.mu.Unlock()
+	p.kill("idle timeout") // waits up to 2 s for the call to be recorded
+	b.Close()
+	b.mu.Lock()
+	n := len(b.reaping)
+	b.mu.Unlock()
+	if n != 0 {
+		t.Fatalf("%d processes still in cleanup after Close", n)
+	}
+	if err := p.cmd.Process.Signal(syscall.Signal(0)); err == nil {
+		t.Fatal("the process outlived Close")
+	}
+}
+
+// With the CLI: a long-running conversation (session directory older than
+// the sweep's grace) ended by the reaper, with the sweep right after it, is
+// still resumed from the shelf.
+func TestBridgeShelvesOldSessionDespiteSweep(t *testing.T) {
+	r := newRig(t)
+	r.up.Push(synthetic.Reply{Text: "first answer"}, synthetic.Reply{Text: "second answer"})
+	msgs := []ir.Message{userText("first question")}
+	res, _ := r.execute(t, msgs, nil)
+	p := r.onlyProc(t)
+	old := time.Now().Add(-2 * time.Hour)
+	for _, d := range []string{p.sessDir, p.workDir, p.runDir} {
+		_ = os.Chtimes(d, old, old)
+	}
+	p.kill("idle timeout")
+	r.b.sweepConversationFiles(time.Now())
+	deadline := time.Now().Add(10 * time.Second)
+	for len(shelfKeys(r.b)) == 0 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	msgs = append(msgs, ir.Message{Role: ir.RoleAssistant, Parts: res.Parts}, userText("second question"))
+	res, ex := r.execute(t, msgs, nil)
+	if res.Parts[0].Text != "second answer" || provenancePath(ex) != pathShelved {
+		t.Fatalf("served by %q", provenancePath(ex))
 	}
 }

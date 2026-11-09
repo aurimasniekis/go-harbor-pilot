@@ -105,8 +105,13 @@ type Bridge struct {
 	closed bool
 	// warned records CLI versions already logged as unverified.
 	warned sync.Map
-	stop   chan struct{}
-	once   sync.Once
+	// reaping holds ended processes whose cleanup (wait, shelve, remove)
+	// has not finished: the sweeper treats their files as live, and Close
+	// waits for them.
+	reaping map[*proc]bool
+	cleanup sync.WaitGroup
+	stop    chan struct{}
+	once    sync.Once
 }
 
 // New creates the bridge and starts its reaper.
@@ -138,7 +143,7 @@ func New(o Options) *Bridge {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	b := &Bridge{o: o, mcp: bridge.NewMCPServer(), procs: map[string]*proc{}, reserved: map[string]int{}, shelf: map[string]*shelfEntry{},
+	b := &Bridge{o: o, mcp: bridge.NewMCPServer(), procs: map[string]*proc{}, reserved: map[string]int{}, shelf: map[string]*shelfEntry{}, reaping: map[*proc]bool{},
 		stop: make(chan struct{})}
 	go b.reaper()
 	return b
@@ -155,6 +160,20 @@ func (b *Bridge) Close() {
 	b.mu.Unlock()
 	for _, p := range ps {
 		p.kill("bridge closed")
+	}
+	// Processes ended earlier may still be in their cleanup (at most the
+	// 2 s wait for a pending tool call); wait for it, then make sure no
+	// process group outlives the server.
+	done := make(chan struct{})
+	go func() { b.cleanup.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		b.mu.Lock()
+		for p := range b.reaping {
+			bridge.KillTree(p.cmd)
+		}
+		b.mu.Unlock()
 	}
 	b.clearShelf()
 	b.mcp.Close()
@@ -221,7 +240,14 @@ func (b *Bridge) sweepConversationFiles(now time.Time) {
 	b.mu.Lock()
 	live := map[string]bool{}
 	livePids := map[string]bool{}
+	owners := make([]*proc, 0, len(b.procs)+len(b.reaping))
 	for _, p := range b.procs {
+		owners = append(owners, p)
+	}
+	for p := range b.reaping {
+		owners = append(owners, p)
+	}
+	for _, p := range owners {
 		live[p.workDir], live[p.runDir], live[p.sessDir] = true, true, true
 		if p.cmd.Process != nil {
 			livePids[strconv.Itoa(p.cmd.Process.Pid)] = true
@@ -761,8 +787,16 @@ func (p *proc) kill(reason string) {
 	}
 	p.b.mu.Lock()
 	delete(p.b.procs, p.id)
+	p.b.reaping[p] = true
+	p.b.cleanup.Add(1)
 	p.b.mu.Unlock()
 	go func() {
+		defer func() {
+			p.b.mu.Lock()
+			delete(p.b.reaping, p)
+			p.b.mu.Unlock()
+			p.b.cleanup.Done()
+		}()
 		if waitForSession {
 			src := filepath.Join(p.sessDir, p.sid+".jsonl")
 			for i := 0; i < 100 && !sessionHolds(src, shelf.pending); i++ {
@@ -987,6 +1021,9 @@ func (b *Bridge) PruneAccounts(active map[string]bool) {
 	}
 	b.mu.Lock()
 	for _, p := range b.procs {
+		keep[safeName(p.accountID)] = true
+	}
+	for p := range b.reaping {
 		keep[safeName(p.accountID)] = true
 	}
 	b.mu.Unlock()

@@ -530,7 +530,9 @@ path and adapter version, one work item per fingerprint.
     version-gated.
   - Ended by the client going away, an upstream error or shutdown: nothing is kept, as before.
 - **Bounds.** Each entry expires the TTL after the conversation's last use; a process that ends after that is not
-  shelved at all. Expired entries are deleted by the sweeper (every 15 s).
+  shelved at all. Expired entries are deleted by the sweeper (every 15 s). An ended process's files count as live for
+  the sweeper until its cleanup has finished, so a session being shelved is not swept; shutdown waits for those
+  cleanups and kills any process group still running.
   At most `shelf_max_per_account` entries per account (default 16) and `shelf_max_bytes` in total (default 256 MiB);
   the oldest go first. Pruned accounts lose their entries. Shutdown deletes the shelf; the index is in memory, so
   files found after a restart are deleted at the next sweep, not reused.
