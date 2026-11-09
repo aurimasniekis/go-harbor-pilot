@@ -34,7 +34,13 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 	// secret is resolved below; fail scrubs it (and any key-shaped text)
 	// from every error before it is recorded, observed or returned.
 	var secret credentials.Secret
+	var built []ir.Loss // the request's losses, once the executor built it
 	fail := func(ae *executor.AttemptError) (bool, *executor.AttemptError) {
+		if ae.Losses == nil {
+			ae.Losses = built
+		} else {
+			ae.Losses = append(ae.Losses[:len(ae.Losses):len(ae.Losses)], mode.losses...)
+		}
 		executor.ScrubError(ae.Err, secret)
 		g.recordCompat(rc, cand, mode, ae.Err)
 		now := g.Clock.Now()
@@ -93,6 +99,7 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 	if aerr != nil {
 		return fail(aerr)
 	}
+	built = append(append([]ir.Loss{}, res.Losses...), mode.losses...)
 	g.teeTrace(ctx, rc, res)
 	g.restore(ctx, rc, res)
 	ar.Mode = string(res.Mode)
@@ -100,7 +107,7 @@ func (g *Gateway) attempt(ctx context.Context, w http.ResponseWriter, rc *reqCtx
 		g.Observe(Observation{At: started, Direction: "request", Protocol: rc.inbound, ProviderID: prov.ID, Mode: res.Mode, Losses: res.Losses,
 			Harness: rc.harness.Name, HarnessVer: rc.harness.Version})
 	}
-	fi := &finalInfo{cand: *cand, mode: res.Mode, losses: append(res.Losses, mode.losses...), compat: mode}
+	fi := &finalInfo{cand: *cand, mode: res.Mode, losses: append(res.Losses, mode.losses...), compat: mode, provenance: res.Provenance}
 	if res.RawStream != nil {
 		return g.deliverRaw(ctx, w, rc, res, fi, &ar, started, rsvID)
 	}
@@ -137,6 +144,9 @@ func (g *Gateway) settleUsage(ctx context.Context, rc *reqCtx, fi *finalInfo, at
 		RunRef: runRef(rc.refs), BindingID: rc.binding.ID, AccountID: acc.ID, ProviderID: fi.cand.ProviderID, Model: fi.cand.Model,
 		Billing: acc.Spec.Billing, Usage: fi.usage, UsageSource: fi.usageSource, Refs: rc.refs, IdempotencyKey: "usage:" + attID,
 		Provenance: map[string]any{"complete": complete, "mode": string(fi.mode)}}
+	for k, v := range fi.provenance {
+		e.Provenance[k] = v
+	}
 	if cost != nil {
 		a := cost.Amount
 		e.Cost, e.Currency, e.CostKind, e.PriceVersion = &a, cost.Currency, cost.Kind, cost.PriceVersion

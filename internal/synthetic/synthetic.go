@@ -31,6 +31,9 @@ type Reply struct {
 	InputTok   int64
 	OutputTok  int64
 	CacheRead  int64
+	// CacheWrite is reported as Anthropic cache_creation_input_tokens
+	// (omitted when zero).
+	CacheWrite int64
 	// Headers are extra response headers (e.g. rate-limit headers).
 	Headers map[string]string
 	// Echo replies with the text of the last user message.
@@ -135,7 +138,11 @@ func (u *Upstream) serve(w http.ResponseWriter, r *http.Request) {
 	u.Requests = append(u.Requests, Captured{Path: r.URL.Path + "?" + r.URL.RawQuery, Header: r.Header.Clone(), Body: body, Raw: string(raw)})
 	u.mu.Unlock()
 	if u.Kind == "anthropic" && strings.HasSuffix(r.URL.Path, "/messages") {
-		if msg := checkAnthropicRoles(body); msg != "" {
+		msg := checkAnthropicRoles(body)
+		if msg == "" {
+			msg = checkAnthropicCache(body)
+		}
+		if msg != "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprintf(w, `{"type":"error","error":{"type":"invalid_request_error","message":%q}}`, msg)
@@ -222,7 +229,7 @@ func (u *Upstream) anthropicStream(w http.ResponseWriter, r Reply) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(200)
 	sse(w, "message_start", js(map[string]any{"type": "message_start", "message": map[string]any{"id": "msg_fake", "type": "message", "role": "assistant",
-		"model": "fake", "content": []any{}, "usage": map[string]any{"input_tokens": r.InputTok, "output_tokens": 1, "cache_read_input_tokens": r.CacheRead}}}))
+		"model": "fake", "content": []any{}, "usage": r.anthropicUsage(r.InputTok, 1)}}))
 	if r.ErrorEvent != "" {
 		sse(w, "error", js(map[string]any{"type": "error", "error": map[string]any{"type": r.ErrorEvent, "message": "synthetic"}}))
 		return
@@ -246,6 +253,14 @@ func (u *Upstream) anthropicStream(w http.ResponseWriter, r Reply) {
 	sse(w, "message_stop", `{"type":"message_stop"}`)
 }
 
+func (r Reply) anthropicUsage(in, out int64) map[string]any {
+	u := map[string]any{"input_tokens": in, "output_tokens": out, "cache_read_input_tokens": r.CacheRead}
+	if r.CacheWrite > 0 {
+		u["cache_creation_input_tokens"] = r.CacheWrite
+	}
+	return u
+}
+
 func (u *Upstream) anthropicJSON(w http.ResponseWriter, r Reply) {
 	content := []any{map[string]any{"type": "text", "text": r.Text}}
 	stop := "end_turn"
@@ -257,7 +272,7 @@ func (u *Upstream) anthropicJSON(w http.ResponseWriter, r Reply) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = io.WriteString(w, js(map[string]any{"id": "msg_fake", "type": "message", "role": "assistant", "model": "fake", "content": content,
-		"stop_reason": stop, "usage": map[string]any{"input_tokens": r.InputTok, "output_tokens": r.OutputTok, "cache_read_input_tokens": r.CacheRead}}))
+		"stop_reason": stop, "usage": r.anthropicUsage(r.InputTok, r.OutputTok)}))
 }
 
 func (u *Upstream) chatStream(w http.ResponseWriter, r Reply) {
@@ -389,6 +404,70 @@ func checkAnthropicRoles(body map[string]any) string {
 			}
 		default:
 			return fmt.Sprintf("messages.%d.role: unexpected role %v", i, mm["role"])
+		}
+	}
+	return ""
+}
+
+// checkAnthropicCache applies the documented prompt-cache rules: at most
+// four cache_control breakpoints (a top-level automatic one included), and
+// TTLs that do not increase in processing order (tools, system, messages):
+// a 1h breakpoint cannot follow a 5m one.
+func checkAnthropicCache(body map[string]any) string {
+	type mark struct{ path, ttl string }
+	var marks []mark
+	add := func(path string, b map[string]any) {
+		cc, ok := b["cache_control"].(map[string]any)
+		if !ok {
+			return
+		}
+		ttl, _ := cc["ttl"].(string)
+		if ttl == "" {
+			ttl = "5m"
+		}
+		marks = append(marks, mark{path + ".cache_control", ttl})
+	}
+	blocks := func(v any) []map[string]any {
+		arr, _ := v.([]any)
+		out := make([]map[string]any, 0, len(arr))
+		for _, x := range arr {
+			if m, ok := x.(map[string]any); ok {
+				out = append(out, m)
+			}
+		}
+		return out
+	}
+	for i, t := range blocks(body["tools"]) {
+		add(fmt.Sprintf("tools.%d", i), t)
+	}
+	for i, b := range blocks(body["system"]) {
+		add(fmt.Sprintf("system.%d", i), b)
+	}
+	for i, m := range blocks(body["messages"]) {
+		for j, b := range blocks(m["content"]) {
+			p := fmt.Sprintf("messages.%d.content.%d", i, j)
+			add(p, b)
+			if b["type"] == "tool_result" {
+				for k, nb := range blocks(b["content"]) {
+					add(fmt.Sprintf("%s.content.%d", p, k), nb)
+				}
+			}
+		}
+	}
+	n := len(marks)
+	if _, ok := body["cache_control"]; ok {
+		n++
+	}
+	if n > 4 {
+		return fmt.Sprintf("A maximum of 4 blocks with cache_control may be provided. Found %d.", n)
+	}
+	short := false
+	for _, m := range marks {
+		if m.ttl == "1h" && short {
+			return m.path + ".ttl: a ttl='1h' cache_control block must not come after a ttl='5m' cache_control block"
+		}
+		if m.ttl != "1h" {
+			short = true
 		}
 	}
 	return ""

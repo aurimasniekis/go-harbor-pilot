@@ -95,6 +95,36 @@ These were observed by running the real binary with `ANTHROPIC_BASE_URL` pointed
 | Errors | an upstream error produces an `assistant` line with `error` (`rate_limit`, `authentication_failed`, …) and `api_error_status`, then a `result` with `is_error: true`, `terminal_reason: api_error` and, for subscription limits, `api_error: usage_limit_reached`. |
 | `rate_limit_event` | `{status, resetsAt, rateLimitType, utilization?, unifiedWindows: {five_hour, seven_day, seven_day_overage_included: {utilization, resetsAt, status}}}`, derived from `anthropic-ratelimit-unified-*` response headers; emitted for OAuth (setup-token) auth only. |
 
+### 1.4 Prompt caching in the bridge (2026-11-09, 2.1.318 and 2.1.321)
+
+Observed the same way as 1.3: the real binaries (`~/.local/share/claude/versions/2.1.318` and `2.1.321`) against a local synthetic upstream, with a synthetic `sk-ant-oat01-…` token and the bridge's own flags (`--system-prompt-file`, `--tools ""`, MCP client tools).
+
+| Fact | Status | Observation |
+|---|---|---|
+| The CLI's own breakpoints | verified (observed) | Three `cache_control` markers per request: the identity block and the `--system-prompt-file` block in `system`, and the last message. With `CLAUDE_CODE_PROMPT_CACHE_TTL` unset, all three were `{"type":"ephemeral","ttl":"1h"}` in this setup (subscription-style token, synthetic upstream). A live deployment has shown a `5m` marker from the CLI ahead of a client's `1h` one, so the default may depend on the version, the account or a server-side setting; the bridge always sets the variable. |
+| `CLAUDE_CODE_PROMPT_CACHE_TTL=5m\|1h` | verified (observed) | Sets the TTL of all three markers: `5m` gives `{"type":"ephemeral"}`, `1h` gives `ttl: "1h"`. The name is also a string literal in the binary. |
+| `FORCE_PROMPT_CACHING_5M=1` | verified (observed) | Forces `5m` on all three. The bridge removes it from the operator's extra environment so the per-conversation TTL wins. |
+| `DISABLE_PROMPT_CACHING`, `ENABLE_PROMPT_CACHING_1H` | literal in the binary | Not used by the bridge; semantics not checked. |
+| `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1` | literal in the binary | With the bridge's flags (own system prompt, no built-in tools) no git status reached the request with or without it, even with the work directory inside a repository with a commit; only the environment note's "Is a git repository" line changed with the directory. The bridge sets it as a safeguard for prompt stability. |
+| Client markers in the transcript | verified (observed) | Markers on transcript or stdin blocks are sent as is, after the CLI's own system markers: a client `1h` after a CLI `5m`, or more than four in total, is a 400 from the upstream. The bridge removes them. |
+| A 400 from the upstream | verified (observed) | Reported as an `assistant` line with `api_error_status: 400` and no `error` type, text `API Error: 400 <upstream message>`; the bridge classifies it as `invalid_request` (not failed over). |
+| Help text | verified | `claude --help` lists no flag for the cache TTL; the environment variable is the only control found. The one cache-related flag, `--exclude-dynamic-system-prompt-sections`, moves per-machine sections out of the default system prompt for cross-user reuse and is ignored with a custom system prompt, which the bridge always uses. |
+
+### 1.5 Sessions and output settings (2026-11-09, 2.1.318 and 2.1.321)
+
+Observed as in 1.3 and 1.4 (synthetic upstream, synthetic token, the bridge's flags).
+
+| Fact | Status | Observation |
+|---|---|---|
+| Session file | verified (observed) | With `--session-id <uuid>` (or `--resume`) the CLI writes `CLAUDE_CONFIG_DIR/projects/<cwd, non-alphanumerics as '-'>/<uuid>.jsonl`, mode 0600. `CLAUDE_CODE_SKIP_PROMPT_HISTORY=1` turns this off; the bridge no longer sets it. No other file with conversation content appeared in `-p` mode (no prompt history file). |
+| When it is written | verified (observed) | A completed turn is on disk before the `result` line. A turn that ends in a pending MCP tool call is written about 20–40 ms after the call is streamed; the bridge waits for it (up to 2 s) before ending such a process. |
+| Entry shapes | observed, undocumented | Entries chain by `uuid`/`parentUuid`. Besides `user` and `assistant` messages the file holds bookkeeping entries (`queue-operation`, `api-request`, `attachment` with `renderedRole: "system"` for the environment note and date). A tool result is a `user` entry whose `message.content` holds the `tool_result` blocks, with `toolUseResult` and `sourceToolAssistantUUID`. The bridge appends only that shape. |
+| Resume from another work directory | verified (observed) | Copying the file to the new work directory's projects folder and passing `--resume <uuid>` replays the conversation: every earlier message is sent unchanged (the environment note as recorded), and the CLI appends an "Environment update" naming the new directory after the new turn. A string-content message and a one-text-block message are the same prompt; the CLI switches between them when it moves its breakpoint. |
+| Resume with a pending tool call | verified (observed) | Without a recorded result the CLI inserts an "interrupted" `tool_result` and a stdin `tool_result` arrives as "(no content)", so the client's result is lost. With the result appended as above, the CLI sends it, inserts "No response requested." and continues with the typed turn. |
+| `CLAUDE_CODE_MAX_OUTPUT_TOKENS` | verified (observed) | Sets the request's `max_tokens` (default 32000; values above 128000 were sent as 128000 for an unknown model). |
+| `--effort <level>` | verified (help, observed) | Sets `output_config.effort`; without it the CLI sent `high`. |
+| Mid-conversation system entries | not verified | No documented session entry carries caller-provided system text; the bridge keeps inlining it as user text. |
+
 ## 2. Codex (not installed; doc-claim)
 
 | Item | Value |

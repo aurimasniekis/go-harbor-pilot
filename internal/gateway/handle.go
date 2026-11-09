@@ -85,6 +85,18 @@ type reqCtx struct {
 	traceEvents []ir.Event
 	traceResp   *ir.Response
 	started     int // upstream attempts started
+	// tried is the last attempt that reached an account and failed; a
+	// request that ends in an error is attributed to it.
+	tried *triedAttempt
+	// skipped lists candidates passed over at dispatch (busy, local rate
+	// limit, open compatibility breaker), recorded with the decision.
+	skipped []routing.Exclusion
+}
+
+type triedAttempt struct {
+	cand   routing.Candidate
+	mode   executor.Mode
+	losses []ir.Loss
 }
 
 func (g *Gateway) handler(p ir.Protocol) http.HandlerFunc {
@@ -345,9 +357,20 @@ func (g *Gateway) dispatch(ctx context.Context, w http.ResponseWriter, rc *reqCt
 		}
 		acc := rc.snap.Accounts[cand.AccountID]
 		prov := rc.snap.Providers[cand.ProviderID]
+		skip := func(reason, detail string) {
+			rc.skipped = append(rc.skipped, routing.Exclusion{ProviderID: cand.ProviderID, AccountID: cand.AccountID, Account: cand.Account,
+				Model: cand.Model, Stage: "dispatch", Reason: reason, Detail: detail})
+		}
+		// The failover reason belongs to an attempt that follows a failed
+		// one; a candidate skipped before any attempt ran is not one.
+		attemptStep := step
+		if rc.started == 0 {
+			attemptStep = "primary"
+		}
 		if lim := acc.Spec.RequestsPerMinute; lim > 0 {
 			if ok, _ := g.limiter("account:"+acc.ID, lim).Allow(acc.ID); !ok {
 				lastErr = &ir.Error{Kind: ir.ErrRateLimited, Message: "local request rate limit for account " + acc.Name}
+				skip("local_rate_limit", lastErr.Message)
 				rc.outcome.Attempts = append(rc.outcome.Attempts, AttemptOutcome{Candidate: cand, Err: lastErr, Step: step})
 				prev = &cand
 				continue
@@ -356,6 +379,7 @@ func (g *Gateway) dispatch(ctx context.Context, w http.ResponseWriter, rc *reqCt
 		mode, ok, cerr := g.compatMode(rc, &cand)
 		if !ok {
 			lastErr = cerr
+			skip("compat_open", cerr.Message)
 			rc.outcome.Attempts = append(rc.outcome.Attempts, AttemptOutcome{Candidate: cand, Err: lastErr, Step: step + ":compat_open"})
 			prev = &cand
 			continue
@@ -377,9 +401,12 @@ func (g *Gateway) dispatch(ctx context.Context, w http.ResponseWriter, rc *reqCt
 			var ce *accounting.CapacityError
 			if errors.As(err, &ce) {
 				lastErr = &ir.Error{Kind: ir.ErrRateLimited, Message: ce.Error()}
+				reason := ce.Limit
 				if strings.HasPrefix(ce.Limit, "budget") {
 					lastErr.Kind = ir.ErrBudget
+					reason = "budget"
 				}
+				skip(reason, ce.Error())
 				ao.Err = lastErr
 				rc.outcome.Attempts = append(rc.outcome.Attempts, ao)
 				if g.Metrics != nil {
@@ -396,13 +423,14 @@ func (g *Gateway) dispatch(ctx context.Context, w http.ResponseWriter, rc *reqCt
 			g.Metrics.ReservationsTotal.WithLabelValues("taken").Inc()
 		}
 		rc.current = &ao
-		delivered, aerr := g.attempt(ctx, w, rc, &cand, attID, len(rc.outcome.Attempts)+1, step, rsv.ID, mode)
+		delivered, aerr := g.attempt(ctx, w, rc, &cand, attID, rc.started+1, attemptStep, rsv.ID, mode)
 		rc.current = nil
 		if delivered {
 			// finish (called from delivery) recorded this attempt as final.
 			return
 		}
 		ao.Err, ao.Executed = aerr.Err, aerr.Executed
+		rc.tried = &triedAttempt{cand: cand, mode: execMode(&cand, mode), losses: aerr.Losses}
 		rc.outcome.Attempts = append(rc.outcome.Attempts, ao)
 		lastErr = aerr.Err
 		if !failoverAllowed(aerr) || ctx.Err() != nil {
@@ -423,6 +451,18 @@ func (g *Gateway) dispatch(ctx context.Context, w http.ResponseWriter, rc *reqCt
 	}
 	g.finish(ctx, rc, status, lastErr, nil)
 	g.writeError(w, rc.inbound, lastErr, rc.id)
+}
+
+// execMode is how an attempt on cand runs (the executors' rule), for
+// attempts that failed before reporting it.
+func execMode(cand *routing.Candidate, m attemptMode) executor.Mode {
+	switch {
+	case m.passthrough:
+		return executor.ModePassthrough
+	case cand.Native:
+		return executor.ModeNative
+	}
+	return executor.ModeTranslated
 }
 
 // budgetRefusedAll reports whether there were attempts and a blocking
@@ -464,6 +504,21 @@ func (g *Gateway) finish(ctx context.Context, rc *reqCtx, status string, e *ir.E
 		rc.rec.Losses = final.losses
 		rc.rec.BytesOut = final.bytesOut
 	}
+	if len(rc.skipped) > 0 {
+		if dec, ok := rc.rec.Decision.(*routing.Decision); ok && dec != nil {
+			// A copy: the routing decision may be read concurrently.
+			d := *dec
+			d.Excluded = append(slices.Clone(dec.Excluded), rc.skipped...)
+			rc.rec.Decision = &d
+		}
+	}
+	if final == nil && rc.tried != nil {
+		// The request failed after reaching an account: record the last
+		// one tried, so errors are attributable like successes.
+		t := rc.tried
+		rc.rec.FinalAccountID, rc.rec.FinalProviderID, rc.rec.FinalModel, rc.rec.Mode = t.cand.AccountID, t.cand.ProviderID, t.cand.Model, string(t.mode)
+		rc.rec.Losses = t.losses
+	}
 	if final != nil && rc.current != nil {
 		rc.outcome.Attempts = append(rc.outcome.Attempts, *rc.current)
 		rc.outcome.FinalIndex = len(rc.outcome.Attempts) - 1
@@ -501,6 +556,7 @@ type finalInfo struct {
 	losses      []ir.Loss
 	bytesOut    int64
 	compat      attemptMode
+	provenance  map[string]any // executor-provided ledger provenance
 }
 
 // reserveEstimate prices the worst case of an attempt (input estimated at

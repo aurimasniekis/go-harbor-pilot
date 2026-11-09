@@ -98,6 +98,11 @@ func cliError(kind string, status int, msg string, retryAt int64, now time.Time)
 		e.Kind = ir.ErrOverloaded
 	default:
 		switch {
+		case status == 400:
+			// The upstream refused the request itself (the CLI reports it
+			// without a type): another account would refuse it too, so it
+			// is the client's error and not failed over.
+			e.Kind = ir.ErrInvalidRequest
 		case status == 429:
 			e.Kind = ir.ErrRateLimited
 		case status == 401:

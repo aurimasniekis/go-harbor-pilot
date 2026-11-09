@@ -252,6 +252,13 @@ function Answer({ r, d, names }: { r: Detail; d: Decision; names: Names }) {
     )
   } else if (r.status === 'blocked') {
     parts.push(<span key="blocked">Blocked{r.error_message ? `: ${r.error_message}` : ' by policy'}.</span>)
+  } else if (r.status === 'error' && r.final_account_id) {
+    parts.push(
+      <span key="err">
+        Failed on <b>{names.account(r.final_account_id)}</b> · <b>{r.final_model}</b>
+        {r.error_message ? `: ${r.error_message}` : ''}.
+      </span>,
+    )
   } else if (r.status === 'error') {
     parts.push(<span key="err">Not served{r.error_message ? `: ${r.error_message}` : ''}.</span>)
   } else {
@@ -377,7 +384,8 @@ function RoutePath({ r, d, names }: { r: Detail; d: Decision; names: Names }) {
     },
     { label: 'Fallback group', value: d.pool || '—', hint: 'The ordered list of account and model pairs tried in turn.' },
     {
-      label: r.mode === 'translated' ? 'Served by · translated' : 'Served by',
+      // A failed request names the last account it reached.
+      label: `${r.status === 'ok' || !r.final_account_id ? 'Served by' : 'Last tried'}${r.mode === 'translated' ? ' · translated' : ''}`,
       value: r.final_account_id ? `${names.account(r.final_account_id)} · ${r.final_model}` : 'Not served',
       hint: r.mode === 'translated' ? 'Translated: the request was converted to the provider’s format.' : r.mode === 'native' ? 'Direct: no conversion was needed.' : undefined,
     },
@@ -421,7 +429,7 @@ function RoutePath({ r, d, names }: { r: Detail; d: Decision; names: Names }) {
 
 const attemptIcon = (status: string) => (status === 'ok' ? <CircleCheck size={14} /> : status === 'error' ? <CircleX size={14} /> : <CircleDashed size={14} />)
 
-function Attempts({ attempts, names }: { attempts: Attempt[]; names: Names }) {
+export function Attempts({ attempts, names }: { attempts: Attempt[]; names: Pick<Names, 'account' | 'provider'> }) {
   if (attempts.length === 0) {
     return (
       <Text size="sm" c="dimmed">
@@ -516,10 +524,12 @@ function Candidates({ d }: { d: Decision }) {
 
 function CostLine({ r }: { r: Detail }) {
   const t = r.tokens
+  const session = bridgeSession(r.ledger)
   const tokens = [
     isKnown(t.input) ? `${short(t.input)} in` : undefined,
     isKnown(t.output) ? `${short(t.output)} out` : undefined,
     isKnown(t.cache_read) && t.cache_read > 0 ? `${short(t.cache_read)} cached` : undefined,
+    isKnown(t.cache_write) && t.cache_write > 0 ? `${short(t.cache_write)} cache write` : undefined,
     isKnown(t.reasoning) && t.reasoning > 0 ? `${short(t.reasoning)} reasoning` : undefined,
   ].filter(Boolean)
   return (
@@ -535,8 +545,38 @@ function CostLine({ r }: { r: Detail }) {
       )}
       {' · '}
       {tokens.length ? tokens.join(' / ') : <Unknown reason={NOT_REPORTED} />}
+      {session && (
+        <Tooltip label={session.help}>
+          <span className="muted"> · {session.label}</span>
+        </Tooltip>
+      )}
     </Text>
   )
+}
+
+const bridgeSessions: Record<string, { label: string; help: string }> = {
+  live_process: { label: 'CLI process kept running', help: 'A Claude Code process waiting for this conversation continued it.' },
+  shelved_session: {
+    label: 'CLI session resumed',
+    help: 'The process had ended; its saved session was resumed, so the prompt matched and the cache could be read.',
+  },
+  transcript: {
+    label: 'CLI session rebuilt',
+    help: 'No process or saved session held this conversation, so it was rebuilt from the request. The prompt cache is usually written again.',
+  },
+  new_session: { label: 'New CLI session', help: 'The first turn of a conversation.' },
+}
+
+/** Which Claude Code session served the request, from the ledger provenance. */
+export function bridgeSession(ledger: { provenance: unknown }[]): { label: string; help: string } | undefined {
+  for (const l of ledger) {
+    const p = l.provenance
+    if (p && typeof p === 'object' && 'bridge_session' in p) {
+      const v = (p as Record<string, unknown>).bridge_session
+      if (typeof v === 'string') return bridgeSessions[v] ?? { label: v, help: '' }
+    }
+  }
+  return undefined
 }
 
 /** Tools, translation and masking: one row each, detail only when something happened. */
@@ -758,9 +798,12 @@ function ReplayDrawer({ r, d, opened, onClose }: { r: Detail; d: Decision; opene
   })
   const res = run.data
   const failed = r.attempt_list.filter((a) => a.status !== 'ok')
-  const servedThen = r.final_account_id
-    ? `${names.account(r.final_account_id)} · ${r.final_model}${failed.length > 0 ? ` (after ${failed.map((a) => attemptProblem(a)).join(', ')})` : ''}`
-    : 'not served'
+  const servedThen =
+    r.final_account_id && r.status === 'ok'
+      ? `${names.account(r.final_account_id)} · ${r.final_model}${failed.length > 0 ? ` (after ${failed.map((a) => attemptProblem(a)).join(', ')})` : ''}`
+      : r.final_account_id
+        ? `not served (failed on ${names.account(r.final_account_id)} · ${r.final_model})`
+        : 'not served'
   return (
     <FormDrawer open={opened} onClose={onClose} title="Replay with current config" size="md" dirty={false}>
       <Stack gap="md" aria-label="Replay" role="region">

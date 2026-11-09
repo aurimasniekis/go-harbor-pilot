@@ -81,7 +81,7 @@ flowchart LR
 | Alert storms | Notification failures never create events, rules cannot subscribe to notification events, and cooldowns and grouping apply. |
 | Large or slow requests | Body and parser limits, per-client concurrency, bounded writes to slow clients, idle timeouts on upstream streams. |
 | Malicious routing expressions | Expressions compile against a typed environment with node and memory limits and no I/O. Publishing needs the operator role and is audited. |
-| CLI bridge escapes | The vendor CLIs run with their own tools turned off, a fail-closed check stops any turn that uses one anyway, secrets never appear in process arguments, and conversation files are removed when processes end. |
+| CLI bridge escapes | The vendor CLIs run with their own tools turned off, a fail-closed check stops any turn that uses one anyway, secrets never appear in process arguments, and conversation files are removed when processes end, except a Claude Code session ended between turns, which is kept up to its prompt-cache lifetime (at most an hour) so the next turn reads the cache. |
 
 The full threat model, with every asset and actor, is in
 [docs/THREAT_MODEL.md](https://github.com/aurimasniekis/go-harbor-pilot/blob/main/docs/THREAT_MODEL.md). Decisions

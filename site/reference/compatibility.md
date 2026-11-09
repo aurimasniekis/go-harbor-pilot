@@ -68,6 +68,18 @@ doesn't know. Where an entry may appear is left to the provider, which answers 4
 loss. In the other direction, a later `system` or `developer` message from an OpenAI client reaches Anthropic as user
 text, because the target model might not accept the role.
 
+### Prompt-cache breakpoints
+
+Anthropic accepts at most four `cache_control` breakpoints per request, and their lifetimes must not increase from
+tools to system to messages: a one-hour breakpoint can't follow a five-minute one. Harbor Pilot checks the request it
+sends, because merging or dropping blocks on the way can break a request your tool sent correctly.
+
+| Provider | What the provider receives | Status |
+|---|---|---|
+| Anthropic | Your breakpoints unchanged when they follow the rules. Over four: the last four are kept, since the last one covers the most. A one-hour breakpoint after a five-minute one becomes five minutes. Each change is recorded as a loss | contract-tested (synthetic upstream) |
+| Claude Code bridge | The CLI's own breakpoints instead of yours (recorded as an approximate loss), with your cache lifetime: one hour if any of your breakpoints asks for it or you set none, five minutes if all of yours ask for five. Cache reads and writes show on the request | contract-tested |
+| Codex bridge | Not applicable: the conversation is sent as text | implemented |
+
 ## CLI bridges
 
 The bridges serve subscription accounts through the vendors' own CLIs. They take Harbor Pilot's internal request
