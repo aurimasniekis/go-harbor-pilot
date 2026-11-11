@@ -147,18 +147,27 @@ func (e *Executor) Execute(ctx context.Context, t executor.Target, cred credenti
 	var body []byte
 	var losses []ir.Loss
 	var err error
+	var ferr error
+	var fields ir.Losses
 	if req.Passthrough {
 		if up != req.Inbound {
 			return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrUnsupported, Message: "native passthrough requires an upstream speaking " + string(req.Inbound)}}
 		}
 		mode = executor.ModePassthrough
-		body, err = passthroughBody(req.RawBody, t.Model, up, stream)
+		body, ferr = passthroughBody(req.RawBody, t, up, stream, &fields)
 	} else {
 		body, losses, err = build(req.IR, t, up, stream)
+		if err == nil {
+			body, ferr = applyRequestFields(body, t.ModelSpec, &fields)
+		}
 	}
 	if err != nil {
 		return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrInternal, Message: "could not build upstream request"}}
 	}
+	if ferr != nil {
+		return nil, &executor.AttemptError{Err: requestFieldError(ferr)}
+	}
+	losses = append(losses, fields.List()...)
 	if ir.HasReject(losses) && !req.AllowLosses {
 		var feats []string
 		for _, l := range losses {
@@ -349,17 +358,37 @@ func build(r *ir.Request, t executor.Target, up ir.Protocol, stream bool) ([]byt
 
 // passthroughBody forwards the client body, changing only the model field
 // (and the stream flag the gateway relies on) for protocols that carry them.
-func passthroughBody(raw []byte, model string, p ir.Protocol, stream bool) ([]byte, error) {
+// A model's configured request fields are applied here too, because the
+// client's bytes are what would otherwise bypass them.
+func passthroughBody(raw []byte, t executor.Target, p ir.Protocol, stream bool, fields *ir.Losses) ([]byte, error) {
+	fs, ok := configuredFields(t.ModelSpec)
 	if p == ir.Gemini {
-		return raw, nil
+		if !ok {
+			return raw, nil
+		}
+		// Gemini carries the model in the path, so its body is otherwise
+		// untouched; the configured fields still apply.
+		o, err := wire.ParseObject(raw)
+		if err != nil {
+			return nil, err
+		}
+		if err := mergeFields(o, fs, fields); err != nil {
+			return nil, err
+		}
+		return wire.Marshal(o)
 	}
 	o, err := wire.ParseObject(raw)
 	if err != nil {
 		return nil, err
 	}
-	o["model"] = wire.MustMarshal(model)
+	o["model"] = wire.MustMarshal(t.Model)
 	if p == ir.OpenAIChat && stream {
 		o["stream_options"] = json.RawMessage(`{"include_usage":true}`)
+	}
+	if ok {
+		if err := mergeFields(o, fs, fields); err != nil {
+			return nil, err
+		}
 	}
 	return wire.Marshal(o)
 }
