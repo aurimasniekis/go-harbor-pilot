@@ -3,6 +3,27 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
+## Unreleased
+
+### Providers
+
+- **Upstream request fields per model (D-045).** A model in a provider's catalog can carry extra upstream request
+  body fields, so a client no longer has to send them. Two shapes: **request fields**, a free-form JSON object for
+  vendor options this gateway does not model (OpenRouter `transforms`, Gemini `safetySettings`), and **pin the
+  upstream provider**, a typed block sent as the request's `provider` (order, only, ignore, sort, fallbacks, data
+  collection, zero data retention, quantizations, max price) on OpenAI-compatible providers such as OpenRouter. Both
+  appear under **Upstream request fields** in a model's dialog, and a model that uses them shows an **Upstream fields**
+  badge.
+- **Conflict rule.** **When the client already sends one of these** chooses between **Send mine and replace theirs**
+  (`request_field_policy: "configured"`, the default), **Keep theirs, only fill missing ones** (`"client"`) and
+  **Refuse requests that set them** (`"reject"`, answered with 400 and never sent upstream). An override or a kept
+  client value is recorded as an approximate translation loss `request_field:<name>` and shows on the request page.
+- **Where it applies.** Translated, native and passthrough requests for Anthropic, OpenAI, OpenAI-compatible, Gemini
+  and Ollama providers, including the classifier and probe calls. CLI bridge providers refuse the fields. A model that
+  configures nothing leaves the request body byte-for-byte unchanged, and the gateway's structural fields (`model`,
+  `messages`, `stream`, `tools` and similar) cannot be configured. The two new spec fields and the policy are in
+  `api/openapi.yaml`; no migration is needed.
+
 ## 0.1.4 (2026-11-08)
 
 One-time budgets, a spend cache that makes budget checks fast for every period, a system information endpoint and

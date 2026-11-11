@@ -68,6 +68,28 @@ cost. **Add a model** to set:
 
 These prices are what [Spend](/operators/spend) calls _estimated cost_.
 
+### Upstream request fields
+
+Some upstreams accept request options this gateway does not model, and some routers let the caller choose which
+provider serves the model. Rather than putting that in every client's configuration, set it once on the model under
+**Upstream request fields**:
+
+- **Pin the upstream provider** (OpenAI-compatible providers only, such as OpenRouter). Name a particular provider in
+  **Prefer in order**, **Only these** or **Never these**; choose a **Rank by** order, restrict **Providers that store
+  prompts**, require **zero data retention** or **all parameters**, list **Quantizations**, and **Cap the price** per
+  million tokens, per request or per image. A field left at its default is omitted from the request rather than sent,
+  so the router's own default applies.
+- **Other fields (JSON object)** is the escape hatch for anything else the upstream understands, such as `transforms`
+  or Gemini's `safetySettings`. It must be a JSON object; the model's structural fields (`model`, `messages`,
+  `stream`, `tools` and similar) are refused, because the gateway builds those from the client's request.
+- **When the client already sends one of these** decides the conflict: **Send mine and replace theirs** (the default),
+  **Keep theirs, only fill missing ones**, or **Refuse requests that set them**. A refusal answers the client with 400
+  and never reaches the upstream. An override or a kept client value appears on the request page as a translation
+  loss, so it is never silent.
+
+Models that keep this section empty are forwarded exactly as before. A model with any of it set shows an **Upstream
+fields** badge in the model list.
+
 ## Add an account
 
 **+ Add account** on a provider opens the account dialog:

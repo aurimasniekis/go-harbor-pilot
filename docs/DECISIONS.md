@@ -503,3 +503,33 @@ path and adapter version, one work item per fingerprint.
   `GET /api/v1/budgets/status` filters: `project_id` (+ `binding_id`) returns budgets covering that scope by the
   request path's `applies()`, whatever their state; `scope`/`scope_id` returns budgets defined on exactly that object.
   The commit comes from a `main.commit` build flag, falling back to the Go build info.
+
+## D-045: Per-model upstream request fields (owner, 2026-11-11)
+
+- **Shape.** A provider's model gains three optional spec fields. `request_fields` is a map of extra top-level request
+  body fields kept as raw JSON, for upstreams that accept options this gateway does not model. `provider_routing` is a
+  typed pin rendered as the body's `provider` object (`order`, `only`, `ignore`, `sort`, `allow_fallbacks`,
+  `require_parameters`, `data_collection`, `zdr`, `quantizations`, `max_price`); it is accepted only on
+  `openai_compatible` providers and refused together with a `request_fields.provider` entry. `request_field_policy`
+  is `configured` (default), `client` or `reject`.
+- **Scope is the model, not the pool member.** The pin belongs to the catalog entry the operator maintains once, so a
+  client pipeline stops carrying vendor routing options in its own config. A pool member or an alias cannot override
+  it: every path resolves the same `ModelSpec`, including the classifier and the probe.
+- **Why both shapes.** A typed pin is validated, documented and rendered by the gateway, so a typo fails at save time.
+  The free-form map is the escape hatch for the long tail (Gemini `safetySettings`, OpenRouter `transforms`), where a
+  typed field per vendor would never keep up. Neither is schemaless in an uncontrolled way: names are checked,
+  structural fields are refused, each value is bounded to 8 KiB, and at most 32 fields are allowed.
+- **Structural fields stay the gateway's.** `model`, `messages`, `input`, `contents`, `system`, `systeminstruction`,
+  `instructions`, `stream`, `stream_options`, `tools`, `tool_choice`, `parallel_tool_calls` and `n` are refused in
+  configuration (any letter case), because letting a saved spec rewrite them would silently change what the client
+  asked for. Names are matched case-insensitively at send time too, so a client's `Provider` is replaced rather than
+  duplicated as a second `provider`.
+- **Conflict rule.** `configured` sends the model's value and replaces the client's; `client` keeps the client's value
+  and only fills fields the request omits; `reject` answers 400 `invalid_request` naming the field, before contacting
+  any upstream, so it is never failed over. An override or a kept-client conflict is recorded as an approximate
+  translation loss `request_field:<name>`, so it appears on the request page instead of happening silently.
+- **Every path.** The merge runs on translated bodies, on the built body for native `openai_compatible` calls, and on
+  the client's own bytes in passthrough, including Gemini passthrough, which previously forwarded the body untouched.
+  A model that configures nothing leaves the body byte-for-byte identical, so existing traffic does not change.
+- **Limits.** CLI bridge providers (`claude_code`, `codex`) cannot carry these fields and refuse them in the spec.
+  Transport headers are not covered; use the provider's static headers for those.

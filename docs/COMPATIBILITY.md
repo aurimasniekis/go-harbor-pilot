@@ -72,6 +72,11 @@ The Messages API accepts `{"role": "system", ...}` entries inside `messages[]` o
 | Codex bridge | CLI | per-account `CODEX_HOME` sign-in (`auth.json` seeded from the account credential) | `codex_subscription` quota monitor | official binary, subscription | contract-tested against a fake binary emitting the documented `codex exec --json` events; built-in tool flags and the per-run profile checked against the real codex 0.166.0 with `codex debug prompt-input` (2026-11-05, no model call); live: blocked (no ChatGPT login) | bridge/codex tests |
 | Direct subscription token replay / client impersonation | — | — | — | unsupported (D-001) | unsupported | DECISIONS D-001 |
 
+Every HTTP executor adds a model's configured [upstream request fields](contracts/config.md) to the body, on
+translated, native and passthrough paths, including a typed provider pin on OpenAI-compatible routers (D-045). CLI
+bridge executors refuse them, because the vendor CLI builds its own request. Status: contract-tested against synthetic
+upstreams (scenario O); live: blocked with the provider rows above.
+
 ## 5. Quota monitoring adapters
 
 Adapters live in `internal/quota/providers`; their tiers are served by `GET /api/v1/quota/adapters` (reference: `docs/contracts/reference-quota-harbor.md`). None has been live-verified.

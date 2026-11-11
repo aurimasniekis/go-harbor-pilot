@@ -101,6 +101,11 @@ See [Masking: guarantees and limits](/security/masking).
   entries.
 - **Passthrough sees little.** In passthrough, usage is read best-effort from the raw stream; tool calls, response
   signals and captured content are not available. Passthrough does not avoid provider flags or restrictions.
+- **Upstream request fields reach the HTTP executors only.** A model's extra body fields and provider pin are added
+  for Anthropic, OpenAI, OpenAI-compatible, Gemini and Ollama providers, on translated, native and passthrough calls.
+  CLI bridge providers refuse them, because the vendor CLI builds its own request. They set body fields only, never
+  headers or the query string, and the gateway's structural fields cannot be configured. Harbor Pilot does not check
+  vendor-specific options: a value the upstream rejects comes back as that upstream's error.
 
 ## CLI bridges
 

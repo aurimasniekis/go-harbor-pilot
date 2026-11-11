@@ -122,7 +122,8 @@ Trace (encrypted, TTL)   ProtocolChange / WorkItem   EventDestination   Notifica
 5. **Routing.** Filter ineligible candidates, then evaluate decision rules, then rank deterministically. The routing engine returns a `Decision` with a complete explanation.
 6. **Reserve.** Reserve budget and concurrency capacity in one `BEGIN IMMEDIATE` transaction, which also writes the ledger `reserve` entry.
 7. **Dispatch.** The executor produces an IR event stream. The outbound protocol encoder writes SSE or JSON to the client.
-   - Failover to the next candidate happens **only before the first byte** reaches the client, and only when the attempt failed in a way that is provably unexecuted (the safe-to-retry classification).
+   - Before sending, the executor adds the routed model's configured upstream request fields (D-045) to the body and applies its conflict policy; a model that configures none is sent unchanged.
+   - Failover to the next candidate happens **only before the first byte** reaches the client, and only when the attempt failed in a way that is provably unexecuted (the safe-to-retry classification). A field refused by the conflict policy fails the attempt as `invalid_request` and is never failed over.
    - Streams are never spliced.
 8. **Reconcile.** Commit actual usage to the ledger, release the remainder, and settle unknown usage per policy. Domain transitions (switch, fallback, block, threshold) go to the outbox in the same transaction.
 9. **Telemetry.** Activity, tool observations, trace capture and Protocol Watch observations are published to bounded channels. A full channel drops the item, increments a counter, and marks coverage as `partial`.

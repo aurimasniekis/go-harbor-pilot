@@ -57,6 +57,25 @@ Every kind supports these operations:
   - It is listed in `GET /config/effective` and flagged in the UI.
   - The next Terraform plan shows the difference, and the next Terraform apply sets it back to `in_sync`.
 
+## Per-model upstream request fields
+A model in a provider's catalog may carry fields the gateway adds to every request for it, so clients do not have to
+send them (D-045). They are declared on `spec.models[]` and apply wherever that model is routed.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `request_fields` | object of raw JSON values | Extra top-level request body fields, up to 32, each at most 8 KiB of valid JSON. Names must match `^[A-Za-z_][A-Za-z0-9_.-]{0,63}$`. |
+| `provider_routing` | object | Typed upstream-provider pin, sent as the body's `provider`. Only on `openai_compatible` providers. |
+| `request_field_policy` | `configured` \| `client` \| `reject` | What happens when the client already sends one of these fields. Empty means `configured`. |
+
+`provider_routing` accepts `order`, `only`, `ignore`, `sort` (`price`, `throughput`, `latency`), `allow_fallbacks`,
+`require_parameters`, `data_collection` (`allow`, `deny`), `zdr`, `quantizations` and `max_price`
+(`prompt`, `completion`, `request`, `image`). An unset field is omitted from the request, so `allow_fallbacks: false`
+is sent and an absent `sort` is not. An empty object is dropped when the spec is saved.
+
+Structural fields are refused in `request_fields`, in any letter case: `model`, `messages`, `input`, `contents`,
+`system`, `systeminstruction`, `instructions`, `stream`, `stream_options`, `tools`, `tool_choice`,
+`parallel_tool_calls` and `n`. CLI bridge providers (`claude_code`, `codex`) accept neither field.
+
 ## Routing plan versions
 A plan holds metadata only. Routing logic lives in immutable versions under `/routing-plans/{id}/versions`:
 

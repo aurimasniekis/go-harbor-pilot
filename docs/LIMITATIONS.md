@@ -106,6 +106,12 @@ TRACEABILITY.md (`planned`, `in-progress`).
   protocols the entry reaches Anthropic as user text, and the Codex bridge drops it.
 - **Passthrough telemetry.** Usage is read best-effort from the raw stream; tool calls, response intent signals and
   traces are unavailable. Passthrough does not avoid provider flags or restrictions.
+- **Per-model upstream request fields apply to HTTP executors only.** They are added to the upstream body for
+  Anthropic, OpenAI, OpenAI-compatible, Gemini and Ollama providers, on translated, native and passthrough paths. CLI
+  bridge providers refuse them: the vendor CLI builds its own request, so it cannot carry them. They configure body
+  fields only, never headers or the query string, and the gateway's structural fields (model, messages, prompt,
+  stream, tools) cannot be configured. The operator's values are what the gateway sends: a field the upstream later
+  rejects surfaces as that upstream's error, with no gateway-side validation of vendor-specific options.
 
 ## CLI bridges
 

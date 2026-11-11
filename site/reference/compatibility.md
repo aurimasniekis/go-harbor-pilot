@@ -105,6 +105,11 @@ Recognising which tool sent a request is a guess from its headers, not proof.
 | ChatGPT subscription | Codex bridge | per-account Codex sign-in | `codex_subscription` quota tracker | see CLI bridges |
 | Replaying a subscription token directly, or impersonating a vendor client | | | | **unsupported**, by design |
 
+Any HTTP provider's model can carry [upstream request fields](/operators/providers#upstream-request-fields), including
+a typed provider pin on OpenAI-compatible routers such as OpenRouter (D-045). CLI bridge providers refuse them. The
+pin follows the documented router options; Harbor Pilot does not check them against a live router, so a router that
+changes its schema again needs a matching change here.
+
 ## Quota tracking
 
 | Adapter | Tier | Status |
