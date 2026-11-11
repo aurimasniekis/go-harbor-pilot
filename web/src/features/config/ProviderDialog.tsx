@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ActionIcon, Badge, Checkbox as MCheckbox, Group, Radio, SegmentedControl, SimpleGrid, Stack, Switch, Table, Text } from '@mantine/core'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
@@ -6,27 +6,58 @@ import { Banner, Button } from '@/components/ui'
 import {
   Advanced,
   Dialog,
+  ListField,
   MutationError,
   NameField,
   NumberField,
   SecretRefField,
   SelectField,
+  TextAreaField,
   TextField,
   checkSecretRef,
   nameError,
   useFieldErrors,
 } from '@/components/form'
-import { KeyValueEditor } from '@/components/KeyValueEditor'
+import { KeyValueEditor, useBoundDraft } from '@/components/KeyValueEditor'
 import { TerraformEditWarning } from '@/components/ResourceBadges'
 import { ApiError, apiSend } from '@/lib/api/client'
 import { resourceListQuery } from '@/lib/api/queries'
-import type { AccountRes, AccountSpec, ModelSpec, ProviderRes, ProviderSpec } from '@/lib/api/types'
+import type { AccountRes, AccountSpec, ModelSpec, ProviderRes, ProviderSpec, UpstreamMaxPrice, UpstreamProviderSpec } from '@/lib/api/types'
 import { freeName, isBridge } from '@/features/providers/labels'
+import { cleanModel, emptyProviderRouting, formatRequestFields, hasProviderField, hasUpstreamFields, modelsForType, parseRequestFields } from './upstreamFields'
 import { classifications, providerTypes, type ProviderType } from './constants'
 import { defaultBilling } from './AccountDialog'
 import c from './config.module.css'
 
-const emptyModel = (): ModelSpec => ({ id: '', display_name: '', context_window: 0, max_output_tokens: 0, capabilities: ['streaming'] })
+const emptyModel = (): ModelSpec => ({
+  id: '',
+  display_name: '',
+  context_window: 0,
+  max_output_tokens: 0,
+  capabilities: ['streaming'],
+  request_fields: {},
+  request_field_policy: 'configured',
+})
+
+const policyOptions = [
+  { value: 'configured', label: 'Send mine and replace theirs' },
+  { value: 'client', label: 'Keep theirs, only fill missing ones' },
+  { value: 'reject', label: 'Refuse requests that set them' },
+] as const
+
+/** A three-way choice for an optional boolean: unset means the upstream default. */
+function TriSwitch({ label, hint, value, onChange }: {
+  label: string
+  hint?: string
+  value: boolean | undefined
+  onChange: (v: boolean | undefined) => void
+}) {
+  return (
+    <SelectField label={label} hint={hint} value={value === undefined ? '' : value ? 'yes' : 'no'}
+      onChange={(v) => onChange(v === '' ? undefined : v === 'yes')}
+      options={[{ value: '', label: 'Upstream default' }, { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} />
+  )
+}
 
 /** Plain names for model capabilities. */
 export const capabilityLabels: Record<string, string> = {
@@ -53,12 +84,102 @@ const typeHint: Record<string, string> = {
 
 const classificationName: Record<string, string> = { official: 'Cloud', partial: 'Partial compatibility', unofficial: 'Unofficial', local: 'Local' }
 
+/**
+ * Editor for the extra fields the gateway adds to this model's upstream body,
+ * so clients do not have to send them.
+ */
+function UpstreamFieldsEditor({ model, providerType, onChange, onInvalid }: {
+  model: ModelSpec
+  providerType: ProviderType
+  onChange: (p: Partial<ModelSpec>) => void
+  /** Reports whether the section blocks saving (invalid JSON, a conflict). */
+  onInvalid: (invalid: boolean) => void
+}) {
+  const pin = model.provider_routing
+  const setPin = (p: Partial<UpstreamProviderSpec>) => onChange({ provider_routing: { ...pin, ...p } })
+  const fields = model.request_fields ?? {}
+  const [text, setText] = useBoundDraft(fields, formatRequestFields, (t) => parseRequestFields(t).value)
+  const parsed = parseRequestFields(text)
+  const conflict = hasProviderField(parsed.value) && !!pin
+  const pinAllowed = providerType === 'openai_compatible'
+  const count = Object.keys(fields).length + (pin ? 1 : 0)
+  const price = pin?.max_price
+  const setPrice = (p: Partial<UpstreamMaxPrice>) => setPin({ max_price: { ...price, ...p } })
+  const error = parsed.error ?? (conflict ? 'Remove this provider entry or the pin above; set only one of them.' : undefined)
+  useEffect(() => onInvalid(!!error), [error, onInvalid])
+
+  return (
+    <Advanced label={`Upstream request fields${count ? ` (${count})` : ''}`} defaultOpen={count > 0}>
+      <Text size="xs" c="dimmed">
+        Extra fields added to this model’s request body, whatever the client sends. Requests that configure
+        nothing are forwarded unchanged.
+      </Text>
+      {pinAllowed && (
+        <Stack gap="sm">
+          <Switch label="Pin the upstream provider" description="Ask the router to serve this model from a particular provider."
+            checked={!!pin} onChange={(e) => onChange({ provider_routing: e.currentTarget.checked ? emptyProviderRouting() : undefined })} />
+          {pin && (
+            <>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                <ListField label="Prefer in order" hint="First choice first." value={pin.order ?? []} onChange={(v) => setPin({ order: v })} placeholder="relace" />
+                <ListField label="Only these" hint="Never use any other provider." value={pin.only ?? []} onChange={(v) => setPin({ only: v })} placeholder="deepinfra" />
+                <ListField label="Never these" value={pin.ignore ?? []} onChange={(v) => setPin({ ignore: v })} placeholder="SomeProvider" />
+                <ListField label="Quantizations" hint="Only providers running these weight formats." value={pin.quantizations ?? []} onChange={(v) => setPin({ quantizations: v })} placeholder="fp8" />
+              </SimpleGrid>
+              <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+                <SelectField label="Rank by" value={pin.sort ?? ''} onChange={(v) => setPin({ sort: v })}
+                  options={[{ value: '', label: 'Router default' }, { value: 'price', label: 'Lowest price' }, { value: 'throughput', label: 'Highest throughput' }, { value: 'latency', label: 'Lowest latency' }]} />
+                <SelectField label="Providers that store prompts" value={pin.data_collection ?? ''} onChange={(v) => setPin({ data_collection: v })}
+                  options={[{ value: '', label: 'Router default' }, { value: 'deny', label: 'Never' }, { value: 'allow', label: 'Allowed' }]} />
+                <TriSwitch label="Only zero data retention" value={pin.zdr} onChange={(v) => setPin({ zdr: v })} />
+                <TriSwitch label="Allow fallbacks" hint="Let the router pick another provider." value={pin.allow_fallbacks} onChange={(v) => setPin({ allow_fallbacks: v })} />
+                <TriSwitch label="Require all parameters" hint="Skip providers that would ignore one." value={pin.require_parameters} onChange={(v) => setPin({ require_parameters: v })} />
+              </SimpleGrid>
+              <Stack gap={6}>
+                <Switch label="Cap the price" description="Skip providers above these prices."
+                  checked={!!price} onChange={(e) => setPin({ max_price: e.currentTarget.checked ? {} : undefined })} />
+                {price && (
+                  <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+                    <NumberField label="Prompt" unit="$/1M" min={0} integer={false} value={price.prompt ?? null} onChange={(n) => setPrice({ prompt: n ?? undefined })} w="100%" />
+                    <NumberField label="Completion" unit="$/1M" min={0} integer={false} value={price.completion ?? null} onChange={(n) => setPrice({ completion: n ?? undefined })} w="100%" />
+                    <NumberField label="Per request" unit="$" min={0} integer={false} value={price.request ?? null} onChange={(n) => setPrice({ request: n ?? undefined })} w="100%" />
+                    <NumberField label="Per image" unit="$" min={0} integer={false} value={price.image ?? null} onChange={(n) => setPrice({ image: n ?? undefined })} w="100%" />
+                  </SimpleGrid>
+                )}
+              </Stack>
+            </>
+          )}
+        </Stack>
+      )}
+      <TextAreaField label="Other fields (JSON object)" hint="For anything the upstream accepts, for example transforms or safetySettings."
+        value={text} onChange={(t) => {
+          setText(t)
+          onChange({ request_fields: parseRequestFields(t).value })
+        }}
+        error={error}
+        placeholder={'{\n  "transforms": ["middle-out"]\n}'} mono minRows={3} spellCheck={false} />
+      <SelectField label="When the client already sends one of these"
+        hint="Applies to the fields configured above."
+        value={model.request_field_policy || 'configured'}
+        onChange={(v) => onChange({ request_field_policy: v })}
+        options={policyOptions.map((o) => ({ value: o.value, label: o.label }))} />
+    </Advanced>
+  )
+}
+
 /** Edit one model in its own small dialog. */
-function ModelDialog({ model, onSave, onClose }: { model: ModelSpec; onSave: (m: ModelSpec) => void; onClose: () => void }) {
+export function ModelDialog({ model, providerType, onSave, onClose }: {
+  model: ModelSpec
+  providerType: ProviderType
+  onSave: (m: ModelSpec) => void
+  onClose: () => void
+}) {
   const [m, setM] = useState<ModelSpec>(structuredClone(model))
   const set = (p: Partial<ModelSpec>) => setM({ ...m, ...p })
   const pricing = m.pricing
   const setPrice = (p: Partial<NonNullable<ModelSpec['pricing']>>) => set({ pricing: { ...pricing!, ...p } })
+  const bridge = isBridge(providerType)
+  const [fieldsInvalid, setFieldsInvalid] = useState(false)
   return (
     <Dialog
       open
@@ -66,8 +187,13 @@ function ModelDialog({ model, onSave, onClose }: { model: ModelSpec; onSave: (m:
       onClose={onClose}
       footer={
         <>
+          {fieldsInvalid && (
+            <Text size="xs" c="dimmed" mr="auto">
+              Fix the upstream fields first.
+            </Text>
+          )}
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!m.id.trim()} onClick={() => onSave({ ...m, id: m.id.trim() })}>
+          <Button variant="primary" disabled={!m.id.trim() || fieldsInvalid} onClick={() => onSave(cleanModel(m))}>
             Done
           </Button>
         </>
@@ -98,6 +224,7 @@ function ModelDialog({ model, onSave, onClose }: { model: ModelSpec; onSave: (m:
           <TextField label="Price list label" value={pricing.price_version ?? ''} onChange={(v) => setPrice({ price_version: v })} placeholder="2026-11" />
         </SimpleGrid>
       )}
+      {!bridge && <UpstreamFieldsEditor model={m} providerType={providerType} onChange={set} onInvalid={setFieldsInvalid} />}
     </Dialog>
   )
 }
@@ -146,7 +273,9 @@ export function ProviderDialog({ provider, onClose, onCreated }: {
         headers,
         request_timeout_seconds: reqTimeout ?? 0,
         stream_idle_timeout_seconds: idleTimeout ?? 0,
-        models,
+        // A pin is only valid on an openai_compatible provider; a type change
+        // during creation must not leave one behind.
+        models: modelsForType(models, type),
       }
       const p = provider
         ? await apiSend<ProviderRes>('PUT', `/providers/${encodeURIComponent(provider.id)}`, { name, spec }, { ifMatch: provider.revision })
@@ -318,6 +447,11 @@ export function ProviderDialog({ provider, onClose, onCreated }: {
                             {capabilityLabels[cap] ?? cap}
                           </Badge>
                         ))}
+                        {hasUpstreamFields(m) && (
+                          <Badge size="xs" variant="light" color="blue" title="The gateway adds fields to this model’s upstream requests">
+                            Upstream fields
+                          </Badge>
+                        )}
                       </Group>
                     </Stack>
                   </Table.Td>
@@ -357,6 +491,7 @@ export function ProviderDialog({ provider, onClose, onCreated }: {
       {editingModel !== null && (
         <ModelDialog
           model={editingModel === 'new' ? emptyModel() : models[editingModel]!}
+          providerType={type}
           onClose={() => setEditingModel(null)}
           onSave={(m) => {
             setModels(editingModel === 'new' ? [...models, m] : models.map((x, j) => (j === editingModel ? m : x)))
