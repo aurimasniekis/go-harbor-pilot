@@ -124,7 +124,7 @@ Observed as in 1.3 and 1.4 (synthetic upstream, synthetic token, the bridge's fl
 | `CLAUDE_CODE_MAX_OUTPUT_TOKENS` | verified (observed) | Sets the request's `max_tokens` (default 32000; values above 128000 were sent as 128000 for an unknown model). |
 | `--effort <level>` | verified (help, observed) | Sets `output_config.effort`; without it the CLI sent `high`. |
 | Per-process files | verified (observed) | The CLI writes `CLAUDE_CONFIG_DIR/sessions/<pid>.json` and `<pid>.<hash>.key` (0600: a peer token, the session id, the working directory) and leaves them when it is killed; 0.1.4's flags left them too. The bridge removes them when it reaps the process and sweeps those of no live process. |
-| Appended tool results | verified for 2.1.318, 2.1.319, 2.1.321 | The bridge reads `version` from the session's last entry and appends only for these versions. |
+| Appended tool results | verified for 2.1.318, 2.1.319, 2.1.321, 2.1.322 | The bridge reads `version` from the session's last entry and appends only for these versions. 2.1.322 (2026-11-12): a tool round trip wrote the same entry types with the same keys as 2.1.321, including the CLI's own tool-result `user` entry, and a shelved tool call resumed with the appended results. The bridge image pins 2.1.318 with the auto-updater off (`TestImagePinsVerifiedCLI`). The shelf tests read the installed CLI's version: a verified one must resume the shelved session, any other must fall back to the transcript with the results delivered, so a CLI update alone does not fail them. |
 | Mid-conversation system entries | not verified | No documented session entry carries caller-provided system text; the bridge keeps inlining it as user text. |
 
 ## 2. Codex (not installed; doc-claim)

@@ -524,7 +524,7 @@ path and adapter version, one work item per fingerprint.
     is typed, and for pending tool calls the results are appended to the session in the CLI's own entry shape and the
     turn continues with "Continue."), then a rebuilt transcript. A shelved session is used once.
   - Appending tool results writes an undocumented entry shape, so it is done only for CLI versions it was verified
-    with (2.1.318, 2.1.319, 2.1.321, read from the session's last entry). For any other version the turn is served
+    with (2.1.318, 2.1.319, 2.1.321, 2.1.322, read from the session's last entry). For any other version the turn is served
     from the rebuilt transcript and `bridge.shelf.unverified_cli_version` is logged once per version. Resuming a
     session after a complete turn writes nothing into it (plain `--resume` and the typed turn), so it is not
     version-gated.

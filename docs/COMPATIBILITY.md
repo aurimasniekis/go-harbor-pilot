@@ -74,7 +74,7 @@ Each request records the features the bridge cannot carry as losses. Settings th
 | Sampling (`temperature`, `top_p`, `top_k`), `stop_sequences` | approximate (`sampling`) | no CLI flag | LIMITATIONS.md |
 | Forced `tool_choice` | approximate (`tool_choice`) | no CLI flag | LIMITATIONS.md |
 | Provider-executed tools | dropped (`builtin_tool:*`) | the CLI's tools are off; client tools go through MCP | bridge/claudecode tests |
-| Tool results for a call no live process holds | approximate (`tool_continuation`) | resumed from the shelved session with the results appended, or from a rebuilt transcript, then a "Continue." turn | TestBridgeResumesShelvedToolCall |
+| Tool results for a call no live process holds | approximate (`tool_continuation`) | resumed from the shelved session with the results appended, or from a rebuilt transcript (CLI versions whose session format was not verified), then a "Continue." turn | TestBridgeResumesShelvedToolCall, TestBridgeShelvedToolCallUnverifiedCLI, TestImagePinsVerifiedCLI |
 
 ## 3. Harnesses
 

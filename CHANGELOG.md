@@ -19,7 +19,7 @@ attributed to the account they reached. No migrations. New options: `bridges.cla
   session. Bounded by `bridges.claude_code.shelf_max_per_account` (default 16) and `shelf_max_bytes` (default 256 MiB),
   oldest first; deleted at expiry, on account removal and at shutdown. An entry expires the TTL after the
   conversation's last turn, and a conversation whose cache has already expired is not kept. Tool results are written
-  into a kept session only for CLI versions whose session format was verified (2.1.318, 2.1.319, 2.1.321). This
+  into a kept session only for CLI versions whose session format was verified (2.1.318, 2.1.319, 2.1.321, 2.1.322). This
   changes the privacy rule that conversation files are removed when the process ends: content may now stay up to
   1 hour after the conversation's last turn.
 - **CLI leftovers removed.** The CLI's per-process files (`config/sessions/<pid>.json` and `.key`, holding a peer

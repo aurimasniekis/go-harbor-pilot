@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"syscall"
@@ -168,10 +169,44 @@ func TestBridgeResumesShelvedSessionAfterIdle(t *testing.T) {
 	}
 }
 
-// A process killed while waiting for tool results is shelved; the request
-// carrying the results resumes it and the results reach the model.
+// cliVersion returns the version the CLI reports ("2.1.322 (Claude Code)").
+func cliVersion(t *testing.T, bin string) string {
+	t.Helper()
+	cmd := exec.Command(bin, "--version")
+	cmd.Env = append(os.Environ(), "CLAUDE_CONFIG_DIR="+t.TempDir(), "DISABLE_AUTOUPDATER=1")
+	out, err := cmd.Output()
+	f := strings.Fields(string(out))
+	if err != nil || len(f) == 0 {
+		t.Fatalf("%s --version: %v %q", bin, err, out)
+	}
+	return f[0]
+}
+
+// A process killed while waiting for tool results is shelved, and the
+// request carrying the results continues the conversation. The CLI updates
+// itself, so what the test asserts follows the installed version: a
+// verified one resumes the shelved session; any other is served from the
+// transcript.
 func TestBridgeResumesShelvedToolCall(t *testing.T) {
 	r := newRig(t)
+	v := cliVersion(t, claudeBinary(t))
+	t.Logf("claude %s, verified session format: %v", v, verifiedCLIVersions[v])
+	checkShelvedToolCall(t, r, verifiedCLIVersions[v])
+}
+
+// The fallback for a CLI whose session format was not verified, whatever
+// version is installed.
+func TestBridgeShelvedToolCallUnverifiedCLI(t *testing.T) {
+	// Registered before the rig, so the allowlist is restored after the
+	// bridge has closed.
+	saved := verifiedCLIVersions
+	verifiedCLIVersions = map[string]bool{}
+	t.Cleanup(func() { verifiedCLIVersions = saved })
+	checkShelvedToolCall(t, newRig(t), false)
+}
+
+func checkShelvedToolCall(t *testing.T, r *rig, verified bool) {
+	t.Helper()
 	r.up.Push(synthetic.Reply{ToolName: "mcp__client__get_weather", ToolArgs: `{"city":"Vilnius"}`}, synthetic.Reply{Text: "It is sunny."})
 	msgs := []ir.Message{userText("weather?")}
 	res, _ := r.execute(t, msgs, []ir.Tool{weatherTool})
@@ -183,22 +218,59 @@ func TestBridgeResumesShelvedToolCall(t *testing.T) {
 	msgs = append(msgs, ir.Message{Role: ir.RoleAssistant, Parts: res.Parts},
 		ir.Message{Role: ir.RoleUser, Parts: []ir.Part{{Kind: ir.PartToolResult, ToolResult: &ir.ToolResult{CallID: call.ID, Content: []ir.Part{{Kind: ir.PartText, Text: "sunny, 21C"}}}}}})
 	res, ex := r.execute(t, msgs, []ir.Tool{weatherTool})
-	if res.Parts[0].Text != "It is sunny." || provenancePath(ex) != pathShelved {
-		t.Fatalf("served by %q: %+v", provenancePath(ex), res)
+	want := pathTranscript
+	if verified {
+		want = pathShelved
+	}
+	if res.Parts[0].Text != "It is sunny." || provenancePath(ex) != want {
+		t.Fatalf("served by %q, want %q: %+v", provenancePath(ex), want, res)
 	}
 	reqs := r.up.Snapshot()
-	before, after := upstreamMessages(reqs[0]), upstreamMessages(reqs[1])
-	for i := range before {
-		if after[i] != before[i] {
-			t.Fatalf("prefix differs at %d", i)
-		}
+	if len(reqs) != 2 {
+		t.Fatalf("%d upstream requests", len(reqs))
 	}
-	tail := strings.Join(after[len(before):], "\n")
+	before, after := upstreamMessages(reqs[0]), upstreamMessages(reqs[1])
+	if verified {
+		// The resumed session sends the earlier request's messages unchanged.
+		for i := range before {
+			if after[i] != before[i] {
+				t.Fatalf("prefix differs at %d", i)
+			}
+		}
+		after = after[len(before):]
+	}
+	// Either way the client's result reaches the model, as a result.
+	tail := strings.Join(after, "\n")
 	if !strings.Contains(tail, `"tool_use_id":"`+call.ID+`"`) || !strings.Contains(tail, "sunny, 21C") || strings.Contains(tail, "interrupted") {
 		t.Fatalf("tool result not carried: %s", tail)
 	}
 	if !slices.ContainsFunc(ex.Losses, func(l ir.Loss) bool { return l.Feature == "tool_continuation" }) {
 		t.Fatalf("losses %+v", ex.Losses)
+	}
+	r.b.mu.Lock()
+	n := len(r.b.shelf)
+	r.b.mu.Unlock()
+	if _, err := os.Stat(e.path); n != 0 || err == nil {
+		t.Fatal("the shelved session is used or dropped, not kept")
+	}
+}
+
+// The bridge image pins a CLI whose session format was verified, so a
+// fresh image build keeps appended tool results (its auto-updater is off).
+func TestImagePinsVerifiedCLI(t *testing.T) {
+	raw, err := os.ReadFile("../../../../deploy/Dockerfile.bridge")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := regexp.MustCompile(`(?m)^ARG CLAUDE_CODE_VERSION=(\S+)$`).FindSubmatch(raw)
+	if m == nil {
+		t.Fatal("deploy/Dockerfile.bridge pins no CLAUDE_CODE_VERSION")
+	}
+	if !verifiedCLIVersions[string(m[1])] {
+		t.Fatalf("the image pins claude %s, which is not in verifiedCLIVersions", m[1])
+	}
+	if !strings.Contains(string(raw), "DISABLE_AUTOUPDATER=1") {
+		t.Fatal("the image does not turn off the CLI's auto-updater")
 	}
 }
 

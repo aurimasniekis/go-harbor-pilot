@@ -34,7 +34,7 @@ The control-plane API contract is the generated [`api/openapi.yaml`](../../api/o
 | aurimasniekis/go-pulse | `c4689c8` (v0.1.5) | 2026-11-05 |
 | aurimasniekis/go-spaceman | `e4a915a` | 2026-11-05 |
 | yetone/magpie | `7c1dc19` | 2026-11-09 (prompt-cache handling in the CLI bridge; earlier sections at `bd0f338`, 2026-11-05) |
-| Claude Code CLI | 2.1.318, 2.1.321 | 2026-11-09 (prompt caching, harness-wire-facts §1.4) |
+| Claude Code CLI | 2.1.318, 2.1.321, 2.1.322 | 2026-11-09 (prompt caching, harness-wire-facts §1.4); 2.1.322 2026-11-12 (session entries, §1.5) |
 
 When a source moves past its snapshot, re-verify a fact before relying on it, then update the row.
 

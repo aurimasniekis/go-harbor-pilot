@@ -245,7 +245,7 @@ func (b *Bridge) clearShelf() {
 // for appended tool results (harness-wire-facts §1.5). The CLI updates
 // itself; for any other version the results are not written into its
 // session and the turn is served from a rebuilt transcript.
-var verifiedCLIVersions = map[string]bool{"2.1.318": true, "2.1.319": true, "2.1.321": true}
+var verifiedCLIVersions = map[string]bool{"2.1.318": true, "2.1.319": true, "2.1.321": true, "2.1.322": true}
 
 type unverifiedCLIError struct{ version string }
 
