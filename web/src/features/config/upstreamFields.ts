@@ -73,7 +73,15 @@ export function modelsForType(models: ModelSpec[], type: string): ModelSpec[] {
   return models.map((m) => (m.provider_routing ? { ...m, provider_routing: undefined } : m))
 }
 
-/** True when a free-form key collides with the typed pin (any letter case). */
+/**
+ * Normalises a field name the way the server does: ASCII letters lowered,
+ * `_` and `-` removed, so snake_case and camelCase spellings compare equal.
+ */
+export function normalizeFieldName(name: string): string {
+  return name.replace(/[_-]/g, '').replace(/[A-Z]/g, (c) => c.toLowerCase())
+}
+
+/** True when a free-form key collides with the typed pin (any spelling). */
 export function hasProviderField(fields: Record<string, unknown>): boolean {
-  return Object.keys(fields).some((k) => k.toLowerCase() === 'provider')
+  return Object.keys(fields).some((k) => normalizeFieldName(k) === 'provider')
 }

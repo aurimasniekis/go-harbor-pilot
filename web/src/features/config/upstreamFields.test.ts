@@ -38,9 +38,12 @@ describe('formatRequestFields', () => {
 })
 
 describe('hasProviderField', () => {
-  it('matches the pin key regardless of case', () => {
+  it('matches the pin key in any spelling', () => {
     expect(hasProviderField({ provider: {} })).toBe(true)
     expect(hasProviderField({ Provider: {} })).toBe(true)
+    expect(hasProviderField({ _provider: {} })).toBe(true)
+    expect(hasProviderField({ 'pro-vider': {} })).toBe(true)
+    expect(hasProviderField({ PROVIDER_: {} })).toBe(true)
     expect(hasProviderField({ transforms: [] })).toBe(false)
   })
 })
