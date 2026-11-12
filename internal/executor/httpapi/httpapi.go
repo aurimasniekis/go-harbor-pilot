@@ -154,11 +154,11 @@ func (e *Executor) Execute(ctx context.Context, t executor.Target, cred credenti
 			return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrUnsupported, Message: "native passthrough requires an upstream speaking " + string(req.Inbound)}}
 		}
 		mode = executor.ModePassthrough
-		body, ferr = passthroughBody(req.RawBody, t, up, stream, &fields)
+		body, ferr = passthroughBody(req.RawBody, t, up, stream, req.IR, &fields)
 	} else {
 		body, losses, err = build(req.IR, t, up, stream)
 		if err == nil {
-			body, ferr = applyRequestFields(body, t.ModelSpec, &fields)
+			body, ferr = applyRequestFields(body, t.Provider.Spec.Type, t.ModelSpec, ClientSettingsOf(req.IR, req.RawBody), &fields)
 		}
 	}
 	if err != nil {
@@ -360,8 +360,12 @@ func build(r *ir.Request, t executor.Target, up ir.Protocol, stream bool) ([]byt
 // (and the stream flag the gateway relies on) for protocols that carry them.
 // A model's configured request fields are applied here too, because the
 // client's bytes are what would otherwise bypass them.
-func passthroughBody(raw []byte, t executor.Target, p ir.Protocol, stream bool, fields *ir.Losses) ([]byte, error) {
-	fs, ok := configuredFields(t.ModelSpec)
+func passthroughBody(raw []byte, t executor.Target, p ir.Protocol, stream bool, r *ir.Request, fields *ir.Losses) ([]byte, error) {
+	fs, ok := configuredFields(t.Provider.Spec.Type, t.ModelSpec)
+	var cs ClientSettings
+	if ok {
+		cs = ClientSettingsOf(r, raw)
+	}
 	if p == ir.Gemini {
 		if !ok {
 			return raw, nil
@@ -372,7 +376,7 @@ func passthroughBody(raw []byte, t executor.Target, p ir.Protocol, stream bool, 
 		if err != nil {
 			return nil, err
 		}
-		if err := mergeFields(o, fs, fields); err != nil {
+		if err := mergeFields(o, fs, cs, fields); err != nil {
 			return nil, err
 		}
 		return wire.Marshal(o)
@@ -386,7 +390,7 @@ func passthroughBody(raw []byte, t executor.Target, p ir.Protocol, stream bool, 
 		o["stream_options"] = json.RawMessage(`{"include_usage":true}`)
 	}
 	if ok {
-		if err := mergeFields(o, fs, fields); err != nil {
+		if err := mergeFields(o, fs, cs, fields); err != nil {
 			return nil, err
 		}
 	}
