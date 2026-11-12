@@ -114,6 +114,11 @@ TRACEABILITY.md (`planned`, `in-progress`).
   checks names, size and JSON validity, not the values: a value the upstream rejects surfaces as that upstream's
   error. Conflicts are detected from the client's request only, so a client setting with no equivalent in the
   canonical request and sent under a different name on another protocol is not seen as a conflict.
+- **Gemini requests are parsed under the camelCase spelling only.** The Gemini parser reads `generationConfig` and
+  its `maxOutputTokens`, not `generation_config` or `max_output_tokens`, so a client that sends only the snake_case
+  object gets no output cap in the canonical request, and the object is forwarded to a Gemini upstream as sent,
+  outside the budget's view. A model that configures `generationConfig` drops the snake_case object instead (D-046).
+  Reading both spellings is a follow-up.
 
 ## CLI bridges
 

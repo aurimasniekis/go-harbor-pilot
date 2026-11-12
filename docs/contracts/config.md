@@ -113,6 +113,11 @@ A conflict exists only when the **client's own request** sets the field: its bod
 the same setting as `stop`. A value the gateway filled in itself is never a client conflict.
 
 - `configured`: the model's value is sent; every spelling of the key is removed from the body first.
+
+Gemini `generationConfig` is merged into the request's own canonical `generationConfig` only. Another spelling of it
+in the same request (`generation_config`) is dropped whatever the policy, with a drop loss
+`request_field:generationConfig`: the gateway parses only the canonical key, so the other spelling's keys (an output
+cap among them) were never budgeted.
 - `client`: the client's value is kept; the model's value fills the field only when the request does not set it.
 - `reject`: the request is answered 400 `invalid_request`, naming the field. The gateway decides this before trying
   any candidate and checks every candidate: if any candidate's model would refuse, the request is refused, so the

@@ -532,7 +532,11 @@ path and adapter version, one work item per fingerprint.
   save time is never stored, so it never reaches a request; at send time the executor applies only allowlisted names,
   so an older stored row cannot either.
 - **Nested objects.** Gemini `generationConfig` is merged key by key: only `temperature`, `topP`, `topK` and
-  `stopSequences` may be configured, and the request's other keys (its `maxOutputTokens` included) are kept.
+  `stopSequences` may be configured, and the request's other keys (its `maxOutputTokens` included) are kept. Only
+  the canonical `generationConfig` is a merge base, because it is the object the parser read and the budget saw.
+  Another spelling of it in the same request (`generation_config`) is dropped and recorded as a drop loss
+  `request_field:generationConfig`; merging it would let a client raise its own output cap past the reservation.
+  Dropping, not refusing, matches how `configured` treats every other spelling.
 - **Conflicts are about the client.** A conflict exists only when the client's own request set the field: its body as
   received (any spelling, and Gemini `generationConfig` sub-keys), or the canonical request it was parsed into, so a
   sampling setting sent under another protocol's name still counts (`stop_sequences` is `stop`). A field the gateway
@@ -541,10 +545,12 @@ path and adapter version, one work item per fingerprint.
   answers 400 `invalid_request` naming the field.
 - **`reject` is decided before dispatch.** The gateway checks every routing candidate against the client's request
   before trying any, and the strictest answer wins: if any candidate's model refuses a field the client sets, the
-  request is refused. The outcome therefore never depends on which candidate comes first, and nothing is failed over
-  or sent upstream. The executor keeps the same check as a guard for callers that do not go through dispatch.
+  request is refused. The outcome therefore never depends on which candidate comes first, and the request is neither
+  dispatched nor failed over. Routing has already run by then, so an intent classifier step may have called its own
+  upstream to choose the route. The executor keeps the same check as a guard for callers that do not go through dispatch.
 - **Losses.** An override or a kept client value is recorded as an approximate translation loss
   `request_field:<name>` (`request_field:generationConfig.temperature` for a sub-key), so it shows on the request page.
+  A dropped non-canonical spelling of a merged object is a drop loss under the object's name.
 - **Every path.** The merge runs on translated bodies, on the built body for native calls, and on the client's own
   bytes in passthrough, including Gemini passthrough. A model that configures nothing leaves the body byte-for-byte
   identical. Prompt caching stays the gateway's: `cache_control` cannot be configured, so the cache-marker normaliser
@@ -555,5 +561,5 @@ path and adapter version, one work item per fingerprint.
   clears values set in the UI (`TestScenarioO_SpecPutWithoutFieldsClearsThem`). For a Terraform-managed provider that
   is the expected drift correction, so the fields must live in the resource's `spec` to survive an apply. The
   Terraform provider sends `spec` as written and zero-fills only required properties, and these three are optional,
-  so it can carry them today; a provider release that vendors this API version should document them and add an
-  example. Not yet checked against the provider's acceptance suite.
+  so it can carry them today; the Terraform guide documents them with an example. Not yet checked against the
+  provider's acceptance suite.

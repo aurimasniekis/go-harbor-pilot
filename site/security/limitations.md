@@ -108,6 +108,9 @@ See [Masking: guarantees and limits](/security/masking).
   [allowlist](/operators/providers#upstream-request-fields) are accepted; the provider pin is sent to OpenAI-compatible
   providers only. Harbor Pilot checks names and sizes, not values: a value the upstream rejects comes back as that
   upstream's error.
+- **Gemini's snake_case `generation_config` is not read.** Harbor Pilot reads `generationConfig` only, so an output
+  limit sent under the snake_case spelling is not seen by budgets and reaches a Gemini upstream as sent. A model with
+  a configured `generationConfig` drops the snake_case object instead.
 
 ## CLI bridges
 

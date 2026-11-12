@@ -92,11 +92,12 @@ request fields**:
   Spelling doesn't matter (`top_p` and `topP` are the same field). Anything else is refused when you save, and the
   message lists what is allowed. Output limits, extra candidates, model lists, tools, plugins, stored state, prompt
   caching, streaming and the request's structure are never configurable: they would bypass budgets or change what the
-  client asked for. Gemini's `generationConfig` is merged key by key, so the client's other settings in it stay.
+  client asked for. Gemini's `generationConfig` is merged key by key, so the client's other settings in it stay. Only the
+  `generationConfig` spelling is merged: a `generation_config` in the same request is dropped and shows as a loss.
 - **When the client already sends one of these** decides the conflict: **Send mine and replace theirs** (the default),
   **Keep theirs, only fill missing ones**, or **Refuse requests that set them**. Only what the client sent counts;
-  values the gateway fills in itself are never a conflict. A refusal answers the client with 400 before any upstream
-  is contacted, and if several models could serve a request and any of them refuses, the request is refused. An
+  values the gateway fills in itself are never a conflict. A refusal answers the client with 400 before the request is
+  sent to any candidate (an intent classifier may already have run to choose the route), and if several models could serve a request and any of them refuses, the request is refused. An
   override or a kept client value appears on the request page as a translation loss, so it is never silent.
 
 Models that keep this section empty are forwarded exactly as before. A model with any of it set shows an **Upstream

@@ -17,7 +17,8 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
   provider type's allowlist (the table is in the operator guide and the config contract), in any spelling (`top_p` =
   `topP`). Output limits, extra candidates, model lists, tools, plugins, stored state, `cache_control`, streaming and
   structural fields are never configurable, and an unknown name is refused at save time with the allowed names.
-  Gemini `generationConfig` takes only its sampling keys and is merged into the request's own.
+  Gemini `generationConfig` takes only its sampling keys and is merged into the request's own; another spelling of
+  it in the same request (`generation_config`) is dropped, so it cannot raise the budgeted output cap.
 - **Conflict rule.** **When the client already sends one of these** chooses between **Send mine and replace theirs**
   (`request_field_policy: "configured"`, the default), **Keep theirs, only fill missing ones** (`"client"`) and
   **Refuse requests that set them** (`"reject"`). Only the client's own request counts, never a value the gateway
