@@ -104,8 +104,10 @@ See [Masking: guarantees and limits](/security/masking).
 - **Upstream request fields reach the HTTP executors only.** A model's extra body fields and provider pin are added
   for Anthropic, OpenAI, OpenAI-compatible, Gemini and Ollama providers, on translated, native and passthrough calls.
   CLI bridge providers refuse them, because the vendor CLI builds its own request. They set body fields only, never
-  headers or the query string, and the gateway's structural fields cannot be configured. Harbor Pilot does not check
-  vendor-specific options: a value the upstream rejects comes back as that upstream's error.
+  headers or the query string, and only fields on the provider type's
+  [allowlist](/operators/providers#upstream-request-fields) are accepted; the provider pin is sent to OpenAI-compatible
+  providers only. Harbor Pilot checks names and sizes, not values: a value the upstream rejects comes back as that
+  upstream's error.
 
 ## CLI bridges
 

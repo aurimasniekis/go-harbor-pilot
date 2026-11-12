@@ -504,32 +504,56 @@ path and adapter version, one work item per fingerprint.
   request path's `applies()`, whatever their state; `scope`/`scope_id` returns budgets defined on exactly that object.
   The commit comes from a `main.commit` build flag, falling back to the Go build info.
 
-## D-046: Per-model upstream request fields (owner, 2026-11-11)
+## D-046: Per-model upstream request fields (owner, 2026-11-11; reworked after review 2026-11-12)
 
-- **Shape.** A provider's model gains three optional spec fields. `request_fields` is a map of extra top-level request
-  body fields kept as raw JSON, for upstreams that accept options this gateway does not model. `provider_routing` is a
-  typed pin rendered as the body's `provider` object (`order`, `only`, `ignore`, `sort`, `allow_fallbacks`,
-  `require_parameters`, `data_collection`, `zdr`, `quantizations`, `max_price`); it is accepted only on
-  `openai_compatible` providers and refused together with a `request_fields.provider` entry. `request_field_policy`
-  is `configured` (default), `client` or `reject`.
-- **Scope is the model, not the pool member.** The pin belongs to the catalog entry the operator maintains once, so a
-  client pipeline stops carrying vendor routing options in its own config. A pool member or an alias cannot override
-  it: every path resolves the same `ModelSpec`, including the classifier and the probe.
-- **Why both shapes.** A typed pin is validated, documented and rendered by the gateway, so a typo fails at save time.
-  The free-form map is the escape hatch for the long tail (Gemini `safetySettings`, OpenRouter `transforms`), where a
-  typed field per vendor would never keep up. Neither is schemaless in an uncontrolled way: names are checked,
-  structural fields are refused, each value is bounded to 8 KiB, and at most 32 fields are allowed.
-- **Structural fields stay the gateway's.** `model`, `messages`, `input`, `contents`, `system`, `systeminstruction`,
-  `instructions`, `stream`, `stream_options`, `tools`, `tool_choice`, `parallel_tool_calls` and `n` are refused in
-  configuration (any letter case), because letting a saved spec rewrite them would silently change what the client
-  asked for. Names are matched case-insensitively at send time too, so a client's `Provider` is replaced rather than
-  duplicated as a second `provider`.
-- **Conflict rule.** `configured` sends the model's value and replaces the client's; `client` keeps the client's value
-  and only fills fields the request omits; `reject` answers 400 `invalid_request` naming the field, before contacting
-  any upstream, so it is never failed over. An override or a kept-client conflict is recorded as an approximate
-  translation loss `request_field:<name>`, so it appears on the request page instead of happening silently.
-- **Every path.** The merge runs on translated bodies, on the built body for native `openai_compatible` calls, and on
-  the client's own bytes in passthrough, including Gemini passthrough, which previously forwarded the body untouched.
-  A model that configures nothing leaves the body byte-for-byte identical, so existing traffic does not change.
+- **Goal.** Pick the upstream provider behind a router model for clients that have no option for it (Claude Code and
+  similar), and keep a bounded free-form escape hatch for other vendor options.
+- **Shape.** A provider's model gains three optional spec fields. `provider_routing` is a typed pin rendered as the
+  body's `provider` object (`order`, `only`, `ignore`, `sort`, `allow_fallbacks`, `require_parameters`,
+  `data_collection`, `zdr`, `quantizations`, `max_price`); it is accepted only on `openai_compatible` providers, sent
+  only to them, and refused together with a `request_fields.provider` entry. `request_fields` is a map of extra request
+  body fields kept as raw JSON. `request_field_policy` is `configured` (default), `client` or `reject`.
+- **Scope is the model, not the pool member.** The pin belongs to the catalog entry the operator maintains once. A pool
+  member or an alias cannot override it: every path resolves the same `ModelSpec`, including the classifier and the
+  probe.
+- **Allowlist, not denylist.** A free-form field is accepted only if it is on the allowlist for the model's provider
+  type (`internal/controlplane/request_fields.go`, documented in `docs/contracts/config.md`). The first version refused
+  a short structural denylist; review found that it let a saved spec raise output limits past the budget reservation,
+  keep state upstream, add router model lists or plugins, or override the gateway's cache markers. Each entry is a
+  sampling, routing-between-hosts or tagging option from the provider's public API documentation. `reasoning` (it
+  changes cost) and `response_format` (it changes the response's shape) are left out. A second list of
+  never-configurable names (output limits, `n`/`candidateCount`, `model`/`models`/`route`, tools and `mcp_servers`,
+  `plugins`, `web_search_options`, stored state, `cache_control`, streaming and structural fields, cost options) is
+  checked first so its error gives the reason, and a test keeps the two lists apart. Extending the allowlist is a
+  one-line reviewed change plus the contract table.
+- **Names.** Compared after normalising: letter case is ignored and snake_case equals camelCase
+  (`system_instruction` = `systemInstruction`). Unknown names fail at save time with an error that lists the allowed
+  ones; two spellings of one field are refused. At most 32 fields, each at most 8 KiB of JSON. A field refused at
+  save time is never stored, so it never reaches a request; at send time the executor applies only allowlisted names,
+  so an older stored row cannot either.
+- **Nested objects.** Gemini `generationConfig` is merged key by key: only `temperature`, `topP`, `topK` and
+  `stopSequences` may be configured, and the request's other keys (its `maxOutputTokens` included) are kept.
+- **Conflicts are about the client.** A conflict exists only when the client's own request set the field: its body as
+  received (any spelling, and Gemini `generationConfig` sub-keys), or the canonical request it was parsed into, so a
+  sampling setting sent under another protocol's name still counts (`stop_sequences` is `stop`). A field the gateway
+  filled in itself is never a client conflict. `configured` sends the model's value and removes every spelling of the
+  key from the body first; `client` keeps the client's value and fills only fields the request does not set; `reject`
+  answers 400 `invalid_request` naming the field.
+- **`reject` is decided before dispatch.** The gateway checks every routing candidate against the client's request
+  before trying any, and the strictest answer wins: if any candidate's model refuses a field the client sets, the
+  request is refused. The outcome therefore never depends on which candidate comes first, and nothing is failed over
+  or sent upstream. The executor keeps the same check as a guard for callers that do not go through dispatch.
+- **Losses.** An override or a kept client value is recorded as an approximate translation loss
+  `request_field:<name>` (`request_field:generationConfig.temperature` for a sub-key), so it shows on the request page.
+- **Every path.** The merge runs on translated bodies, on the built body for native calls, and on the client's own
+  bytes in passthrough, including Gemini passthrough. A model that configures nothing leaves the body byte-for-byte
+  identical. Prompt caching stays the gateway's: `cache_control` cannot be configured, so the cache-marker normaliser
+  remains authoritative.
 - **Limits.** CLI bridge providers (`claude_code`, `codex`) cannot carry these fields and refuse them in the spec.
   Transport headers are not covered; use the provider's static headers for those.
+- **Deferred: Terraform.** A provider spec `PUT` replaces the whole spec, so an update that leaves the three fields out
+  clears values set in the UI (`TestScenarioO_SpecPutWithoutFieldsClearsThem`). For a Terraform-managed provider that
+  is the expected drift correction, so the fields must live in the resource's `spec` to survive an apply. The
+  Terraform provider sends `spec` as written and zero-fills only required properties, and these three are optional,
+  so it can carry them today; a provider release that vendors this API version should document them and add an
+  example. Not yet checked against the provider's acceptance suite.

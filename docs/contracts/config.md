@@ -63,18 +63,66 @@ send them (D-046). They are declared on `spec.models[]` and apply wherever that 
 
 | Field | Type | Meaning |
 |---|---|---|
-| `request_fields` | object of raw JSON values | Extra top-level request body fields, up to 32, each at most 8 KiB of valid JSON. Names must match `^[A-Za-z_][A-Za-z0-9_.-]{0,63}$`. |
+| `request_fields` | object of raw JSON values | Extra request body fields from the provider type's allowlist below, up to 32, each at most 8 KiB of valid JSON. |
 | `provider_routing` | object | Typed upstream-provider pin, sent as the body's `provider`. Only on `openai_compatible` providers. |
-| `request_field_policy` | `configured` \| `client` \| `reject` | What happens when the client already sends one of these fields. Empty means `configured`. |
+| `request_field_policy` | `configured` \| `client` \| `reject` | What happens when the client's own request already sets one of these fields. Empty means `configured`. |
 
 `provider_routing` accepts `order`, `only`, `ignore`, `sort` (`price`, `throughput`, `latency`), `allow_fallbacks`,
 `require_parameters`, `data_collection` (`allow`, `deny`), `zdr`, `quantizations` and `max_price`
 (`prompt`, `completion`, `request`, `image`). An unset field is omitted from the request, so `allow_fallbacks: false`
-is sent and an absent `sort` is not. An empty object is dropped when the spec is saved.
+is sent and an absent `sort` is not. An empty object is dropped when the spec is saved. It is sent only to
+`openai_compatible` providers.
 
-Structural fields are refused in `request_fields`, in any letter case: `model`, `messages`, `input`, `contents`,
-`system`, `systeminstruction`, `instructions`, `stream`, `stream_options`, `tools`, `tool_choice`,
-`parallel_tool_calls` and `n`. CLI bridge providers (`claude_code`, `codex`) accept neither field.
+### Allowlist
+The list lives in one place, `internal/controlplane/request_fields.go`; this table mirrors it. Names are compared
+ignoring letter case, and snake_case equals camelCase (`top_p` = `topP`). The name sent upstream is the spelling in
+this table.
+
+| Provider type | Allowed fields | Source |
+|---|---|---|
+| `openai_compatible` | `transforms`, `provider` (only without `provider_routing`), `temperature`, `top_p`, `top_k`, `min_p`, `top_a`, `frequency_penalty`, `presence_penalty`, `repetition_penalty`, `seed`, `stop`, `logit_bias`, `user`, `metadata` | OpenAI Chat Completions request parameters, plus the router parameters documented for OpenAI-compatible routers (prompt transforms, provider preferences, extra samplers) |
+| `openai` | `temperature`, `top_p`, `user`, `metadata` | Accepted by both Chat Completions and Responses; the provider speaks either, depending on the client |
+| `ollama` | `temperature`, `top_p`, `seed`, `stop`, `frequency_penalty`, `presence_penalty` | The OpenAI-compatible endpoint's documented Chat parameters |
+| `anthropic` | `metadata`, `temperature`, `top_p`, `top_k`, `stop_sequences` | Messages API request parameters |
+| `gemini` | `safetySettings`, `generationConfig` with only `temperature`, `topP`, `topK`, `stopSequences` | generateContent request body; `generationConfig` is merged key by key, never replaced |
+| `claude_code`, `codex` | none | the vendor CLI builds its own request |
+
+Left out on purpose: `reasoning` and similar effort settings (they change what a request costs) and `response_format`
+(it changes the shape of the response the client parses).
+
+Never configurable, whatever the provider type, in any spelling (the error gives the reason):
+- output limits: `max_tokens`, `max_completion_tokens`, `max_output_tokens`/`maxOutputTokens` and the like (they
+  would bypass the budget reservation and the model's output cap);
+- extra candidates: `n`, `candidateCount`, `best_of`;
+- the model and router model lists: `model`, `models`, `route`;
+- tools: `tools`, `tool_choice`, `tool_config`, `parallel_tool_calls`, `functions`, `function_call`, `mcp_servers`,
+  `plugins`, `web_search_options`;
+- stored or server-side state: `store`, `previous_response_id`, `conversation`, `prompt`, `background`,
+  `cachedContent`, `prompt_cache_key`, `context_management`, `container`;
+- prompt caching: `cache_control`;
+- streaming and structure: `stream`, `stream_options`, `messages`, `input`, `contents`, `system`,
+  `systemInstruction`, `instructions`, `include`, `response_format`, `text`, `responseMimeType`, `responseSchema`,
+  `responseModalities`, `modalities`, `audio`, `prediction`;
+- cost options: `reasoning`, `reasoning_effort`, `thinking`, `thinkingConfig`, `service_tier`, `usage`, `verbosity`.
+
+Any other name not on the allowlist is refused with an error that lists the allowed names for the provider type.
+
+### Conflicts
+A conflict exists only when the **client's own request** sets the field: its body as received (any spelling, and Gemini
+`generationConfig` keys) or the canonical request it was parsed into, so `stop_sequences` from a Messages client is
+the same setting as `stop`. A value the gateway filled in itself is never a client conflict.
+
+- `configured`: the model's value is sent; every spelling of the key is removed from the body first.
+- `client`: the client's value is kept; the model's value fills the field only when the request does not set it.
+- `reject`: the request is answered 400 `invalid_request`, naming the field. The gateway decides this before trying
+  any candidate and checks every candidate: if any candidate's model would refuse, the request is refused, so the
+  answer does not depend on candidate order.
+
+An override or a kept client value is recorded as a translation loss `request_field:<name>`.
+
+### Updating a provider
+`PUT /providers/{id}` replaces the whole spec. An update that leaves these fields out of a model clears them, so a
+client that manages providers (Terraform included) must send them back.
 
 ## Routing plan versions
 A plan holds metadata only. Routing logic lives in immutable versions under `/routing-plans/{id}/versions`:

@@ -213,6 +213,28 @@ resource "harborpilot_budget" "trial" {
 - **Start over** in the UI (or `POST /api/v1/budgets/{id}/reset`) changes `starts_at` on the server, which shows as
   drift; the next plan offers to set it back. Change `starts_at` in your configuration instead.
 
+### Upstream request fields
+
+A model's `request_fields`, `provider_routing` and `request_field_policy` ([upstream request
+fields](/operators/providers#upstream-request-fields)) are part of the provider's `spec`. Write them there: an apply
+replaces the whole spec, so values set only in the UI are cleared by the next apply, like any other drift.
+
+```hcl
+resource "harborpilot_provider" "router" {
+  name = "router"
+  spec = jsonencode({
+    type         = "openai_compatible"
+    display_name = "Router"
+    base_url     = "https://router.example.com/v1"
+    models = [{
+      id               = "vendor/model-a"
+      provider_routing = { only = ["provider-a"], allow_fallbacks = false }
+      request_fields   = { temperature = 0.2 }
+    }]
+  })
+}
+```
+
 ## Secrets stay out of state
 
 Terraform's `sensitive` flag hides a value in output but still writes it to state. The provider avoids putting

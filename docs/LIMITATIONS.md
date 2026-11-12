@@ -109,9 +109,11 @@ TRACEABILITY.md (`planned`, `in-progress`).
 - **Per-model upstream request fields apply to HTTP executors only.** They are added to the upstream body for
   Anthropic, OpenAI, OpenAI-compatible, Gemini and Ollama providers, on translated, native and passthrough paths. CLI
   bridge providers refuse them: the vendor CLI builds its own request, so it cannot carry them. They configure body
-  fields only, never headers or the query string, and the gateway's structural fields (model, messages, prompt,
-  stream, tools) cannot be configured. The operator's values are what the gateway sends: a field the upstream later
-  rejects surfaces as that upstream's error, with no gateway-side validation of vendor-specific options.
+  fields only, never headers or the query string, and only names on the provider type's allowlist
+  (`docs/contracts/config.md`) are accepted; the provider pin reaches `openai_compatible` providers only. The gateway
+  checks names, size and JSON validity, not the values: a value the upstream rejects surfaces as that upstream's
+  error. Conflicts are detected from the client's request only, so a client setting with no equivalent in the
+  canonical request and sent under a different name on another protocol is not seen as a conflict.
 
 ## CLI bridges
 
