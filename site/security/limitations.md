@@ -112,12 +112,17 @@ See [Masking: guarantees and limits](/security/masking).
   The restrictions are layered (tools off by flag, a fail-closed check on every item, read-only sandboxes); for
   defence in depth, run the bridge image or service under a separate user, or in a container that cannot read the data
   directory and the master key.
-- **Parked processes are local state.** A CLI process waiting for a tool result is lost on restart; the next request
-  resumes from the transcript, with the loss recorded.
+- **Parked processes are local state.** When a Claude Code process ends between turns, its session is kept on disk for
+  up to the conversation's prompt-cache lifetime after its last turn (at most an hour) and the next turn continues it. After a restart, or
+  once that time has passed, the next request resumes from a transcript rebuilt from your tool's history, with the
+  loss recorded, and the prompt cache is usually written again.
 - **Claude Code bridge fidelity.** The model sees a system prompt prefixed with the CLI's identity line and an
   environment note, and your tool's tools appear with an `mcp__client__` prefix (mapped back for the client).
-  Sampling parameters, stop sequences, output limits and forced tool choice are not passed; each is recorded as an
-  approximate loss. Provider-run tools such as web search are not available.
+  Sampling parameters, stop sequences and forced tool choice are not passed; each is recorded as an approximate loss.
+  The output limit and effort are passed. A system message with text inside the conversation reaches the model as
+  user text. Provider-run tools such as web search are not available. Your tool's prompt-cache breakpoints
+  are replaced by the CLI's own, which keep your cache lifetime (one hour or five minutes) but not your placement
+  (recorded as an approximate loss).
 - **Codex bridge history.** The CLI runs one turn per process. Conversations the bridge served continue with
   `codex exec resume`; a conversation seen for the first time is replayed as text, recorded as a `history_replay`
   loss. A turn in which the CLI still starts a command, file change or web search is stopped with an error.

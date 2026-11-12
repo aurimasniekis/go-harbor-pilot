@@ -128,10 +128,12 @@ subscription traffic never quietly turns into an API bill.
 - They expose only what the CLI exposes: no native passthrough, and usage only as detailed as the CLI reports it.
 - Through Claude Code the model sees a system prompt that starts with the CLI's own identity line, and your tool's tools
   appear to it with an `mcp__client__` prefix (names are mapped back for your tool). Sampling parameters, stop
-  sequences, output limits and forced tool choice are not passed on; each is recorded on the request as an
-  approximate loss. Provider-run tools such as web search are not available.
-- A CLI process waiting for a tool result is held in memory. A restart loses it; the next request resumes from the
-  transcript, with a recorded loss.
+  sequences and forced tool choice are not passed on; each is recorded on the request as an approximate loss. The
+  output limit and effort are passed on. Provider-run tools such as web search are not available.
+- A Claude Code process that ends between turns (idle timeout, eviction, tool timeout) leaves its session on disk for
+  up to the conversation's prompt-cache lifetime after its last turn, five minutes or an hour, so the next turn continues it and reads the
+  cache instead of writing it again. After that, or after a restart, the next request resumes from a transcript
+  rebuilt from your tool's history, with a recorded loss. The request page shows which of these served a request.
 - Codex runs one turn per process and continues earlier turns with `codex exec resume`. A conversation it has not seen
   before is replayed to it as text. Its rollouts are kept for the thread TTL (24 hours by default).
 - Codex refreshes its sign-in file in place, so only one Codex process per account runs at a time by default

@@ -82,6 +82,19 @@ func (t *translator) finish(stop ir.StopReason) []ir.Event {
 	return append(out, ir.Event{Kind: ir.EvStop, StopReason: stop})
 }
 
+// accountProblem recognises the upstream's documented 400s that concern the
+// account (billing, a disabled organization) in the CLI's error text.
+func accountProblem(msg string) ir.ErrorKind {
+	m := strings.ToLower(msg)
+	switch {
+	case strings.Contains(m, "credit balance"), strings.Contains(m, "billing"):
+		return ir.ErrQuotaExhausted
+	case strings.Contains(m, "organization") && (strings.Contains(m, "disabled") || strings.Contains(m, "not allowed")):
+		return ir.ErrPermission
+	}
+	return ""
+}
+
 // cliError maps the CLI's API error classification.
 func cliError(kind string, status int, msg string, retryAt int64, now time.Time) *ir.Error {
 	e := &ir.Error{Message: msg, HTTPStatus: status, UpstreamType: kind}
@@ -98,6 +111,15 @@ func cliError(kind string, status int, msg string, retryAt int64, now time.Time)
 		e.Kind = ir.ErrOverloaded
 	default:
 		switch {
+		case status == 400 && accountProblem(msg) != "":
+			// A 400 about the account rather than the request: another
+			// account may serve it.
+			e.Kind = accountProblem(msg)
+		case status == 400:
+			// The upstream refused the request itself (the CLI reports it
+			// without a type): another account would refuse it too, so it
+			// is the client's error and not failed over.
+			e.Kind = ir.ErrInvalidRequest
 		case status == 429:
 			e.Kind = ir.ErrRateLimited
 		case status == 401:

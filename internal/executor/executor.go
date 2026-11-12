@@ -60,6 +60,9 @@ type Result struct {
 	Upstream ir.Protocol
 	Mode     Mode
 	Losses   []ir.Loss
+	// Provenance is recorded with the attempt's ledger entry (for example
+	// which CLI session served a bridge turn).
+	Provenance map[string]any
 	// Status is the upstream HTTP status (0 if no response).
 	Status int
 	Header http.Header
@@ -91,6 +94,9 @@ type AttemptError struct {
 	AccountScoped bool
 	Status        int
 	Header        http.Header
+	// Losses are the translation losses of the request as built for this
+	// attempt, when it got that far; a failed request records them too.
+	Losses []ir.Loss
 }
 
 func (e *AttemptError) Error() string { return e.Err.Error() }

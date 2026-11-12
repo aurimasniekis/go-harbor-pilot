@@ -16,6 +16,7 @@ package claudecode
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -29,7 +30,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +42,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/credentials"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/anthropic"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/wire"
 )
 
 // RateLimitWindow is one subscription window reported by the CLI.
@@ -75,8 +79,13 @@ type Options struct {
 	// results (default 30m).
 	IdleTimeout time.Duration
 	ToolTimeout time.Duration
-	Log         *slog.Logger
-	Now         func() time.Time
+	// ShelfMaxPerAccount and ShelfMaxBytes bound the CLI sessions kept
+	// after their process ended (D-045): the oldest go first (defaults 16
+	// per account, 256 MiB in total).
+	ShelfMaxPerAccount int
+	ShelfMaxBytes      int64
+	Log                *slog.Logger
+	Now                func() time.Time
 	// OnRateLimit receives subscription window observations.
 	OnRateLimit func(accountID string, info RateLimitInfo)
 }
@@ -91,8 +100,18 @@ type Bridge struct {
 	// reserved counts spawns in progress per account (and overall), so
 	// concurrent spawns cannot exceed the process limits.
 	reserved map[string]int
-	stop     chan struct{}
-	once     sync.Once
+	// shelf holds CLI sessions of ended processes by conversation key.
+	shelf  map[string]*shelfEntry
+	closed bool
+	// warned records CLI versions already logged as unverified.
+	warned sync.Map
+	// reaping holds ended processes whose cleanup (wait, shelve, remove)
+	// has not finished: the sweeper treats their files as live, and Close
+	// waits for them.
+	reaping map[*proc]bool
+	cleanup sync.WaitGroup
+	stop    chan struct{}
+	once    sync.Once
 }
 
 // New creates the bridge and starts its reaper.
@@ -112,13 +131,20 @@ func New(o Options) *Bridge {
 	if o.ToolTimeout <= 0 {
 		o.ToolTimeout = 30 * time.Minute
 	}
+	if o.ShelfMaxPerAccount <= 0 {
+		o.ShelfMaxPerAccount = defaultShelfPerAccount
+	}
+	if o.ShelfMaxBytes <= 0 {
+		o.ShelfMaxBytes = defaultShelfBytes
+	}
 	if o.Log == nil {
 		o.Log = slog.New(slog.DiscardHandler)
 	}
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	b := &Bridge{o: o, mcp: bridge.NewMCPServer(), procs: map[string]*proc{}, reserved: map[string]int{}, stop: make(chan struct{})}
+	b := &Bridge{o: o, mcp: bridge.NewMCPServer(), procs: map[string]*proc{}, reserved: map[string]int{}, shelf: map[string]*shelfEntry{}, reaping: map[*proc]bool{},
+		stop: make(chan struct{})}
 	go b.reaper()
 	return b
 }
@@ -135,6 +161,21 @@ func (b *Bridge) Close() {
 	for _, p := range ps {
 		p.kill("bridge closed")
 	}
+	// Processes ended earlier may still be in their cleanup (at most the
+	// 2 s wait for a pending tool call); wait for it, then make sure no
+	// process group outlives the server.
+	done := make(chan struct{})
+	go func() { b.cleanup.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		b.mu.Lock()
+		for p := range b.reaping {
+			bridge.KillTree(p.cmd)
+		}
+		b.mu.Unlock()
+	}
+	b.clearShelf()
 	b.mcp.Close()
 }
 
@@ -174,6 +215,7 @@ func (b *Bridge) reaper() {
 			p.kill("idle timeout")
 		}
 		b.sweepConversationFiles(now)
+		b.sweepShelf(now, nil)
 	}
 }
 
@@ -191,13 +233,25 @@ func cacheDirs(home, work string) []string {
 }
 
 // sweepConversationFiles removes transcripts, caches and run files that no
-// live process owns (left behind by a crash or restart), so conversation
-// content never outlives its process by more than one idle period.
+// live process owns (left behind by a crash or restart). Shelved sessions
+// (D-045) are kept separately, up to their cache TTL, and swept by
+// sweepShelf.
 func (b *Bridge) sweepConversationFiles(now time.Time) {
 	b.mu.Lock()
 	live := map[string]bool{}
+	livePids := map[string]bool{}
+	owners := make([]*proc, 0, len(b.procs)+len(b.reaping))
 	for _, p := range b.procs {
+		owners = append(owners, p)
+	}
+	for p := range b.reaping {
+		owners = append(owners, p)
+	}
+	for _, p := range owners {
 		live[p.workDir], live[p.runDir], live[p.sessDir] = true, true, true
+		if p.cmd.Process != nil {
+			livePids[strconv.Itoa(p.cmd.Process.Pid)] = true
+		}
 		for _, d := range cacheDirs(p.home, p.workDir) {
 			live[d] = true
 		}
@@ -211,6 +265,19 @@ func (b *Bridge) sweepConversationFiles(now time.Time) {
 			filepath.Join(a, "home", ".cache", "claude-cli-nodejs"))
 	}
 	parents = append(parents, filepath.Join(b.o.Root, "w"), filepath.Join(b.o.Root, "r"))
+	// The CLI's per-process files (config/sessions/<pid>.json and
+	// <pid>.<hash>.key: a peer token, the session id, the working
+	// directory) are left behind when it is killed; those of no live
+	// process go once they are a minute old.
+	for _, a := range accounts {
+		files, _ := os.ReadDir(filepath.Join(a, "config", "sessions"))
+		for _, f := range files {
+			pid, _, _ := strings.Cut(f.Name(), ".")
+			if info, err := f.Info(); err == nil && !livePids[pid] && now.Sub(info.ModTime()) > time.Minute {
+				_ = os.RemoveAll(filepath.Join(a, "config", "sessions", f.Name()))
+			}
+		}
+	}
 	for _, parent := range parents {
 		entries, err := os.ReadDir(parent)
 		if err != nil {
@@ -232,6 +299,13 @@ func (b *Bridge) sweepConversationFiles(now time.Time) {
 
 // conv is the Anthropic-shaped view of a request.
 type conv struct {
+	// Effort and MaxOut are the CLI's --effort and output limit; like
+	// CacheTTL they are fixed per process and part of its match.
+	Effort string
+	MaxOut int
+	// CacheTTL is the prompt-cache lifetime the CLI is told to use (its
+	// CLAUDE_CODE_PROMPT_CACHE_TTL), from the client's breakpoints.
+	CacheTTL string
 	System   string
 	Messages []json.RawMessage
 	Tools    []bridge.MCPTool
@@ -252,7 +326,8 @@ func mcpName(client string) string {
 	return "t_" + hex.EncodeToString(h[:6])
 }
 
-func shapeRequest(r *ir.Request, model string) (*conv, []ir.Loss, error) {
+// maxOut is the model's output limit (0 when unknown).
+func shapeRequest(r *ir.Request, model string, maxOut int) (*conv, []ir.Loss, error) {
 	body, losses, err := anthropic.BuildRequest(r, anthropic.BuildOptions{Model: model, DefaultMaxTokens: 8192, Stream: true, InlineSystemMessages: true})
 	if err != nil {
 		return nil, nil, err
@@ -270,7 +345,24 @@ func shapeRequest(r *ir.Request, model string) (*conv, []ir.Loss, error) {
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, nil, err
 	}
-	c := &conv{Messages: raw.Messages, nameMap: map[string]string{}, toMCP: map[string]string{}}
+	// The CLI places its own cache breakpoints on the system prompt and
+	// tools it adds, ahead of the conversation; the client's markers (often
+	// 1h on a subscription) would follow those 5m ones and the upstream
+	// rejects TTLs that increase. Prompt caching is left to the CLI.
+	stripped := false
+	for i, m := range raw.Messages {
+		if out, ok := stripCacheControl(m); ok {
+			raw.Messages[i], stripped = out, true
+		}
+	}
+	losses = slices.DeleteFunc(losses, func(l ir.Loss) bool {
+		return l.Feature == anthropic.LossCacheTTLOrder || l.Feature == anthropic.LossCacheLimit
+	})
+	if stripped || strings.Contains(string(raw.System), `"cache_control"`) {
+		losses = append(losses, ir.Loss{Severity: ir.LossApproximate, Feature: "cache_control",
+			Detail: "the CLI manages prompt caching itself: its own breakpoints replace the client's, with the client's TTL"})
+	}
+	c := &conv{Messages: raw.Messages, CacheTTL: clientCacheTTL(r), nameMap: map[string]string{}, toMCP: map[string]string{}}
 	c.System = systemText(raw.System)
 	for _, t := range raw.Tools {
 		if t.Type != "" && t.Type != "custom" {
@@ -289,14 +381,161 @@ func shapeRequest(r *ir.Request, model string) (*conv, []ir.Loss, error) {
 	if r.Temperature != nil || r.TopP != nil || r.TopK != nil || len(r.Stop) > 0 {
 		losses = append(losses, ir.Loss{Severity: ir.LossApproximate, Feature: "sampling", Detail: "sampling parameters and stop sequences are not passed to the CLI"})
 	}
-	if r.MaxOutputTokens != nil {
-		losses = append(losses, ir.Loss{Severity: ir.LossApproximate, Feature: "max_output_tokens", Detail: "the CLI chooses its own output limit"})
+	if n := r.MaxOutputTokens; n != nil && *n > 0 {
+		// Passed as CLAUDE_CODE_MAX_OUTPUT_TOKENS (harness-wire-facts §1.5).
+		c.MaxOut = *n
+		if maxOut > 0 && c.MaxOut > maxOut {
+			c.MaxOut = maxOut
+			losses = append(losses, ir.Loss{Severity: ir.LossApproximate, Feature: "max_output_tokens", Detail: "max_tokens was lowered to the model's output limit"})
+		}
 	}
+	var settingsOnly bool
+	c.Effort, settingsOnly = conversationEffort(r)
+	losses = slices.DeleteFunc(losses, func(l ir.Loss) bool {
+		// An effort-only output_config on a system entry is carried as the
+		// CLI's --effort; a conversation whose system entries hold no text
+		// loses nothing by their inlining.
+		return (settingsOnly && l.Feature == "mid_conversation_system") ||
+			(l.Feature == "system_message_field:"+anthropic.P+":output_config" && effortOnlyConfigs(r))
+	})
 	if r.ToolChoice != nil && r.ToolChoice.Mode != "" && r.ToolChoice.Mode != "auto" {
 		losses = append(losses, ir.Loss{Severity: ir.LossApproximate, Feature: "tool_choice", Detail: "forced tool choice is not passed to the CLI"})
 	}
 	losses = append(losses, ir.Loss{Severity: ir.LossApproximate, Feature: "system_prompt", Detail: "the CLI prefixes its own identity line and environment note to the system prompt"})
 	return c, losses, nil
+}
+
+var effortLevels = map[string]bool{"low": true, "medium": true, "high": true, "xhigh": true, "max": true}
+
+// conversationEffort is the effort the next turn runs at: the request's,
+// or the latest mid-conversation system entry's output_config.effort (it
+// applies to later turns). settingsOnly reports that the conversation has
+// system entries and none carries text.
+func conversationEffort(r *ir.Request) (effort string, settingsOnly bool) {
+	if rc := r.Reasoning; rc != nil && effortLevels[rc.Effort] {
+		effort = rc.Effort
+	}
+	sys, text := 0, false
+	for _, m := range r.Messages {
+		if m.Role != ir.RoleSystem && m.Role != ir.RoleDeveloper {
+			continue
+		}
+		sys++
+		for _, p := range m.Parts {
+			if p.Kind == ir.PartText && strings.TrimSpace(p.Text) != "" {
+				text = true
+			}
+		}
+		var oc struct {
+			Effort string `json:"effort"`
+		}
+		if raw, ok := m.Ext[anthropic.P+":output_config"]; ok && json.Unmarshal(raw, &oc) == nil && effortLevels[oc.Effort] {
+			effort = oc.Effort
+		}
+	}
+	return effort, sys > 0 && !text
+}
+
+// effortOnlyConfigs reports whether every output_config on a system entry
+// holds only a known effort level (what --effort can carry).
+func effortOnlyConfigs(r *ir.Request) bool {
+	for _, m := range r.Messages {
+		raw, ok := m.Ext[anthropic.P+":output_config"]
+		if !ok {
+			continue
+		}
+		var oc map[string]any
+		if json.Unmarshal(raw, &oc) != nil || len(oc) != 1 {
+			return false
+		}
+		if e, _ := oc["effort"].(string); !effortLevels[e] {
+			return false
+		}
+	}
+	return true
+}
+
+// clientCacheTTL picks the CLI's prompt-cache TTL from the client's
+// breakpoints: 1h if any asks for 1h, 5m if there are only 5m ones (a
+// missing ttl is 5m), and 1h when the client set none, the CLI's own
+// default for subscription accounts. One TTL for the whole run keeps the
+// CLI's breakpoints in non-increasing order.
+func clientCacheTTL(r *ir.Request) string {
+	seen, long := false, false
+	note := func(cc *ir.CacheControl) {
+		if cc != nil {
+			seen = true
+			long = long || cc.TTL == "1h"
+		}
+	}
+	var parts func(ps []ir.Part)
+	parts = func(ps []ir.Part) {
+		for _, p := range ps {
+			note(p.CacheControl)
+			if p.ToolResult != nil {
+				parts(p.ToolResult.Content)
+			}
+		}
+	}
+	parts(r.System)
+	for _, m := range r.Messages {
+		parts(m.Parts)
+	}
+	for _, t := range r.Tools {
+		note(t.CacheControl)
+	}
+	if raw, ok := r.Ext[anthropic.P+":cache_control"]; ok {
+		var cc ir.CacheControl
+		if json.Unmarshal(raw, &cc) == nil {
+			note(&cc)
+		}
+	}
+	if seen && !long {
+		return "5m"
+	}
+	return "1h"
+}
+
+// stripCacheControl removes cache_control from a message's content blocks
+// and from blocks nested in tool results. It reports false, and leaves the
+// message as it was, when there was nothing to remove.
+func stripCacheControl(msg json.RawMessage) (json.RawMessage, bool) {
+	if !bytes.Contains(msg, []byte(`"cache_control"`)) {
+		return msg, false
+	}
+	var m map[string]any
+	d := json.NewDecoder(bytes.NewReader(msg))
+	d.UseNumber()
+	if d.Decode(&m) != nil {
+		return msg, false
+	}
+	changed := false
+	var strip func(v any)
+	strip = func(v any) {
+		blocks, _ := v.([]any)
+		for _, b := range blocks {
+			bm, ok := b.(map[string]any)
+			if !ok {
+				continue
+			}
+			if _, ok := bm["cache_control"]; ok {
+				delete(bm, "cache_control")
+				changed = true
+			}
+			if bm["type"] == "tool_result" {
+				strip(bm["content"])
+			}
+		}
+	}
+	strip(m["content"])
+	if !changed {
+		return msg, false
+	}
+	out, err := wire.Marshal(m)
+	if err != nil {
+		return msg, false
+	}
+	return out, true
 }
 
 func systemText(raw json.RawMessage) string {
@@ -496,6 +735,10 @@ type proc struct {
 	id        string
 	accountID string
 	model     string
+	effort    string
+	maxOut    int
+	sid       string // the CLI's session id (its file is sessDir/<sid>.jsonl)
+	cacheTTL  string
 	sysKey    string
 	toolsKey  string
 	conv      *conv
@@ -524,18 +767,52 @@ func (p *proc) kill(reason string) {
 		p.mu.Unlock()
 		return
 	}
+	// A process that ends between turns (idle or waiting for tool results)
+	// holds a complete conversation: its session is shelved so the next
+	// turn can continue it with the same prompt prefix (D-045).
+	shelf := p.shelfCandidate(reason, p.b.o.Now())
 	p.state = stateDead
 	p.mu.Unlock()
-	bridge.KillTree(p.cmd)
-	p.sess.Close()
-	_ = p.stdin.Close()
+	stop := func() {
+		bridge.KillTree(p.cmd)
+		p.sess.Close()
+		_ = p.stdin.Close()
+	}
+	// The CLI records a pending tool call in its session shortly after
+	// streaming it; that moment is waited for in the background, so the
+	// reaper never stalls on it.
+	waitForSession := shelf != nil && len(shelf.pending) > 0
+	if !waitForSession {
+		stop()
+	}
 	p.b.mu.Lock()
 	delete(p.b.procs, p.id)
+	p.b.reaping[p] = true
+	p.b.cleanup.Add(1)
 	p.b.mu.Unlock()
 	go func() {
+		defer func() {
+			p.b.mu.Lock()
+			delete(p.b.reaping, p)
+			p.b.mu.Unlock()
+			p.b.cleanup.Done()
+		}()
+		if waitForSession {
+			src := filepath.Join(p.sessDir, p.sid+".jsonl")
+			for i := 0; i < 100 && !sessionHolds(src, shelf.pending); i++ {
+				time.Sleep(20 * time.Millisecond)
+			}
+			stop()
+		}
 		_ = p.cmd.Wait()
-		// Conversation content must not outlive the process: remove the
-		// work dir, the private run files and the CLI's transcript.
+		if p.cmd.Process != nil {
+			removePidFiles(filepath.Join(filepath.Dir(filepath.Dir(p.sessDir)), "sessions"), p.cmd.Process.Pid)
+		}
+		if shelf != nil {
+			p.b.shelve(shelf, filepath.Join(p.sessDir, p.sid+".jsonl"))
+		}
+		// Otherwise conversation content does not outlive the process:
+		// remove the work dir, the private run files and the CLI's session.
 		_ = os.RemoveAll(p.workDir)
 		_ = os.RemoveAll(p.runDir)
 		if p.sessDir != "" {
@@ -545,7 +822,15 @@ func (p *proc) kill(reason string) {
 			_ = os.RemoveAll(d)
 		}
 	}()
-	p.b.o.Log.Debug("bridge.process.ended", "process", p.id, "account_id", p.accountID, "reason", reason)
+	p.b.o.Log.Debug("bridge.process.ended", "process", p.id, "account_id", p.accountID, "reason", reason, "shelved", shelf != nil)
+}
+
+// removePidFiles deletes the CLI's per-process files of an ended process.
+func removePidFiles(dir string, pid int) {
+	files, _ := filepath.Glob(filepath.Join(dir, strconv.Itoa(pid)+".*"))
+	for _, f := range files {
+		_ = os.Remove(f)
+	}
 }
 
 func randID(n int) string {
@@ -567,7 +852,11 @@ var unsafePath = regexp.MustCompile(`[^A-Za-z0-9]`)
 
 // spawn starts a process holding history; the caller then writes the next
 // user message.
-func (b *Bridge) spawn(ctx context.Context, accountID, scope string, cred credentials.Secret, model, effort string, c *conv, history []json.RawMessage) (_ *proc, err error) {
+//
+// from, when set, is a shelved CLI session to continue (history is then
+// ignored); otherwise a non-empty history is written as a transcript to
+// resume, and an empty one starts a new session.
+func (b *Bridge) spawn(ctx context.Context, accountID, scope string, cred credentials.Secret, model, effort string, c *conv, history []json.RawMessage, from *shelfEntry) (_ *proc, err error) {
 	release, err := b.reserveSlot(accountID)
 	if err != nil {
 		return nil, err
@@ -626,8 +915,21 @@ func (b *Bridge) spawn(ctx context.Context, accountID, scope string, cred creden
 	if effort != "" {
 		args = append(args, "--effort", effort)
 	}
-	if len(history) > 0 {
-		sid := newUUID()
+	// The CLI keeps its own session file in sessDir; it is removed with the
+	// process or, when the process ends between turns, shelved for up to
+	// the cache TTL (D-045).
+	sid := newUUID()
+	switch {
+	case from != nil:
+		sid = from.sid
+		if err = os.MkdirAll(sessDir, 0o700); err != nil {
+			return nil, err
+		}
+		if err = os.Rename(from.path, filepath.Join(sessDir, sid+".jsonl")); err != nil {
+			return nil, err
+		}
+		args = append(args, "--resume", sid)
+	case len(history) > 0:
 		if err = os.MkdirAll(sessDir, 0o700); err != nil {
 			return nil, err
 		}
@@ -635,8 +937,8 @@ func (b *Bridge) spawn(ctx context.Context, accountID, scope string, cred creden
 			return nil, err
 		}
 		args = append(args, "--resume", sid)
-	} else {
-		args = append(args, "--no-session-persistence")
+	default:
+		args = append(args, "--session-id", sid)
 	}
 	cmd := exec.Command(b.o.Binary, args...) //nolint:gosec // operator-configured binary, arguments are not shell-interpreted
 	cmd.Dir = work
@@ -654,10 +956,12 @@ func (b *Bridge) spawn(ctx context.Context, accountID, scope string, cred creden
 		"DISABLE_COMPACT=1",
 		"CLAUDE_CODE_DISABLE_CLAUDE_MDS=1",
 		"CLAUDE_CODE_DISABLE_AUTO_MEMORY=1",
-		"CLAUDE_CODE_SKIP_PROMPT_HISTORY=1",
 		"ENABLE_TOOL_SEARCH=false",
 		"MCP_TOOL_TIMEOUT=" + fmt.Sprint(b.o.ToolTimeout.Milliseconds()+60_000),
-	}, b.o.ExtraEnv...)
+		// Keeps repository status out of the CLI's system prompt, so the
+		// prompt (and its cache) is stable across processes.
+		"CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1",
+	}, processEnv(b.o.ExtraEnv, c)...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -671,7 +975,7 @@ func (b *Bridge) spawn(ctx context.Context, accountID, scope string, cred creden
 	if err = cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start claude: %w", err)
 	}
-	p := &proc{b: b, id: randID(8), accountID: accountID, scope: scope, model: model, sysKey: hashOf(c.System), toolsKey: toolsKey(c.Tools), conv: c,
+	p := &proc{b: b, id: randID(8), accountID: accountID, scope: scope, model: model, sid: sid, effort: c.Effort, maxOut: c.MaxOut, cacheTTL: c.CacheTTL, sysKey: hashOf(c.System), toolsKey: toolsKey(c.Tools), conv: c,
 		cmd: cmd, stdin: stdin, lines: make(chan line, 256), sess: sess, workDir: work, runDir: runDir, sessDir: sessDir, home: home, state: stateBusy,
 		lastUsed: b.o.Now()}
 	b.mu.Lock()
@@ -679,6 +983,30 @@ func (b *Bridge) spawn(ctx context.Context, accountID, scope string, cred creden
 	b.mu.Unlock()
 	go p.read(stdout)
 	return p, nil
+}
+
+// cacheEnv appends the run's prompt-cache TTL after the operator's extra
+// environment, dropping any cache-TTL settings there: the TTL is part of
+// the process identity and must be the one the conversation asked for.
+func cacheEnv(extra []string, ttl string) []string {
+	out := make([]string, 0, len(extra)+1)
+	for _, kv := range extra {
+		k, _, _ := strings.Cut(kv, "=")
+		if k == "CLAUDE_CODE_PROMPT_CACHE_TTL" || k == "FORCE_PROMPT_CACHING_5M" || k == "CLAUDE_CODE_MAX_OUTPUT_TOKENS" {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, "CLAUDE_CODE_PROMPT_CACHE_TTL="+ttl)
+}
+
+// processEnv is the per-conversation part of the CLI's environment.
+func processEnv(extra []string, c *conv) []string {
+	env := cacheEnv(extra, c.CacheTTL)
+	if c.MaxOut > 0 {
+		env = append(env, "CLAUDE_CODE_MAX_OUTPUT_TOKENS="+strconv.Itoa(c.MaxOut))
+	}
+	return env
 }
 
 func safeName(s string) string { return unsafePath.ReplaceAllString(s, "_") }
@@ -695,7 +1023,11 @@ func (b *Bridge) PruneAccounts(active map[string]bool) {
 	for _, p := range b.procs {
 		keep[safeName(p.accountID)] = true
 	}
+	for p := range b.reaping {
+		keep[safeName(p.accountID)] = true
+	}
 	b.mu.Unlock()
+	b.sweepShelf(b.o.Now(), keep)
 	entries, _ := os.ReadDir(filepath.Join(b.o.Root, "accounts"))
 	for _, e := range entries {
 		if e.IsDir() && !keep[e.Name()] {
@@ -840,11 +1172,20 @@ func writeTranscript(path, sid, cwd, model string, c *conv, history []json.RawMe
 // ---------- execute ----------
 
 // Execute implements executor.Executor.
-func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credentials.Secret, req executor.Request, stream bool) (*executor.Result, *executor.AttemptError) {
+func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credentials.Secret, req executor.Request, stream bool) (_ *executor.Result, aerr *executor.AttemptError) {
 	if cred.IsZero() {
 		return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrAuthentication, Message: "the account has no setup-token configured"}, AccountScoped: true}
 	}
-	c, losses, err := shapeRequest(req.IR, t.Model)
+	maxOut := 0
+	if t.ModelSpec != nil {
+		maxOut = t.ModelSpec.MaxOutputTokens
+	}
+	c, losses, err := shapeRequest(req.IR, t.Model, maxOut)
+	defer func() {
+		if aerr != nil && aerr.Losses == nil {
+			aerr.Losses = losses
+		}
+	}()
 	if err != nil {
 		return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrInvalidRequest, Message: err.Error()}}
 	}
@@ -855,17 +1196,12 @@ func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credential
 	if ir.HasReject(losses) && !req.AllowLosses {
 		return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrUnsupported, Message: "the request needs features the CLI bridge cannot provide"}}
 	}
-	effort := ""
-	if r := req.IR.Reasoning; r != nil {
-		switch r.Effort {
-		case "low", "medium", "high", "xhigh", "max":
-			effort = r.Effort
-		}
-	}
+	effort := c.Effort
 	histFP := fingerprint(history)
 	results, extra := toolResults(last)
 
 	// 1. A parked process holding exactly this conversation continues.
+	path := pathLive
 	p := b.claim(t.Account.ID, req.Scope, t.Model, c, histFP, results)
 	if p != nil {
 		p.conv = c
@@ -890,8 +1226,63 @@ func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credential
 			p = nil
 		}
 	}
-	// 2. Otherwise start a process from the transcript.
+	// 2. A shelved session of this conversation continues in a new process,
+	// with the prompt prefix the CLI itself wrote.
 	if p == nil {
+		if sh := b.unshelve(t.Account.ID, req.Scope, t.Model, c, histFP, results); sh != nil {
+			send := last
+			if len(sh.pending) > 0 {
+				// The CLI ended waiting for these results: they go into its
+				// session, and the turn continues from there.
+				var lm struct {
+					Content json.RawMessage `json:"content"`
+				}
+				_ = json.Unmarshal(last, &lm)
+				if err := b.addResults(sh, lm.Content); err != nil {
+					var uv *unverifiedCLIError
+					if errors.As(err, &uv) {
+						b.warnUnverified(uv.version)
+					} else {
+						b.o.Log.Warn("bridge.unshelve.failed", "account_id", t.Account.ID, "error", err.Error())
+					}
+					// The rebuilt transcript serves the turn instead.
+					b.dropShelved(sh)
+					sh = nil
+				}
+				send = json.RawMessage(`{"role":"user","content":[{"type":"text","text":"Continue."}]}`)
+			}
+			var np *proc
+			var err error
+			if sh != nil {
+				np, err = b.spawn(ctx, t.Account.ID, req.Scope, cred, t.Model, effort, c, nil, sh)
+			}
+			switch {
+			case sh == nil:
+			case errors.Is(err, errBusy):
+				b.reshelve(sh)
+				return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrOverloaded, Message: err.Error()}}
+			case err != nil:
+				b.o.Log.Warn("bridge.unshelve.failed", "account_id", t.Account.ID, "error", err.Error())
+				b.dropShelved(sh)
+			default:
+				if err := np.send(c.renameTools(send)); err != nil {
+					np.kill("stdin closed")
+				} else {
+					p, path = np, pathShelved
+					if len(sh.pending) > 0 {
+						losses = append(losses, ir.Loss{Severity: ir.LossApproximate, Feature: "tool_continuation",
+							Detail: "the CLI process holding this tool call had ended; its session was resumed with the results and a \"Continue.\" turn"})
+					}
+				}
+			}
+		}
+	}
+	// 3. Otherwise start a process from the transcript.
+	if p == nil {
+		path = pathTranscript
+		if len(history) == 0 && len(results) == 0 {
+			path = pathNew
+		}
 		if len(results) > 0 {
 			// The CLI cannot accept a tool result for a call it did not make;
 			// the history already carries the call, so the result is sent as
@@ -900,7 +1291,7 @@ func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credential
 			history = append(history, last)
 			last = json.RawMessage(`{"role":"user","content":[{"type":"text","text":"Continue."}]}`)
 		}
-		np, err := b.spawn(ctx, t.Account.ID, req.Scope, cred, t.Model, effort, c, history)
+		np, err := b.spawn(ctx, t.Account.ID, req.Scope, cred, t.Model, effort, c, history, nil)
 		if errors.Is(err, errBusy) {
 			return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrOverloaded, Message: err.Error()}}
 		}
@@ -916,7 +1307,9 @@ func (b *Bridge) Execute(ctx context.Context, t executor.Target, cred credential
 	}
 	events := make(chan ir.Event, 64)
 	actx, cancel := context.WithCancel(ctx)
-	res := &executor.Result{Upstream: ir.ClaudeCodeBridge, Mode: executor.ModeTranslated, Losses: losses, Status: 200, FirstByteAt: time.Now(), Cancel: cancel}
+	b.o.Log.Info("bridge.turn", "account_id", t.Account.ID, "session", path)
+	res := &executor.Result{Upstream: ir.ClaudeCodeBridge, Mode: executor.ModeTranslated, Losses: losses, Status: 200, FirstByteAt: time.Now(), Cancel: cancel,
+		Provenance: map[string]any{"bridge_session": path}}
 	var serr error
 	go func() {
 		defer close(events)
@@ -952,7 +1345,7 @@ func (b *Bridge) claim(accountID, scope, model string, c *conv, histFP string, r
 	sk, tk := hashOf(c.System), toolsKey(c.Tools)
 	for _, p := range b.procs {
 		p.mu.Lock()
-		ok := p.accountID == accountID && p.scope == scope && p.model == model && p.sysKey == sk && p.toolsKey == tk && p.fp == histFP
+		ok := p.accountID == accountID && p.scope == scope && p.model == model && p.cacheTTL == c.CacheTTL && p.effort == c.Effort && p.maxOut == c.MaxOut && p.sysKey == sk && p.toolsKey == tk && p.fp == histFP
 		if ok {
 			switch p.state {
 			case stateIdle:

@@ -93,6 +93,8 @@ binary is found.
 | `max_per_account` | `4` | `1` | Concurrent CLI processes per account. Codex refreshes its sign-in in place, so keep it at 1. |
 | `idle_timeout` | `10m` | not used | How long a Claude Code process waits for the next turn of its conversation. |
 | `tool_timeout` | `30m` | `30m` | How long a process waits for your tool to return a tool result. |
+| `shelf_max_per_account` | `16` | not used | Claude Code sessions kept per account after their process ended, so the next turn can continue them with a warm prompt cache. Each is kept at most for its cache lifetime (5 minutes or 1 hour); the oldest go first. |
+| `shelf_max_bytes` | `268435456` (256 MiB) | not used | Total size of those kept sessions. |
 
 Use `bridges.claude_code` and `bridges.codex` as the section names. Bridge state lives under
 `<data_dir>/bridges/`. See [Subscriptions and CLI bridges](/operators/subscriptions).
