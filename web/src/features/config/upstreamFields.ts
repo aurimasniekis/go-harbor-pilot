@@ -1,26 +1,5 @@
 import type { ModelSpec, UpstreamProviderSpec } from '@/lib/api/types'
 
-/**
- * Request fields the gateway owns on every path. The server refuses these
- * too (internal/controlplane StructuralRequestFields); checking here only
- * saves a round trip.
- */
-const structural = [
-  'model',
-  'messages',
-  'input',
-  'contents',
-  'system',
-  'systeminstruction',
-  'instructions',
-  'stream',
-  'stream_options',
-  'tools',
-  'tool_choice',
-  'parallel_tool_calls',
-  'n',
-]
-
 /** A fresh, empty pin: every field unset, so nothing is sent until filled in. */
 export function emptyProviderRouting(): UpstreamProviderSpec {
   return { order: [], only: [], ignore: [], quantizations: [] }
@@ -48,12 +27,10 @@ export function parseRequestFields(text: string): { value: Record<string, unknow
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     return { value: {}, error: 'Use a JSON object, for example {"transforms": ["middle-out"]}.' }
   }
-  const value = parsed as Record<string, unknown>
-  const blocked = Object.keys(value).find((k) => structural.includes(k.toLowerCase()))
-  if (blocked) {
-    return { value, error: `${blocked} is set by the gateway on every request and cannot be configured here.` }
-  }
-  return { value }
+  // Which names are allowed depends on the provider type. The server keeps
+  // that allowlist (internal/controlplane/request_fields.go) and its
+  // validation error lists the allowed names, so it is not repeated here.
+  return { value: parsed as Record<string, unknown> }
 }
 
 /** True when at least one pin field is set, so an empty block is not saved. */

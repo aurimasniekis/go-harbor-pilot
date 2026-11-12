@@ -121,9 +121,9 @@ function UpstreamFieldsEditor({ model, providerType, onChange, onInvalid }: {
           {pin && (
             <>
               <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-                <ListField label="Prefer in order" hint="First choice first." value={pin.order ?? []} onChange={(v) => setPin({ order: v })} placeholder="relace" />
-                <ListField label="Only these" hint="Never use any other provider." value={pin.only ?? []} onChange={(v) => setPin({ only: v })} placeholder="deepinfra" />
-                <ListField label="Never these" value={pin.ignore ?? []} onChange={(v) => setPin({ ignore: v })} placeholder="SomeProvider" />
+                <ListField label="Prefer in order" hint="First choice first." value={pin.order ?? []} onChange={(v) => setPin({ order: v })} placeholder="provider-a" />
+                <ListField label="Only these" hint="Never use any other provider." value={pin.only ?? []} onChange={(v) => setPin({ only: v })} placeholder="provider-b" />
+                <ListField label="Never these" value={pin.ignore ?? []} onChange={(v) => setPin({ ignore: v })} placeholder="provider-c" />
                 <ListField label="Quantizations" hint="Only providers running these weight formats." value={pin.quantizations ?? []} onChange={(v) => setPin({ quantizations: v })} placeholder="fp8" />
               </SimpleGrid>
               <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
@@ -151,7 +151,7 @@ function UpstreamFieldsEditor({ model, providerType, onChange, onInvalid }: {
           )}
         </Stack>
       )}
-      <TextAreaField label="Other fields (JSON object)" hint="For anything the upstream accepts, for example transforms or safetySettings."
+      <TextAreaField label="Other fields (JSON object)" hint="Only fields this provider type allows: sampling settings such as temperature, and router or safety options such as transforms or safetySettings. Output limits, tools, caching and stored state never are; saving lists the allowed names."
         value={text} onChange={(t) => {
           setText(t)
           onChange({ request_fields: parseRequestFields(t).value })
@@ -159,7 +159,7 @@ function UpstreamFieldsEditor({ model, providerType, onChange, onInvalid }: {
         error={error}
         placeholder={'{\n  "transforms": ["middle-out"]\n}'} mono minRows={3} spellCheck={false} />
       <SelectField label="When the client already sends one of these"
-        hint="Applies to the fields configured above."
+        hint="Compared with the client’s own request, not with what the gateway fills in."
         value={model.request_field_policy || 'configured'}
         onChange={(v) => onChange({ request_field_policy: v })}
         options={policyOptions.map((o) => ({ value: o.value, label: o.label }))} />

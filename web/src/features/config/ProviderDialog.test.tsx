@@ -7,7 +7,7 @@ import type { ModelSpec } from '@/lib/api/types'
 import { ModelDialog } from './ProviderDialog'
 
 const model = (p: Partial<ModelSpec> = {}): ModelSpec => ({
-  id: 'relace/fp4',
+  id: 'vendor/model-a',
   display_name: '',
   context_window: 0,
   max_output_tokens: 0,
@@ -59,17 +59,17 @@ describe('ModelDialog upstream request fields', () => {
     const onSave = open(model())
     await userEvent.click(await showPin())
     await userEvent.click(screen.getByLabelText('Prefer in order', { selector: 'input' }))
-    await userEvent.paste('relace')
+    await userEvent.paste('provider-a')
     await userEvent.keyboard('{Enter}')
     await userEvent.click(done())
 
     const saved = onSave.mock.calls[0]![0] as ModelSpec
-    expect(saved.provider_routing?.order).toEqual(['relace'])
+    expect(saved.provider_routing?.order).toEqual(['provider-a'])
     expect(saved.request_fields).toEqual({})
   })
 
   it('keeps a false switch, which the server would otherwise omit', async () => {
-    const onSave = open(model({ provider_routing: { order: ['relace'], allow_fallbacks: false } }))
+    const onSave = open(model({ provider_routing: { order: ['provider-a'], allow_fallbacks: false } }))
     await showPin()
     await userEvent.click(done())
     expect((onSave.mock.calls[0]![0] as ModelSpec).provider_routing?.allow_fallbacks).toBe(false)
@@ -93,12 +93,13 @@ describe('ModelDialog upstream request fields', () => {
     expect(onSave).not.toHaveBeenCalled()
   })
 
-  it('refuses a field the gateway owns', async () => {
+  it('leaves the allowlist to the server and says so', async () => {
     open(model())
     await showFields()
     await userEvent.click(json())
-    await userEvent.paste('{"messages":[]}')
-    expect(screen.getByText(/messages is set by the gateway/)).toBeInTheDocument()
+    await userEvent.paste('{"temperature":0.2}')
+    expect(screen.getByText(/Only fields this provider type allows/)).toBeInTheDocument()
+    expect(done()).toBeEnabled()
   })
 
   it('refuses to save both a pin and a provider field', async () => {
@@ -109,12 +110,12 @@ describe('ModelDialog upstream request fields', () => {
   })
 
   it('opens with a saved pin, counts it, and keeps the policy', async () => {
-    const onSave = open(model({ provider_routing: { order: ['relace'] }, request_field_policy: 'client' }))
+    const onSave = open(model({ provider_routing: { order: ['provider-a'] }, request_field_policy: 'client' }))
     expect(await showFields()).toHaveTextContent('(1)')
     expect(policy()).toHaveValue('Keep theirs, only fill missing ones')
     await userEvent.click(done())
     const saved = onSave.mock.calls[0]![0] as ModelSpec
-    expect(saved.provider_routing?.order).toEqual(['relace'])
+    expect(saved.provider_routing?.order).toEqual(['provider-a'])
     expect(saved.request_field_policy).toBe('client')
   })
 })

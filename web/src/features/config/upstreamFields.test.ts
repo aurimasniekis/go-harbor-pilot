@@ -23,9 +23,9 @@ describe('parseRequestFields', () => {
     expect(parseRequestFields('null').error).toMatch(/JSON object/)
   })
 
-  it('refuses a field the gateway owns, in any letter case', () => {
-    expect(parseRequestFields('{"messages":[]}').error).toMatch(/messages/)
-    expect(parseRequestFields('{"Stream":true}').error).toMatch(/Stream/)
+  it('leaves the allowlist to the server, which knows the provider type', () => {
+    expect(parseRequestFields('{"temperature":0.2}')).toEqual({ value: { temperature: 0.2 } })
+    expect(parseRequestFields('{"max_tokens":10}').error).toBeUndefined()
   })
 })
 
@@ -55,7 +55,7 @@ describe('providerRoutingSet', () => {
   })
 
   it('is true as soon as any field is set, including a false switch', () => {
-    expect(providerRoutingSet({ order: ['relace'] })).toBe(true)
+    expect(providerRoutingSet({ order: ['provider-a'] })).toBe(true)
     expect(providerRoutingSet({ sort: 'price' })).toBe(true)
     expect(providerRoutingSet({ allow_fallbacks: false })).toBe(true)
     expect(providerRoutingSet({ max_price: { prompt: 1.5 } })).toBe(true)
@@ -75,9 +75,9 @@ const base = (p: Partial<ModelSpec>): ModelSpec => ({
 
 describe('cleanModel', () => {
   it('trims the id and keeps a real pin', () => {
-    const m = cleanModel(base({ provider_routing: { order: ['relace'] } }))
+    const m = cleanModel(base({ provider_routing: { order: ['provider-a'] } }))
     expect(m.id).toBe('m1')
-    expect(m.provider_routing?.order).toEqual(['relace'])
+    expect(m.provider_routing?.order).toEqual(['provider-a'])
   })
 
   it('drops an empty pin and an empty field map stays an object', () => {
@@ -98,8 +98,8 @@ describe('hasUpstreamFields', () => {
 
 describe('modelsForType', () => {
   it('keeps a pin on an openai-compatible provider and drops it elsewhere', () => {
-    const models = [base({ provider_routing: { order: ['relace'] }, request_fields: { transforms: [] } })]
-    expect(modelsForType(models, 'openai_compatible')[0]!.provider_routing?.order).toEqual(['relace'])
+    const models = [base({ provider_routing: { order: ['provider-a'] }, request_fields: { transforms: [] } })]
+    expect(modelsForType(models, 'openai_compatible')[0]!.provider_routing?.order).toEqual(['provider-a'])
     const anthropic = modelsForType(models, 'anthropic')[0]!
     expect(anthropic.provider_routing).toBeUndefined()
     // The free-form fields are still valid on every HTTP provider.
