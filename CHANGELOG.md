@@ -3,12 +3,13 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
-## Unreleased
+## 0.1.5 (2026-11-12)
 
 Claude Code bridge: a fix for the 400 that broke every turn after the first, session retention so a paused
 conversation reads the prompt cache instead of writing it again, and fewer translation losses. Failed requests are
-attributed to the account they reached. No migrations. New options: `bridges.claude_code.shelf_max_per_account` and
-`shelf_max_bytes`.
+attributed to the account they reached, and attempts are numbered in the order they ran. No migrations. New options:
+`bridges.claude_code.shelf_max_per_account` and `shelf_max_bytes`. See the upgrade notes below: the privacy rule for
+bridge sessions changes, and three behaviours change.
 
 ### Claude Code bridge
 
@@ -72,6 +73,20 @@ attributed to the account they reached. No migrations. New options: `bridges.cla
   excluded candidates (stage `dispatch`, with the reason).
 - The request page's cost line shows cache writes next to cache reads (both were already recorded, for the CLI
   bridges too).
+
+### Upgrading
+
+- **Privacy rule change (D-045).** Claude Code bridge sessions are no longer removed as soon as their CLI process
+  ends: they may stay on disk until the conversation's prompt-cache TTL (5 minutes or 1 hour) has passed since its
+  last use. They are deleted at expiry, on account removal and at shutdown, and retention cannot be turned off.
+  Review any retention commitments that relied on the old rule.
+- **New configuration keys**, both optional: `bridges.claude_code.shelf_max_per_account` (default `16`) and
+  `bridges.claude_code.shelf_max_bytes` (default `268435456`, 256 MiB).
+- **Behaviour changes.** The Claude Code bridge strips client `cache_control` markers and records a `cache_control`
+  loss (approximate) on every such request. A 400 reported by the CLI is no longer failed over to the next account:
+  the client gets the 400 after one attempt. Attempts are renumbered in the order they ran, and candidates skipped at
+  dispatch no longer take a number; dashboards or scripts that read attempt numbers or failover reasons may see
+  different values.
 
 ## 0.1.4 (2026-11-08)
 

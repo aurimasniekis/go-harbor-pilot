@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-What works with what, and how sure we are, as of 0.1.4. Everything here is tested against synthetic fixtures, fakes
+What works with what, and how sure we are, as of 0.1.5. Everything here is tested against synthetic fixtures, fakes
 and embedded servers, and **nothing has yet been verified against live provider accounts**. A cell
 only moves up when there is evidence for it.
 
