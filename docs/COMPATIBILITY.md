@@ -73,7 +73,7 @@ The Messages API accepts `{"role": "system", ...}` entries inside `messages[]` o
 | Direct subscription token replay / client impersonation | — | — | — | unsupported (D-001) | unsupported | DECISIONS D-001 |
 
 Every HTTP executor adds a model's configured [upstream request fields](contracts/config.md) to the body, on
-translated, native and passthrough paths, including a typed provider pin on OpenAI-compatible routers (D-045). CLI
+translated, native and passthrough paths, including a typed provider pin on OpenAI-compatible routers (D-046). CLI
 bridge executors refuse them, because the vendor CLI builds its own request. Status: contract-tested against synthetic
 upstreams (scenario O); live: blocked with the provider rows above.
 

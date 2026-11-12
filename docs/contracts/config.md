@@ -59,7 +59,7 @@ Every kind supports these operations:
 
 ## Per-model upstream request fields
 A model in a provider's catalog may carry fields the gateway adds to every request for it, so clients do not have to
-send them (D-045). They are declared on `spec.models[]` and apply wherever that model is routed.
+send them (D-046). They are declared on `spec.models[]` and apply wherever that model is routed.
 
 | Field | Type | Meaning |
 |---|---|---|

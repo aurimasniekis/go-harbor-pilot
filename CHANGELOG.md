@@ -7,7 +7,7 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
 
 ### Providers
 
-- **Upstream request fields per model (D-045).** A model in a provider's catalog can carry extra upstream request
+- **Upstream request fields per model (D-046).** A model in a provider's catalog can carry extra upstream request
   body fields, so a client no longer has to send them. Two shapes: **request fields**, a free-form JSON object for
   vendor options this gateway does not model (OpenRouter `transforms`, Gemini `safetySettings`), and **pin the
   upstream provider**, a typed block sent as the request's `provider` (order, only, ignore, sort, fallbacks, data

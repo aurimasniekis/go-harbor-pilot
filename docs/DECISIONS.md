@@ -504,7 +504,7 @@ path and adapter version, one work item per fingerprint.
   request path's `applies()`, whatever their state; `scope`/`scope_id` returns budgets defined on exactly that object.
   The commit comes from a `main.commit` build flag, falling back to the Go build info.
 
-## D-045: Per-model upstream request fields (owner, 2026-11-11)
+## D-046: Per-model upstream request fields (owner, 2026-11-11)
 
 - **Shape.** A provider's model gains three optional spec fields. `request_fields` is a map of extra top-level request
   body fields kept as raw JSON, for upstreams that accept options this gateway does not model. `provider_routing` is a
