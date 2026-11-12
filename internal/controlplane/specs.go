@@ -1,7 +1,6 @@
 package controlplane
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -145,9 +144,9 @@ type UpstreamMaxPrice struct {
 }
 
 // UpstreamProviderSpec pins which upstream provider should serve a model. It
-// is rendered as the request's "provider" object, so it applies to routers
-// that accept that block (an OpenAI-compatible endpoint such as OpenRouter).
-// An unset field is omitted rather than sent as its zero value.
+// is rendered as the request's "provider" object, so it applies to
+// OpenAI-compatible routers that accept that block. An unset field is omitted
+// rather than sent as its zero value.
 type UpstreamProviderSpec struct {
 	Order             []string          `json:"order" required:"false" doc:"Preferred upstream providers, first choice first."`
 	Only              []string          `json:"only" required:"false" doc:"Use only these upstream providers."`
@@ -241,11 +240,11 @@ type ModelSpec struct {
 	Pricing         *ModelPricing `json:"pricing,omitempty" doc:"List prices for estimates; omit when unknown."`
 	// RequestFields are extra top-level fields added to the upstream request
 	// body for this model, so a client does not have to send them.
-	RequestFields map[string]json.RawMessage `json:"request_fields" required:"false" doc:"Extra top-level upstream request fields for this model (e.g. transforms, safetySettings). Structural fields (model, messages, stream, tools) are refused."`
+	RequestFields map[string]json.RawMessage `json:"request_fields" required:"false" doc:"Extra upstream request fields for this model. Only fields on the provider type's allowlist are accepted (for example temperature, transforms, safetySettings); output limits, tools, stored state, caching and structural fields never are."`
 	// ProviderRouting is a typed upstream-routing pin, sent as "provider".
-	ProviderRouting *UpstreamProviderSpec `json:"provider_routing,omitempty" required:"false" doc:"Pin which upstream provider serves this model (OpenAI-compatible routers such as OpenRouter). Sent as the request's provider field."`
+	ProviderRouting *UpstreamProviderSpec `json:"provider_routing,omitempty" required:"false" doc:"Pin which upstream provider serves this model, on openai_compatible providers only. Sent as the request's provider field."`
 	// RequestFieldPolicy decides conflicts with a client-supplied field.
-	RequestFieldPolicy string `json:"request_field_policy" enum:"configured,client,reject," required:"false" doc:"When the client already sends one of these fields: configured (the model's value wins), client (the client's value wins), reject (refuse the request). Empty = configured."`
+	RequestFieldPolicy string `json:"request_field_policy" enum:"configured,client,reject," required:"false" doc:"When the client's own request already sets one of these fields: configured (the model's value wins), client (the client's value wins), reject (refuse the request before any upstream is contacted). Empty = configured."`
 }
 
 // ProviderSpec configures an upstream provider endpoint.
@@ -378,67 +377,6 @@ func validateProvider(v *Validator, s *ProviderSpec) {
 			loc+".request_field_policy", "must be configured, client or reject")
 		validateModelRequestFields(v, loc, t, m)
 	}
-}
-
-// structuralRequestFields are request fields the gateway owns; letting
-// configuration set them would silently rewrite what the client asked for.
-var structuralRequestFields = []string{"model", "messages", "input", "contents", "system", "systeminstruction", "instructions",
-	"stream", "stream_options", "tools", "tool_choice", "parallel_tool_calls", "n"}
-
-// IsStructuralRequestField reports whether a configured field name collides
-// with a field the gateway sets.
-func IsStructuralRequestField(name string) bool {
-	return slices.Contains(structuralRequestFields, strings.ToLower(name))
-}
-
-var requestFieldNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.-]{0,63}$`)
-
-// maxRequestFieldBytes bounds one configured field, so a spec cannot smuggle a
-// request body of its own into the configuration.
-const maxRequestFieldBytes = 8 << 10
-
-func validateModelRequestFields(v *Validator, loc string, t ProviderType, m ModelSpec) {
-	if t.Execution == "cli_bridge" {
-		v.Check(len(m.RequestFields) == 0 && m.ProviderRouting == nil, loc+".request_fields",
-			"CLI bridge providers run the vendor CLI and cannot carry upstream request fields")
-		return
-	}
-	v.Check(len(m.RequestFields) <= 32, loc+".request_fields", "at most 32 fields")
-	for k, raw := range m.RequestFields {
-		floc := loc + ".request_fields." + k
-		v.Check(requestFieldNameRE.MatchString(k), floc, "invalid field name")
-		v.Check(!IsStructuralRequestField(k), floc, "this field is set by the gateway and cannot be configured")
-		trimmed := bytes.TrimSpace(raw)
-		v.Check(len(trimmed) > 0 && len(trimmed) <= maxRequestFieldBytes, floc, "must be between 1 byte and 8 KiB of JSON")
-		if len(trimmed) > 0 && !json.Valid(trimmed) {
-			v.Fail(floc, "must be valid JSON")
-		}
-	}
-	if p := m.ProviderRouting; p != nil {
-		ploc := loc + ".provider_routing"
-		v.Check(t.Type == ProviderOpenAICompatible, ploc, "upstream provider routing applies to openai_compatible providers only")
-		v.Check(!hasRequestField(m.RequestFields, "provider"), ploc,
-			"set either provider_routing or a request_fields.provider entry, not both")
-		v.Check(len(p.Order) <= 32 && len(p.Only) <= 32 && len(p.Ignore) <= 32 && len(p.Quantizations) <= 16, ploc, "too many entries")
-		v.Check(p.Sort == "" || slices.Contains([]string{"price", "throughput", "latency"}, p.Sort), ploc+".sort", "must be price, throughput or latency")
-		v.Check(p.DataCollection == "" || slices.Contains([]string{"allow", "deny"}, p.DataCollection), ploc+".data_collection", "must be allow or deny")
-		if mp := p.MaxPrice; mp != nil {
-			for f, val := range map[string]*float64{"prompt": mp.Prompt, "completion": mp.Completion, "request": mp.Request, "image": mp.Image} {
-				if val != nil {
-					v.Check(*val >= 0, ploc+".max_price."+f, "must be non-negative")
-				}
-			}
-		}
-	}
-}
-
-func hasRequestField(m map[string]json.RawMessage, name string) bool {
-	for k := range m {
-		if strings.EqualFold(k, name) {
-			return true
-		}
-	}
-	return false
 }
 
 // ---------- provider accounts ----------

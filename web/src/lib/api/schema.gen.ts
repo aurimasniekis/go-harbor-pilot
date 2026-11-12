@@ -3845,14 +3845,14 @@ export interface components {
             max_output_tokens?: number;
             /** @description List prices for estimates; omit when unknown. */
             pricing?: components["schemas"]["ModelPricing"];
-            /** @description Pin which upstream provider serves this model (OpenAI-compatible routers such as OpenRouter). Sent as the request's provider field. */
+            /** @description Pin which upstream provider serves this model, on openai_compatible providers only. Sent as the request's provider field. */
             provider_routing?: components["schemas"]["UpstreamProviderSpec"];
             /**
-             * @description When the client already sends one of these fields: configured (the model's value wins), client (the client's value wins), reject (refuse the request). Empty = configured.
+             * @description When the client's own request already sets one of these fields: configured (the model's value wins), client (the client's value wins), reject (refuse the request before any upstream is contacted). Empty = configured.
              * @enum {string}
              */
             request_field_policy?: "configured" | "client" | "reject" | "";
-            /** @description Extra top-level upstream request fields for this model (e.g. transforms, safetySettings). Structural fields (model, messages, stream, tools) are refused. */
+            /** @description Extra upstream request fields for this model. Only fields on the provider type's allowlist are accepted (for example temperature, transforms, safetySettings); output limits, tools, stored state, caching and structural fields never are. */
             request_fields?: {
                 [key: string]: unknown;
             };
