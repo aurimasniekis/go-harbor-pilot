@@ -59,6 +59,21 @@ See [Backup and restore](/operators/backup).
 
 ## Notes for specific versions
 
+### 0.1.5
+
+- **No migrations.**
+- **Bridge sessions may stay on disk longer (D-045).** When a Claude Code bridge process ends between turns, its CLI
+  session is kept for up to the conversation's prompt-cache TTL (5 minutes or 1 hour) after its last use, so the next
+  turn can resume it. Before, conversation files were removed when the process ended. Kept sessions are deleted at
+  expiry, on account removal and at shutdown, and are bounded by the new keys
+  `bridges.claude_code.shelf_max_per_account` (default `16`) and `bridges.claude_code.shelf_max_bytes` (default
+  256 MiB); a value of `0` means the default, and there is no switch to turn retention off. See
+  [Limitations](/security/limitations).
+- **Behaviour changes.** The Claude Code bridge removes client `cache_control` markers (recorded as a `cache_control`
+  loss), a 400 reported by the CLI is returned to the client instead of failing over, and attempts are numbered in
+  the order they ran (skipped candidates are listed as excluded instead). Review alerts or scripts that count
+  failovers or read attempt numbers.
+
 ### 0.1.4
 
 - **One migration.** `20261108100000000_add_budget_state_limits` adds two nullable limit columns to `budget_state`.
