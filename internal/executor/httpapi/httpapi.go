@@ -154,7 +154,7 @@ func (e *Executor) Execute(ctx context.Context, t executor.Target, cred credenti
 			return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrUnsupported, Message: "native passthrough requires an upstream speaking " + string(req.Inbound)}}
 		}
 		mode = executor.ModePassthrough
-		body, ferr = passthroughBody(req.RawBody, t, up, stream, req.IR, &fields)
+		body, ferr, err = passthroughBody(req.RawBody, t, up, stream, req.IR, &fields)
 	} else {
 		body, losses, err = build(req.IR, t, up, stream)
 		if err == nil {
@@ -360,7 +360,11 @@ func build(r *ir.Request, t executor.Target, up ir.Protocol, stream bool) ([]byt
 // (and the stream flag the gateway relies on) for protocols that carry them.
 // A model's configured request fields are applied here too, because the
 // client's bytes are what would otherwise bypass them.
-func passthroughBody(raw []byte, t executor.Target, p ir.Protocol, stream bool, r *ir.Request, fields *ir.Losses) ([]byte, error) {
+// passthroughBody returns the client's body with the model rewritten and the
+// model's request fields applied. ferr is a failure to apply those fields;
+// err is anything else (a body that does not parse), so an unconfigured model
+// never reports a field problem.
+func passthroughBody(raw []byte, t executor.Target, p ir.Protocol, stream bool, r *ir.Request, fields *ir.Losses) (body []byte, ferr, err error) {
 	fs, ok := configuredFields(t.Provider.Spec.Type, t.ModelSpec)
 	var cs ClientSettings
 	if ok {
@@ -368,22 +372,23 @@ func passthroughBody(raw []byte, t executor.Target, p ir.Protocol, stream bool, 
 	}
 	if p == ir.Gemini {
 		if !ok {
-			return raw, nil
+			return raw, nil, nil
 		}
 		// Gemini carries the model in the path, so its body is otherwise
 		// untouched; the configured fields still apply.
 		o, err := wire.ParseObject(raw)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if err := mergeFields(o, fs, cs, fields); err != nil {
-			return nil, err
+			return nil, err, nil
 		}
-		return wire.Marshal(o)
+		body, err := wire.Marshal(o)
+		return body, nil, err
 	}
 	o, err := wire.ParseObject(raw)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	o["model"] = wire.MustMarshal(t.Model)
 	if p == ir.OpenAIChat && stream {
@@ -391,10 +396,11 @@ func passthroughBody(raw []byte, t executor.Target, p ir.Protocol, stream bool, 
 	}
 	if ok {
 		if err := mergeFields(o, fs, cs, fields); err != nil {
-			return nil, err
+			return nil, err, nil
 		}
 	}
-	return wire.Marshal(o)
+	body, err = wire.Marshal(o)
+	return body, nil, err
 }
 
 func setHeaders(r *http.Request, t executor.Target, up ir.Protocol, cred credentials.Secret, stream bool, ua, reqID string) {

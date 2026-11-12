@@ -15,6 +15,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/executor"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/credentials"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/gemini"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/openaichat"
 )
 
@@ -234,17 +235,14 @@ func TestGeminiGenerationConfigDeepMerge(t *testing.T) {
 		return &controlplane.ModelSpec{RequestFieldPolicy: policy,
 			RequestFields: raws("generation_config", `{"temperature":0.2,"top_p":0.5}`, "safetySettings", `[{"category":"c","threshold":"t"}]`)}
 	}
-	client := []byte(`{"contents":[],"generation_config":{"temperature":0.9,"maxOutputTokens":100,"responseMimeType":"text/plain"}}`)
+	client := []byte(`{"contents":[],"generationConfig":{"temperature":0.9,"maxOutputTokens":100,"responseMimeType":"text/plain"}}`)
 	t.Run("configured", func(t *testing.T) {
 		var losses ir.Losses
-		out, err := passthroughBody(client, target(controlplane.ProviderGemini, "https://x", spec("")), ir.Gemini, false, nil, &losses)
+		out, err := passthrough(client, target(controlplane.ProviderGemini, "https://x", spec("")), ir.Gemini, false, nil, &losses)
 		if err != nil {
 			t.Fatal(err)
 		}
 		got := decodeBody(t, out)
-		if _, dup := got["generation_config"]; dup {
-			t.Fatal("the client's snake_case spelling must be merged into one generationConfig")
-		}
 		gc := got["generationConfig"].(map[string]any)
 		if gc["temperature"] != 0.2 || gc["topP"] != 0.5 {
 			t.Errorf("configured keys not applied: %v", gc)
@@ -260,7 +258,7 @@ func TestGeminiGenerationConfigDeepMerge(t *testing.T) {
 		}
 	})
 	t.Run("client", func(t *testing.T) {
-		out, err := passthroughBody(client, target(controlplane.ProviderGemini, "https://x", spec(controlplane.FieldPolicyClient)), ir.Gemini, false, nil, &ir.Losses{})
+		out, err := passthrough(client, target(controlplane.ProviderGemini, "https://x", spec(controlplane.FieldPolicyClient)), ir.Gemini, false, nil, &ir.Losses{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -284,6 +282,71 @@ func TestGeminiGenerationConfigDeepMerge(t *testing.T) {
 		if len(gc) != 2 {
 			t.Errorf("generationConfig = %v, want only the configured keys", gc)
 		}
+	})
+}
+
+// TestGeminiOtherSpellingCannotOverrideGenerationConfig: the parser reads
+// only the canonical generationConfig, so the budget sees its output cap. A
+// second spelling of the object in the same request must not be merged over
+// it, on the translated path or on passthrough.
+func TestGeminiOtherSpellingCannotOverrideGenerationConfig(t *testing.T) {
+	spec := &controlplane.ModelSpec{RequestFields: raws("generationConfig", `{"temperature":0.2}`)}
+	client := []byte(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}],` +
+		`"generationConfig":{"maxOutputTokens":10},"generation_config":{"maxOutputTokens":1000000,"temperature":0.9}}`)
+	check := func(t *testing.T, out []byte, losses *ir.Losses) {
+		t.Helper()
+		got := decodeBody(t, out)
+		if _, ok := got["generation_config"]; ok {
+			t.Errorf("the other spelling must not reach the upstream: %s", out)
+		}
+		gc := got["generationConfig"].(map[string]any)
+		if gc["maxOutputTokens"] != float64(10) {
+			t.Errorf("maxOutputTokens = %v, want the canonical 10", gc["maxOutputTokens"])
+		}
+		if gc["temperature"] != 0.2 {
+			t.Errorf("temperature = %v, want the configured 0.2", gc["temperature"])
+		}
+		found := false
+		for _, l := range losses.List() {
+			if l.Feature == "request_field:generationConfig" && l.Severity == ir.LossDrop {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("want a drop loss for the dropped spelling, got %v", losses.List())
+		}
+	}
+	tg := target(controlplane.ProviderGemini, "https://x", spec)
+	t.Run("passthrough", func(t *testing.T) {
+		var losses ir.Losses
+		r, err := gemini.ParseRequest(client, "m", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := passthrough(client, tg, ir.Gemini, false, r, &losses)
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(t, out, &losses)
+	})
+	t.Run("translated", func(t *testing.T) {
+		var losses ir.Losses
+		r, err := gemini.ParseRequest(client, "m", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.MaxOutputTokens == nil || *r.MaxOutputTokens != 10 {
+			t.Fatalf("the canonical request must carry the canonical cap, got %v", r.MaxOutputTokens)
+		}
+		body, _, err := build(r, tg, ir.Gemini, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := applyRequestFields(body, controlplane.ProviderGemini, spec, ClientSettingsOf(r, client), &losses)
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(t, out, &losses)
 	})
 }
 
@@ -387,7 +450,7 @@ func TestPassthroughAppliesConfiguredFields(t *testing.T) {
 	spec := &controlplane.ModelSpec{ProviderRouting: &controlplane.UpstreamProviderSpec{Order: []string{"provider-a"}}}
 	raw := []byte(`{"model":"client-model","stream":true,"provider":{"order":["client"]}}`)
 	var losses ir.Losses
-	out, err := passthroughBody(raw, target(controlplane.ProviderOpenAICompatible, "https://x", spec), ir.OpenAIChat, true, nil, &losses)
+	out, err := passthrough(raw, target(controlplane.ProviderOpenAICompatible, "https://x", spec), ir.OpenAIChat, true, nil, &losses)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -406,7 +469,7 @@ func TestPassthroughAppliesConfiguredFields(t *testing.T) {
 
 func TestPassthroughWithoutFieldsAddsNothing(t *testing.T) {
 	raw := []byte(`{"model":"client-model","stream":true}`)
-	out, err := passthroughBody(raw, target(controlplane.ProviderOpenAICompatible, "https://x", nil), ir.OpenAIChat, true, nil, &ir.Losses{})
+	out, err := passthrough(raw, target(controlplane.ProviderOpenAICompatible, "https://x", nil), ir.OpenAIChat, true, nil, &ir.Losses{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,7 +492,7 @@ func TestPassthroughWithoutFieldsAddsNothing(t *testing.T) {
 func TestPassthroughGeminiAppliesFields(t *testing.T) {
 	spec := &controlplane.ModelSpec{RequestFields: raws("safetySettings", `[]`)}
 	raw := []byte(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}`)
-	out, err := passthroughBody(raw, target(controlplane.ProviderGemini, "https://x", spec), ir.Gemini, false, nil, &ir.Losses{})
+	out, err := passthrough(raw, target(controlplane.ProviderGemini, "https://x", spec), ir.Gemini, false, nil, &ir.Losses{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -437,12 +500,39 @@ func TestPassthroughGeminiAppliesFields(t *testing.T) {
 		t.Errorf("safetySettings missing: %s", out)
 	}
 	// Without configured fields the raw bytes are forwarded exactly.
-	out, err = passthroughBody(raw, target(controlplane.ProviderGemini, "https://x", nil), ir.Gemini, false, nil, &ir.Losses{})
+	out, err = passthrough(raw, target(controlplane.ProviderGemini, "https://x", nil), ir.Gemini, false, nil, &ir.Losses{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(out) != string(raw) {
 		t.Errorf("gemini passthrough body changed: %s", out)
+	}
+}
+
+// passthrough joins passthroughBody's two errors for tests that only care
+// whether it failed.
+func passthrough(raw []byte, t executor.Target, p ir.Protocol, stream bool, r *ir.Request, fields *ir.Losses) ([]byte, error) {
+	body, ferr, err := passthroughBody(raw, t, p, stream, r, fields)
+	return body, errors.Join(ferr, err)
+}
+
+// TestPassthroughParseFailureIsNotAFieldError: a body that does not parse is
+// not reported as a request-field problem, least of all for a model that
+// configures none.
+func TestPassthroughParseFailureIsNotAFieldError(t *testing.T) {
+	for _, spec := range []*controlplane.ModelSpec{nil, {RequestFields: raws("transforms", `[]`)}} {
+		_, aerr := New("test-agent").Execute(context.Background(), target(controlplane.ProviderOpenAICompatible, "https://x", spec), testSecret(),
+			executor.Request{IR: chatIR(ir.OpenAIChat), Inbound: ir.OpenAIChat, Passthrough: true, RawBody: []byte(`{"model":`)}, false)
+		if aerr == nil {
+			t.Fatal("want an error for a body that does not parse")
+		}
+		var e *ir.Error
+		if !errors.As(aerr.Err, &e) {
+			t.Fatalf("err = %v", aerr.Err)
+		}
+		if strings.Contains(e.Message, "request fields") {
+			t.Errorf("a parse failure must not read as a request-field problem: %q", e.Message)
+		}
 	}
 }
 

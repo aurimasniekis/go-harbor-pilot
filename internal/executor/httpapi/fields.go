@@ -186,16 +186,27 @@ func mergeObjectField(o wire.Object, f configuredField, policy string, cs Client
 	// rather than breaking the request.
 	var conf map[string]json.RawMessage
 	_ = json.Unmarshal(f.raw, &conf)
+	// Only the canonical key is the merge base: it is the object the
+	// gateway parsed (and budgeted) or built itself. Another spelling was
+	// never read into the canonical request, so letting it merge in would
+	// let a client override what the budget saw (its output cap
+	// included). Such spellings are dropped and recorded as a loss.
 	merged := wire.Object{}
-	for _, k := range spellings(o, f.rule.Name) {
-		sub, err := wire.ParseObject(o[k])
+	if raw, ok := o[f.rule.Name]; ok {
+		sub, err := wire.ParseObject(raw)
 		if err != nil {
-			return &rejectedFieldError{name: f.rule.Name, msg: fmt.Sprintf("the request's %q must be a JSON object", k)}
+			return &rejectedFieldError{name: f.rule.Name, msg: fmt.Sprintf("the request's %q must be a JSON object", f.rule.Name)}
 		}
-		for sk, sv := range sub {
-			merged[sk] = sv
+		merged = sub
+	}
+	for _, k := range spellings(o, f.rule.Name) {
+		if k == f.rule.Name {
+			continue
 		}
 		delete(o, k)
+		if losses != nil {
+			losses.Add("request_field:"+f.rule.Name, fmt.Sprintf("the request's %q was dropped; only %q is merged with the model's configured value", k, f.rule.Name), ir.LossDrop)
+		}
 	}
 	for _, sk := range subKeys(f) {
 		var raw json.RawMessage
