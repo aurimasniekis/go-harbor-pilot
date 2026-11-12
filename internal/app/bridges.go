@@ -112,7 +112,7 @@ func (a *App) setupClaudeBridge(o Options) {
 	}
 	b := claudecode.New(claudecode.Options{Binary: bin, Root: filepath.Join(a.Cfg.Server.DataDir, "bridges", "claude_code"),
 		ExtraEnv: o.BridgeEnv, MaxProcesses: cc.MaxProcesses, MaxPerAccount: cc.MaxPerAccount, IdleTimeout: cc.IdleTimeout,
-		ToolTimeout: cc.ToolTimeout, Log: a.Log, Now: a.Clock.Now,
+		ToolTimeout: cc.ToolTimeout, ShelfMaxPerAccount: cc.ShelfMaxPerAccount, ShelfMaxBytes: cc.ShelfMaxBytes, Log: a.Log, Now: a.Clock.Now,
 		OnRateLimit: func(accountID string, info claudecode.RateLimitInfo) { a.Quota.ObserveCLI(accountID, cliWindows(info)) }})
 	a.Gateway.Bridges[cp.ProviderClaudeCode] = b
 	a.closers = append(a.closers, b.Close)

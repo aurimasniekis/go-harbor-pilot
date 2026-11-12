@@ -303,7 +303,7 @@ path and adapter version, one work item per fingerprint.
   is a bearer header (Claude) or `HP_MCP_TOKEN` (Codex `bearer_token_env_var`). The MCP server accepts only
   `Authorization: Bearer`, checks `Host`, and has read and idle timeouts.
 - **Content does not outlive processes.** Claude transcripts, per-workdir caches and per-run files are removed when the
-  process ends. Codex rollouts are removed once older than the thread TTL (24 h), and prompt history is off
+  process ends; since D-045 a Claude session ended between turns is kept up to its prompt-cache TTL. Codex rollouts are removed once older than the thread TTL (24 h), and prompt history is off
   (`history.persistence="none"`). A periodic sweep removes crash leftovers.
 - **Processes** run in their own process group and are killed as a group; spawns hold a real slot reservation; parked
   processes and resumable threads are reused only within the same client scope (`executor.Request.Scope`); files of
@@ -503,6 +503,44 @@ path and adapter version, one work item per fingerprint.
   `GET /api/v1/budgets/status` filters: `project_id` (+ `binding_id`) returns budgets covering that scope by the
   request path's `applies()`, whatever their state; `scope`/`scope_id` returns budgets defined on exactly that object.
   The commit comes from a `main.commit` build flag, falling back to the Go build info.
+
+## D-045: Claude Code bridge sessions are kept up to the prompt-cache TTL (2026-11-09)
+
+- **Problem.** When a bridge process ended (idle timeout, eviction, tool timeout, crash), the next turn started a new
+  CLI from a transcript rebuilt out of the client's history. The CLI's own session (the prompt it sent, including the
+  entries it adds) was deleted with the process, and the rebuilt prefix is not byte-identical to it, so the upstream
+  wrote the whole conversation to its prompt cache again: on a `1h` cache that is twice the input price for every
+  token of history. A long conversation paused past the idle timeout paid that on every resumption.
+- **Decision.** Conversation content may stay on disk after its process ends, **up to the conversation's prompt-cache
+  TTL after the conversation was last used** (5 minutes or 1 hour, the `CLAUDE_CODE_PROMPT_CACHE_TTL` the process ran
+  with): as long as the upstream cache can still hold the prompt, and no longer. This amends D-026 ("content
+  does not outlive processes"); the owner approved the change.
+  - A process that ends between turns (idle, or waiting for tool results; reasons `idle timeout`, `evicted`, `process
+    exited`) has its CLI session file moved to a per-account shelf (`<data_dir>/bridges/claude_code/accounts/<id>/shelf`,
+    directory 0700, files 0600), keyed like the process match: account, client scope, model, cache TTL, effort, output
+    limit, system prompt, tools and the conversation fingerprint the next request will carry. A process waiting for
+    tool results is shelved only once its session records those calls.
+  - Execute tries a parked process, then a shelved session (a new process with `--resume <its id>`; only the new turn
+    is typed, and for pending tool calls the results are appended to the session in the CLI's own entry shape and the
+    turn continues with "Continue."), then a rebuilt transcript. A shelved session is used once.
+  - Appending tool results writes an undocumented entry shape, so it is done only for CLI versions it was verified
+    with (2.1.318, 2.1.319, 2.1.321, 2.1.322, read from the session's last entry). For any other version the turn is served
+    from the rebuilt transcript and `bridge.shelf.unverified_cli_version` is logged once per version. Resuming a
+    session after a complete turn writes nothing into it (plain `--resume` and the typed turn), so it is not
+    version-gated.
+  - Ended by the client going away, an upstream error or shutdown: nothing is kept, as before.
+- **Bounds.** Each entry expires the TTL after the conversation's last use; a process that ends after that is not
+  shelved at all. Expired entries are deleted by the sweeper (every 15 s). An ended process's files count as live for
+  the sweeper until its cleanup has finished, so a session being shelved is not swept; shutdown waits for those
+  cleanups and kills any process group still running.
+  At most `shelf_max_per_account` entries per account (default 16) and `shelf_max_bytes` in total (default 256 MiB);
+  the oldest go first. Pruned accounts lose their entries. Shutdown deletes the shelf; the index is in memory, so
+  files found after a restart are deleted at the next sweep, not reused.
+- **Visibility.** Each bridge turn records which session served it (`bridge_session` in the ledger provenance:
+  `live_process`, `shelved_session`, `transcript`, `new_session`), shown on the request page, and logs `bridge.turn`.
+  `scripts/live/claude-code-bridge-cache.sh` checks the effect on a deployment.
+- **Not adopted.** Keeping sessions beyond the TTL (the cache is gone by then, so it buys nothing), and carrying the
+  client's own breakpoints instead of the CLI's.
 
 ## D-046: Per-model upstream request fields (owner, 2026-11-11; reworked after review 2026-11-12)
 

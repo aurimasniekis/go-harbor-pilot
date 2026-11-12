@@ -106,6 +106,10 @@ type BridgeCLI struct {
 	// ToolTimeout ends processes waiting for client tool results.
 	IdleTimeout time.Duration `yaml:"idle_timeout"`
 	ToolTimeout time.Duration `yaml:"tool_timeout"`
+	// ShelfMaxPerAccount and ShelfMaxBytes bound the Claude Code sessions
+	// kept after their process ended, for up to the cache TTL (D-045).
+	ShelfMaxPerAccount int   `yaml:"shelf_max_per_account"`
+	ShelfMaxBytes      int64 `yaml:"shelf_max_bytes"`
 }
 
 type Demo struct {

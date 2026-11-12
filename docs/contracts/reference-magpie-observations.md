@@ -140,3 +140,31 @@ that bridging or passthrough avoids provider restrictions or detection.
   ranking expression example, not a built-in.
 - Session affinity, so a conversation stays on one account while its prompt cache is warm. Harbor Pilot makes
   affinity a routing-plan input with an explicit TTL.
+
+## 11. Prompt caching in the Claude CLI bridge (2026-11-09, `7c1dc19`)
+
+Read in source; observations only. Harbor Pilot's own behaviour is verified separately (`harness-wire-facts.md` §1.4).
+
+- **Conflict it addresses.** The upstream refuses a `1h` cache breakpoint after a `5m` one, and the CLI places its
+  own breakpoints on the system prompt ahead of the conversation, so client breakpoints carried into the CLI's
+  conversation can break the order.
+- **TTL through the child environment.** It sets `CLAUDE_CODE_PROMPT_CACHE_TTL=<5m|1h>` on the child and removes
+  any inherited `CLAUDE_CODE_PROMPT_CACHE_TTL` / `FORCE_PROMPT_CACHING_5M`. The run's TTL is `1h` if any client
+  breakpoint asks for `1h`, otherwise the TTL the breakpoints ask for (no `ttl` means `5m`), and `1h` when there
+  are none (its comments call that the CLI's subscription default). The TTL is part of the process and
+  conversation identity, so a parked process with one TTL is not reused for the other.
+- **Default: client breakpoints dropped**, the CLI keeps its own caching; the number dropped is reported in a
+  response header.
+- **Opt-in mode:** client breakpoints are kept and the child gets `DISABLE_PROMPT_CACHING=1`, so the client's
+  replace the CLI's. It validates the TTL order and the four-breakpoint limit itself first. Its rationale: past
+  about 64 KB of marked history, keeping the client's breakpoints costs less than the CLI rewriting the cache.
+- **Prompt stability:** it sets `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, keeping per-commit git status out of the
+  system prompt.
+- **Harbor Pilot:** adopts the default mode, the TTL rule, the TTL in the process match and the git setting. The
+  opt-in mode is not adopted.
+- **Session retention (public issue #4863).** The project's issue tracker reports that when a bridge process ends,
+  the next turn starts a CLI from a transcript rebuilt from the client's history, and unless that prefix is
+  byte-identical to what the earlier CLI sent, the whole history is written to the cache again (the report measured a
+  `/compact` writing 84 tokens directly and about 67K through the bridge). The fix described there keeps the CLI's own
+  session and resumes it. Harbor Pilot adopts the idea with its own bounds (D-045): kept at most the cache TTL, per
+  account and total caps, keyed like the process match.

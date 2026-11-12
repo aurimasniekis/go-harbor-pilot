@@ -31,6 +31,91 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
   `api/openapi.yaml`; no migration is needed. Updating a provider replaces its spec, so an API client or Terraform
   configuration must include the fields to keep them.
 
+## 0.1.5 (2026-11-12)
+
+Claude Code bridge: a fix for the 400 that broke every turn after the first, session retention so a paused
+conversation reads the prompt cache instead of writing it again, and fewer translation losses. Failed requests are
+attributed to the account they reached, and attempts are numbered in the order they ran. No migrations. New options:
+`bridges.claude_code.shelf_max_per_account` and `shelf_max_bytes`. See the upgrade notes below: the privacy rule for
+bridge sessions changes, and three behaviours change.
+
+### Claude Code bridge
+
+- **Sessions kept up to the cache TTL (D-045).** When a bridge process ends between turns (idle timeout, eviction,
+  tool timeout or a crash), its CLI session is kept on disk for up to the conversation's prompt-cache TTL (5 minutes
+  or 1 hour) and the next turn resumes it with `--resume`, so the prompt prefix is the CLI's own and the cache is
+  read rather than written again. A conversation waiting for tool results resumes with the results added to the
+  session. Bounded by `bridges.claude_code.shelf_max_per_account` (default 16) and `shelf_max_bytes` (default 256 MiB),
+  oldest first; deleted at expiry, on account removal and at shutdown. An entry expires the TTL after the
+  conversation's last turn, and a conversation whose cache has already expired is not kept. Tool results are written
+  into a kept session only for CLI versions whose session format was verified (2.1.318, 2.1.319, 2.1.321, 2.1.322). This
+  changes the privacy rule that conversation files are removed when the process ends: content may now stay up to
+  1 hour after the conversation's last turn.
+- **CLI leftovers removed.** The CLI's per-process files (`config/sessions/<pid>.json` and `.key`, holding a peer
+  token, the session id and the working directory) were left behind when a process was killed. They are removed with
+  the process and swept when no live process owns them.
+- **Which session served a turn** is recorded in the ledger provenance (`bridge_session`: `live_process`,
+  `shelved_session`, `transcript`, `new_session`) and shown on the request page next to the cache figures.
+- **Output settings are passed.** `max_tokens` goes to the CLI (`CLAUDE_CODE_MAX_OUTPUT_TOKENS`, up to the model's
+  limit) instead of being a `max_output_tokens` loss. An effort-only `output_config` on a mid-conversation system entry
+  sets the CLI's `--effort` and no longer records `system_message_field:…:output_config`. System entries without text
+  no longer record `mid_conversation_system`. Effort and the output limit are now part of the process match (a parked
+  process started at another effort used to be reused).
+- `scripts/live/claude-code-bridge-cache.sh` checks cache reads and writes per turn on a deployment.
+
+### Fixed
+
+- **Claude Code bridge: 400 on every turn after the first.** A client that marks message blocks with
+  `cache_control: {"ttl": "1h"}` (as Claude Code on a subscription does) had those markers copied into the bridge's
+  transcript and stdin turn. The CLI puts its own breakpoints on the system prompt and tools it adds ahead of the
+  conversation, so the client's markers could follow a 5m one or push the total past four, and the upstream refused
+  the request ("a ttl='1h' cache_control block must not come after a ttl='5m' cache_control block"). The bridge now
+  removes every client `cache_control` (message blocks and blocks inside tool results) and records a `cache_control`
+  loss (approximate): the CLI's own breakpoints replace the client's. The client's TTL is kept: the CLI runs with
+  `CLAUDE_CODE_PROMPT_CACHE_TTL` set to `1h` if any client breakpoint asks for `1h`, to `5m` if they all ask for
+  `5m`, and to `1h` when the client set none. The TTL is part of the parked-process match, so a process is reused
+  only for a conversation with the same TTL. The CLI also runs with `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, keeping
+  repository status out of its prompt.
+- **Claude Code bridge: an upstream 400 is no longer failed over.** The CLI reports the upstream's 400 without an
+  error type, so the bridge passed it on as a generic upstream error, and the gateway retried it on the next
+  subscription account, which refused it the same way. It is now `invalid_request`: one attempt, and the client gets
+  a 400. Rate limits, overload and server errors are still retried, and so are the documented account-level 400s
+  (credit balance, billing, a disabled organization).
+- **Prompt-cache rules on Anthropic requests.** The request builder now enforces the Messages API's breakpoint rules on
+  the body it sends, since merging, inlining or dropping blocks can break a request the client sent correctly. At most
+  four breakpoints (a top-level automatic one counts): the earliest are removed and the last four kept
+  (`cache_control_limit`, drop). TTLs must not increase across tools, system and messages, tool-result content
+  included, and a top-level automatic breakpoint last: a `1h` breakpoint after a `5m` one is lowered to `5m`
+  (`cache_control_ttl`, approximate). A request that
+  already follows the rules is sent unchanged. `cache_control` on blocks inside a tool result is now kept; it used to
+  be dropped silently.
+- **Failed requests are attributed.** A request that failed after reaching an account used to be recorded and logged
+  with empty `final_model`, `account_id`, `provider_id` and `mode`. It now carries the last attempt's account,
+  provider, model and mode, for HTTP upstreams and CLI bridges alike, and the translation losses of the request as
+  built for that attempt (they used to be recorded for successful requests only). The request page says **Failed on**
+  that account and labels the route step **Last tried** instead of **Served by**.
+- **Skipped candidates are not shown as fallbacks.** A candidate passed over at dispatch (concurrency limit reached,
+  local rate limit, open compatibility breaker, budget) used to take an attempt number and make the next attempt look
+  like a fallback ("#2 … Fell back to another account" with no #1). Attempts are now numbered in the order they ran,
+  a failover reason is recorded only after a real failed attempt, and skipped candidates are listed with the request's
+  excluded candidates (stage `dispatch`, with the reason).
+- The request page's cost line shows cache writes next to cache reads (both were already recorded, for the CLI
+  bridges too).
+
+### Upgrading
+
+- **Privacy rule change (D-045).** Claude Code bridge sessions are no longer removed as soon as their CLI process
+  ends: they may stay on disk until the conversation's prompt-cache TTL (5 minutes or 1 hour) has passed since its
+  last use. They are deleted at expiry, on account removal and at shutdown, and retention cannot be turned off.
+  Review any retention commitments that relied on the old rule.
+- **New configuration keys**, both optional: `bridges.claude_code.shelf_max_per_account` (default `16`) and
+  `bridges.claude_code.shelf_max_bytes` (default `268435456`, 256 MiB).
+- **Behaviour changes.** The Claude Code bridge strips client `cache_control` markers and records a `cache_control`
+  loss (approximate) on every such request. A 400 reported by the CLI is no longer failed over to the next account:
+  the client gets the 400 after one attempt. Attempts are renumbered in the order they ran, and candidates skipped at
+  dispatch no longer take a number; dashboards or scripts that read attempt numbers or failover reasons may see
+  different values.
+
 ## 0.1.4 (2026-11-08)
 
 One-time budgets, a spend cache that makes budget checks fast for every period, a system information endpoint and

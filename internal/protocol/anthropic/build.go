@@ -241,6 +241,7 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 	for _, k := range wire.ForeignExtKeys(r.Ext, P) {
 		losses.Add("field:"+k, "client field has no Anthropic equivalent", ir.LossDrop)
 	}
+	normalizeCacheControl(body, &losses)
 	b, err := wire.Marshal(body)
 	return b, losses.List(), err
 }
@@ -326,10 +327,10 @@ func buildBlock(p ir.Part, losses *ir.Losses) (map[string]any, bool) {
 		for _, c := range tr.Content {
 			switch c.Kind {
 			case ir.PartText:
-				content = append(content, map[string]any{"type": "text", "text": c.Text})
+				content = append(content, withCache(map[string]any{"type": "text", "text": c.Text}, c.CacheControl))
 			case ir.PartImage:
 				if c.Media != nil {
-					content = append(content, map[string]any{"type": "image", "source": mediaSource(c.Media)})
+					content = append(content, withCache(map[string]any{"type": "image", "source": mediaSource(c.Media)}, c.CacheControl))
 				}
 			default:
 				losses.Add("tool_result_content", "unsupported tool result content dropped", ir.LossDrop)
@@ -380,6 +381,15 @@ func buildBlock(p ir.Part, losses *ir.Losses) (map[string]any, bool) {
 	}
 	restorePart(b, p)
 	return b, true
+}
+
+// withCache keeps a block's cache breakpoint (blocks nested in a tool
+// result may carry one too).
+func withCache(b map[string]any, cc *ir.CacheControl) map[string]any {
+	if cc != nil {
+		b["cache_control"] = cc
+	}
+	return b
 }
 
 // sanitizeToolID keeps ids within Anthropic's allowed alphabet

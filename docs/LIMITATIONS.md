@@ -130,12 +130,28 @@ TRACEABILITY.md (`planned`, `in-progress`).
   sandboxes); for defence in depth run the bridge image or service as a separate user, or in a container that cannot
   read the data directory or the master key. Codex's code-mode wrapper and patch tool remain, contained only by the
   read-only sandbox and the fail-closed check (D-038).
-- **Parked processes are local state.** A restart loses them; the next request resumes from the transcript with a
-  recorded loss.
+- **Parked processes are local state.** A Claude Code process that ends between turns leaves its CLI session on a
+  shelf for up to its prompt-cache TTL after the conversation was last used (D-045), and the next turn resumes it. A
+  conversation waiting for tool results is resumed this way only with CLI versions whose session format was verified;
+  with others it falls back to the rebuilt transcript. After that, after a restart (the shelf
+  index is in memory) or when the shelf limits evicted it, the next request resumes from a rebuilt transcript with a
+  recorded loss. Conversation content therefore stays on disk up to 1 hour after the conversation's last turn (0600
+  files under the bridge's data directory).
+- **Claude Code 400s.** The CLI reports an upstream 400 without its error type. The bridge treats it as the client's
+  error (no failover), except the documented account-level ones it recognises by their text (credit balance, billing,
+  a disabled organization), which fail over and cool the account down. An account-level 400 worded differently is
+  returned to the client instead of failing over.
 - **Claude Code fidelity.** The model sees a system prompt prefixed with the CLI's identity line and an environment
-  note; client tools appear with an `mcp__client__` prefix (mapped back). Sampling parameters, stop sequences, output
-  limits and forced tool choice are not passed, each recorded as an approximate loss. Provider-executed tools (web
-  search and similar) are unavailable.
+  note (`system_prompt`, approximate: inherent to running the CLI); client tools appear with an `mcp__client__` prefix
+  (mapped back). Sampling parameters, stop sequences and forced tool choice are not passed, each recorded as an
+  approximate loss. `max_tokens` (up to the model's limit) and effort, including an effort-only `output_config` on a
+  mid-conversation system entry, are passed per process. A mid-conversation system entry with text is sent as user
+  text (`mid_conversation_system`): the CLI's session format is not documented for caller-provided system entries.
+  Provider-executed tools (web search and similar) are unavailable. The client's `cache_control` markers are removed (`cache_control`,
+  approximate): the CLI places its own breakpoints (system prompt and last message), and the client's could break the
+  upstream's TTL-order and four-breakpoint rules. Only the TTL carries over (`CLAUDE_CODE_PROMPT_CACHE_TTL`), not
+  the placement. A process resumed from a rebuilt transcript sends a different prefix than the previous process did,
+  so it writes the cache again; a shelved session keeps the CLI's own prefix.
 - **Codex history.** One turn per process. Turns the bridge served continue with `codex exec resume`; a conversation
   seen for the first time is replayed as text (`history_replay` loss). A turn in which the CLI still starts a command,
   file change or web search is stopped with an error.

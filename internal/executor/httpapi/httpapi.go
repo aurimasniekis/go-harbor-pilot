@@ -135,7 +135,13 @@ func endpoint(t executor.Target, p ir.Protocol, stream bool) (string, error) {
 }
 
 // Execute runs one attempt.
-func (e *Executor) Execute(ctx context.Context, t executor.Target, cred credentials.Secret, req executor.Request, stream bool) (*executor.Result, *executor.AttemptError) {
+func (e *Executor) Execute(ctx context.Context, t executor.Target, cred credentials.Secret, req executor.Request, stream bool) (_ *executor.Result, aerr *executor.AttemptError) {
+	var losses []ir.Loss
+	defer func() {
+		if aerr != nil && aerr.Losses == nil {
+			aerr.Losses = losses
+		}
+	}()
 	up := UpstreamProtocol(t.Provider.Spec.Type, req.Inbound)
 	if up == "" {
 		return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrUnsupported, Message: "provider type " + t.Provider.Spec.Type + " is not an HTTP provider"}}
@@ -145,7 +151,6 @@ func (e *Executor) Execute(ctx context.Context, t executor.Target, cred credenti
 		mode = executor.ModeNative
 	}
 	var body []byte
-	var losses []ir.Loss
 	var err error
 	var ferr error
 	var fields ir.Losses

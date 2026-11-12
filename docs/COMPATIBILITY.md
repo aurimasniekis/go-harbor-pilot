@@ -49,6 +49,33 @@ The Messages API accepts `{"role": "system", ...}` entries inside `messages[]` o
 | Anthropic Messages → Codex bridge | Not carried: the bridge skips system messages after the first turn | implemented | LIMITATIONS.md |
 | OpenAI Chat or Responses → Anthropic | A later `system` or `developer` message is sent as user text (`mid_conversation_system`, approximate), because the target model may not accept the role | contract-tested | TestChatSystemMessageToAnthropicIsUserText |
 
+### Prompt-cache breakpoints
+
+The Messages API accepts at most four `cache_control` breakpoints (a top-level automatic one included), and their TTLs must not increase in processing order: tools, then system, then messages. A `1h` breakpoint after a `5m` one (a missing `ttl` is `5m`) is a 400. Gateway reshaping (merging consecutive same-role messages, inlining system messages, dropping blocks) can break a request the client sent correctly, so the request builder checks the body it sends (`internal/protocol/anthropic/cache.go`). The synthetic Anthropic upstream enforces both rules, so a regression shows as a 400 in acceptance tests.
+
+| Upstream | Behaviour | Status | Evidence |
+|---|---|---|---|
+| Anthropic | Well-formed markers pass unchanged, including on blocks inside tool results. Over four: the earliest are removed and the last four kept, since the last breakpoint covers the longest prefix and is where a growing conversation writes its next entry (`cache_control_limit`, drop). A `1h` after a `5m` is lowered to `5m` (`cache_control_ttl`, approximate) | contract-tested (synthetic upstream) | TestBuildRequestNormalizesCacheControl, TestBuildRequestCacheControlOnProviderTool, TestAnthropicCacheControlReachesUpstreamValid |
+| Claude Code bridge | The client's breakpoints are replaced by the CLI's own: every client `cache_control` is removed from the transcript and the stdin turn (message blocks and tool-result content), and the CLI places its own on its system prompt and the last message (`cache_control`, approximate). Their TTL follows the client through `CLAUDE_CODE_PROMPT_CACHE_TTL`: `1h` if any client breakpoint asks for it, `5m` if all ask for `5m`, `1h` when there are none (harness-wire-facts §1.4). The TTL is part of the parked-process match. A resumed or new process must rebuild an identical prefix to hit the cache. The CLI's cache reads and writes are recorded on the request and the ledger | contract-tested (real `claude` 2.1.318 and 2.1.321 with a synthetic upstream, 2026-11-09); live: blocked (credentials) | TestShapeRequestStripsCacheControl, TestBridgeDropsClientCacheControl, TestClientCacheTTL, TestBridgeCacheTTLFollowsClient, TestClaudeCodeBridgeRecordsCacheTokens |
+| Codex bridge | Not applicable: the conversation is rendered as text | implemented | LIMITATIONS.md |
+
+### Claude Code bridge: what the CLI carries
+
+Each request records the features the bridge cannot carry as losses. Settings the CLI fixes per process (cache TTL, effort, output limit) are part of the parked-process and shelf match, so a process only continues a conversation with the same settings. In particular `max_tokens` is part of the key: a client that changes it on every turn gets no process or shelf reuse (and so fewer cache reads). Claude Code sends a constant value. Facts about the CLI are in `contracts/harness-wire-facts.md` §1.4–1.5.
+
+| Feature | Status | Reason | Evidence |
+|---|---|---|---|
+| `max_tokens` | passed (`CLAUDE_CODE_MAX_OUTPUT_TOKENS`, exact match per process); above the model's declared limit: approximate (`max_output_tokens`) | verified against the CLI: it sends the value as `max_tokens` (and clamps above 128000 itself). A smaller request does not reuse a process with a larger limit, since the reply could exceed what the client asked for | TestShapeRequestCarriesOutputSettings, TestBridgeOutputSettingsReachUpstream |
+| Effort (`output_config.effort`, `thinking` effort) | passed (`--effort`) | documented flag | TestBridgeOutputSettingsReachUpstream |
+| `output_config` on a mid-conversation system entry | passed when it holds only `effort` (the latest entry sets `--effort` for later turns); anything else dropped (`system_message_field:…:output_config`) | the public docs define message-level `output_config` as a per-message effort change; the CLI has no per-turn setting, so it applies to the process | TestShapeRequestCarriesOutputSettings |
+| Mid-conversation system entry with text | approximate (`mid_conversation_system`): sent as user text | the CLI's session format is not documented for caller-provided system entries (the CLI's own environment notes use internal attachment entries), so it is not written natively. An entry without text (settings only) records no loss | TestShapeRequestCarriesOutputSettings, TestAnthropicSystemMessagesInlinedOnRequest |
+| `cache_control` | approximate: replaced by the CLI's own breakpoints with the client's TTL | see above | TestBridgeCacheTTLFollowsClient |
+| System prompt | approximate (`system_prompt`) | inherent: the CLI prefixes its identity line and adds an environment note | LIMITATIONS.md |
+| Sampling (`temperature`, `top_p`, `top_k`), `stop_sequences` | approximate (`sampling`) | no CLI flag | LIMITATIONS.md |
+| Forced `tool_choice` | approximate (`tool_choice`) | no CLI flag | LIMITATIONS.md |
+| Provider-executed tools | dropped (`builtin_tool:*`) | the CLI's tools are off; client tools go through MCP | bridge/claudecode tests |
+| Tool results for a call no live process holds | approximate (`tool_continuation`) | resumed from the shelved session with the results appended, or from a rebuilt transcript (CLI versions whose session format was not verified), then a "Continue." turn | TestBridgeResumesShelvedToolCall, TestBridgeShelvedToolCallUnverifiedCLI, TestImagePinsVerifiedCLI |
+
 ## 3. Harnesses
 
 | Harness | Version tested | Speaks | Configuration | Setup tooling | Status | Evidence |

@@ -52,7 +52,9 @@ func TestBridgeArgumentsHoldNoSecrets(t *testing.T) {
 	}
 }
 
-// Conversation files are removed when the process ends.
+// Conversation files are removed when the process ends, including the
+// CLI's per-process files (config/sessions/<pid>.*, which hold a peer
+// token, the session id and the working directory).
 func TestBridgeRemovesTranscriptsAndRunFiles(t *testing.T) {
 	r := newRig(t)
 	r.up.Push(synthetic.Reply{Text: "ok", InputTok: 2, OutputTok: 1})
@@ -64,7 +66,8 @@ func TestBridgeRemovesTranscriptsAndRunFiles(t *testing.T) {
 	for time.Now().Before(deadline) {
 		left = left[:0]
 		_ = filepath.WalkDir(r.b.o.Root, func(path string, d fs.DirEntry, err error) error {
-			if err == nil && !d.IsDir() && (strings.HasSuffix(path, ".jsonl") || filepath.Base(path) == "system.txt" || filepath.Base(path) == "mcp.json") {
+			if err == nil && !d.IsDir() && (strings.HasSuffix(path, ".jsonl") || filepath.Base(path) == "system.txt" || filepath.Base(path) == "mcp.json" ||
+				strings.Contains(path, string(filepath.Separator)+"sessions"+string(filepath.Separator))) {
 				left = append(left, path)
 			}
 			return nil
