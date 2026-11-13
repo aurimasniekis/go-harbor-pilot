@@ -35,6 +35,8 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
   a Chat history field. Claude Code's adaptive thinking and `output_config.effort` then reach, for example, an
   OpenRouter-style router as `reasoning: {effort}` instead of being dropped. Every clamp or override is recorded as a
   translation loss. Models without the option are unchanged.
+- **Reasoning in the model dialog.** The provider's model dialog has a **Reasoning** section for the option, and models
+  that set it show a badge in the model list. The Terraform guide shows the option in a provider `spec`.
 - **Clearer losses.** A dropped `context_management`, `thinking` or `output_config` now says why, and the request-field
   refusal of `reasoning`/`thinking` points at the new option. The Claude Code bridge now records that it does not pass
   the client's thinking mode (`thinking`) or a top-level `output_config.format`.

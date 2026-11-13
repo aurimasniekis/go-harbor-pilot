@@ -33,8 +33,14 @@ test('configure a provider through to an issued client credential', async ({ pag
   const model = page.getByRole('dialog', { name: 'Add a model' })
   await model.getByLabel('Model id').fill('gpt-5')
   await model.getByLabel('Tool calls', { exact: true }).check()
+  // Reasoning option (D-047): follow the client, written as a router's
+  // reasoning object.
+  await model.getByRole('button', { name: /^Reasoning/ }).click()
+  await choose(model, 'Reasoning translation', 'client')
+  await choose(model, 'Upstream parameter', 'openrouter_reasoning')
   await model.getByRole('button', { name: 'Done' }).click()
   await expect(connect.getByText('gpt-5')).toBeVisible()
+  await expect(connect.getByText('Reasoning: client')).toBeVisible()
   await connect.getByRole('button', { name: 'Connect and test' }).click()
 
   // The new account opens with the result of a real connection check.

@@ -235,6 +235,31 @@ resource "harborpilot_provider" "router" {
 }
 ```
 
+### Reasoning option
+
+A model's `reasoning` option ([reasoning](/operators/providers#reasoning)) lives in the same `spec`, with the same
+rule: leave it out and an apply clears a value set in the UI. A model without the option is stored with no `reasoning`
+key at all, so adding Harbor Pilot versions with this option causes no diff on existing providers. Write only the
+fields you use; the server drops an option that changes nothing (`mode = "auto"` with no history setting).
+
+```hcl
+resource "harborpilot_provider" "router" {
+  name = "router"
+  spec = jsonencode({
+    type         = "openai_compatible"
+    display_name = "Router"
+    base_url     = "https://router.example.com/v1"
+    models = [{
+      id           = "vendor/model-a"
+      capabilities = ["streaming", "tools", "reasoning"]
+      reasoning    = { mode = "client", style = "openrouter_reasoning", effort = "medium", efforts = ["low", "medium", "high"] }
+    }]
+  })
+}
+```
+
+The server stores `efforts` in ladder order (`minimal` … `max`); write them in that order to avoid a diff.
+
 ## Secrets stay out of state
 
 Terraform's `sensitive` flag hides a value in output but still writes it to state. The provider avoids putting

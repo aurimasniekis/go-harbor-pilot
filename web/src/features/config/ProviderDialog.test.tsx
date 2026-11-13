@@ -17,7 +17,7 @@ const model = (p: Partial<ModelSpec> = {}): ModelSpec => ({
   ...p,
 })
 
-function open(m: ModelSpec, type: 'openai_compatible' | 'anthropic' = 'openai_compatible') {
+function open(m: ModelSpec, type: 'openai_compatible' | 'anthropic' | 'claude_code' = 'openai_compatible') {
   const onSave = vi.fn()
   render(
     <MantineProvider theme={theme}>
@@ -117,5 +117,82 @@ describe('ModelDialog upstream request fields', () => {
     const saved = onSave.mock.calls[0]![0] as ModelSpec
     expect(saved.provider_routing?.order).toEqual(['provider-a'])
     expect(saved.request_field_policy).toBe('client')
+  })
+})
+
+/** Expands the reasoning section. */
+async function showReasoning() {
+  const toggle = screen.getByRole('button', { name: /^Reasoning/ })
+  if (toggle.getAttribute('aria-expanded') !== 'true') await userEvent.click(toggle)
+  return toggle
+}
+
+const reasoningMode = () => screen.getByLabelText('Reasoning translation', { selector: 'input' })
+
+async function pick(label: string | RegExp, option: string) {
+  await userEvent.click(screen.getByLabelText(label, { selector: 'input' }))
+  await userEvent.click(await screen.findByRole('option', { name: option, hidden: true }))
+}
+
+describe('ModelDialog reasoning option', () => {
+  it('saves no option while it is left at the built-in default', async () => {
+    const onSave = open(model())
+    await showReasoning()
+    expect(reasoningMode()).toHaveValue('Built in (default)')
+    await userEvent.click(done())
+    expect((onSave.mock.calls[0]![0] as ModelSpec).reasoning).toBeUndefined()
+  })
+
+  it('sets the router style for Claude Code clients', async () => {
+    const onSave = open(model())
+    await showReasoning()
+    await pick('Reasoning translation', 'Follow the client')
+    await pick('Upstream parameter', 'Router reasoning object')
+    await pick('Default level', 'medium')
+    await userEvent.click(screen.getByLabelText('high'))
+    await userEvent.click(screen.getByLabelText('medium'))
+    await userEvent.click(done())
+    expect((onSave.mock.calls[0]![0] as ModelSpec).reasoning).toEqual({
+      mode: 'client', style: 'openrouter_reasoning', effort: 'medium', efforts: ['medium', 'high'],
+    })
+  })
+
+  it('opens a saved option and offers only the styles of the provider type', async () => {
+    open(model({ reasoning: { mode: 'off', style: 'anthropic_thinking' } }), 'anthropic')
+    expect(await showReasoning()).toHaveTextContent('(set)')
+    await userEvent.click(screen.getByLabelText('Upstream parameter', { selector: 'input' }))
+    expect(await screen.findByRole('option', { name: 'Anthropic thinking', hidden: true })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Router reasoning object', hidden: true })).toBeNull()
+    // Earlier reasoning goes back only to Chat Completions upstreams.
+    expect(screen.queryByLabelText(/Send earlier reasoning back/)).toBeNull()
+  })
+
+  it('sends earlier reasoning back in the style\'s field', async () => {
+    const onSave = open(model({ reasoning: { mode: 'client', style: 'deepseek_thinking' } }))
+    await showReasoning()
+    await userEvent.click(screen.getByLabelText(/Send earlier reasoning back/))
+    expect(screen.getByLabelText('In the field')).toHaveAttribute('placeholder', 'reasoning_content')
+    await userEvent.click(done())
+    expect((onSave.mock.calls[0]![0] as ModelSpec).reasoning).toEqual({ mode: 'client', style: 'deepseek_thinking', history: 'field' })
+  })
+
+  it('offers a fixed style only the levels it can send, and blocks saving without one', async () => {
+    const onSave = open(model({ reasoning: { mode: 'fixed', style: 'deepseek_thinking' } }))
+    await showReasoning()
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose the level')
+    expect(done()).toBeDisabled()
+    // DeepSeek takes no budget, so none is offered.
+    expect(screen.queryByLabelText('Or a thinking budget')).toBeNull()
+    await userEvent.click(screen.getByLabelText('Level', { selector: 'input' }))
+    expect(await screen.findByRole('option', { name: 'high', hidden: true })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'medium', hidden: true })).toBeNull()
+    await userEvent.click(screen.getByRole('option', { name: 'high', hidden: true }))
+    await userEvent.click(done())
+    expect((onSave.mock.calls[0]![0] as ModelSpec).reasoning).toEqual({ mode: 'fixed', style: 'deepseek_thinking', effort: 'high' })
+  })
+
+  it('is not offered for a CLI bridge', () => {
+    open(model(), 'claude_code')
+    expect(screen.queryByRole('button', { name: /^Reasoning/ })).toBeNull()
   })
 })

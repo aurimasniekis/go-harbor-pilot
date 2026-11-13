@@ -108,8 +108,15 @@ the API must send these fields back (see [Terraform](/operators/terraform#upstre
 
 Clients ask for reasoning in their own protocol's terms. Claude Code, for example, sends adaptive thinking with an
 effort level (`thinking: {type: "adaptive"}` and `output_config: {effort: "high"}`), while routers and other providers
-each take their own parameter. A model's `reasoning` option tells Harbor Pilot how to write these settings for that
+each take their own parameter. A model's reasoning option tells Harbor Pilot how to write these settings for that
 model. Without it, an explicit level is translated as before, and adaptive thinking reaches only Anthropic models.
+
+In the model dialog, open **Reasoning** and choose a **Reasoning translation**: **Built in** (the default), **Follow
+the client**, **Always the same level** or **Turn reasoning off**. Then pick the **Upstream parameter** the provider
+understands, a **Default level** (or a thinking budget), the **Accepted levels** and the **Largest thinking budget**.
+For OpenAI-compatible and local providers, **Send earlier reasoning back** names the assistant message field for
+earlier reasoning. A model with the option set shows a **Reasoning** badge in the model list. In the API and in
+Terraform the option is the model's `reasoning` object:
 
 ```json
 {"id": "deepseek/deepseek-chat", "reasoning": {"mode": "client", "style": "openrouter_reasoning", "effort": "medium", "efforts": ["low", "medium", "high"]}}
@@ -138,7 +145,7 @@ model. Without it, an explicit level is translated as before, and adaptive think
 
 Claude Code's `context_management` (Anthropic's server-side context editing) has no equivalent elsewhere and is
 always dropped. Passthrough requests and the CLI bridges ignore the option. Saving a provider replaces its whole spec,
-so tools that update providers must send `reasoning` back. The full reference is in the
+so tools that update providers must send `reasoning` back (see [Terraform](/operators/terraform#reasoning-option)). The full reference is in the
 [configuration contract](https://github.com/aurimasniekis/go-harbor-pilot/blob/main/docs/contracts/config.md#per-model-reasoning-translation).
 
 Routing is unchanged: a request that names a level or a thinking budget (Claude Code sends a budget for older Claude
