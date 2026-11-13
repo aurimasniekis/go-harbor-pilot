@@ -25,6 +25,8 @@ import { resourceListQuery } from '@/lib/api/queries'
 import type { AccountRes, AccountSpec, ModelSpec, ProviderRes, ProviderSpec, UpstreamMaxPrice, UpstreamProviderSpec } from '@/lib/api/types'
 import { freeName, isBridge } from '@/features/providers/labels'
 import { cleanModel, emptyProviderRouting, formatRequestFields, hasProviderField, hasUpstreamFields, modelsForType, parseRequestFields } from './upstreamFields'
+import { cleanReasoning, reasoningBadge } from './reasoning'
+import { ReasoningEditor } from './ReasoningEditor'
 import { classifications, providerTypes, type ProviderType } from './constants'
 import { defaultBilling } from './AccountDialog'
 import c from './config.module.css'
@@ -193,7 +195,8 @@ export function ModelDialog({ model, providerType, onSave, onClose }: {
             </Text>
           )}
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!m.id.trim() || fieldsInvalid} onClick={() => onSave(cleanModel(m))}>
+          <Button variant="primary" disabled={!m.id.trim() || fieldsInvalid}
+            onClick={() => onSave({ ...cleanModel(m), reasoning: cleanReasoning(m.reasoning, providerType) })}>
             Done
           </Button>
         </>
@@ -225,6 +228,7 @@ export function ModelDialog({ model, providerType, onSave, onClose }: {
         </SimpleGrid>
       )}
       {!bridge && <UpstreamFieldsEditor model={m} providerType={providerType} onChange={set} onInvalid={setFieldsInvalid} />}
+      {!bridge && <ReasoningEditor value={m.reasoning} providerType={providerType} onChange={(r) => set({ reasoning: r })} />}
     </Dialog>
   )
 }
@@ -447,6 +451,11 @@ export function ProviderDialog({ provider, onClose, onCreated }: {
                             {capabilityLabels[cap] ?? cap}
                           </Badge>
                         ))}
+                        {reasoningBadge(m) && (
+                          <Badge size="xs" variant="light" color="grape" title="This model sets how reasoning is sent upstream">
+                            {reasoningBadge(m)}
+                          </Badge>
+                        )}
                         {hasUpstreamFields(m) && (
                           <Badge size="xs" variant="light" color="blue" title="The gateway adds fields to this model’s upstream requests">
                             Upstream fields

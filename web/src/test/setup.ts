@@ -26,3 +26,8 @@ if (!('ResizeObserver' in window)) {
 if (!('fonts' in document)) {
   ;(document as unknown as { fonts: unknown }).fonts = { addEventListener() {}, removeEventListener() {}, ready: Promise.resolve() }
 }
+
+// Mantine's combobox scrolls the selected option into view; jsdom has no layout.
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {}
+}

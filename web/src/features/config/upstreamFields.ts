@@ -1,4 +1,5 @@
 import type { ModelSpec, UpstreamProviderSpec } from '@/lib/api/types'
+import { reasoningForType } from './reasoning'
 
 /** A fresh, empty pin: every field unset, so nothing is sent until filled in. */
 export function emptyProviderRouting(): UpstreamProviderSpec {
@@ -69,8 +70,13 @@ export function hasUpstreamFields(m: Pick<ModelSpec, 'provider_routing' | 'reque
  * the server refuses.
  */
 export function modelsForType(models: ModelSpec[], type: string): ModelSpec[] {
-  if (type === 'openai_compatible') return models
-  return models.map((m) => (m.provider_routing ? { ...m, provider_routing: undefined } : m))
+  return models.map((m) => {
+    let next = m
+    if (m.provider_routing && type !== 'openai_compatible') next = { ...next, provider_routing: undefined }
+    // A reasoning option keeps only what the new type accepts.
+    if (m.reasoning) next = { ...next, reasoning: reasoningForType(m.reasoning, type) }
+    return next
+  })
 }
 
 /**
