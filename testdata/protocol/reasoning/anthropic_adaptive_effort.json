@@ -1,0 +1,19 @@
+{
+  "model": "client-model",
+  "max_tokens": 32000,
+  "stream": true,
+  "system": [
+    {"type": "text", "text": "You are a coding assistant."},
+    {"type": "text", "text": "Answer briefly.", "cache_control": {"type": "ephemeral"}}
+  ],
+  "messages": [
+    {"role": "user", "content": [{"type": "text", "text": "List the files in the current directory."}]}
+  ],
+  "tools": [
+    {"name": "list_files", "description": "List files in a directory.", "input_schema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}
+  ],
+  "metadata": {"user_id": "user-0001"},
+  "thinking": {"type": "adaptive", "display": "updates"},
+  "output_config": {"effort": "high"},
+  "context_management": {"edits": [{"type": "clear_thinking_20251015", "keep": "all"}]}
+}

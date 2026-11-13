@@ -1,0 +1,9 @@
+{
+  "model": "client-model",
+  "max_completion_tokens": 4000,
+  "messages": [
+    {"role": "system", "content": "You are terse."},
+    {"role": "user", "content": "Which is larger, 9.11 or 9.9?"}
+  ],
+  "reasoning_effort": "high"
+}

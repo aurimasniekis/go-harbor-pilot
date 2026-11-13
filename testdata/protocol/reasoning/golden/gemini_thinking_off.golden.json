@@ -1,0 +1,105 @@
+{
+  "requirements": [],
+  "targets": {
+    "anthropic": {
+      "protocol": "anthropic_messages",
+      "losses": [
+        "max_tokens_defaulted | approximate | max_tokens was not set by the client; applied model default"
+      ],
+      "body": {
+        "max_tokens": 64000,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "Reply with OK.",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": false
+      }
+    },
+    "gemini": {
+      "protocol": "gemini",
+      "losses": [],
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "Reply with OK."
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {
+          "thinkingConfig": {
+            "thinkingBudget": 0
+          }
+        }
+      }
+    },
+    "ollama": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "messages": [
+          {
+            "content": "Reply with OK.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "none",
+        "stream": false
+      }
+    },
+    "openai": {
+      "protocol": "openai_responses",
+      "losses": [],
+      "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "input": [
+          {
+            "content": [
+              {
+                "text": "Reply with OK.",
+                "type": "input_text"
+              }
+            ],
+            "role": "user",
+            "type": "message"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning": {
+          "effort": "none"
+        },
+        "store": false,
+        "stream": false
+      }
+    },
+    "openai_compatible": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "messages": [
+          {
+            "content": "Reply with OK.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "none",
+        "stream": false
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "model": "client-model",
+  "max_tokens": 32000,
+  "stream": true,
+  "messages": [
+    {"role": "user", "content": "Plan a three-step refactor of a small module."}
+  ],
+  "thinking": {"type": "enabled", "budget_tokens": 31999, "display": "updates"},
+  "context_management": {"edits": [{"type": "clear_thinking_20251015", "keep": "all"}]}
+}

@@ -1,0 +1,114 @@
+{
+  "requirements": [],
+  "targets": {
+    "anthropic": {
+      "protocol": "anthropic_messages",
+      "losses": [],
+      "body": {
+        "max_tokens": 16000,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "Prove that the square root of two is irrational.",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "output_config": {
+          "effort": "max"
+        },
+        "stream": false,
+        "thinking": {
+          "type": "adaptive"
+        }
+      }
+    },
+    "gemini": {
+      "protocol": "gemini",
+      "losses": [
+        "field:anthropic_messages:output_config | drop | client field has no Gemini equivalent",
+        "field:anthropic_messages:thinking | drop | client field has no Gemini equivalent"
+      ],
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "Prove that the square root of two is irrational."
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 16000
+        }
+      }
+    },
+    "ollama": {
+      "protocol": "openai_chat",
+      "losses": [
+        "field:anthropic_messages:output_config | drop | client field has no Chat Completions equivalent",
+        "field:anthropic_messages:thinking | drop | client field has no Chat Completions equivalent"
+      ],
+      "body": {
+        "max_tokens": 16000,
+        "messages": [
+          {
+            "content": "Prove that the square root of two is irrational.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": false
+      }
+    },
+    "openai": {
+      "protocol": "openai_responses",
+      "losses": [
+        "field:anthropic_messages:output_config | drop | client field has no Responses equivalent",
+        "field:anthropic_messages:thinking | drop | client field has no Responses equivalent"
+      ],
+      "body": {
+        "input": [
+          {
+            "content": [
+              {
+                "text": "Prove that the square root of two is irrational.",
+                "type": "input_text"
+              }
+            ],
+            "role": "user",
+            "type": "message"
+          }
+        ],
+        "max_output_tokens": 16000,
+        "model": "upstream-model",
+        "store": false,
+        "stream": false
+      }
+    },
+    "openai_compatible": {
+      "protocol": "openai_chat",
+      "losses": [
+        "field:anthropic_messages:output_config | drop | client field has no Chat Completions equivalent",
+        "field:anthropic_messages:thinking | drop | client field has no Chat Completions equivalent"
+      ],
+      "body": {
+        "max_tokens": 16000,
+        "messages": [
+          {
+            "content": "Prove that the square root of two is irrational.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": false
+      }
+    }
+  }
+}

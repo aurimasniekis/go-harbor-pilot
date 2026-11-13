@@ -1,0 +1,171 @@
+{
+  "requirements": [
+    "reasoning"
+  ],
+  "targets": {
+    "anthropic": {
+      "protocol": "anthropic_messages",
+      "losses": [
+        "reasoning_budget | approximate | thinking budget reduced to fit max_tokens",
+        "reasoning_history | drop | reasoning from another provider cannot be replayed to Anthropic"
+      ],
+      "body": {
+        "max_tokens": 2000,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "Add 17 and 25.",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          },
+          {
+            "content": [
+              {
+                "text": "42",
+                "type": "text"
+              }
+            ],
+            "role": "assistant"
+          },
+          {
+            "content": [
+              {
+                "text": "Now double it.",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": false,
+        "thinking": {
+          "budget_tokens": 1999,
+          "type": "enabled"
+        }
+      }
+    },
+    "gemini": {
+      "protocol": "gemini",
+      "losses": [
+        "reasoning_effort | approximate | reasoning effort mapped to a thinking budget",
+        "reasoning_history | drop | reasoning from another provider cannot be replayed to Gemini"
+      ],
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "Add 17 and 25."
+              }
+            ],
+            "role": "user"
+          },
+          {
+            "parts": [
+              {
+                "text": "42"
+              }
+            ],
+            "role": "model"
+          },
+          {
+            "parts": [
+              {
+                "text": "Now double it."
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 2000,
+          "thinkingConfig": {
+            "thinkingBudget": 2048
+          }
+        }
+      }
+    },
+    "ollama": {
+      "protocol": "openai_chat",
+      "losses": [
+        "reasoning_history | drop | prior reasoning is not replayed to Chat Completions"
+      ],
+      "body": {
+        "max_tokens": 2000,
+        "messages": [
+          {
+            "content": "Add 17 and 25.",
+            "role": "user"
+          },
+          {
+            "content": "42",
+            "role": "assistant"
+          },
+          {
+            "content": "Now double it.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "low",
+        "stream": false
+      }
+    },
+    "openai": {
+      "protocol": "openai_chat",
+      "losses": [
+        "reasoning_history | drop | prior reasoning is not replayed to Chat Completions"
+      ],
+      "body": {
+        "max_completion_tokens": 2000,
+        "messages": [
+          {
+            "content": "Add 17 and 25.",
+            "role": "user"
+          },
+          {
+            "content": "42",
+            "role": "assistant"
+          },
+          {
+            "content": "Now double it.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "low",
+        "stream": false
+      }
+    },
+    "openai_compatible": {
+      "protocol": "openai_chat",
+      "losses": [
+        "reasoning_history | drop | prior reasoning is not replayed to Chat Completions"
+      ],
+      "body": {
+        "max_tokens": 2000,
+        "messages": [
+          {
+            "content": "Add 17 and 25.",
+            "role": "user"
+          },
+          {
+            "content": "42",
+            "role": "assistant"
+          },
+          {
+            "content": "Now double it.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "low",
+        "stream": false
+      }
+    }
+  }
+}

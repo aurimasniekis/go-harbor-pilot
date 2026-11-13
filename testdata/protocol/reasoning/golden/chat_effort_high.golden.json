@@ -1,0 +1,130 @@
+{
+  "requirements": [
+    "reasoning"
+  ],
+  "targets": {
+    "anthropic": {
+      "protocol": "anthropic_messages",
+      "losses": [
+        "reasoning_budget | approximate | thinking budget reduced to fit max_tokens"
+      ],
+      "body": {
+        "max_tokens": 4000,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "Which is larger, 9.11 or 9.9?",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": false,
+        "system": [
+          {
+            "text": "You are terse.",
+            "type": "text"
+          }
+        ],
+        "thinking": {
+          "budget_tokens": 3999,
+          "type": "enabled"
+        }
+      }
+    },
+    "gemini": {
+      "protocol": "gemini",
+      "losses": [
+        "reasoning_effort | approximate | reasoning effort mapped to a thinking budget"
+      ],
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "Which is larger, 9.11 or 9.9?"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 4000,
+          "thinkingConfig": {
+            "thinkingBudget": 24576
+          }
+        },
+        "systemInstruction": {
+          "parts": [
+            {
+              "text": "You are terse."
+            }
+          ]
+        }
+      }
+    },
+    "ollama": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "max_tokens": 4000,
+        "messages": [
+          {
+            "content": "You are terse.",
+            "role": "system"
+          },
+          {
+            "content": "Which is larger, 9.11 or 9.9?",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "high",
+        "stream": false
+      }
+    },
+    "openai": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "max_completion_tokens": 4000,
+        "messages": [
+          {
+            "content": "You are terse.",
+            "role": "system"
+          },
+          {
+            "content": "Which is larger, 9.11 or 9.9?",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "high",
+        "stream": false
+      }
+    },
+    "openai_compatible": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "max_tokens": 4000,
+        "messages": [
+          {
+            "content": "You are terse.",
+            "role": "system"
+          },
+          {
+            "content": "Which is larger, 9.11 or 9.9?",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "high",
+        "stream": false
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "model": "client-model",
+  "max_output_tokens": 6000,
+  "input": [
+    {"role": "user", "content": [{"type": "input_text", "text": "Outline a proof by induction."}]}
+  ],
+  "reasoning": {"effort": "medium", "summary": "auto"},
+  "include": ["reasoning.encrypted_content"],
+  "store": false
+}

@@ -1,0 +1,7 @@
+{
+  "model": "client-model",
+  "messages": [
+    {"role": "user", "content": "Name a primary colour."}
+  ],
+  "reasoning_effort": "minimal"
+}

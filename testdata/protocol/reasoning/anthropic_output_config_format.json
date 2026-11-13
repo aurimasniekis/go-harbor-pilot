@@ -1,0 +1,14 @@
+{
+  "model": "client-model",
+  "max_tokens": 2048,
+  "messages": [
+    {"role": "user", "content": "Extract the city and country from: The meeting is in Lisbon, Portugal."}
+  ],
+  "output_config": {
+    "effort": "medium",
+    "format": {
+      "type": "json_schema",
+      "schema": {"type": "object", "properties": {"city": {"type": "string"}, "country": {"type": "string"}}, "required": ["city", "country"], "additionalProperties": false}
+    }
+  }
+}

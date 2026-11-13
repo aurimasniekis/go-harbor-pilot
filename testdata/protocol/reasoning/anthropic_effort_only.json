@@ -1,0 +1,8 @@
+{
+  "model": "client-model",
+  "max_tokens": 4096,
+  "messages": [
+    {"role": "user", "content": "Summarise the plot of a short story about a lighthouse keeper."}
+  ],
+  "output_config": {"effort": "low"}
+}

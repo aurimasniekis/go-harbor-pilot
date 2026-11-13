@@ -1,0 +1,107 @@
+{
+  "requirements": [],
+  "targets": {
+    "anthropic": {
+      "protocol": "anthropic_messages",
+      "losses": [],
+      "body": {
+        "max_tokens": 1024,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "Say hello.",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": false
+      }
+    },
+    "gemini": {
+      "protocol": "gemini",
+      "losses": [],
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "Say hello."
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 1024,
+          "thinkingConfig": {
+            "thinkingBudget": 0
+          }
+        }
+      }
+    },
+    "ollama": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "max_tokens": 1024,
+        "messages": [
+          {
+            "content": "Say hello.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "none",
+        "stream": false
+      }
+    },
+    "openai": {
+      "protocol": "openai_responses",
+      "losses": [],
+      "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "input": [
+          {
+            "content": [
+              {
+                "text": "Say hello.",
+                "type": "input_text"
+              }
+            ],
+            "role": "user",
+            "type": "message"
+          }
+        ],
+        "max_output_tokens": 1024,
+        "model": "upstream-model",
+        "reasoning": {
+          "effort": "none"
+        },
+        "store": false,
+        "stream": false
+      }
+    },
+    "openai_compatible": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "max_tokens": 1024,
+        "messages": [
+          {
+            "content": "Say hello.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "none",
+        "stream": false
+      }
+    }
+  }
+}

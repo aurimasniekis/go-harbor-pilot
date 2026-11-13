@@ -1,0 +1,10 @@
+{
+  "model": "client-model",
+  "max_tokens": 2000,
+  "messages": [
+    {"role": "user", "content": "Add 17 and 25."},
+    {"role": "assistant", "reasoning_content": "17 plus 25 is 42.", "content": "42"},
+    {"role": "user", "content": "Now double it."}
+  ],
+  "reasoning_effort": "low"
+}

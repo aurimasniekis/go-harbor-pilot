@@ -142,6 +142,18 @@ headers. Only the sign-in variables changed between runs. Used by D-048.
 | Near-limit notice | verified (observed) | With `-5h-surpassed-threshold: 0.75` the CLI printed "You've used 87% of your 5-hour limit · resets …". |
 | `overage` claim | verified (observed) | With `-representative-claim: overage`, `-overage-utilization: 0.82`, `-overage-surpassed-threshold: 0.75`, `-overage-reset` and `-overage-period: monthly`, the CLI printed "You've used 82% of your usage credits · resets …". The statusline's `rate_limits` stayed null and `/usage` showed no windows for that sign-in. |
 
+### 1.7 Thinking and output settings (2026-11-13, 2.1.323)
+
+Observed as in 1.3: the real binary against a local synthetic Anthropic upstream with the bridge's flags, no `--effort`, and the target model name varied. The bodies are what the CLI itself sends upstream, which is also what a Claude Code client sends to a gateway.
+
+| Fact | Status | Observation |
+|---|---|---|
+| Adaptive thinking | verified (observed) | For `claude-opus-4-6`, `claude-opus-5-5` and an unrecognised model name (`deepseek-chat`) the CLI sent `"thinking":{"type":"adaptive","display":"updates"}` together with a top-level `"output_config":{"effort":…}`. No `budget_tokens` is sent in this mode. |
+| Budgeted thinking | verified (observed) | For `claude-sonnet-4-5` and `claude-haiku-4-5` it sent `"thinking":{"type":"enabled","budget_tokens":31999,"display":"updates"}` (one below the default `max_tokens` of 32000) and no `output_config`. |
+| Default effort | verified (observed) | `high` for `claude-opus-4-6` and the unrecognised name, `medium` for `claude-opus-5-5`. `--effort` overrides it (1.5). |
+| `context_management` | verified (observed) | Every request carried `{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}`, Anthropic's server-side context editing. It has no Chat, Responses or Gemini equivalent. |
+| `thinking.display` | verified (observed) | Sent in both modes. The gateway's parser models `enabled` and `disabled` only by type and budget, so on a rebuilt native request `display` is not carried for `enabled` (an `adaptive` object is kept whole). Characterised in `testdata/protocol/reasoning/golden/`. |
+
 ## 2. Codex (not installed; doc-claim)
 
 | Item | Value |

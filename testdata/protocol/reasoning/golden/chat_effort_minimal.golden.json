@@ -1,0 +1,101 @@
+{
+  "requirements": [
+    "reasoning"
+  ],
+  "targets": {
+    "anthropic": {
+      "protocol": "anthropic_messages",
+      "losses": [
+        "max_tokens_defaulted | approximate | max_tokens was not set by the client; applied model default"
+      ],
+      "body": {
+        "max_tokens": 64000,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "Name a primary colour.",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": false,
+        "thinking": {
+          "budget_tokens": 1024,
+          "type": "enabled"
+        }
+      }
+    },
+    "gemini": {
+      "protocol": "gemini",
+      "losses": [
+        "reasoning_effort | approximate | reasoning effort mapped to a thinking budget"
+      ],
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "Name a primary colour."
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {
+          "thinkingConfig": {
+            "thinkingBudget": 512
+          }
+        }
+      }
+    },
+    "ollama": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "messages": [
+          {
+            "content": "Name a primary colour.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "minimal",
+        "stream": false
+      }
+    },
+    "openai": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "messages": [
+          {
+            "content": "Name a primary colour.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "minimal",
+        "stream": false
+      }
+    },
+    "openai_compatible": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "messages": [
+          {
+            "content": "Name a primary colour.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "minimal",
+        "stream": false
+      }
+    }
+  }
+}

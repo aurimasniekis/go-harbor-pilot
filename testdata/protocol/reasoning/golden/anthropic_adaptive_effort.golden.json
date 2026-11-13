@@ -1,0 +1,279 @@
+{
+  "requirements": [
+    "streaming",
+    "tools"
+  ],
+  "targets": {
+    "anthropic": {
+      "protocol": "anthropic_messages",
+      "losses": [],
+      "body": {
+        "context_management": {
+          "edits": [
+            {
+              "type": "clear_thinking_20251015",
+              "keep": "all"
+            }
+          ]
+        },
+        "max_tokens": 32000,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "List the files in the current directory.",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "metadata": {
+          "user_id": "user-0001"
+        },
+        "model": "upstream-model",
+        "output_config": {
+          "effort": "high"
+        },
+        "stream": true,
+        "system": [
+          {
+            "text": "You are a coding assistant.",
+            "type": "text"
+          },
+          {
+            "cache_control": {
+              "type": "ephemeral"
+            },
+            "text": "Answer briefly.",
+            "type": "text"
+          }
+        ],
+        "thinking": {
+          "type": "adaptive",
+          "display": "updates"
+        },
+        "tools": [
+          {
+            "description": "List files in a directory.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ]
+            },
+            "name": "list_files"
+          }
+        ]
+      }
+    },
+    "gemini": {
+      "protocol": "gemini",
+      "losses": [
+        "field:anthropic_messages:context_management | drop | client field has no Gemini equivalent",
+        "field:anthropic_messages:output_config | drop | client field has no Gemini equivalent",
+        "field:anthropic_messages:thinking | drop | client field has no Gemini equivalent"
+      ],
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "List the files in the current directory."
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 32000
+        },
+        "systemInstruction": {
+          "parts": [
+            {
+              "text": "You are a coding assistant."
+            },
+            {
+              "text": "Answer briefly."
+            }
+          ]
+        },
+        "tools": [
+          {
+            "functionDeclarations": [
+              {
+                "description": "List files in a directory.",
+                "name": "list_files",
+                "parametersJsonSchema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "ollama": {
+      "protocol": "openai_chat",
+      "losses": [
+        "field:anthropic_messages:context_management | drop | client field has no Chat Completions equivalent",
+        "field:anthropic_messages:output_config | drop | client field has no Chat Completions equivalent",
+        "field:anthropic_messages:thinking | drop | client field has no Chat Completions equivalent"
+      ],
+      "body": {
+        "max_tokens": 32000,
+        "messages": [
+          {
+            "content": "You are a coding assistant.",
+            "role": "system"
+          },
+          {
+            "content": "Answer briefly.",
+            "role": "system"
+          },
+          {
+            "content": "List the files in the current directory.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
+        },
+        "tools": [
+          {
+            "function": {
+              "description": "List files in a directory.",
+              "name": "list_files",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              }
+            },
+            "type": "function"
+          }
+        ],
+        "user": "user-0001"
+      }
+    },
+    "openai": {
+      "protocol": "openai_responses",
+      "losses": [
+        "field:anthropic_messages:context_management | drop | client field has no Responses equivalent",
+        "field:anthropic_messages:output_config | drop | client field has no Responses equivalent",
+        "field:anthropic_messages:thinking | drop | client field has no Responses equivalent"
+      ],
+      "body": {
+        "input": [
+          {
+            "content": [
+              {
+                "text": "List the files in the current directory.",
+                "type": "input_text"
+              }
+            ],
+            "role": "user",
+            "type": "message"
+          }
+        ],
+        "instructions": "You are a coding assistant.\n\nAnswer briefly.",
+        "max_output_tokens": 32000,
+        "model": "upstream-model",
+        "store": false,
+        "stream": true,
+        "tools": [
+          {
+            "description": "List files in a directory.",
+            "name": "list_files",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ]
+            },
+            "strict": false,
+            "type": "function"
+          }
+        ],
+        "user": "user-0001"
+      }
+    },
+    "openai_compatible": {
+      "protocol": "openai_chat",
+      "losses": [
+        "field:anthropic_messages:context_management | drop | client field has no Chat Completions equivalent",
+        "field:anthropic_messages:output_config | drop | client field has no Chat Completions equivalent",
+        "field:anthropic_messages:thinking | drop | client field has no Chat Completions equivalent"
+      ],
+      "body": {
+        "max_tokens": 32000,
+        "messages": [
+          {
+            "content": "You are a coding assistant.",
+            "role": "system"
+          },
+          {
+            "content": "Answer briefly.",
+            "role": "system"
+          },
+          {
+            "content": "List the files in the current directory.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
+        },
+        "tools": [
+          {
+            "function": {
+              "description": "List files in a directory.",
+              "name": "list_files",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              }
+            },
+            "type": "function"
+          }
+        ],
+        "user": "user-0001"
+      }
+    }
+  }
+}
