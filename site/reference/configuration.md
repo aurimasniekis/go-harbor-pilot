@@ -46,6 +46,8 @@ log:
 #     binary: /usr/local/bin/claude
 #   codex:
 #     disabled: true
+# gateway:
+#   usage_headers: auto
 ```
 
 The same file is in the repository as
@@ -99,6 +101,12 @@ binary is found.
 Use `bridges.claude_code` and `bridges.codex` as the section names. Bridge state lives under
 `<data_dir>/bridges/`. See [Subscriptions and CLI bridges](/operators/subscriptions).
 
+## `gateway`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `usage_headers` | `off` | `auto` reports usage to Anthropic Messages clients in `anthropic-ratelimit-unified-*` response headers, which Claude Code shows in `/usage`, its status line and its near-limit notice. A Claude subscription seat reports its 5-hour and 7-day windows; other traffic reports the tightest budget that applies, or nothing without one. `off` sends none of these headers. See [Usage headers](/reference/gateway#usage-headers). |
+
 ## `demo`
 
 | Key | Default | Meaning |
@@ -121,6 +129,7 @@ Use `bridges.claude_code` and `bridges.codex` as the section names. Bridge state
 | `HP_LOG_LEVEL` | `log.level` |
 | `HP_CLAUDE_BINARY` | `bridges.claude_code.binary` |
 | `HP_CODEX_BINARY` | `bridges.codex.binary` |
+| `HP_GATEWAY_USAGE_HEADERS` | `gateway.usage_headers` |
 | `HP_SERVER` | Server URL for the API commands (`token issue`, `policy simulate`); default `http://127.0.0.1:8080`. |
 | `HP_API_TOKEN` | API token for the API commands, when neither `--api-token-file` nor `--api-token-stdin` is given. |
 | `HP_SECRET_*` | Not settings: variables with this prefix are what `env:` secret references may read. |
@@ -165,6 +174,7 @@ The server refuses to start when:
 - no master key is configured outside demo mode, or the key file can be read by its group or others;
 - a secret root contains the data directory or a master key file, or a secret prefix is too broad;
 - demo mode would listen on a non-loopback address without `allow_public`;
+- `gateway.usage_headers` is not `off` or `auto`;
 - the log level is unknown.
 
 `harbor-pilot doctor` runs the same checks without starting the server, and also reports whether stored secrets

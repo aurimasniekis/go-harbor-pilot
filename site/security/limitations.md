@@ -80,6 +80,12 @@ See [Masking: guarantees and limits](/security/masking).
   tokens chooses their references, so when several clients use the same reference keys, filter by client too.
   Subscription fees under a filter are still whole-range figures, so **Spend** hides provider billing and fees while a
   reference filter is on.
+- **Usage shown in Claude Code is approximate.** With `gateway.usage_headers: auto`, a Claude subscription's 5-hour
+  and 7-day figures are the whole seat's, shared by everyone routed to it, and include usage from outside Harbor
+  Pilot. They are only as fresh as the quota board, usually one request behind. Budget figures include requests still
+  running, so they read slightly high. Claude Code shows them only when the token is passed as
+  `CLAUDE_CODE_OAUTH_TOKEN`, and its browser sign-in to a gateway isn't supported. When a budget refuses a request,
+  Claude Code shows Harbor Pilot's error message rather than its own "limit reached" line.
 
 ## Routing and diagnostics
 
