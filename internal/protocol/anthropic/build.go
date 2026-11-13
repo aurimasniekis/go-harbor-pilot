@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/reasoning"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/wire"
 )
 
@@ -199,35 +200,7 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 	if r.ServiceTier != "" {
 		body["service_tier"] = r.ServiceTier
 	}
-	if rc := r.Reasoning.Legacy(); rc != nil {
-		switch {
-		case rc.Enabled != nil && !*rc.Enabled, rc.Effort == "none":
-			// Default for Anthropic is no extended thinking; send nothing.
-		case rc.BudgetTokens > 0 || rc.Effort != "":
-			budget := rc.BudgetTokens
-			if budget == 0 {
-				budget = BudgetForEffort(rc.Effort)
-			}
-			if budget < 1024 {
-				budget = 1024
-			}
-			if budget >= maxTok {
-				// Thinking budget must be below max_tokens; keep the client's
-				// output limit and shrink the budget.
-				nb := maxTok - 1
-				if nb < 1024 {
-					losses.Add("reasoning", "max_tokens is too small for extended thinking; thinking disabled", ir.LossDrop)
-					break
-				}
-				losses.Add("reasoning_budget", "thinking budget reduced to fit max_tokens", ir.LossApproximate)
-				budget = nb
-			}
-			body["thinking"] = map[string]any{"type": "enabled", "budget_tokens": budget}
-		}
-		if rc.Summary != "" && rc.Summary != "none" && rc.Summary != "auto" {
-			losses.Add("reasoning_summary", "reasoning summary style is not configurable on Anthropic", ir.LossApproximate)
-		}
-	}
+	reasoning.Apply(r, ir.AnthropicMessages, &reasoning.Target{Body: body, Losses: &losses, MaxTokens: maxTok})
 	if rf := r.ResponseFormat; rf != nil && rf.Type != "text" {
 		losses.Add("structured_output", "response_format "+rf.Type+" is not translated to Anthropic", ir.LossReject)
 	}
