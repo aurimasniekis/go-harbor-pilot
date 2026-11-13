@@ -87,8 +87,8 @@ this table.
 | `gemini` | `safetySettings`, `generationConfig` with only `temperature`, `topP`, `topK`, `stopSequences` | generateContent request body; `generationConfig` is merged key by key, never replaced |
 | `claude_code`, `codex` | none | the vendor CLI builds its own request |
 
-Left out on purpose: `reasoning` and similar effort settings (they change what a request costs) and `response_format`
-(it changes the shape of the response the client parses).
+Left out on purpose: `reasoning` and similar effort settings (they change what a request costs; the model's
+`reasoning` option below sets them) and `response_format` (it changes the shape of the response the client parses).
 
 Never configurable, whatever the provider type, in any spelling (the error gives the reason):
 - output limits: `max_tokens`, `max_completion_tokens`, `max_output_tokens`/`maxOutputTokens` and the like (they
@@ -103,7 +103,8 @@ Never configurable, whatever the provider type, in any spelling (the error gives
 - streaming and structure: `stream`, `stream_options`, `messages`, `input`, `contents`, `system`,
   `systemInstruction`, `instructions`, `include`, `response_format`, `text`, `responseMimeType`, `responseSchema`,
   `responseModalities`, `modalities`, `audio`, `prediction`;
-- cost options: `reasoning`, `reasoning_effort`, `thinking`, `thinkingConfig`, `service_tier`, `usage`, `verbosity`.
+- reasoning: `reasoning`, `reasoning_effort`, `thinking`, `thinkingConfig` (use the model's `reasoning` option);
+- cost options: `service_tier`, `usage`, `verbosity`.
 
 Any other name not on the allowlist is refused with an error that lists the allowed names for the provider type.
 
@@ -126,8 +127,61 @@ cap among them) were never budgeted.
 An override or a kept client value is recorded as a translation loss `request_field:<name>`.
 
 ### Updating a provider
-`PUT /providers/{id}` replaces the whole spec. An update that leaves these fields out of a model clears them, so a
-client that manages providers (Terraform included) must send them back.
+`PUT /providers/{id}` replaces the whole spec. An update that leaves these fields (or `reasoning`, below) out of a
+model clears them, so a client that manages providers (Terraform included) must send them back.
+
+## Per-model reasoning translation
+A model's optional `reasoning` object (D-047) decides how the client's reasoning settings are written for the model's
+upstream: Anthropic `thinking` (enabled, disabled or adaptive) and the top-level `output_config.effort`, Chat
+`reasoning_effort`, Responses `reasoning`, Gemini `thinkingConfig`. Leaving it out, or saving only defaults
+(`{"mode":"auto"}`, `history: "drop"`), stores no option and keeps the built-in translation byte for byte.
+
+| Field | Values | Meaning |
+|---|---|---|
+| `mode` | `auto` (default) \| `client` \| `fixed` \| `off` | `auto`: the built-in translation (only `history` applies). `client`: follow the client, written in `style`; `effort` or `budget_tokens` is the default when the client names no level. `fixed`: always ask for `effort` or `budget_tokens`, whatever the client sent. `off`: always ask the upstream not to reason. |
+| `style` | see below | The upstream's wire shape. Empty: the upstream protocol's default style. |
+| `effort` | `minimal` … `max` | Default (`client`) or fixed (`fixed`) level. Not with `budget_tokens`. |
+| `budget_tokens` | integer | Default or fixed thinking budget instead of an effort. Below `max_output_tokens` when that is set. |
+| `max_budget_tokens` | integer | A larger client budget is reduced to this (approximate loss `reasoning_budget`). |
+| `efforts` | list of levels | The levels the model accepts, stored in ladder order. A level outside it is clamped to the nearest lower one (else the lowest) with an approximate loss `reasoning_effort_clamped`. Empty: the style's defaults. |
+| `history` | `drop` (default) \| `field` | Earlier reasoning in a Chat history: dropped (`reasoning_history` loss) or sent back on the assistant message in `history_field`. Chat upstreams only (`openai_compatible`, `ollama`). |
+| `history_field` | lowercase identifier | The assistant message field for `history: field`. Empty: the style's default. Standard message fields (`content`, `role`, `tool_calls`, …) are refused. |
+
+Effort ladder: `none` < `minimal` < `low` < `medium` < `high` < `xhigh` < `max` (`none` is `mode: off`).
+
+| Style | Provider types | Writes | Off writes | Default efforts | Default history field |
+|---|---|---|---|---|---|
+| `anthropic_thinking` | `anthropic` | `thinking`: the client's adaptive object unchanged, else an enabled budget below `max_tokens` | no `thinking` | minimal … xhigh | none |
+| `openai_reasoning_effort` | `openai`, `openai_compatible`, `ollama` | `reasoning_effort` | `reasoning_effort: "none"` | low, medium, high | none |
+| `openai_responses_reasoning` | `openai` | `reasoning.effort`, `reasoning.summary` | `reasoning.effort: "none"` | minimal … high | none |
+| `openrouter_reasoning` | `openai_compatible` | `reasoning: {effort}`, `{max_tokens}` for a budget, or `{enabled: true}` (adaptive with no level) | `reasoning: {effort: "none"}` | minimal … max | `reasoning` |
+| `deepseek_thinking` | `openai_compatible` | `thinking: {type: "enabled"}`, plus `reasoning_effort` when a level is known | `thinking: {type: "disabled"}` | low, high, max | `reasoning_content` |
+| `gemini_thinking_config` | `gemini` | `generationConfig.thinkingConfig.thinkingBudget` (adaptive with no level: `-1`) | `thinkingBudget: 0` | minimal … xhigh | none |
+| `none` | all HTTP types | nothing (the client's `thinking` is not sent either) | nothing | n/a | none |
+
+A style the upstream protocol does not speak (an `openai` model answering a Responses client with
+`openai_reasoning_effort`) falls back to that protocol's default style with the same resolved level.
+
+**Resolution in `client` mode.** A disabled client setting is `off`. Otherwise the level is the client's effort or
+budget; Anthropic's top-level `output_config.effort` is the effort when the client's thinking is adaptive or names no
+level of its own. With no level, the model's `effort`/`budget_tokens` applies. Adaptive thinking with no level at all
+uses the style's "let the model decide" form. A client that sent no reasoning setting gets the model's default level
+if one is set, else nothing. `fixed` and `off` record an approximate loss `reasoning_policy` when they override a
+client setting.
+
+**What counts as dropped.** With an option in `client`, `fixed` or `off` mode, a Messages request's `thinking` and an
+effort-only `output_config` are translated, not reported as dropped. An `output_config` that also carries `format` is
+still dropped (`field:anthropic_messages:output_config`). `context_management` (Anthropic server-side context editing)
+is always dropped outside Anthropic.
+
+**Not affected:** routing requirements (adaptive thinking or an output effort alone never requires the `reasoning`
+capability; an explicit client level still does), passthrough requests (the client's bytes are forwarded), and the
+CLI bridges (refused: the CLI chooses its own thinking).
+
+Validation: the style must be allowed for the provider type; `auto` takes no style, levels or budgets; `client` and
+`fixed` cannot use style `none`; `fixed` needs exactly one of `effort` or `budget_tokens`; `off` takes no levels and
+cannot be used on a model that declares the `reasoning` capability; `effort` must be in `efforts` when both are set;
+`budget_tokens` ≤ `max_budget_tokens`; `history: field` needs a `history_field` when the style has no default.
 
 ## Routing plan versions
 A plan holds metadata only. Routing logic lives in immutable versions under `/routing-plans/{id}/versions`:

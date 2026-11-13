@@ -132,6 +132,25 @@ TRACEABILITY.md (`planned`, `in-progress`).
   outside the budget's view. A model that configures `generationConfig` drops the snake_case object instead (D-046).
   Reading both spellings is a follow-up.
 
+## Reasoning translation
+
+- **Opt-in per model (D-047).** Without a model `reasoning` option, Anthropic adaptive thinking and a top-level
+  `output_config` reach only native Anthropic upstreams. Elsewhere they are dropped with a loss naming the option.
+- **Reasoning is hidden from Anthropic clients.** Reasoning a non-Anthropic upstream returns is not shown to a Messages
+  client: a thinking block needs an Anthropic signature, so the client could not send it back. Reasoning continuity
+  across a tool loop is therefore lost for Claude Code on other models. DeepSeek's thinking mode requires earlier
+  `reasoning_content` back on every request that has `tools` (it answers 400 otherwise), so for Claude Code → DeepSeek
+  directly use `mode: off` (or a router that handles it). Chat clients can carry it with `history: field`.
+- **`output_config.format` is not translated (for now).** An `output_config` with a `format` is dropped outside
+  Anthropic, effort included.
+- **`context_management` is dropped** outside Anthropic: no other API has server-side context editing, so the full
+  history is sent.
+- **Accepted levels are configured, not discovered.** Clamping uses the model's `efforts` or the style's defaults. An
+  OpenAI-compatible router with `require_parameters` routes only to hosts that accept the reasoning parameter sent.
+- **Passthrough ignores the option**, and the CLI bridges refuse it (the CLI chooses its own thinking).
+- **Not live-verified.** The OpenRouter and DeepSeek shapes follow their public documentation and are tested against
+  synthetic upstreams only.
+
 ## CLI bridges
 
 - Bridges run on the Harbor Pilot host, need the vendor binary and a per-account login there, and add process start-up

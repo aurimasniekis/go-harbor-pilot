@@ -28,6 +28,15 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
   and the top-level `output_config.effort` instead of treating them as unknown fields. Native Anthropic requests are
   sent byte for byte as before, and nothing changes for other upstreams until a model is configured to translate
   them.
+- **Reasoning option per model (D-047).** A provider's model can carry a `reasoning` option: `mode` (`auto`,
+  `client`, `fixed`, `off`), a `style` naming the upstream's parameter (`openrouter_reasoning`, `deepseek_thinking`,
+  `openai_reasoning_effort`, `openai_responses_reasoning`, `anthropic_thinking`, `gemini_thinking_config`, `none`), a
+  default or fixed effort or budget, the accepted `efforts`, a budget cap, and whether earlier reasoning is sent back in
+  a Chat history field. Claude Code's adaptive thinking and `output_config.effort` then reach, for example, an
+  OpenRouter-style router as `reasoning: {effort}` instead of being dropped. Every clamp or override is recorded as a
+  translation loss. Models without the option are unchanged.
+- **Clearer losses.** A dropped `context_management`, `thinking` or `output_config` now says why, and the request-field
+  refusal of `reasoning`/`thinking` points at the new option.
 
 ## 0.1.6 (2026-11-13)
 

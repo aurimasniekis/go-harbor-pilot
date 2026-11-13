@@ -34,6 +34,28 @@ Sealed reasoning state only crosses within the same family. Every other pair dow
 | OpenAI Responses | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | implemented (through the IR) | implemented (executor contract-tested with a fake binary) |
 | Gemini | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | implemented (through the IR) | implemented (executor contract-tested with a fake binary) |
 
+### Reasoning settings (D-047)
+
+Without a model `reasoning` option each upstream protocol keeps its built-in translation of an explicit level: Chat
+`reasoning_effort`, Responses `reasoning.effort`, an Anthropic `thinking` budget, Gemini `thinkingBudget`. Anthropic
+adaptive thinking and a top-level `output_config` reach only a native Anthropic upstream, and elsewhere they are
+dropped with a loss that names the option. The option (`contracts/config.md`) translates them with a style:
+
+| Style | Provider types | Upstream fields | Status | Evidence |
+|---|---|---|---|---|
+| `anthropic_thinking` | anthropic | adaptive `thinking` unchanged; a level becomes an enabled budget | contract-tested | TestScenarioP3_NativeAnthropicByteIdentical, TestReasoningPolicyBuild |
+| `openai_reasoning_effort` | openai, openai_compatible, ollama | `reasoning_effort`, clamped (low/medium/high by default) | contract-tested | TestReasoningPolicyBuild, TestResolve |
+| `openai_responses_reasoning` | openai | `reasoning.effort` and `summary` | contract-tested | TestLegacyMethodsWritePlans |
+| `openrouter_reasoning` | openai_compatible | `reasoning: {effort}`, `{max_tokens}` or `{enabled: true}`; off is `{effort: "none"}` | contract-tested | TestScenarioP1_ClaudeCodeAdaptiveReachesRouterReasoning, TestScenarioP4_FixedAndOff |
+| `deepseek_thinking` | openai_compatible | `thinking: {type}` plus `reasoning_effort` (low/high/max) | contract-tested | TestScenarioP5_DeepSeekToggle |
+| `gemini_thinking_config` | gemini | `thinkingConfig.thinkingBudget` (adaptive: `-1`) | contract-tested | TestLegacyMethodsWritePlans, TestReasoningPolicyBuild |
+| `none` | all HTTP types | nothing | contract-tested | TestNewMethodsWritePlans |
+
+The wire shapes follow each upstream's public API documentation; none is live-verified. Earlier reasoning can be sent
+back in a Chat history field (TestScenarioP6_HistoryField). An `output_config` that also carries `format` is still
+dropped, and `context_management` is always dropped outside Anthropic (its loss says why). Without the option every
+upstream body is byte for byte what 0.1.6 sent (TestReasoningGoldens; only loss details changed).
+
 ### Mid-conversation system messages
 
 The Messages API accepts `{"role": "system", ...}` entries inside `messages[]` on the models its documentation lists for mid-conversation system messages. Other models answer 400. The entry is text only, may not be `messages[0]`, must follow a user turn and must be last or followed by an assistant turn. It can carry `clear_at` (turn-scoped, beta) or, with empty `content`, `output_config` (per-message effort, beta). Harbor Pilot leaves the placement rules to the upstream. For model support it keeps a list of models the public documentation names as unsupported (D-042, `internal/protocol/anthropic/models.go`): for those the entry is sent as user text. Every other model, known or not, gets it unchanged. Fixtures: `testdata/protocol/anthropic/messages_system_*.json` (synthetic, written from the public documentation).

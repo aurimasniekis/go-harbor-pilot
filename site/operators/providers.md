@@ -104,6 +104,51 @@ Models that keep this section empty are forwarded exactly as before. A model wit
 fields** badge in the model list. Saving a provider replaces its whole spec, so a tool that updates providers through
 the API must send these fields back (see [Terraform](/operators/terraform#upstream-request-fields)).
 
+### Reasoning
+
+Clients ask for reasoning in their own protocol's terms. Claude Code, for example, sends adaptive thinking with an
+effort level (`thinking: {type: "adaptive"}` and `output_config: {effort: "high"}`), while routers and other providers
+each take their own parameter. A model's `reasoning` option tells Harbor Pilot how to write these settings for that
+model. Without it, an explicit level is translated as before, and adaptive thinking reaches only Anthropic models.
+
+```json
+{"id": "deepseek/deepseek-chat", "reasoning": {"mode": "client", "style": "openrouter_reasoning", "effort": "medium", "efforts": ["low", "medium", "high"]}}
+```
+
+- **Mode.** `client` follows what the client asks for, using `effort` (or `budget_tokens`) when the client names no
+  level. `fixed` always asks for that level. `off` always turns reasoning off. `auto`, the default, keeps the built-in
+  translation.
+- **Style** is the parameter the upstream understands:
+
+  | Style | For | Sends |
+  |---|---|---|
+  | `openrouter_reasoning` | OpenAI-compatible routers | `reasoning: {effort}`, `{max_tokens}` or `{enabled: true}`; off is `{effort: "none"}` |
+  | `deepseek_thinking` | DeepSeek's own API | `thinking: {type: "enabled"}` plus `reasoning_effort`; off is `{type: "disabled"}` |
+  | `openai_reasoning_effort` | OpenAI, OpenAI-compatible, local | `reasoning_effort` |
+  | `openai_responses_reasoning` | OpenAI | `reasoning.effort` |
+  | `anthropic_thinking` | Anthropic | Adaptive thinking unchanged; a level as a thinking budget |
+  | `gemini_thinking_config` | Gemini | A thinking budget |
+  | `none` | all | Nothing |
+
+  Leave it empty to use the upstream protocol's default.
+- **Efforts** lists the levels the model accepts. A higher level is lowered to the nearest one in the list, and a
+  thinking budget above **max_budget_tokens** is reduced. Each change shows on the request page as a translation loss.
+- **History.** Some Chat APIs want earlier reasoning sent back on assistant messages. `history: "field"` sends it in
+  `history_field` (the style's default: `reasoning_content` for DeepSeek, `reasoning` for routers).
+
+Claude Code's `context_management` (Anthropic's server-side context editing) has no equivalent elsewhere and is
+always dropped. Passthrough requests and the CLI bridges ignore the option. Saving a provider replaces its whole spec,
+so tools that update providers must send `reasoning` back. The full reference is in the
+[configuration contract](https://github.com/aurimasniekis/go-harbor-pilot/blob/main/docs/contracts/config.md#per-model-reasoning-translation).
+
+#### Recipe: Claude Code to DeepSeek
+
+- **Through an OpenAI-compatible router:** use `{"mode": "client", "style": "openrouter_reasoning"}`. Claude Code's
+  effort (`high` by default) reaches the router as `reasoning: {effort: "high"}`.
+- **DeepSeek's own API:** use `{"mode": "off", "style": "deepseek_thinking"}`. DeepSeek requires earlier reasoning to be
+  sent back on every request with tools, and Claude Code can't send back reasoning from other providers (see
+  [limitations](/security/limitations#reasoning-settings)).
+
 ## Add an account
 
 **+ Add account** on a provider opens the account dialog:
