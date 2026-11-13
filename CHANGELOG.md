@@ -3,7 +3,11 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
-## Unreleased
+## 0.1.6 (2026-11-13)
+
+Per-model upstream request fields: pin the upstream provider behind an OpenAI-compatible router for clients that
+cannot choose one, and set allowlisted sampling and tagging options on the model instead of in every client. No
+migrations and no new configuration keys. Models that configure nothing behave exactly as before.
 
 ### Providers
 
@@ -30,6 +34,13 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
   configures nothing leaves the request body byte-for-byte unchanged. The three new spec fields are in
   `api/openapi.yaml`; no migration is needed. Updating a provider replaces its spec, so an API client or Terraform
   configuration must include the fields to keep them.
+
+### Upgrading
+
+- **No migrations, no new configuration keys.** The new provider spec fields are optional; a model without them
+  sends exactly the request it sent before.
+- **API and Terraform clients.** `PUT /providers/{id}` replaces the whole spec, so a client that writes providers must
+  send `provider_routing`, `request_fields` and `request_field_policy` back, or values set in the UI are cleared.
 
 ## 0.1.5 (2026-11-12)
 
