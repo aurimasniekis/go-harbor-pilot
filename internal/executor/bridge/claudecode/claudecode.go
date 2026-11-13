@@ -401,8 +401,30 @@ func shapeRequest(r *ir.Request, model string, maxOut int) (*conv, []ir.Loss, er
 	if r.ToolChoice != nil && r.ToolChoice.Mode != "" && r.ToolChoice.Mode != "auto" {
 		losses = append(losses, ir.Loss{Severity: ir.LossApproximate, Feature: "tool_choice", Detail: "forced tool choice is not passed to the CLI"})
 	}
+	losses = append(losses, outputSettingLosses(r)...)
 	losses = append(losses, ir.Loss{Severity: ir.LossApproximate, Feature: "system_prompt", Detail: "the CLI prefixes its own identity line and environment note to the system prompt"})
 	return c, losses, nil
+}
+
+// outputSettingLosses records the top-level output settings the CLI is not
+// given: the client's thinking mode (the CLI picks adaptive or budgeted
+// thinking for the model; only the effort is passed) and a structured
+// output format.
+func outputSettingLosses(r *ir.Request) []ir.Loss {
+	var out []ir.Loss
+	_, thinking := r.Ext[anthropic.P+":thinking"]
+	if rc := r.Reasoning; thinking || (rc != nil && (rc.BudgetTokens > 0 || rc.Enabled != nil)) {
+		out = append(out, ir.Loss{Severity: ir.LossApproximate, Feature: "thinking",
+			Detail: "the CLI chooses adaptive or budgeted thinking for the model; only the effort is passed"})
+	}
+	if raw, ok := r.Ext[anthropic.P+":output_config"]; ok {
+		var oc map[string]json.RawMessage
+		if json.Unmarshal(raw, &oc) == nil && oc["format"] != nil {
+			out = append(out, ir.Loss{Severity: ir.LossDrop, Feature: "field:" + anthropic.P + ":output_config.format",
+				Detail: "structured output is not passed to the CLI"})
+		}
+	}
+	return out
 }
 
 var effortLevels = map[string]bool{"low": true, "medium": true, "high": true, "xhigh": true, "max": true}

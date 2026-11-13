@@ -461,6 +461,9 @@ type BuildOptions struct {
 	// compatible servers accept in history (e.g. reasoning_content); empty
 	// drops prior reasoning text.
 	ReasoningField string
+	// Reasoning is the model's reasoning option (nil = the built-in
+	// translation).
+	Reasoning *reasoning.Policy
 }
 
 // BuildRequest renders IR as a Chat Completions body.
@@ -569,7 +572,11 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 			body["response_format"] = map[string]any{"type": rf.Type}
 		}
 	}
-	reasoning.Apply(r, ir.OpenAIChat, &reasoning.Target{Body: body, Losses: &losses})
+	maxTok := 0
+	if r.MaxOutputTokens != nil {
+		maxTok = *r.MaxOutputTokens
+	}
+	rres := reasoning.Apply(r, ir.OpenAIChat, &reasoning.Target{Body: body, Losses: &losses, Policy: o.Reasoning, MaxTokens: maxTok})
 	if r.User != "" {
 		body["user"] = r.User
 	}
@@ -588,13 +595,14 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 	if r.PreviousResponseID != "" {
 		losses.Add("previous_response_id", "server-side conversation state cannot be carried to Chat Completions", ir.LossReject)
 	}
-	wire.Restore(body, r.Ext, P)
+	ext := wire.Without(r.Ext, rres.Consumed)
+	wire.Restore(body, ext, P)
 	delete(body, "stream_options")
 	if o.Stream {
 		body["stream_options"] = map[string]any{"include_usage": true}
 	}
-	for _, k := range wire.ForeignExtKeys(r.Ext, P) {
-		losses.Add("field:"+k, "client field has no Chat Completions equivalent", ir.LossDrop)
+	for _, k := range wire.ForeignExtKeys(ext, P) {
+		losses.Add("field:"+k, wire.ForeignDetail(k, "client field has no Chat Completions equivalent"), ir.LossDrop)
 	}
 	b, err := wire.Marshal(body)
 	return b, losses.List(), err

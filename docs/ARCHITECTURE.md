@@ -95,6 +95,26 @@ Mocks are tests, not evidence that a real upstream is compatible.
 | Testing | `internal/apptest`, `internal/acceptance`, `internal/synthetic`, `internal/loadgen` | Real-server test harness, acceptance scenarios, synthetic upstreams, load generator |
 | UI | `web/`, `internal/web` | React SPA, embedded |
 
+### Translation methods
+Where protocols disagree on how to say the same thing, the difference lives in a named **translation method** rather
+than in each builder. The first family is reasoning (`internal/protocol/reasoning`, D-047), a leaf package that
+imports only `ir`:
+
+- A `Method` writes one wire shape (`anthropic_thinking`, `openai_reasoning_effort`, `openai_responses_reasoning`,
+  `openrouter_reasoning`, `deepseek_thinking`, `gemini_thinking_config`, `none`) and declares the protocol it writes
+  into, its default accepted levels and its default history field.
+- Each protocol has a default method whose `WriteLegacy` is the builder's original translation, kept byte for byte
+  (pinned by `TestReasoningGoldens`).
+- Builders call one entry point, `reasoning.Apply`. With no model policy it runs the protocol's legacy translation;
+  with one it resolves the client's settings against the policy (`Resolve`: mode, defaults, clamps, recorded losses)
+  and writes the plan with the model's method. The returned `Consumed` keys are client fields the method translated,
+  which the builder neither restores nor reports as dropped.
+- The policy is the model's `reasoning` option, converted in `controlplane` and passed by `executor/httpapi` through
+  each builder's options.
+
+Candidates for the same pattern: structured output (`output_config.format` ↔ `response_format`), mid-conversation
+system placement, tool choice and cache markers. Add a family only when a second consumer needs it.
+
 Dependencies point downward. `gateway` depends on `routing`, `executor`, `accounting`, `privacy`, `compat` and `telemetry`. It never depends on `notify` or the `events` relays. It only appends outbox rows through `accounting` and `compat` transactions.
 
 ## 3. Domain model
@@ -122,6 +142,7 @@ Trace (encrypted, TTL)   ProtocolChange / WorkItem   EventDestination   Notifica
 5. **Routing.** Filter ineligible candidates, then evaluate decision rules, then rank deterministically. The routing engine returns a `Decision` with a complete explanation.
 6. **Reserve.** Reserve budget and concurrency capacity in one `BEGIN IMMEDIATE` transaction, which also writes the ledger `reserve` entry.
 7. **Dispatch.** The executor produces an IR event stream. The outbound protocol encoder writes SSE or JSON to the client.
+   - The executor builds the upstream body with the routed model's reasoning option (D-047, see Translation methods); a model without one gets the built-in translation.
    - Before trying any candidate, the gateway applies the `reject` policy of per-model upstream request fields (D-046) to the client's request, over all candidates. Before sending, the executor adds the routed model's allowlisted request fields to the body and applies its conflict policy; a model that configures none is sent unchanged.
    - Failover to the next candidate happens **only before the first byte** reaches the client, and only when the attempt failed in a way that is provably unexecuted (the safe-to-retry classification).
    - Streams are never spliced.

@@ -121,13 +121,13 @@ func (anthropicThinking) Write(p Plan, t *Target) Result {
 		// No thinking is Anthropic's default: send no thinking object, and
 		// not the client's either.
 		return Result{Consumed: []string{AnthropicThinkingKey}}
-	case p.BudgetTokens > 0 || p.Effort != "":
-		writeAnthropicBudget(p.BudgetTokens, p.Effort, t)
-		return Result{Consumed: []string{AnthropicThinkingKey}, Active: true}
 	case p.Adaptive:
 		// Adaptive thinking is sent as the client wrote it, never
 		// rewritten as an enabled budget.
 		return Result{Active: true}
+	case p.BudgetTokens > 0 || p.Effort != "":
+		writeAnthropicBudget(p.BudgetTokens, p.Effort, t)
+		return Result{Consumed: []string{AnthropicThinkingKey}, Active: true}
 	}
 	return Result{}
 }
@@ -176,6 +176,9 @@ func (openAIReasoningEffort) Write(p Plan, t *Target) Result {
 		t.Body["reasoning_effort"] = EffortNone
 	case p.Effort != "":
 		t.Body["reasoning_effort"] = p.Effort
+		if p.BudgetTokens > 0 {
+			t.Losses.Add("reasoning_budget", "thinking budget mapped to a reasoning effort level", ir.LossApproximate)
+		}
 	case p.BudgetTokens > 0:
 		t.Body["reasoning_effort"] = chatEffortForBudget(p.BudgetTokens)
 		t.Losses.Add("reasoning_budget", "thinking budget mapped to a reasoning effort level", ir.LossApproximate)
@@ -243,6 +246,9 @@ func (openAIResponsesReasoning) Write(p Plan, t *Target) Result {
 		rb["effort"] = EffortNone
 	case p.Effort != "":
 		rb["effort"] = p.Effort
+		if p.BudgetTokens > 0 {
+			t.Losses.Add("reasoning_budget", "thinking budget mapped to a reasoning effort level", ir.LossApproximate)
+		}
 	case p.BudgetTokens > 0:
 		rb["effort"] = responsesEffortForBudget(p.BudgetTokens)
 		t.Losses.Add("reasoning_budget", "thinking budget mapped to a reasoning effort level", ir.LossApproximate)

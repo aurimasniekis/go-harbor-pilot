@@ -50,7 +50,10 @@ type Plan struct {
 	Effort string
 	// BudgetTokens is an explicit thinking budget (0 = none).
 	BudgetTokens int
-	// Adaptive lets the model decide how much to think (no level).
+	// Adaptive is set when the client let the model decide how much to
+	// think. A method uses it when no Effort or BudgetTokens is set, except
+	// anthropic_thinking, which then sends the client's own thinking
+	// object unchanged.
 	Adaptive bool
 	// Summary and IncludeEncrypted pass the client's Responses options on.
 	Summary          string
@@ -68,6 +71,8 @@ type Target struct {
 	MaxTokens int
 	// Include is the Responses include list (nil for other protocols).
 	Include *[]string
+	// Policy is the model's reasoning option (nil = legacy translation).
+	Policy *Policy
 }
 
 // Result reports what a method did.
@@ -94,6 +99,13 @@ type Method interface {
 	DefaultHistoryField() string
 	// Write renders a resolved plan.
 	Write(p Plan, t *Target) Result
+}
+
+// ownFields are the reasoning fields a policy writes for each protocol
+// (other than Messages, whose client thinking object anthropic_thinking
+// handles itself).
+var ownFields = map[ir.Protocol][]string{
+	ir.OpenAIChat: {"reasoning", "reasoning_effort", "thinking"},
 }
 
 // legacyWriter is implemented by the protocol defaults: the translation
@@ -166,11 +178,43 @@ func ForProtocol(p ir.Protocol) []Method {
 }
 
 // Apply writes a request's reasoning settings for protocol p. It is what
-// every builder calls.
+// every builder calls. Without a model policy (or with ModeAuto) it is the
+// protocol's legacy translation; otherwise the policy is resolved and
+// written with the model's style.
 func Apply(r *ir.Request, p ir.Protocol, t *Target) Result {
-	m, ok := DefaultFor(p).(legacyWriter)
-	if !ok {
+	if !t.Policy.active() {
+		m, ok := DefaultFor(p).(legacyWriter)
+		if !ok {
+			return Result{}
+		}
+		return m.WriteLegacy(r.Reasoning.Legacy(), t)
+	}
+	m := MethodFor(t.Policy.Style, p)
+	if m == nil {
 		return Result{}
 	}
-	return m.WriteLegacy(r.Reasoning.Legacy(), t)
+	res := m.Write(Resolve(r.Reasoning, t.Policy, m, t.Losses), t)
+	if p != ir.AnthropicMessages {
+		// The policy translated the client's Messages reasoning fields
+		// for this upstream: they are not reported as dropped.
+		res.Consumed = append(res.Consumed, sourceKeys(r.Ext, t.Losses)...)
+		// A raw reasoning field of this protocol that the client sent (one
+		// the parser does not model) gives way to the option: always in
+		// fixed and off, and in client mode only where the method wrote
+		// the same field. Otherwise it is passed on as before.
+		owns := t.Policy.Mode == ModeFixed || t.Policy.Mode == ModeOff
+		for _, k := range ownFields[p] {
+			key := string(p) + ":" + k
+			if _, ok := r.Ext[key]; !ok {
+				continue
+			}
+			_, wrote := t.Body[k]
+			if !owns && !wrote {
+				continue
+			}
+			res.Consumed = append(res.Consumed, key)
+			t.Losses.Add("reasoning_policy", "the client's "+k+" field is replaced by the model's reasoning option", ir.LossApproximate)
+		}
+	}
+	return res
 }

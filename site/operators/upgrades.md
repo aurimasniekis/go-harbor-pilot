@@ -59,6 +59,18 @@ See [Backup and restore](/operators/backup).
 
 ## Notes for specific versions
 
+### Unreleased
+
+- **Reasoning option per model (D-047).** A model can carry a `reasoning` option that translates Claude Code's adaptive
+  thinking and effort, and other clients' reasoning settings, for its upstream; see
+  [Providers](/operators/providers#reasoning). Models without it send the same upstream bodies as before. Only the
+  wording of some recorded losses changed (`context_management`, `thinking` and `output_config` drops now say why).
+- **Writing providers through the API or Terraform.** As with the request fields, a provider update that leaves
+  `reasoning` out of a model clears it.
+- **New losses on Claude Code bridge requests.** The bridge now records the client's thinking mode (`thinking`,
+  approximate: the CLI chooses its own) and a top-level `output_config.format` (dropped). Requests are sent as before;
+  alerts or reports that count losses will see them.
+
 ### 0.1.6
 
 - **No migrations, no new configuration keys.**

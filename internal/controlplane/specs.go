@@ -245,6 +245,9 @@ type ModelSpec struct {
 	ProviderRouting *UpstreamProviderSpec `json:"provider_routing,omitempty" required:"false" doc:"Pin which upstream provider serves this model, on openai_compatible providers only. Sent as the request's provider field."`
 	// RequestFieldPolicy decides conflicts with a client-supplied field.
 	RequestFieldPolicy string `json:"request_field_policy" enum:"configured,client,reject," required:"false" doc:"When the client's own request already sets one of these fields: configured (the model's value wins), client (the client's value wins), reject (refuse the request before any upstream is contacted). Empty = configured."`
+	// Reasoning is how reasoning settings are translated for this model
+	// (D-047); nil keeps the built-in translation.
+	Reasoning *ModelReasoningSpec `json:"reasoning,omitempty" required:"false" doc:"How the client's reasoning settings are translated for this model's upstream. Omit to keep the built-in translation."`
 }
 
 // ProviderSpec configures an upstream provider endpoint.
@@ -301,6 +304,7 @@ func normalizeProvider(s *ProviderSpec) {
 		if m.RequestFieldPolicy == "" {
 			m.RequestFieldPolicy = FieldPolicyConfigured
 		}
+		normalizeReasoning(m)
 		if p := m.ProviderRouting; p != nil {
 			p.Order = uniqueKeepOrder(p.Order)
 			p.Only = SortedUnique(p.Only)
@@ -376,6 +380,7 @@ func validateProvider(v *Validator, s *ProviderSpec) {
 		v.Check(slices.Contains([]string{FieldPolicyConfigured, FieldPolicyClient, FieldPolicyReject}, m.RequestFieldPolicy),
 			loc+".request_field_policy", "must be configured, client or reject")
 		validateModelRequestFields(v, loc, t, m)
+		validateModelReasoning(v, loc, s.Type, t, m)
 	}
 }
 

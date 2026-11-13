@@ -602,6 +602,73 @@ path and adapter version, one work item per fingerprint.
   so it can carry them today; the Terraform guide documents them with an example. Not yet checked against the
   provider's acceptance suite.
 
+## D-047: Per-model reasoning translation with named translation methods (owner, 2026-11-13)
+
+- **Trigger.** Claude Code sent through an OpenAI-compatible router to a DeepSeek model lost `thinking`,
+  `output_config` and `context_management`. Claude Code sends adaptive thinking (`thinking: {type: "adaptive"}`) with
+  a top-level `output_config.effort` to newer models (`contracts/harness-wire-facts.md` §1.7). The parser modelled
+  neither, and the Chat builder knew only `reasoning_effort`. The owner's decision: "we should have option on model +
+  we should develop some common translation 'methods' for this".
+- **The IR.** `ReasoningConfig` gains `Adaptive` and `OutputEffort`. The raw `thinking` and `output_config` stay in Ext,
+  so a native Anthropic upstream gets them unchanged, and adaptive thinking is never rewritten as an enabled budget. A
+  configuration holding only these two counts as none for the built-in translation (`ReasoningConfig.Legacy`). So
+  upstream bodies don't change, the Responses builder doesn't start asking for encrypted reasoning, and
+  `ir.Requirements` doesn't start requiring the `reasoning` capability: routing is unchanged.
+- **Translation methods.** `internal/protocol/reasoning` holds one method per wire shape. Each protocol's default
+  method keeps the builder's original translation, including its own effort↔budget table (the four tables differ, and
+  must, or bodies change), pinned by golden upstream bodies for every fixture and provider type. Builders call
+  `reasoning.Apply` only. Other differences between protocols may follow the same pattern (ARCHITECTURE, "Translation
+  methods"); no generic registry is built ahead of a second consumer.
+- **The model option.** `spec.models[].reasoning`:
+  - `mode`: `auto` (default, the built-in translation), `client`, `fixed` or `off`;
+  - `style`: allowed per provider type (`anthropic_thinking`; `openai_reasoning_effort`, `openai_responses_reasoning`;
+    `gemini_thinking_config`; `openrouter_reasoning`, `deepseek_thinking`; `none`);
+  - a default or fixed `effort` or `budget_tokens`, `max_budget_tokens`, the accepted `efforts`;
+  - `history` (`drop` or `field`) with `history_field`.
+
+  An unset, empty or auto-only option is stored as none. Translation of adaptive thinking and output effort is opt-in
+  per model, because it changes what a request costs. Validation lives in `controlplane/reasoning_spec.go`. The CLI
+  bridges refuse the option; `request_fields` still refuses `reasoning`/`thinking` and now points at it.
+- **Resolution.** `off` writes the style's off form. `fixed` writes the configured level. `client` follows the client:
+  a disabled setting is off; an explicit effort or budget is used; `output_config.effort` is the effort when thinking
+  is adaptive or names no level; otherwise the model's level applies, and adaptive with no level uses the style's
+  "model decides" form (OpenRouter `enabled: true`, Gemini `-1`, Anthropic: the client's object). Levels outside
+  `efforts` (or the style's defaults) are clamped to the nearest lower level, budgets to `max_budget_tokens`; each clamp
+  and each override of the client is an approximate loss (`reasoning_effort_clamped`, `reasoning_budget`,
+  `reasoning_policy`). An `output_config.effort` that is not a ladder level is ignored with a drop loss
+  (`reasoning_effort`); the parser keeps the raw value for the native path. Translated `thinking` and effort-only
+  `output_config` are not reported as dropped. `off` writes no Responses `summary`.
+- **Routing.** A model in any mode receives requests that name a level or budget only when it declares the
+  `reasoning` capability, as before; `off` is allowed on such a model, so a reasoning model can be told not to reason
+  for clients (Claude Code sends a budget for older model names) that would otherwise not reach it.
+- **The Claude Code bridge** now records what it does not pass: the client's thinking mode (approximate loss
+  `thinking`) and a top-level `output_config.format` (drop).
+- **Wire shapes, from public documentation.** OpenRouter-style: `reasoning` with `effort` or `max_tokens` (never both),
+  `effort: "none"` to disable, `enabled: true` for the default. DeepSeek: `thinking: {type: enabled|disabled}` plus
+  `reasoning_effort` (low, high, max). Gemini: `thinkingBudget` `-1` is dynamic, `0` is off. None is live-verified.
+- **Response side unchanged.** Reasoning from a foreign upstream stays hidden from Anthropic clients: a thinking
+  block needs an Anthropic signature, and a forged one would be refused upstream later. Reasoning continuity across a
+  Claude Code tool loop on other models is therefore lost (LIMITATIONS). DeepSeek requires earlier `reasoning_content`
+  back on requests with tools, so the documented setting for Claude Code → DeepSeek directly is `mode: off`. Showing
+  foreign reasoning to Anthropic clients with gateway-sealed signatures is deferred to a later decision.
+- **Not changed.** `context_management` stays dropped outside Anthropic, with a loss detail that says why;
+  `output_config.format` is not translated yet (only the effort of a mixed `output_config` is, and the other keys
+  are recorded as dropped); passthrough ignores the option. On a native Anthropic upstream the option writes only
+  `thinking`: the client's `output_config.effort` is still sent as written, whatever the mode.
+- **The gateway's own calls** (the intent classifier and the connection probe, both capped at a few output tokens)
+  are built without the option, so a fixed level or default effort never adds billed reasoning to them.
+- **Budgets fit the request.** A router budget is kept below the request's `max_tokens` (`reasoning_budget` loss),
+  as the Anthropic budget already was. A budget reduced by `max_budget_tokens` also lowers the level the parser read
+  from it, for styles that send a level; styles that take no budget record that they sent its level instead.
+- **The policy owns the wire it writes.** A Chat client's own raw `reasoning`, `reasoning_effort` or `thinking` field
+  is replaced (`reasoning_policy` loss) in `fixed` and `off`, and in `client` mode only where the style writes the
+  same field; a field the style does not write is passed on as before.
+- **Validation is per style.** `fixed` with `budget_tokens` is refused for styles that send only a level
+  (`openai_reasoning_effort`, `openai_responses_reasoning`, `deepseek_thinking`), and a fixed `effort` must be one
+  the style sends unless `efforts` lists it. The stored option serialises only the fields that are set.
+- **Updates.** A provider `PUT` replaces the whole spec, so leaving `reasoning` out clears it
+  (`TestScenarioP8_SpecPutClearsTheOption`), as with the D-046 fields.
+
 ## D-048: Usage headers for Anthropic Messages clients (owner, 2026-11-13)
 
 - **Goal.** A Claude Code session that goes through Harbor Pilot should see its usage standing (`/usage`, the

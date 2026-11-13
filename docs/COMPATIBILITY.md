@@ -34,6 +34,28 @@ Sealed reasoning state only crosses within the same family. Every other pair dow
 | OpenAI Responses | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | implemented (through the IR) | implemented (executor contract-tested with a fake binary) |
 | Gemini | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | via OpenAI-compatible endpoint (contract-tested) | implemented (through the IR) | implemented (executor contract-tested with a fake binary) |
 
+### Reasoning settings (D-047)
+
+Without a model `reasoning` option each upstream protocol keeps its built-in translation of an explicit level: Chat
+`reasoning_effort`, Responses `reasoning.effort`, an Anthropic `thinking` budget, Gemini `thinkingBudget`. Anthropic
+adaptive thinking and a top-level `output_config` reach only a native Anthropic upstream, and elsewhere they are
+dropped with a loss that names the option. The option (`contracts/config.md`) translates them with a style:
+
+| Style | Provider types | Upstream fields | Status | Evidence |
+|---|---|---|---|---|
+| `anthropic_thinking` | anthropic | adaptive `thinking` unchanged; a level becomes an enabled budget | contract-tested | TestScenarioP3_NativeAnthropicByteIdentical, TestReasoningPolicyBuild |
+| `openai_reasoning_effort` | openai, openai_compatible, ollama | `reasoning_effort`, clamped (low/medium/high by default); off is `none` | contract-tested | TestReasoningPolicyBuild, TestScenarioP9_OtherStylesOptionForms, TestResolve |
+| `openai_responses_reasoning` | openai | `reasoning.effort` and `summary`; off is effort `none` | contract-tested | TestScenarioP9_OtherStylesOptionForms, TestLegacyMethodsWritePlans |
+| `openrouter_reasoning` | openai_compatible | `reasoning: {effort}`, `{max_tokens}` or `{enabled: true}`; off is `{effort: "none"}` | contract-tested | TestScenarioP1_ClaudeCodeAdaptiveReachesRouterReasoning, TestScenarioP4_FixedAndOff |
+| `deepseek_thinking` | openai_compatible | `thinking: {type}` plus `reasoning_effort` (low/high/max) | contract-tested | TestScenarioP5_DeepSeekToggle |
+| `gemini_thinking_config` | gemini | `thinkingConfig.thinkingBudget` (adaptive: `-1`, off: `0`) | contract-tested | TestScenarioP9_OtherStylesOptionForms, TestReasoningPolicyBuild |
+| `none` | all HTTP types | nothing | contract-tested | TestNewMethodsWritePlans |
+
+The wire shapes follow each upstream's public API documentation; none is live-verified. Earlier reasoning can be sent
+back in a Chat history field (TestScenarioP6_HistoryField). An `output_config` that also carries `format` is still
+dropped, and `context_management` is always dropped outside Anthropic (its loss says why). Without the option every
+upstream body is byte for byte what 0.1.6 sent (TestReasoningGoldens; only loss details changed).
+
 ### Mid-conversation system messages
 
 The Messages API accepts `{"role": "system", ...}` entries inside `messages[]` on the models its documentation lists for mid-conversation system messages. Other models answer 400. The entry is text only, may not be `messages[0]`, must follow a user turn and must be last or followed by an assistant turn. It can carry `clear_at` (turn-scoped, beta) or, with empty `content`, `output_config` (per-message effort, beta). Harbor Pilot leaves the placement rules to the upstream. For model support it keeps a list of models the public documentation names as unsupported (D-042, `internal/protocol/anthropic/models.go`): for those the entry is sent as user text. Every other model, known or not, gets it unchanged. Fixtures: `testdata/protocol/anthropic/messages_system_*.json` (synthetic, written from the public documentation).
@@ -66,7 +88,7 @@ Each request records the features the bridge cannot carry as losses. Settings th
 | Feature | Status | Reason | Evidence |
 |---|---|---|---|
 | `max_tokens` | passed (`CLAUDE_CODE_MAX_OUTPUT_TOKENS`, exact match per process); above the model's declared limit: approximate (`max_output_tokens`) | verified against the CLI: it sends the value as `max_tokens` (and clamps above 128000 itself). A smaller request does not reuse a process with a larger limit, since the reply could exceed what the client asked for | TestShapeRequestCarriesOutputSettings, TestBridgeOutputSettingsReachUpstream |
-| Effort | passed (`--effort`): the top-level `output_config.effort` (what Claude Code sends with adaptive thinking), else the level a `thinking.budget_tokens` maps to. Until 0.1.6 only the budget's level was read and a top-level `output_config.effort` was not passed. `thinking` itself is not passed: the CLI chooses adaptive or budgeted thinking for the model | documented flag | TestShapeRequestCarriesOutputSettings, TestBridgeTopLevelOutputEffortReachesUpstream, TestBridgeOutputSettingsReachUpstream |
+| Effort | passed (`--effort`): the top-level `output_config.effort` (what Claude Code sends with adaptive thinking), else the level a `thinking.budget_tokens` maps to. Until 0.1.6 only the budget's level was read and a top-level `output_config.effort` was not passed. `thinking` itself is not passed: the CLI chooses adaptive or budgeted thinking for the model (approximate loss `thinking`); a top-level `output_config.format` is dropped (`field:anthropic_messages:output_config.format`) | documented flag | TestShapeRequestCarriesOutputSettings, TestBridgeTopLevelOutputEffortReachesUpstream, TestBridgeOutputSettingsReachUpstream |
 | `output_config` on a mid-conversation system entry | passed when it holds only `effort` (the latest entry sets `--effort` for later turns); anything else dropped (`system_message_field:…:output_config`) | the public docs define message-level `output_config` as a per-message effort change; the CLI has no per-turn setting, so it applies to the process | TestShapeRequestCarriesOutputSettings |
 | Mid-conversation system entry with text | approximate (`mid_conversation_system`): sent as user text | the CLI's session format is not documented for caller-provided system entries (the CLI's own environment notes use internal attachment entries), so it is not written natively. An entry without text (settings only) records no loss | TestShapeRequestCarriesOutputSettings, TestAnthropicSystemMessagesInlinedOnRequest |
 | `cache_control` | approximate: replaced by the CLI's own breakpoints with the client's TTL | see above | TestBridgeCacheTTLFollowsClient |

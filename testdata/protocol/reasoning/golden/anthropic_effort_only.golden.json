@@ -27,7 +27,7 @@
     "gemini": {
       "protocol": "gemini",
       "losses": [
-        "field:anthropic_messages:output_config | drop | client field has no Gemini equivalent"
+        "field:anthropic_messages:output_config | drop | output_config is not translated for this model; the model's reasoning option can translate its effort (format is not translated)"
       ],
       "body": {
         "contents": [
@@ -48,7 +48,7 @@
     "ollama": {
       "protocol": "openai_chat",
       "losses": [
-        "field:anthropic_messages:output_config | drop | client field has no Chat Completions equivalent"
+        "field:anthropic_messages:output_config | drop | output_config is not translated for this model; the model's reasoning option can translate its effort (format is not translated)"
       ],
       "body": {
         "max_tokens": 4096,
@@ -65,7 +65,7 @@
     "openai": {
       "protocol": "openai_responses",
       "losses": [
-        "field:anthropic_messages:output_config | drop | client field has no Responses equivalent"
+        "field:anthropic_messages:output_config | drop | output_config is not translated for this model; the model's reasoning option can translate its effort (format is not translated)"
       ],
       "body": {
         "input": [
@@ -89,7 +89,7 @@
     "openai_compatible": {
       "protocol": "openai_chat",
       "losses": [
-        "field:anthropic_messages:output_config | drop | client field has no Chat Completions equivalent"
+        "field:anthropic_messages:output_config | drop | output_config is not translated for this model; the model's reasoning option can translate its effort (format is not translated)"
       ],
       "body": {
         "max_tokens": 4096,

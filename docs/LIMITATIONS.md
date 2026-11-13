@@ -132,6 +132,33 @@ TRACEABILITY.md (`planned`, `in-progress`).
   outside the budget's view. A model that configures `generationConfig` drops the snake_case object instead (D-046).
   Reading both spellings is a follow-up.
 
+## Reasoning translation
+
+- **Opt-in per model (D-047).** Without a model `reasoning` option, Anthropic adaptive thinking and a top-level
+  `output_config` reach only native Anthropic upstreams. Elsewhere they are dropped with a loss naming the option.
+- **Reasoning is hidden from Anthropic clients.** Reasoning a non-Anthropic upstream returns is not shown to a Messages
+  client: a thinking block needs an Anthropic signature, so the client could not send it back. Reasoning continuity
+  across a tool loop is therefore lost for Claude Code on other models. DeepSeek's thinking mode requires earlier
+  `reasoning_content` back on every request that has `tools` (it answers 400 otherwise), so for Claude Code → DeepSeek
+  directly use `mode: off`. Whether an OpenAI-compatible router needs the same for DeepSeek in a tool loop is not
+  documented, so the recipe starts there with `off` or a low fixed effort. Chat clients can carry earlier reasoning
+  with `history: field`.
+- **Gemini 3 thinking levels are not written (for now).** `gemini_thinking_config` writes `thinkingBudget` (Gemini
+  2.5: `-1` dynamic, `0` off, which some models refuse); models that take `thinkingLevel` instead are not translated.
+- **`none` as an off form is model-dependent.** Chat and Responses `off` send effort `none`, which only some OpenAI
+  models accept; use style `none` (send nothing) for the others.
+- **`output_config.format` is not translated (for now).** An `output_config` with a `format` is dropped outside
+  Anthropic, effort included.
+- **`context_management` is dropped** outside Anthropic: no other API has server-side context editing, so the full
+  history is sent.
+- **Accepted levels are configured, not discovered.** Clamping uses the model's `efforts` or the style's defaults. An
+  OpenAI-compatible router with `require_parameters` routes only to hosts that accept the reasoning parameter sent.
+- **Passthrough ignores the option**, and the CLI bridges refuse it (the CLI chooses its own thinking).
+- **Native Anthropic: only `thinking`.** On an Anthropic upstream the option writes the `thinking` object; the client's
+  `output_config.effort` is still sent as written, even with `fixed`, `off` or style `none`.
+- **Not live-verified.** The OpenRouter and DeepSeek shapes follow their public documentation and are tested against
+  synthetic upstreams only.
+
 ## CLI bridges
 
 - Bridges run on the Harbor Pilot host, need the vendor binary and a per-account login there, and add process start-up
@@ -158,7 +185,8 @@ TRACEABILITY.md (`planned`, `in-progress`).
   (mapped back). Sampling parameters, stop sequences and forced tool choice are not passed, each recorded as an
   approximate loss. `max_tokens` (up to the model's limit) and effort (the top-level `output_config.effort`, else a
   thinking budget's level, and an effort-only `output_config` on a mid-conversation system entry) are passed per
-  process. `thinking` itself is not: the CLI picks adaptive or budgeted thinking for the model. A mid-conversation system entry with text is sent as user
+  process. `thinking` itself is not: the CLI picks adaptive or budgeted thinking for the model (`thinking`, approximate),
+  and a top-level `output_config.format` is dropped (`field:anthropic_messages:output_config.format`). A mid-conversation system entry with text is sent as user
   text (`mid_conversation_system`): the CLI's session format is not documented for caller-provided system entries.
   Provider-executed tools (web search and similar) are unavailable. The client's `cache_control` markers are removed (`cache_control`,
   approximate): the CLI places its own breakpoints (system prompt and last message), and the client's could break the

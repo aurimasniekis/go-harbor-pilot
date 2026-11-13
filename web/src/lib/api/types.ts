@@ -38,7 +38,10 @@ export type Tier = 'official' | 'partial' | 'unofficial' | 'client_reported' | '
 // ---------- managed configuration ----------
 export type SecretInfo = S['SecretInfo']
 export type ProviderSpec = Filled<Omit<S['ProviderSpec'], 'models'>> & { models: ModelSpec[] }
-export type ModelSpec = Filled<Omit<S['ModelSpec'], 'pricing' | 'provider_routing'>> & Pick<S['ModelSpec'], 'pricing' | 'provider_routing'>
+export type ModelSpec = Filled<Omit<S['ModelSpec'], 'pricing' | 'provider_routing' | 'reasoning'>> &
+  Pick<S['ModelSpec'], 'pricing' | 'provider_routing' | 'reasoning'>
+/** A model's reasoning option (D-047); optional as a whole, absent = the built-in translation. */
+export type ModelReasoningSpec = S['ModelReasoningSpec']
 export type ModelPricing = S['ModelPricing']
 /** Upstream routing pin; optional as a whole so the editor can omit it. */
 export type UpstreamProviderSpec = S['UpstreamProviderSpec']

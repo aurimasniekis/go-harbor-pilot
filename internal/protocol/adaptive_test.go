@@ -122,7 +122,7 @@ func TestAdaptiveOnlyIsNoReasoningForForeignBuilders(t *testing.T) {
 		"responses": func() ([]byte, []ir.Loss, error) {
 			return openairesponses.BuildRequest(r, openairesponses.BuildOptions{Model: "m", Stateless: true})
 		},
-		"gemini": func() ([]byte, []ir.Loss, error) { return gemini.BuildRequest(r) },
+		"gemini": func() ([]byte, []ir.Loss, error) { return gemini.BuildRequest(r, gemini.BuildOptions{}) },
 	}
 	for name, b := range builds {
 		t.Run(name, func(t *testing.T) {

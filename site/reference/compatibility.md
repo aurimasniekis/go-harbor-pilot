@@ -45,6 +45,26 @@ only crosses within its own protocol family; for every other pair it is downgrad
 | OpenAI Responses | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested (OpenAI-compatible endpoint) |
 | Gemini | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested | contract-tested (OpenAI-compatible endpoint) |
 
+### Reasoning settings
+
+Claude Code sends adaptive thinking (`thinking: {type: "adaptive"}`) with a top-level `output_config.effort`. Other
+providers have their own reasoning parameters, so a model's **reasoning option** decides how these settings are
+written for its upstream (see [Providers](/operators/providers#reasoning)). Without the option, only an explicit level
+is translated as before, and adaptive thinking and `output_config` reach only Anthropic models.
+
+| Style | Provider types | What the provider receives | Status |
+|---|---|---|---|
+| `anthropic_thinking` | Anthropic | Adaptive thinking unchanged; a level becomes a thinking budget | contract-tested |
+| `openai_reasoning_effort` | OpenAI, OpenAI-compatible, local | `reasoning_effort` | contract-tested |
+| `openai_responses_reasoning` | OpenAI | `reasoning.effort` | contract-tested |
+| `openrouter_reasoning` | OpenAI-compatible | A `reasoning` object with an effort, a token budget, or `enabled` | contract-tested |
+| `deepseek_thinking` | OpenAI-compatible | `thinking` on or off, plus `reasoning_effort` | contract-tested |
+| `gemini_thinking_config` | Gemini | A thinking budget (`-1` lets the model decide) | contract-tested |
+| `none` | all | Nothing | contract-tested |
+
+None of these is verified against the live services yet. Anthropic's server-side context editing
+(`context_management`) has no equivalent elsewhere and is always dropped, with a recorded loss.
+
 ### System messages inside the conversation
 
 On the models it documents for this feature, the Anthropic Messages API accepts `{"role": "system", ...}` entries

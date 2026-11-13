@@ -9,7 +9,7 @@ import (
 )
 
 func TestRegistry(t *testing.T) {
-	for _, n := range []string{StyleAnthropicThinking, StyleOpenAIReasoningEffort, StyleOpenAIResponsesReasoning, StyleGeminiThinkingConfig} {
+	for _, n := range []string{StyleAnthropicThinking, StyleOpenAIReasoningEffort, StyleOpenAIResponsesReasoning, StyleGeminiThinkingConfig, StyleOpenRouterReasoning, StyleDeepSeekThinking, StyleNone} {
 		m, ok := Lookup(n)
 		if !ok || m.Name() != n {
 			t.Errorf("Lookup(%q) = %v, %v", n, m, ok)

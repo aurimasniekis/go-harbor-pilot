@@ -101,6 +101,38 @@ func ForeignExtKeys(ext map[string]json.RawMessage, prefix string) []string {
 	return out
 }
 
+// Without returns ext minus keys: the fields a builder translated itself
+// and must neither restore nor report as dropped. ext is not modified.
+func Without(ext map[string]json.RawMessage, keys []string) map[string]json.RawMessage {
+	if len(keys) == 0 || len(ext) == 0 {
+		return ext
+	}
+	out := make(map[string]json.RawMessage, len(ext))
+	for k, v := range ext {
+		out[k] = v
+	}
+	for _, k := range keys {
+		delete(out, k)
+	}
+	return out
+}
+
+// foreignDetails explain known client fields another protocol cannot carry
+// better than the generic loss detail does.
+var foreignDetails = map[string]string{
+	"anthropic_messages:context_management": "Anthropic server-side context editing has no equivalent here; the conversation is sent unedited",
+	"anthropic_messages:thinking":           "thinking is not translated for this model; the model's reasoning option can translate it",
+	"anthropic_messages:output_config":      "output_config is not translated for this model; the model's reasoning option can translate its effort (format is not translated)",
+}
+
+// ForeignDetail is the loss detail for a dropped foreign client field.
+func ForeignDetail(key, fallback string) string {
+	if d, ok := foreignDetails[key]; ok {
+		return d
+	}
+	return fallback
+}
+
 // Marshal encodes v without HTML escaping (prompts contain <, >, &).
 func Marshal(v any) ([]byte, error) {
 	var b bytes.Buffer

@@ -121,6 +121,22 @@ See [Masking: guarantees and limits](/security/masking).
   limit sent under the snake_case spelling is not seen by budgets and reaches a Gemini upstream as sent. A model with
   a configured `generationConfig` drops the snake_case object instead.
 
+## Reasoning settings
+
+- **Translation is per model, and off by default.** Claude Code's adaptive thinking and effort reach a non-Anthropic
+  model only when that model has a [reasoning option](/operators/providers#reasoning). Without one they are dropped,
+  and the request page shows the loss.
+- **Claude Code doesn't see other models' reasoning.** A thinking block must carry an Anthropic signature, so
+  reasoning from other providers isn't passed on to Anthropic clients and can't be sent back on the next turn. DeepSeek
+  answers 400 when earlier reasoning is missing from a request with tools. For Claude Code talking to DeepSeek
+  directly, set the reasoning option to **off**. Through a router, start with off or a low fixed effort: whether the
+  router needs the earlier reasoning too isn't documented.
+- **Turning reasoning off depends on the model.** OpenAI models are sent effort `none`, which not all accept, and
+  newer Gemini models that use thinking levels are not translated yet.
+- **Structured output in `output_config` isn't translated yet.** Anthropic's server-side context editing is never
+  translated: other providers receive the full conversation.
+- **Not verified against the live services yet.**
+
 ## CLI bridges
 
 - **They run on the Harbor Pilot host**, need the vendor binary and a login per account there, and add process
