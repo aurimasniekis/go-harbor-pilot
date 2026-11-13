@@ -91,6 +91,12 @@ func TestReasoningPolicyBuild(t *testing.T) {
 			want: map[string]string{"thinking": `{"display":"updates","type":"adaptive"}`, "output_config": `{"effort":"high"}`},
 		},
 		{
+			name: "native anthropic adaptive is not clamped", fixture: "anthropic_adaptive_max", provider: controlplane.ProviderAnthropic,
+			spec:      controlplane.ModelReasoningSpec{Mode: "client", Efforts: []string{"low"}},
+			want:      map[string]string{"thinking": `{"type":"adaptive"}`, "output_config": `{"effort":"max"}`},
+			lossLacks: []string{"reasoning_effort_clamped"},
+		},
+		{
 			name: "native anthropic off sends no thinking", fixture: "anthropic_adaptive_effort", provider: controlplane.ProviderAnthropic,
 			spec: controlplane.ModelReasoningSpec{Mode: "off"},
 			want: map[string]string{"thinking": "-", "output_config": `{"effort":"high"}`},

@@ -131,6 +131,11 @@ func Resolve(rc *ir.ReasoningConfig, pol *Policy, m Method, losses *ir.Losses) P
 
 // clamp keeps a plan's level within what the model accepts.
 func clamp(p *Plan, pol *Policy, m Method, losses *ir.Losses) {
+	if p.Adaptive && m != nil && m.Name() == StyleAnthropicThinking {
+		// The client's adaptive thinking is sent unchanged: no level or
+		// budget of the plan reaches the upstream.
+		return
+	}
 	if pol.MaxBudgetTokens > 0 && p.BudgetTokens > pol.MaxBudgetTokens {
 		losses.Add("reasoning_budget", fmt.Sprintf("thinking budget reduced to the model's maximum of %d tokens", pol.MaxBudgetTokens), ir.LossApproximate)
 		p.BudgetTokens = pol.MaxBudgetTokens

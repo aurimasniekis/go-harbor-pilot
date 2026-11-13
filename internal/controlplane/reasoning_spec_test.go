@@ -39,6 +39,9 @@ func TestModelReasoningValidation(t *testing.T) {
 		{"reserved history field", ProviderOpenAICompatible, rs(ModelReasoningSpec{History: "field", HistoryField: "content"}), "spec.models[0].reasoning.history_field"},
 		{"bad history field", ProviderOpenAICompatible, rs(ModelReasoningSpec{History: "field", HistoryField: "Bad-Name"}), "spec.models[0].reasoning.history_field"},
 		{"history field without history", ProviderOpenAICompatible, rs(ModelReasoningSpec{Mode: "client", HistoryField: "x"}), "spec.models[0].reasoning.history_field"},
+		{"level without a budget on anthropic", ProviderAnthropic, rs(ModelReasoningSpec{Mode: "fixed", Effort: "max"}), "spec.models[0].reasoning.effort"},
+		{"efforts without a budget on gemini", ProviderGemini, rs(ModelReasoningSpec{Mode: "client", Efforts: []string{"high", "max"}}), "spec.models[0].reasoning.efforts"},
+		{"max on a router", ProviderOpenAICompatible, rs(ModelReasoningSpec{Mode: "fixed", Style: "openrouter_reasoning", Effort: "max"}), ""},
 		{"on a CLI bridge", ProviderClaudeCode, rs(ModelReasoningSpec{Mode: "off"}), "spec.models[0].reasoning"},
 	}
 	for _, tc := range tests {

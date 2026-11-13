@@ -39,6 +39,10 @@ func ReasoningStyles(providerType string) []string {
 	return slices.Clone(reasoningStyles[providerType])
 }
 
+// budgetProtocols are the provider types whose styles write a thinking
+// budget for a level, by the protocol they speak.
+var budgetProtocols = map[string]ir.Protocol{ProviderAnthropic: ir.AnthropicMessages, ProviderGemini: ir.Gemini}
+
 // historyFieldRE is the shape of a history field name.
 var historyFieldRE = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
@@ -87,11 +91,26 @@ func validateModelReasoning(v *Validator, loc string, providerType string, t Pro
 	if r.Style != "" && !slices.Contains(styles, r.Style) {
 		v.Fail(loc+".style", "must be one of "+strings.Join(styles, ", ")+" for "+providerType+" providers")
 	}
+	// Styles that turn a level into a thinking budget know only their own
+	// levels; others accept any level on the ladder.
+	var budgetLevels []string
+	if p, ok := budgetProtocols[providerType]; ok && r.Style != reasoning.StyleNone {
+		if m := reasoning.MethodFor(r.Style, p); m != nil {
+			budgetLevels = m.DefaultEfforts()
+		}
+	}
+	levelOK := func(e string) bool {
+		return reasoning.Rank(e) > 0 && (budgetLevels == nil || slices.Contains(budgetLevels, e))
+	}
+	levels := "minimal, low, medium, high, xhigh or max"
+	if budgetLevels != nil {
+		levels = strings.Join(budgetLevels, ", ")
+	}
 	for _, e := range r.Efforts {
-		v.Check(reasoning.Rank(e) > 0, loc+".efforts", "unknown effort level "+e+" (minimal, low, medium, high, xhigh, max)")
+		v.Check(levelOK(e), loc+".efforts", "unknown effort level "+e+" (one of "+levels+")")
 	}
 	if r.Effort != "" {
-		v.Check(reasoning.Rank(r.Effort) > 0, loc+".effort", "must be minimal, low, medium, high, xhigh or max (use mode off to turn reasoning off)")
+		v.Check(levelOK(r.Effort), loc+".effort", "must be one of "+levels+" (use mode off to turn reasoning off)")
 		v.Check(len(r.Efforts) == 0 || slices.Contains(r.Efforts, r.Effort), loc+".effort", "must be one of the model's efforts")
 	}
 	v.Check(r.BudgetTokens >= 0, loc+".budget_tokens", "must not be negative")

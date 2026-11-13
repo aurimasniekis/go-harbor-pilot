@@ -181,7 +181,9 @@ CLI bridges (refused: the CLI chooses its own thinking).
 Validation: the style must be allowed for the provider type; `auto` takes no style, levels or budgets; `client` and
 `fixed` cannot use style `none`; `fixed` needs exactly one of `effort` or `budget_tokens`; `off` takes no levels and
 cannot be used on a model that declares the `reasoning` capability; `effort` must be in `efforts` when both are set;
-`budget_tokens` ≤ `max_budget_tokens`; `history: field` needs a `history_field` when the style has no default.
+`budget_tokens` ≤ `max_budget_tokens`; `history: field` needs a `history_field` when the style has no default. On
+`anthropic` and `gemini` providers, whose styles turn a level into a thinking budget, `effort` and `efforts` must be
+among the style's default efforts (minimal … xhigh).
 
 ## Routing plan versions
 A plan holds metadata only. Routing logic lives in immutable versions under `/routing-plans/{id}/versions`:
