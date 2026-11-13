@@ -1,0 +1,136 @@
+{
+  "requirements": [
+    "reasoning",
+    "streaming"
+  ],
+  "targets": {
+    "anthropic": {
+      "protocol": "anthropic_messages",
+      "losses": [],
+      "body": {
+        "context_management": {
+          "edits": [
+            {
+              "type": "clear_thinking_20251015",
+              "keep": "all"
+            }
+          ]
+        },
+        "max_tokens": 32000,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "Plan a three-step refactor of a small module.",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": true,
+        "thinking": {
+          "budget_tokens": 31999,
+          "type": "enabled"
+        }
+      }
+    },
+    "gemini": {
+      "protocol": "gemini",
+      "losses": [
+        "field:anthropic_messages:context_management | drop | client field has no Gemini equivalent"
+      ],
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "Plan a three-step refactor of a small module."
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 32000,
+          "thinkingConfig": {
+            "thinkingBudget": 31999
+          }
+        }
+      }
+    },
+    "ollama": {
+      "protocol": "openai_chat",
+      "losses": [
+        "field:anthropic_messages:context_management | drop | client field has no Chat Completions equivalent"
+      ],
+      "body": {
+        "max_tokens": 32000,
+        "messages": [
+          {
+            "content": "Plan a three-step refactor of a small module.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "high",
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
+        }
+      }
+    },
+    "openai": {
+      "protocol": "openai_responses",
+      "losses": [
+        "field:anthropic_messages:context_management | drop | client field has no Responses equivalent"
+      ],
+      "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "input": [
+          {
+            "content": [
+              {
+                "text": "Plan a three-step refactor of a small module.",
+                "type": "input_text"
+              }
+            ],
+            "role": "user",
+            "type": "message"
+          }
+        ],
+        "max_output_tokens": 32000,
+        "model": "upstream-model",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "stream": true
+      }
+    },
+    "openai_compatible": {
+      "protocol": "openai_chat",
+      "losses": [
+        "field:anthropic_messages:context_management | drop | client field has no Chat Completions equivalent"
+      ],
+      "body": {
+        "max_tokens": 32000,
+        "messages": [
+          {
+            "content": "Plan a three-step refactor of a small module.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "high",
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,327 @@
+{
+  "requirements": [
+    "reasoning",
+    "tools"
+  ],
+  "targets": {
+    "anthropic": {
+      "protocol": "anthropic_messages",
+      "losses": [],
+      "body": {
+        "max_tokens": 8192,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "What is the weather in Oslo?",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          },
+          {
+            "content": [
+              {
+                "signature": "c3ludGhldGljLXNpZ25hdHVyZS0wMDE=",
+                "thinking": "The user wants the weather; I should call the tool.",
+                "type": "thinking"
+              },
+              {
+                "id": "toolu_01",
+                "input": {
+                  "city": "Oslo"
+                },
+                "name": "get_weather",
+                "type": "tool_use"
+              }
+            ],
+            "role": "assistant"
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "Cloudy, 4 degrees.",
+                    "type": "text"
+                  }
+                ],
+                "tool_use_id": "toolu_01",
+                "type": "tool_result"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": false,
+        "thinking": {
+          "budget_tokens": 2048,
+          "type": "enabled"
+        },
+        "tools": [
+          {
+            "description": "Current weather for a city.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "city"
+              ]
+            },
+            "name": "get_weather"
+          }
+        ]
+      }
+    },
+    "gemini": {
+      "protocol": "gemini",
+      "losses": [
+        "reasoning_history | drop | reasoning from another provider cannot be replayed to Gemini"
+      ],
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "What is the weather in Oslo?"
+              }
+            ],
+            "role": "user"
+          },
+          {
+            "parts": [
+              {
+                "functionCall": {
+                  "args": {
+                    "city": "Oslo"
+                  },
+                  "name": "get_weather"
+                }
+              }
+            ],
+            "role": "model"
+          },
+          {
+            "parts": [
+              {
+                "functionResponse": {
+                  "name": "get_weather",
+                  "response": {
+                    "output": "Cloudy, 4 degrees."
+                  }
+                }
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 8192,
+          "thinkingConfig": {
+            "thinkingBudget": 2048
+          }
+        },
+        "tools": [
+          {
+            "functionDeclarations": [
+              {
+                "description": "Current weather for a city.",
+                "name": "get_weather",
+                "parametersJsonSchema": {
+                  "type": "object",
+                  "properties": {
+                    "city": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "city"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "ollama": {
+      "protocol": "openai_chat",
+      "losses": [
+        "reasoning_history | drop | prior reasoning is not replayed to Chat Completions"
+      ],
+      "body": {
+        "max_tokens": 8192,
+        "messages": [
+          {
+            "content": "What is the weather in Oslo?",
+            "role": "user"
+          },
+          {
+            "content": null,
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "function": {
+                  "arguments": "{\"city\": \"Oslo\"}",
+                  "name": "get_weather"
+                },
+                "id": "toolu_01",
+                "type": "function"
+              }
+            ]
+          },
+          {
+            "content": "Cloudy, 4 degrees.",
+            "role": "tool",
+            "tool_call_id": "toolu_01"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "minimal",
+        "stream": false,
+        "tools": [
+          {
+            "function": {
+              "description": "Current weather for a city.",
+              "name": "get_weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ]
+              }
+            },
+            "type": "function"
+          }
+        ]
+      }
+    },
+    "openai": {
+      "protocol": "openai_responses",
+      "losses": [
+        "reasoning_history | drop | reasoning from another provider cannot be replayed to Responses"
+      ],
+      "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "input": [
+          {
+            "content": [
+              {
+                "text": "What is the weather in Oslo?",
+                "type": "input_text"
+              }
+            ],
+            "role": "user",
+            "type": "message"
+          },
+          {
+            "arguments": "{\"city\": \"Oslo\"}",
+            "call_id": "toolu_01",
+            "name": "get_weather",
+            "type": "function_call"
+          },
+          {
+            "call_id": "toolu_01",
+            "output": "Cloudy, 4 degrees.",
+            "type": "function_call_output"
+          }
+        ],
+        "max_output_tokens": 8192,
+        "model": "upstream-model",
+        "reasoning": {
+          "effort": "minimal"
+        },
+        "store": false,
+        "stream": false,
+        "tools": [
+          {
+            "description": "Current weather for a city.",
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "city"
+              ]
+            },
+            "strict": false,
+            "type": "function"
+          }
+        ]
+      }
+    },
+    "openai_compatible": {
+      "protocol": "openai_chat",
+      "losses": [
+        "reasoning_history | drop | prior reasoning is not replayed to Chat Completions"
+      ],
+      "body": {
+        "max_tokens": 8192,
+        "messages": [
+          {
+            "content": "What is the weather in Oslo?",
+            "role": "user"
+          },
+          {
+            "content": null,
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "function": {
+                  "arguments": "{\"city\": \"Oslo\"}",
+                  "name": "get_weather"
+                },
+                "id": "toolu_01",
+                "type": "function"
+              }
+            ]
+          },
+          {
+            "content": "Cloudy, 4 degrees.",
+            "role": "tool",
+            "tool_call_id": "toolu_01"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "minimal",
+        "stream": false,
+        "tools": [
+          {
+            "function": {
+              "description": "Current weather for a city.",
+              "name": "get_weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ]
+              }
+            },
+            "type": "function"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "requirements": [
+    "reasoning"
+  ],
+  "targets": {
+    "anthropic": {
+      "protocol": "anthropic_messages",
+      "losses": [
+        "reasoning_budget | approximate | thinking budget reduced to fit max_tokens"
+      ],
+      "body": {
+        "max_tokens": 3000,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "Explain why the sky is blue in two sentences.",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": false,
+        "thinking": {
+          "budget_tokens": 2999,
+          "type": "enabled"
+        }
+      }
+    },
+    "gemini": {
+      "protocol": "gemini",
+      "losses": [],
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "Explain why the sky is blue in two sentences."
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 3000,
+          "thinkingConfig": {
+            "includeThoughts": true,
+            "thinkingBudget": 4096
+          }
+        }
+      }
+    },
+    "ollama": {
+      "protocol": "openai_chat",
+      "losses": [
+        "reasoning_budget | approximate | thinking budget mapped to a reasoning effort level"
+      ],
+      "body": {
+        "max_tokens": 3000,
+        "messages": [
+          {
+            "content": "Explain why the sky is blue in two sentences.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "low",
+        "stream": false
+      }
+    },
+    "openai": {
+      "protocol": "openai_responses",
+      "losses": [
+        "reasoning_budget | approximate | thinking budget mapped to a reasoning effort level"
+      ],
+      "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "input": [
+          {
+            "content": [
+              {
+                "text": "Explain why the sky is blue in two sentences.",
+                "type": "input_text"
+              }
+            ],
+            "role": "user",
+            "type": "message"
+          }
+        ],
+        "max_output_tokens": 3000,
+        "model": "upstream-model",
+        "reasoning": {
+          "effort": "low",
+          "summary": "auto"
+        },
+        "store": false,
+        "stream": false
+      }
+    },
+    "openai_compatible": {
+      "protocol": "openai_chat",
+      "losses": [
+        "reasoning_budget | approximate | thinking budget mapped to a reasoning effort level"
+      ],
+      "body": {
+        "max_tokens": 3000,
+        "messages": [
+          {
+            "content": "Explain why the sky is blue in two sentences.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "low",
+        "stream": false
+      }
+    }
+  }
+}

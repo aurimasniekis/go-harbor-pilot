@@ -1,0 +1,8 @@
+{
+  "model": "client-model",
+  "max_tokens": 1024,
+  "messages": [
+    {"role": "user", "content": "Say hello."}
+  ],
+  "thinking": {"type": "disabled"}
+}

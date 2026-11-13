@@ -1,0 +1,9 @@
+{
+  "contents": [
+    {"role": "user", "parts": [{"text": "Explain why the sky is blue in two sentences."}]}
+  ],
+  "generationConfig": {
+    "maxOutputTokens": 3000,
+    "thinkingConfig": {"thinkingBudget": 4096, "includeThoughts": true}
+  }
+}

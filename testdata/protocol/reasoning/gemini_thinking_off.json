@@ -1,0 +1,8 @@
+{
+  "contents": [
+    {"role": "user", "parts": [{"text": "Reply with OK."}]}
+  ],
+  "generationConfig": {
+    "thinkingConfig": {"thinkingBudget": 0}
+  }
+}

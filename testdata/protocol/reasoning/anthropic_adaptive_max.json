@@ -1,0 +1,9 @@
+{
+  "model": "client-model",
+  "max_tokens": 16000,
+  "messages": [
+    {"role": "user", "content": "Prove that the square root of two is irrational."}
+  ],
+  "thinking": {"type": "adaptive"},
+  "output_config": {"effort": "max"}
+}

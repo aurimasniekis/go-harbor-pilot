@@ -1,0 +1,8 @@
+{
+  "contents": [
+    {"role": "user", "parts": [{"text": "Write a haiku about rain."}]}
+  ],
+  "generationConfig": {
+    "thinkingConfig": {"thinkingBudget": -1}
+  }
+}

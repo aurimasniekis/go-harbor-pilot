@@ -1,0 +1,95 @@
+{
+  "requirements": [],
+  "targets": {
+    "anthropic": {
+      "protocol": "anthropic_messages",
+      "losses": [
+        "max_tokens_defaulted | approximate | max_tokens was not set by the client; applied model default"
+      ],
+      "body": {
+        "max_tokens": 64000,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "Write a haiku about rain.",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": false
+      }
+    },
+    "gemini": {
+      "protocol": "gemini",
+      "losses": [],
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "Write a haiku about rain."
+              }
+            ],
+            "role": "user"
+          }
+        ]
+      }
+    },
+    "ollama": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "messages": [
+          {
+            "content": "Write a haiku about rain.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": false
+      }
+    },
+    "openai": {
+      "protocol": "openai_responses",
+      "losses": [],
+      "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "input": [
+          {
+            "content": [
+              {
+                "text": "Write a haiku about rain.",
+                "type": "input_text"
+              }
+            ],
+            "role": "user",
+            "type": "message"
+          }
+        ],
+        "model": "upstream-model",
+        "store": false,
+        "stream": false
+      }
+    },
+    "openai_compatible": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "messages": [
+          {
+            "content": "Write a haiku about rain.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": false
+      }
+    }
+  }
+}

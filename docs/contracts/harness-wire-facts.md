@@ -127,6 +127,18 @@ Observed as in 1.3 and 1.4 (synthetic upstream, synthetic token, the bridge's fl
 | Appended tool results | verified for 2.1.318, 2.1.319, 2.1.321, 2.1.322 | The bridge reads `version` from the session's last entry and appends only for these versions. 2.1.322 (2026-11-12): a tool round trip wrote the same entry types with the same keys as 2.1.321, including the CLI's own tool-result `user` entry, and a shelved tool call resumed with the appended results. The bridge image pins 2.1.318 with the auto-updater off (`TestImagePinsVerifiedCLI`). The shelf tests read the installed CLI's version: a verified one must resume the shelved session, any other must fall back to the transcript with the results delivered, so a CLI update alone does not fail them. |
 | Mid-conversation system entries | not verified | No documented session entry carries caller-provided system text; the bridge keeps inlining it as user text. |
 
+### 1.6 Thinking and output settings (2026-11-13, 2.1.323)
+
+Observed as in 1.3: the real binary against a local synthetic Anthropic upstream with the bridge's flags, no `--effort`, and the target model name varied. The bodies are what the CLI itself sends upstream, which is also what a Claude Code client sends to a gateway.
+
+| Fact | Status | Observation |
+|---|---|---|
+| Adaptive thinking | verified (observed) | For `claude-opus-4-6`, `claude-opus-5-5` and an unrecognised model name (`deepseek-chat`) the CLI sent `"thinking":{"type":"adaptive","display":"updates"}` together with a top-level `"output_config":{"effort":…}`. No `budget_tokens` is sent in this mode. |
+| Budgeted thinking | verified (observed) | For `claude-sonnet-4-5` and `claude-haiku-4-5` it sent `"thinking":{"type":"enabled","budget_tokens":31999,"display":"updates"}` (one below the default `max_tokens` of 32000) and no `output_config`. |
+| Default effort | verified (observed) | `high` for `claude-opus-4-6` and the unrecognised name, `medium` for `claude-opus-5-5`. `--effort` overrides it (1.5). |
+| `context_management` | verified (observed) | Every request carried `{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}`, Anthropic's server-side context editing. It has no Chat, Responses or Gemini equivalent. |
+| `thinking.display` | verified (observed) | Sent in both modes. The gateway's parser models `enabled` and `disabled` only by type and budget, so on a rebuilt native request `display` is not carried for `enabled` (an `adaptive` object is kept whole). Characterised in `testdata/protocol/reasoning/golden/`. |
+
 ## 2. Codex (not installed; doc-claim)
 
 | Item | Value |

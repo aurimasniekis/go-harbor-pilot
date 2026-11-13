@@ -1,0 +1,121 @@
+{
+  "requirements": [
+    "reasoning"
+  ],
+  "targets": {
+    "anthropic": {
+      "protocol": "anthropic_messages",
+      "losses": [
+        "reasoning_budget | approximate | thinking budget reduced to fit max_tokens"
+      ],
+      "body": {
+        "max_tokens": 6000,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "Outline a proof by induction.",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "stream": false,
+        "thinking": {
+          "budget_tokens": 5999,
+          "type": "enabled"
+        }
+      }
+    },
+    "gemini": {
+      "protocol": "gemini",
+      "losses": [
+        "reasoning_effort | approximate | reasoning effort mapped to a thinking budget"
+      ],
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "Outline a proof by induction."
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 6000,
+          "thinkingConfig": {
+            "includeThoughts": true,
+            "thinkingBudget": 8192
+          }
+        }
+      }
+    },
+    "ollama": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "max_tokens": 6000,
+        "messages": [
+          {
+            "content": "Outline a proof by induction.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "medium",
+        "store": false,
+        "stream": false
+      }
+    },
+    "openai": {
+      "protocol": "openai_responses",
+      "losses": [],
+      "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "input": [
+          {
+            "content": [
+              {
+                "text": "Outline a proof by induction.",
+                "type": "input_text"
+              }
+            ],
+            "role": "user",
+            "type": "message"
+          }
+        ],
+        "max_output_tokens": 6000,
+        "model": "upstream-model",
+        "reasoning": {
+          "effort": "medium",
+          "summary": "auto"
+        },
+        "store": false,
+        "stream": false
+      }
+    },
+    "openai_compatible": {
+      "protocol": "openai_chat",
+      "losses": [],
+      "body": {
+        "max_tokens": 6000,
+        "messages": [
+          {
+            "content": "Outline a proof by induction.",
+            "role": "user"
+          }
+        ],
+        "model": "upstream-model",
+        "reasoning_effort": "medium",
+        "store": false,
+        "stream": false
+      }
+    }
+  }
+}
