@@ -20,3 +20,5 @@ security:
   # secret_env_prefixes: [HP_SECRET_]              # env: secret references may read only these variables
 log:
   level: info
+# gateway:
+#   usage_headers: auto                            # report usage to Anthropic Messages clients such as Claude Code

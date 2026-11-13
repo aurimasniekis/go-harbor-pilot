@@ -403,6 +403,54 @@ func (bs *Budgets) Exhausted(ctx context.Context, q store.Execer, scope Scope, n
 	return nil, nil
 }
 
+// Tightest returns the usage of the active budget covering in that is
+// closest to its limit (highest fraction), or nil when none applies. It
+// skips local and free traffic, which budgets never count, exactly as
+// Check does. Ties keep the budget whose window ends last, then the lowest
+// id. The gateway reports it to clients as their usage cap (D-048).
+func (bs *Budgets) Tightest(ctx context.Context, q store.Execer, in ReserveInput, now time.Time) (*BudgetUsage, error) {
+	snap := bs.Snapshot()
+	if snap == nil || len(snap.Budgets) == 0 || in.Billing == cp.BillingLocal || in.Billing == cp.BillingFree {
+		return nil, nil
+	}
+	ids := make([]string, 0, len(snap.Budgets))
+	for id := range snap.Budgets {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	var best *BudgetUsage
+	for _, id := range ids {
+		b := snap.Budgets[id]
+		if !applies(b, in) || !active(b, now) {
+			continue
+		}
+		u, err := bs.usage(ctx, q, b, now, nil)
+		if err != nil {
+			return nil, err
+		}
+		if u.Limit <= 0 {
+			continue
+		}
+		if best == nil || u.Fraction > best.Fraction || (u.Fraction == best.Fraction && endsAfter(u.PeriodEnd, best.PeriodEnd)) {
+			v := u
+			best = &v
+		}
+	}
+	return best, nil
+}
+
+// endsAfter reports whether window end a is later than b; nil (no end) is
+// the latest.
+func endsAfter(a, b *time.Time) bool {
+	switch {
+	case a == nil:
+		return b != nil
+	case b == nil:
+		return false
+	}
+	return a.After(*b)
+}
+
 // recordThreshold writes one event per budget, window and threshold. A
 // threshold fires again in the same window only when the limit was raised
 // since it last fired (D-044).

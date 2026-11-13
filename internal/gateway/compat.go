@@ -147,6 +147,7 @@ func (g *Gateway) deliverRaw(ctx context.Context, w http.ResponseWriter, rc *req
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("X-Request-ID", rc.id)
 	w.Header().Set("X-Harbor-Mode", "passthrough")
+	g.setUsageHeaders(ctx, w.Header(), rc, &fi.cand)
 	w.WriteHeader(http.StatusOK)
 	flusher, _ := w.(http.Flusher)
 	var sample bytes.Buffer

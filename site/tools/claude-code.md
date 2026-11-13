@@ -56,6 +56,35 @@ If you prefer an environment variable to a token file, set `ANTHROPIC_BASE_URL` 
 shell that starts Claude Code. `harbor-pilot harness setup claude --token-env <VAR>` writes the base URL and model and
 reminds you to export `ANTHROPIC_AUTH_TOKEN` yourself.
 
+## See your usage in Claude Code
+
+When the server has `gateway.usage_headers: auto` (see [Configuration](/reference/configuration#gateway)), Harbor
+Pilot reports usage in the response headers Claude Code uses for `/usage`, the status line and its "You've used NN%"
+notice:
+
+- **Requests served by a Claude subscription** show that subscription's 5-hour session and 7-day week, as in a
+  direct sign-in. The seat is shared: everyone routed to it sees the same figures.
+- **Other requests** (an API account, or a model behind an OpenAI-compatible router) show the budget closest to its
+  limit that covers your client, as "usage credits" with its reset date. Without a budget, nothing is shown.
+
+Claude Code reads these headers only when it believes it is signed in to a subscription. With `apiKeyHelper` or
+`ANTHROPIC_AUTH_TOKEN` it ignores them and `/usage` shows no limits. To see them, pass the same Harbor Pilot token as
+`CLAUDE_CODE_OAUTH_TOKEN` instead:
+
+```sh
+harbor-pilot harness uninstall claude --yes      # removes apiKeyHelper, which would take precedence
+export ANTHROPIC_BASE_URL=https://pilot.example.com
+export ANTHROPIC_MODEL=coding/default
+export CLAUDE_CODE_OAUTH_TOKEN="$(cat ~/.config/harbor-pilot/tokens/claude.token)"
+claude
+```
+
+Keep `ANTHROPIC_AUTH_TOKEN` unset, since it takes precedence too. Claude Code then sends the token as
+`Authorization: Bearer`, which Harbor Pilot accepts like any other gateway token. It also adds an OAuth flag to
+`anthropic-beta`, which Harbor Pilot drops before forwarding the request. Figures are as fresh as Harbor Pilot's
+quota board: a subscription's windows usually lag one request behind. Claude Code's own browser sign-in to a gateway
+(a device code flow) is not supported.
+
 ## Models
 
 `ANTHROPIC_MODEL` selects the main model name. Claude Code also asks for other models for small background tasks.

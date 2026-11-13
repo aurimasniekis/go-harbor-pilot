@@ -3,6 +3,22 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
+## Unreleased
+
+### Gateway
+
+- **Usage in Claude Code (D-048).** With the new `gateway.usage_headers: auto` setting (`HP_GATEWAY_USAGE_HEADERS`),
+  Anthropic Messages responses carry the caller's usage in the `anthropic-ratelimit-unified-*` headers Claude Code
+  shows in `/usage`, its status line and its near-limit notice. A request served by a Claude subscription seat
+  reports the seat's 5-hour and 7-day windows from the quota board (the account that answered, after a failover).
+  Other requests report the budget closest to its limit that covers them, or nothing when no budget applies. Claude
+  Code reads these headers only when the token is passed as `CLAUDE_CODE_OAUTH_TOKEN`; the Claude Code guide shows
+  how. The default is `off`, which leaves responses exactly as before. Upstream rate-limit headers are never passed
+  on.
+- **OAuth beta flag not forwarded.** The `oauth-…` flag Claude Code adds to `anthropic-beta` when it uses
+  `CLAUDE_CODE_OAUTH_TOKEN` is now dropped before a request goes to an Anthropic upstream; other flags are forwarded as
+  before.
+
 ## 0.1.6 (2026-11-13)
 
 Per-model upstream request fields: pin the upstream provider behind an OpenAI-compatible router for clients that
