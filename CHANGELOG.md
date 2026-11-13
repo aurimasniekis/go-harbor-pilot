@@ -3,6 +3,18 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
+## Unreleased
+
+### Providers
+
+- **Claude Code bridge passes Claude Code's effort.** A request's top-level `output_config.effort`, which Claude Code
+  sends alongside adaptive thinking, now reaches the CLI as `--effort`. Before, only the level a `thinking` budget
+  maps to was passed, and the compatibility matrix overstated this.
+- **Adaptive thinking and output effort are understood.** The Messages parser now reads `thinking: {type: adaptive}`
+  and the top-level `output_config.effort` instead of treating them as unknown fields. Native Anthropic requests are
+  sent byte for byte as before, and nothing changes for other upstreams until a model is configured to translate
+  them.
+
 ## 0.1.6 (2026-11-13)
 
 Per-model upstream request fields: pin the upstream provider behind an OpenAI-compatible router for clients that

@@ -189,6 +189,29 @@ type ReasoningConfig struct {
 	Summary string `json:"summary,omitempty"`
 	// IncludeEncrypted asks for encrypted reasoning content (stateless use).
 	IncludeEncrypted bool `json:"include_encrypted,omitempty"`
+	// Adaptive is set when the client let the model decide whether and how
+	// much to think (Anthropic thinking type "adaptive"). It names no level.
+	Adaptive bool `json:"adaptive,omitempty"`
+	// OutputEffort is the client's top-level output effort (Anthropic
+	// output_config.effort). It is kept apart from Effort: on its own it
+	// does not ask for reasoning and is not a routing requirement.
+	OutputEffort string `json:"output_effort,omitempty"`
+}
+
+// Legacy is the configuration the protocol builders translate by default.
+// A configuration that holds only Adaptive or OutputEffort counts as none:
+// those were not modelled before, and an upstream that has not been told
+// how to translate them gets exactly what it got then (the client's raw
+// fields stay in Ext for the native path). Nil-safe.
+func (rc *ReasoningConfig) Legacy() *ReasoningConfig {
+	if rc == nil {
+		return nil
+	}
+	if (rc.Adaptive || rc.OutputEffort != "") && rc.Effort == "" && rc.BudgetTokens == 0 &&
+		rc.Summary == "" && !rc.IncludeEncrypted && (rc.Enabled == nil || *rc.Enabled) {
+		return nil
+	}
+	return rc
 }
 
 // Request is a canonical model request.

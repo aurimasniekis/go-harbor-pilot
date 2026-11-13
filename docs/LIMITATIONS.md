@@ -144,8 +144,9 @@ TRACEABILITY.md (`planned`, `in-progress`).
 - **Claude Code fidelity.** The model sees a system prompt prefixed with the CLI's identity line and an environment
   note (`system_prompt`, approximate: inherent to running the CLI); client tools appear with an `mcp__client__` prefix
   (mapped back). Sampling parameters, stop sequences and forced tool choice are not passed, each recorded as an
-  approximate loss. `max_tokens` (up to the model's limit) and effort, including an effort-only `output_config` on a
-  mid-conversation system entry, are passed per process. A mid-conversation system entry with text is sent as user
+  approximate loss. `max_tokens` (up to the model's limit) and effort (the top-level `output_config.effort`, else a
+  thinking budget's level, and an effort-only `output_config` on a mid-conversation system entry) are passed per
+  process. `thinking` itself is not: the CLI picks adaptive or budgeted thinking for the model. A mid-conversation system entry with text is sent as user
   text (`mid_conversation_system`): the CLI's session format is not documented for caller-provided system entries.
   Provider-executed tools (web search and similar) are unavailable. The client's `cache_control` markers are removed (`cache_control`,
   approximate): the CLI places its own breakpoints (system prompt and last message), and the client's could break the

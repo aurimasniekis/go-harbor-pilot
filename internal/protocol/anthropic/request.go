@@ -157,6 +157,13 @@ func ParseRequest(body []byte, lim Limits) (*ir.Request, error) {
 		case "disabled":
 			f := false
 			r.Reasoning = &ir.ReasoningConfig{Enabled: &f, Effort: "none"}
+		case "adaptive":
+			// The model decides how much to think. The raw object stays in
+			// Ext so a native upstream gets it unchanged; it is never
+			// rewritten as an enabled budget.
+			t := true
+			r.Reasoning = &ir.ReasoningConfig{Enabled: &t, Adaptive: true}
+			r.Ext = map[string]json.RawMessage{P + ":thinking": raw}
 		default:
 			// Preserve unknown thinking modes for native use.
 			r.Ext = map[string]json.RawMessage{P + ":thinking": raw}
@@ -164,6 +171,19 @@ func ParseRequest(body []byte, lim Limits) (*ir.Request, error) {
 	}
 	if _, err := o.Take("service_tier", &r.ServiceTier); err != nil {
 		return nil, invalid("%v", err)
+	}
+	// output_config is read, not taken: its effort is known to the IR, and
+	// the whole object (with any other keys) stays in Ext for native use.
+	if raw, ok := o["output_config"]; ok {
+		var oc struct {
+			Effort string `json:"effort"`
+		}
+		if json.Unmarshal(raw, &oc) == nil && oc.Effort != "" {
+			if r.Reasoning == nil {
+				r.Reasoning = &ir.ReasoningConfig{}
+			}
+			r.Reasoning.OutputEffort = oc.Effort
+		}
 	}
 	r.Ext = o.Ext(P, r.Ext)
 	return r, nil

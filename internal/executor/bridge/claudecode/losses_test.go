@@ -42,6 +42,20 @@ func TestShapeRequestCarriesOutputSettings(t *testing.T) {
 			lacks: []string{"mid_conversation_system"},
 		},
 		{
+			// Claude Code's own shape (harness-wire-facts §1.6): adaptive
+			// thinking with a top-level output_config.effort.
+			name: "top-level output_config effort", wantEffort: "medium", wantMax: 32000,
+			body: `{"model":"m","max_tokens":32000,"thinking":{"type":"adaptive","display":"updates"},"output_config":{"effort":"medium"},"messages":[{"role":"user","content":"q1"}]}`,
+		},
+		{
+			name: "top-level effort beats the thinking budget", wantEffort: "low", wantMax: 32000,
+			body: `{"model":"m","max_tokens":32000,"thinking":{"type":"enabled","budget_tokens":31999},"output_config":{"effort":"low"},"messages":[{"role":"user","content":"q1"}]}`,
+		},
+		{
+			name: "thinking budget alone", wantEffort: "high", wantMax: 32000,
+			body: `{"model":"m","max_tokens":32000,"thinking":{"type":"enabled","budget_tokens":31999},"messages":[{"role":"user","content":"q1"}]}`,
+		},
+		{
 			name: "system entry with text", wantEffort: "", wantMax: 512,
 			body: `{"model":"m","max_tokens":512,"messages":[{"role":"user","content":"q1"},{"role":"system","content":"Keep it short."}]}`,
 			has:  []string{"mid_conversation_system"}, lacks: []string{"max_output_tokens"},
@@ -107,6 +121,19 @@ func TestBridgeOutputSettingsReachUpstream(t *testing.T) {
 	}
 	if fs := lossFeatures(ex.Losses); slices.Contains(fs, "mid_conversation_system") || slices.ContainsFunc(fs, func(f string) bool { return strings.HasSuffix(f, ":output_config") }) {
 		t.Fatalf("losses %v", fs)
+	}
+}
+
+// A client's top-level output_config.effort (Claude Code sends one with
+// adaptive thinking) reaches the upstream through the CLI's --effort.
+func TestBridgeTopLevelOutputEffortReachesUpstream(t *testing.T) {
+	r := newRig(t)
+	r.up.Push(synthetic.Reply{Text: "a1"})
+	req := parseCached(t, `{"model":"x","max_tokens":3000,"thinking":{"type":"adaptive"},"output_config":{"effort":"low"},"messages":[{"role":"user","content":"q1"}]}`)
+	r.executeWith(t, req.Messages, func(x *ir.Request) { x.MaxOutputTokens, x.Reasoning = ptr(3000), req.Reasoning })
+	oc, _ := r.up.Last().Body["output_config"].(map[string]any)
+	if oc["effort"] != "low" {
+		t.Fatalf("output_config %v", r.up.Last().Body["output_config"])
 	}
 }
 
