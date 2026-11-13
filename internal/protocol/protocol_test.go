@@ -264,7 +264,7 @@ func TestResponsesNativeAndForeign(t *testing.T) {
 	if !strings.Contains(lossFeatures(losses), "reasoning_history(drop)") {
 		t.Fatalf("losses %s", lossFeatures(losses))
 	}
-	gb, _, err := gemini.BuildRequest(r)
+	gb, _, err := gemini.BuildRequest(r, gemini.BuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -530,7 +530,7 @@ func FuzzParsers(f *testing.F) {
 			_, _, _ = anthropic.BuildRequest(r, anthropic.BuildOptions{Model: "m"})
 			_, _, _ = openaichat.BuildRequest(r, openaichat.BuildOptions{Model: "m"})
 			_, _, _ = openairesponses.BuildRequest(r, openairesponses.BuildOptions{Model: "m", Stateless: true})
-			_, _, _ = gemini.BuildRequest(r)
+			_, _, _ = gemini.BuildRequest(r, gemini.BuildOptions{})
 		}
 		if r, err := openaichat.ParseRequest(data, openaichat.DefaultLimits); err == nil {
 			_, _, _ = anthropic.BuildRequest(r, anthropic.BuildOptions{Model: "m"})

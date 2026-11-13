@@ -50,7 +50,10 @@ type Plan struct {
 	Effort string
 	// BudgetTokens is an explicit thinking budget (0 = none).
 	BudgetTokens int
-	// Adaptive lets the model decide how much to think (no level).
+	// Adaptive is set when the client let the model decide how much to
+	// think. A method uses it when no Effort or BudgetTokens is set, except
+	// anthropic_thinking, which then sends the client's own thinking
+	// object unchanged.
 	Adaptive bool
 	// Summary and IncludeEncrypted pass the client's Responses options on.
 	Summary          string
@@ -68,6 +71,8 @@ type Target struct {
 	MaxTokens int
 	// Include is the Responses include list (nil for other protocols).
 	Include *[]string
+	// Policy is the model's reasoning option (nil = legacy translation).
+	Policy *Policy
 }
 
 // Result reports what a method did.
@@ -166,11 +171,26 @@ func ForProtocol(p ir.Protocol) []Method {
 }
 
 // Apply writes a request's reasoning settings for protocol p. It is what
-// every builder calls.
+// every builder calls. Without a model policy (or with ModeAuto) it is the
+// protocol's legacy translation; otherwise the policy is resolved and
+// written with the model's style.
 func Apply(r *ir.Request, p ir.Protocol, t *Target) Result {
-	m, ok := DefaultFor(p).(legacyWriter)
-	if !ok {
+	if !t.Policy.active() {
+		m, ok := DefaultFor(p).(legacyWriter)
+		if !ok {
+			return Result{}
+		}
+		return m.WriteLegacy(r.Reasoning.Legacy(), t)
+	}
+	m := MethodFor(t.Policy.Style, p)
+	if m == nil {
 		return Result{}
 	}
-	return m.WriteLegacy(r.Reasoning.Legacy(), t)
+	res := m.Write(Resolve(r.Reasoning, t.Policy, m, t.Losses), t)
+	if p != ir.AnthropicMessages {
+		// The policy translated the client's Messages reasoning fields
+		// for this upstream: they are not reported as dropped.
+		res.Consumed = append(res.Consumed, sourceKeys(r.Ext)...)
+	}
+	return res
 }

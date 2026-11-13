@@ -156,7 +156,7 @@ func TestAnthropicSystemMessagesTranslated(t *testing.T) {
 		}
 	})
 	t.Run("gemini sends user text and reports an approximation", func(t *testing.T) {
-		body, losses, err := gemini.BuildRequest(parse(t, "messages_system_mid_conversation.json"))
+		body, losses, err := gemini.BuildRequest(parse(t, "messages_system_mid_conversation.json"), gemini.BuildOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}

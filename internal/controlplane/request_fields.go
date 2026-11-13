@@ -83,8 +83,9 @@ var forbiddenRequestFields = func() map[string]string {
 			"stream", "stream_options", "messages", "input", "contents", "system", "system_instruction", "instructions",
 			"include", "response_format", "text", "response_mime_type", "response_schema", "response_modalities",
 			"modalities", "audio", "prediction"}},
-		{"it changes what the request costs", []string{
-			"reasoning", "reasoning_effort", "thinking", "thinking_config", "service_tier", "usage", "verbosity"}},
+		{"reasoning is set by the model's reasoning option", []string{
+			"reasoning", "reasoning_effort", "thinking", "thinking_config"}},
+		{"it changes what the request costs", []string{"service_tier", "usage", "verbosity"}},
 	}
 	out := map[string]string{}
 	for _, g := range groups {

@@ -301,8 +301,15 @@ func ParseRequest(body []byte, model string, stream bool) (*ir.Request, error) {
 
 // ---------- build ----------
 
+// BuildOptions tune how a request is rendered for an upstream.
+type BuildOptions struct {
+	// Reasoning is the model's reasoning option (nil = the built-in
+	// translation).
+	Reasoning *reasoning.Policy
+}
+
 // BuildRequest renders IR as a generateContent body (model goes in the URL).
-func BuildRequest(r *ir.Request) ([]byte, []ir.Loss, error) {
+func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 	var losses ir.Losses
 	body := map[string]any{}
 	var sys []any
@@ -436,22 +443,23 @@ func BuildRequest(r *ir.Request) ([]byte, []ir.Loss, error) {
 			gc["responseJsonSchema"] = wire.RawOrEmptyObject(rf.Schema)
 		}
 	}
-	reasoning.Apply(r, ir.Gemini, &reasoning.Target{Body: gc, Losses: &losses})
+	rres := reasoning.Apply(r, ir.Gemini, &reasoning.Target{Body: gc, Losses: &losses, Policy: o.Reasoning})
 	if len(gc) > 0 {
 		body["generationConfig"] = gc
 	}
 	if r.PreviousResponseID != "" {
 		losses.Add("previous_response_id", "server-side conversation state cannot be carried to Gemini", ir.LossReject)
 	}
+	ext := wire.Without(r.Ext, rres.Consumed)
 	restore := map[string]json.RawMessage{}
-	for k, v := range r.Ext {
+	for k, v := range ext {
 		if k != P+":generationConfig" {
 			restore[k] = v
 		}
 	}
 	wire.Restore(body, restore, P)
-	for _, k := range wire.ForeignExtKeys(r.Ext, P) {
-		losses.Add("field:"+k, "client field has no Gemini equivalent", ir.LossDrop)
+	for _, k := range wire.ForeignExtKeys(ext, P) {
+		losses.Add("field:"+k, wire.ForeignDetail(k, "client field has no Gemini equivalent"), ir.LossDrop)
 	}
 	b, err := wire.Marshal(body)
 	return b, losses.List(), err

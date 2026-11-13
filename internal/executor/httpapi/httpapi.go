@@ -29,6 +29,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/gemini"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/openaichat"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/openairesponses"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/reasoning"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/wire"
 )
 
@@ -340,23 +341,29 @@ func (e *Executor) Execute(ctx context.Context, t executor.Target, cred credenti
 }
 
 func build(r *ir.Request, t executor.Target, up ir.Protocol, stream bool) ([]byte, []ir.Loss, error) {
+	// The model's reasoning option (D-047); nil keeps the built-in
+	// translation.
+	var pol *reasoning.Policy
+	if t.ModelSpec != nil {
+		pol = t.ModelSpec.Reasoning.Policy()
+	}
 	switch up {
 	case ir.AnthropicMessages:
 		def := 0
 		if t.ModelSpec != nil {
 			def = t.ModelSpec.MaxOutputTokens
 		}
-		return anthropic.BuildRequest(r, anthropic.BuildOptions{Model: t.Model, Stream: stream, DefaultMaxTokens: def})
+		return anthropic.BuildRequest(r, anthropic.BuildOptions{Model: t.Model, Stream: stream, DefaultMaxTokens: def, Reasoning: pol})
 	case ir.OpenAIChat:
-		o := openaichat.BuildOptions{Model: t.Model, Stream: stream}
+		o := openaichat.BuildOptions{Model: t.Model, Stream: stream, Reasoning: pol, ReasoningField: reasoning.HistoryFieldFor(pol, ir.OpenAIChat)}
 		if t.Provider.Spec.Type != controlplane.ProviderOpenAI {
 			o.LegacyMaxTokens = true
 		}
 		return openaichat.BuildRequest(r, o)
 	case ir.OpenAIResponses:
-		return openairesponses.BuildRequest(r, openairesponses.BuildOptions{Model: t.Model, Stream: stream, Stateless: true})
+		return openairesponses.BuildRequest(r, openairesponses.BuildOptions{Model: t.Model, Stream: stream, Stateless: true, Reasoning: pol})
 	case ir.Gemini:
-		return gemini.BuildRequest(r)
+		return gemini.BuildRequest(r, gemini.BuildOptions{Reasoning: pol})
 	}
 	return nil, nil, fmt.Errorf("unsupported protocol %s", up)
 }

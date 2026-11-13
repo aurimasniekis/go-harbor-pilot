@@ -21,6 +21,9 @@ type BuildOptions struct {
 	// text even when the client sent them natively, for consumers that only
 	// understand user and assistant turns (the CLI bridge).
 	InlineSystemMessages bool
+	// Reasoning is the model's reasoning option (nil = the built-in
+	// translation).
+	Reasoning *reasoning.Policy
 }
 
 // BuildRequest renders an IR request as an Anthropic Messages body. Features
@@ -200,7 +203,7 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 	if r.ServiceTier != "" {
 		body["service_tier"] = r.ServiceTier
 	}
-	reasoning.Apply(r, ir.AnthropicMessages, &reasoning.Target{Body: body, Losses: &losses, MaxTokens: maxTok})
+	rres := reasoning.Apply(r, ir.AnthropicMessages, &reasoning.Target{Body: body, Losses: &losses, MaxTokens: maxTok, Policy: o.Reasoning})
 	if rf := r.ResponseFormat; rf != nil && rf.Type != "text" {
 		losses.Add("structured_output", "response_format "+rf.Type+" is not translated to Anthropic", ir.LossReject)
 	}
@@ -210,9 +213,10 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 	if r.PreviousResponseID != "" {
 		losses.Add("previous_response_id", "server-side conversation state cannot be carried to Anthropic", ir.LossReject)
 	}
-	wire.Restore(body, r.Ext, P)
-	for _, k := range wire.ForeignExtKeys(r.Ext, P) {
-		losses.Add("field:"+k, "client field has no Anthropic equivalent", ir.LossDrop)
+	ext := wire.Without(r.Ext, rres.Consumed)
+	wire.Restore(body, ext, P)
+	for _, k := range wire.ForeignExtKeys(ext, P) {
+		losses.Add("field:"+k, wire.ForeignDetail(k, "client field has no Anthropic equivalent"), ir.LossDrop)
 	}
 	normalizeCacheControl(body, &losses)
 	b, err := wire.Marshal(body)

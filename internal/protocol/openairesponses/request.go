@@ -423,6 +423,9 @@ type BuildOptions struct {
 	// conversation can be carried statelessly (the gateway default when the
 	// client did not choose).
 	Stateless bool
+	// Reasoning is the model's reasoning option (nil = the built-in
+	// translation).
+	Reasoning *reasoning.Policy
 }
 
 // BuildRequest renders IR as a Responses API body.
@@ -516,7 +519,7 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 		losses.Add("seed", "seed is not supported by Responses", ir.LossDrop)
 	}
 	include := []string{}
-	rres := reasoning.Apply(r, ir.OpenAIResponses, &reasoning.Target{Body: body, Losses: &losses, Include: &include})
+	rres := reasoning.Apply(r, ir.OpenAIResponses, &reasoning.Target{Body: body, Losses: &losses, Include: &include, Policy: o.Reasoning})
 	store := r.Store
 	if store == nil && o.Stateless {
 		f := false
@@ -574,15 +577,16 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 			body["tool_choice"] = v
 		}
 	}
+	ext := wire.Without(r.Ext, rres.Consumed)
 	restore := map[string]json.RawMessage{}
-	for k, v := range r.Ext {
+	for k, v := range ext {
 		if strings.HasPrefix(k, P+":") && !strings.Contains(strings.TrimPrefix(k, P+":"), ".") && !strings.HasPrefix(k, P+":include:") && k != P+":tool_choice" {
 			restore[k] = v
 		}
 	}
 	wire.Restore(body, restore, P)
-	for _, k := range wire.ForeignExtKeys(r.Ext, P) {
-		losses.Add("field:"+k, "client field has no Responses equivalent", ir.LossDrop)
+	for _, k := range wire.ForeignExtKeys(ext, P) {
+		losses.Add("field:"+k, wire.ForeignDetail(k, "client field has no Responses equivalent"), ir.LossDrop)
 	}
 	b, err := wire.Marshal(body)
 	return b, losses.List(), err

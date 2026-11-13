@@ -75,9 +75,9 @@
     "gemini": {
       "protocol": "gemini",
       "losses": [
-        "field:anthropic_messages:context_management | drop | client field has no Gemini equivalent",
-        "field:anthropic_messages:output_config | drop | client field has no Gemini equivalent",
-        "field:anthropic_messages:thinking | drop | client field has no Gemini equivalent"
+        "field:anthropic_messages:context_management | drop | Anthropic server-side context editing has no equivalent here; the conversation is sent unedited",
+        "field:anthropic_messages:output_config | drop | output_config is not translated for this model; the model's reasoning option can translate its effort (format is not translated)",
+        "field:anthropic_messages:thinking | drop | thinking is not translated for this model; the model's reasoning option can translate it"
       ],
       "body": {
         "contents": [
@@ -129,9 +129,9 @@
     "ollama": {
       "protocol": "openai_chat",
       "losses": [
-        "field:anthropic_messages:context_management | drop | client field has no Chat Completions equivalent",
-        "field:anthropic_messages:output_config | drop | client field has no Chat Completions equivalent",
-        "field:anthropic_messages:thinking | drop | client field has no Chat Completions equivalent"
+        "field:anthropic_messages:context_management | drop | Anthropic server-side context editing has no equivalent here; the conversation is sent unedited",
+        "field:anthropic_messages:output_config | drop | output_config is not translated for this model; the model's reasoning option can translate its effort (format is not translated)",
+        "field:anthropic_messages:thinking | drop | thinking is not translated for this model; the model's reasoning option can translate it"
       ],
       "body": {
         "max_tokens": 32000,
@@ -180,9 +180,9 @@
     "openai": {
       "protocol": "openai_responses",
       "losses": [
-        "field:anthropic_messages:context_management | drop | client field has no Responses equivalent",
-        "field:anthropic_messages:output_config | drop | client field has no Responses equivalent",
-        "field:anthropic_messages:thinking | drop | client field has no Responses equivalent"
+        "field:anthropic_messages:context_management | drop | Anthropic server-side context editing has no equivalent here; the conversation is sent unedited",
+        "field:anthropic_messages:output_config | drop | output_config is not translated for this model; the model's reasoning option can translate its effort (format is not translated)",
+        "field:anthropic_messages:thinking | drop | thinking is not translated for this model; the model's reasoning option can translate it"
       ],
       "body": {
         "input": [
@@ -227,9 +227,9 @@
     "openai_compatible": {
       "protocol": "openai_chat",
       "losses": [
-        "field:anthropic_messages:context_management | drop | client field has no Chat Completions equivalent",
-        "field:anthropic_messages:output_config | drop | client field has no Chat Completions equivalent",
-        "field:anthropic_messages:thinking | drop | client field has no Chat Completions equivalent"
+        "field:anthropic_messages:context_management | drop | Anthropic server-side context editing has no equivalent here; the conversation is sent unedited",
+        "field:anthropic_messages:output_config | drop | output_config is not translated for this model; the model's reasoning option can translate its effort (format is not translated)",
+        "field:anthropic_messages:thinking | drop | thinking is not translated for this model; the model's reasoning option can translate it"
       ],
       "body": {
         "max_tokens": 32000,

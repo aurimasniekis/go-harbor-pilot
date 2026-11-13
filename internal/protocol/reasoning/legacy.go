@@ -121,13 +121,13 @@ func (anthropicThinking) Write(p Plan, t *Target) Result {
 		// No thinking is Anthropic's default: send no thinking object, and
 		// not the client's either.
 		return Result{Consumed: []string{AnthropicThinkingKey}}
-	case p.BudgetTokens > 0 || p.Effort != "":
-		writeAnthropicBudget(p.BudgetTokens, p.Effort, t)
-		return Result{Consumed: []string{AnthropicThinkingKey}, Active: true}
 	case p.Adaptive:
 		// Adaptive thinking is sent as the client wrote it, never
 		// rewritten as an enabled budget.
 		return Result{Active: true}
+	case p.BudgetTokens > 0 || p.Effort != "":
+		writeAnthropicBudget(p.BudgetTokens, p.Effort, t)
+		return Result{Consumed: []string{AnthropicThinkingKey}, Active: true}
 	}
 	return Result{}
 }
