@@ -16,6 +16,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/gemini"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/openaichat"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/openairesponses"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/reasoning"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/wire"
 )
 
@@ -520,9 +521,18 @@ func TestParserLimits(t *testing.T) {
 
 // ---------- fuzzing ----------
 
+var fuzzPolicies = []*reasoning.Policy{
+	{Mode: reasoning.ModeClient, Style: reasoning.StyleOpenRouterReasoning, MaxBudgetTokens: 4000, History: reasoning.HistoryField},
+	{Mode: reasoning.ModeClient, Style: reasoning.StyleDeepSeekThinking, Efforts: []string{"low", "high"}},
+	{Mode: reasoning.ModeFixed, Effort: "xhigh"},
+	{Mode: reasoning.ModeOff, Style: reasoning.StyleNone},
+}
+
 func FuzzParsers(f *testing.F) {
 	for _, s := range []string{anthropicReq, chatReq, responsesReq, `{}`, `[]`, `{"messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","data":"!!"}}]}]}`,
-		claudeCodeAdaptive, `{"messages":[],"output_config":{"effort":7}}`, `{"messages":[],"output_config":"high","thinking":{"type":"adaptive"}}`} {
+		claudeCodeAdaptive, `{"messages":[],"output_config":{"effort":7}}`, `{"messages":[],"output_config":"high","thinking":{"type":"adaptive"}}`,
+		`{"max_tokens":1,"messages":[],"thinking":{"type":"enabled","budget_tokens":99999},"output_config":{"effort":"bogus"}}`,
+		`{"messages":[{"role":"assistant","content":[{"type":"thinking","thinking":"t","signature":"s"}]}],"thinking":{"type":"disabled"}}`} {
 		f.Add([]byte(s))
 	}
 	f.Fuzz(func(t *testing.T, data []byte) {
@@ -531,6 +541,13 @@ func FuzzParsers(f *testing.F) {
 			_, _, _ = openaichat.BuildRequest(r, openaichat.BuildOptions{Model: "m"})
 			_, _, _ = openairesponses.BuildRequest(r, openairesponses.BuildOptions{Model: "m", Stateless: true})
 			_, _, _ = gemini.BuildRequest(r, gemini.BuildOptions{})
+			// Every reasoning policy shape (D-047) on every builder.
+			for _, pol := range fuzzPolicies {
+				_, _, _ = anthropic.BuildRequest(r, anthropic.BuildOptions{Model: "m", Reasoning: pol})
+				_, _, _ = openaichat.BuildRequest(r, openaichat.BuildOptions{Model: "m", Reasoning: pol, ReasoningField: reasoning.HistoryFieldFor(pol, ir.OpenAIChat)})
+				_, _, _ = openairesponses.BuildRequest(r, openairesponses.BuildOptions{Model: "m", Stateless: true, Reasoning: pol})
+				_, _, _ = gemini.BuildRequest(r, gemini.BuildOptions{Reasoning: pol})
+			}
 		}
 		if r, err := openaichat.ParseRequest(data, openaichat.DefaultLimits); err == nil {
 			_, _, _ = anthropic.BuildRequest(r, anthropic.BuildOptions{Model: "m"})

@@ -3834,6 +3834,42 @@ export interface components {
             /** @description Operator label for this price list, recorded on every cost estimate. */
             price_version?: string;
         };
+        ModelReasoningSpec: {
+            /**
+             * Format: int64
+             * @description Default (client) or fixed (fixed) thinking budget in tokens, instead of effort.
+             */
+            budget_tokens?: number;
+            /**
+             * @description Default (client) or fixed (fixed) effort level.
+             * @enum {string}
+             */
+            effort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "";
+            /** @description The effort levels the model accepts; other levels are clamped to the nearest lower one. Empty = the style's defaults. */
+            efforts?: string[];
+            /**
+             * @description Earlier reasoning in a Chat history: drop (default) or field (sent back in history_field).
+             * @enum {string}
+             */
+            history?: "drop" | "field" | "";
+            /** @description Assistant message field that carries earlier reasoning back when history is field. Empty = the style's default (reasoning_content for deepseek_thinking, reasoning for openrouter_reasoning). */
+            history_field?: string;
+            /**
+             * Format: int64
+             * @description Larger client thinking budgets are reduced to this. 0 = no cap.
+             */
+            max_budget_tokens?: number;
+            /**
+             * @description auto (default): the built-in translation. client: follow the client's settings, written in this model's style, with effort/budget_tokens as the default when the client names no level. fixed: always ask for effort or budget_tokens. off: always ask the upstream not to reason.
+             * @enum {string}
+             */
+            mode?: "auto" | "client" | "fixed" | "off" | "";
+            /**
+             * @description The upstream's reasoning wire shape. Empty = the upstream protocol's default. Allowed values depend on the provider type.
+             * @enum {string}
+             */
+            style?: "anthropic_thinking" | "openai_reasoning_effort" | "openai_responses_reasoning" | "openrouter_reasoning" | "deepseek_thinking" | "gemini_thinking_config" | "none" | "";
+        };
         ModelSpec: {
             capabilities?: string[];
             /** Format: int64 */
@@ -3847,6 +3883,8 @@ export interface components {
             pricing?: components["schemas"]["ModelPricing"];
             /** @description Pin which upstream provider serves this model, on openai_compatible providers only. Sent as the request's provider field. */
             provider_routing?: components["schemas"]["UpstreamProviderSpec"];
+            /** @description How the client's reasoning settings are translated for this model's upstream. Omit to keep the built-in translation. */
+            reasoning?: components["schemas"]["ModelReasoningSpec"];
             /**
              * @description When the client's own request already sets one of these fields: configured (the model's value wins), client (the client's value wins), reject (refuse the request before any upstream is contacted). Empty = configured.
              * @enum {string}
