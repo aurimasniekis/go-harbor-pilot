@@ -175,12 +175,13 @@ still dropped (`field:anthropic_messages:output_config`). `context_management` (
 is always dropped outside Anthropic.
 
 **Not affected:** routing requirements (adaptive thinking or an output effort alone never requires the `reasoning`
-capability; an explicit client level still does), passthrough requests (the client's bytes are forwarded), and the
+capability; an explicit client level or thinking budget still does, so a model in any mode receives those requests
+only when it declares the capability), passthrough requests (the client's bytes are forwarded), and the
 CLI bridges (refused: the CLI chooses its own thinking).
 
 Validation: the style must be allowed for the provider type; `auto` takes no style, levels or budgets; `client` and
-`fixed` cannot use style `none`; `fixed` needs exactly one of `effort` or `budget_tokens`; `off` takes no levels and
-cannot be used on a model that declares the `reasoning` capability; `effort` must be in `efforts` when both are set;
+`fixed` cannot use style `none`; `fixed` needs exactly one of `effort` or `budget_tokens`; `off` takes no levels;
+`effort` must be in `efforts` when both are set;
 `budget_tokens` ≤ `max_budget_tokens`; `history: field` needs a `history_field` when the style has no default. On
 `anthropic` and `gemini` providers, whose styles turn a level into a thinking budget, `effort` and `efforts` must be
 among the style's default efforts (minimal … xhigh).

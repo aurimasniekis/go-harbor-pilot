@@ -51,6 +51,8 @@ func TestResolve(t *testing.T) {
 		{"client nothing without default", nil, Policy{Mode: ModeClient}, or, Plan{}, ""},
 		{"client budget beats output effort", &ir.ReasoningConfig{Enabled: &on, BudgetTokens: 5000, Effort: "low", OutputEffort: "max"}, Policy{Mode: ModeClient}, or, Plan{Effort: "low", BudgetTokens: 5000}, ""},
 		{"client disabled", &ir.ReasoningConfig{Enabled: &off, Effort: "none", OutputEffort: "high"}, Policy{Mode: ModeClient, Effort: "high"}, or, Plan{Off: true}, ""},
+		{"client unknown output effort is ignored", &ir.ReasoningConfig{Enabled: &on, Adaptive: true, OutputEffort: "ultra"}, Policy{Mode: ModeClient}, or, Plan{Adaptive: true}, "reasoning_effort"},
+		{"client output effort none is ignored", &ir.ReasoningConfig{OutputEffort: "none"}, Policy{Mode: ModeClient, Effort: "low"}, or, Plan{Effort: "low"}, "reasoning_effort"},
 		{"client effort clamped to the model's list", adaptiveHigh, Policy{Mode: ModeClient, Efforts: []string{"low", "medium"}}, or, Plan{Effort: "medium", Adaptive: true}, "reasoning_effort_clamped"},
 		{"client effort clamped to the style's defaults", &ir.ReasoningConfig{Effort: "max"}, Policy{Mode: ModeClient}, chat, Plan{Effort: "high"}, "reasoning_effort_clamped"},
 		{"client budget capped", &ir.ReasoningConfig{BudgetTokens: 40000}, Policy{Mode: ModeClient, MaxBudgetTokens: 16000}, or, Plan{BudgetTokens: 16000}, "reasoning_budget"},

@@ -36,7 +36,8 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
   OpenRouter-style router as `reasoning: {effort}` instead of being dropped. Every clamp or override is recorded as a
   translation loss. Models without the option are unchanged.
 - **Clearer losses.** A dropped `context_management`, `thinking` or `output_config` now says why, and the request-field
-  refusal of `reasoning`/`thinking` points at the new option.
+  refusal of `reasoning`/`thinking` points at the new option. The Claude Code bridge now records that it does not pass
+  the client's thinking mode (`thinking`) or a top-level `output_config.format`.
 
 ## 0.1.6 (2026-11-13)
 

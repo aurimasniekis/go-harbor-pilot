@@ -111,8 +111,15 @@ func Resolve(rc *ir.ReasoningConfig, pol *Policy, m Method, losses *ir.Losses) P
 		}
 		if rc != nil {
 			p.Effort, p.BudgetTokens = rc.Effort, rc.BudgetTokens
-			if rc.OutputEffort != "" && (rc.Adaptive || rc.Effort == "") {
-				p.Effort = rc.OutputEffort
+			oe := rc.OutputEffort
+			if oe != "" && Rank(oe) <= Rank(EffortNone) {
+				// The parser keeps the client's raw value; only ladder
+				// levels are translated.
+				losses.Add("reasoning_effort", fmt.Sprintf("output effort %q is not a known level and was not translated", oe), ir.LossDrop)
+				oe = ""
+			}
+			if oe != "" && (rc.Adaptive || rc.Effort == "") {
+				p.Effort = oe
 			}
 			p.Summary, p.IncludeEncrypted = rc.Summary, rc.IncludeEncrypted
 			// Kept with a level too: a native upstream receives adaptive

@@ -141,13 +141,23 @@ always dropped. Passthrough requests and the CLI bridges ignore the option. Savi
 so tools that update providers must send `reasoning` back. The full reference is in the
 [configuration contract](https://github.com/aurimasniekis/go-harbor-pilot/blob/main/docs/contracts/config.md#per-model-reasoning-translation).
 
+Routing is unchanged: a request that names a level or a thinking budget (Claude Code sends a budget for older Claude
+model names) goes only to models with the **reasoning** capability, whatever the mode. Adaptive thinking alone needs
+no capability.
+
 #### Recipe: Claude Code to DeepSeek
 
-- **Through an OpenAI-compatible router:** use `{"mode": "client", "style": "openrouter_reasoning"}`. Claude Code's
-  effort (`high` by default) reaches the router as `reasoning: {effort: "high"}`.
-- **DeepSeek's own API:** use `{"mode": "off", "style": "deepseek_thinking"}`. DeepSeek requires earlier reasoning to be
-  sent back on every request with tools, and Claude Code can't send back reasoning from other providers (see
-  [limitations](/security/limitations#reasoning-settings)).
+Claude Code can't send back reasoning from other providers (see
+[limitations](/security/limitations#reasoning-settings)), and DeepSeek's own API answers 400 when a request with tools
+lacks the earlier reasoning.
+
+- **DeepSeek's own API:** use `{"mode": "off", "style": "deepseek_thinking"}`, and declare the **reasoning**
+  capability so that requests carrying a thinking budget still reach the model.
+- **Through an OpenAI-compatible router:** the router's documentation describes sending reasoning back for tool calls
+  but doesn't say whether a request without it fails. Start with `{"mode": "off", "style": "openrouter_reasoning"}`,
+  or a low fixed effort (`{"mode": "fixed", "style": "openrouter_reasoning", "effort": "low"}`), and move to
+  `{"mode": "client", "style": "openrouter_reasoning"}` (Claude Code's effort, `high` by default, then reaches the
+  router as `reasoning: {effort: "high"}`) once a multi-turn tool session works.
 
 ## Add an account
 

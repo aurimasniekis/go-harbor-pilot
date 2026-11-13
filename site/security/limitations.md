@@ -129,7 +129,10 @@ See [Masking: guarantees and limits](/security/masking).
 - **Claude Code doesn't see other models' reasoning.** A thinking block must carry an Anthropic signature, so
   reasoning from other providers isn't passed on to Anthropic clients and can't be sent back on the next turn. DeepSeek
   answers 400 when earlier reasoning is missing from a request with tools. For Claude Code talking to DeepSeek
-  directly, set the reasoning option to **off**.
+  directly, set the reasoning option to **off**. Through a router, start with off or a low fixed effort: whether the
+  router needs the earlier reasoning too isn't documented.
+- **Turning reasoning off depends on the model.** OpenAI models are sent effort `none`, which not all accept, and
+  newer Gemini models that use thinking levels are not translated yet.
 - **Structured output in `output_config` isn't translated yet.** Anthropic's server-side context editing is never
   translated: other providers receive the full conversation.
 - **Not verified against the live services yet.**

@@ -132,7 +132,6 @@ func validateModelReasoning(v *Validator, loc string, providerType string, t Pro
 		v.Check(r.Style != reasoning.StyleNone, loc+".style", "mode fixed cannot use style none (use mode off)")
 		v.Check((r.Effort != "") != (r.BudgetTokens > 0), loc+".effort", "mode fixed needs exactly one of effort or budget_tokens")
 	case reasoning.ModeOff:
-		v.Check(!slices.Contains(m.Capabilities, "reasoning"), loc+".mode", "mode off cannot be used on a model that declares the reasoning capability")
 		v.Check(r.Effort == "" && r.BudgetTokens == 0 && r.MaxBudgetTokens == 0 && len(r.Efforts) == 0, loc+".mode", "mode off takes no effort, budgets or efforts")
 	}
 	switch r.History {

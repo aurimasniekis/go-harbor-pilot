@@ -635,7 +635,14 @@ path and adapter version, one work item per fingerprint.
   "model decides" form (OpenRouter `enabled: true`, Gemini `-1`, Anthropic: the client's object). Levels outside
   `efforts` (or the style's defaults) are clamped to the nearest lower level, budgets to `max_budget_tokens`; each clamp
   and each override of the client is an approximate loss (`reasoning_effort_clamped`, `reasoning_budget`,
-  `reasoning_policy`). Translated `thinking` and effort-only `output_config` are not reported as dropped.
+  `reasoning_policy`). An `output_config.effort` that is not a ladder level is ignored with a drop loss
+  (`reasoning_effort`); the parser keeps the raw value for the native path. Translated `thinking` and effort-only
+  `output_config` are not reported as dropped. `off` writes no Responses `summary`.
+- **Routing.** A model in any mode receives requests that name a level or budget only when it declares the
+  `reasoning` capability, as before; `off` is allowed on such a model, so a reasoning model can be told not to reason
+  for clients (Claude Code sends a budget for older model names) that would otherwise not reach it.
+- **The Claude Code bridge** now records what it does not pass: the client's thinking mode (approximate loss
+  `thinking`) and a top-level `output_config.format` (drop).
 - **Wire shapes, from public documentation.** OpenRouter-style: `reasoning` with `effort` or `max_tokens` (never both),
   `effort: "none"` to disable, `enabled: true` for the default. DeepSeek: `thinking: {type: enabled|disabled}` plus
   `reasoning_effort` (low, high, max). Gemini: `thinkingBudget` `-1` is dynamic, `0` is off. None is live-verified.

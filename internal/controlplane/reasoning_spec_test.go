@@ -33,7 +33,9 @@ func TestModelReasoningValidation(t *testing.T) {
 		{"unknown efforts entry", ProviderOpenAICompatible, rs(ModelReasoningSpec{Mode: "client", Efforts: []string{"turbo"}}), "spec.models[0].reasoning.efforts"},
 		{"budget above output cap", ProviderAnthropic, ModelSpec{MaxOutputTokens: 4000, Reasoning: &ModelReasoningSpec{Mode: "fixed", BudgetTokens: 4000}}, "spec.models[0].reasoning.budget_tokens"},
 		{"budget above max budget", ProviderOpenAICompatible, rs(ModelReasoningSpec{Mode: "client", BudgetTokens: 9000, MaxBudgetTokens: 8000}), "spec.models[0].reasoning.budget_tokens"},
-		{"off on a reasoning model", ProviderOpenAICompatible, ModelSpec{Capabilities: []string{"reasoning"}, Reasoning: &ModelReasoningSpec{Mode: "off"}}, "spec.models[0].reasoning.mode"},
+		// A reasoning model can be told not to reason, so that clients that
+		// ask for a level (which routing sends only to such models) reach it.
+		{"off on a reasoning model", ProviderOpenAICompatible, ModelSpec{Capabilities: []string{"reasoning"}, Reasoning: &ModelReasoningSpec{Mode: "off"}}, ""},
 		{"history field without a default", ProviderOpenAICompatible, rs(ModelReasoningSpec{Mode: "client", Style: "openai_reasoning_effort", History: "field"}), "spec.models[0].reasoning.history_field"},
 		{"history field on a Responses provider", ProviderOpenAI, rs(ModelReasoningSpec{History: "field", HistoryField: "reasoning_content"}), "spec.models[0].reasoning.history"},
 		{"reserved history field", ProviderOpenAICompatible, rs(ModelReasoningSpec{History: "field", HistoryField: "content"}), "spec.models[0].reasoning.history_field"},

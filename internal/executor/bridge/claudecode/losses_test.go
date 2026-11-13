@@ -46,6 +46,12 @@ func TestShapeRequestCarriesOutputSettings(t *testing.T) {
 			// thinking with a top-level output_config.effort.
 			name: "top-level output_config effort", wantEffort: "medium", wantMax: 32000,
 			body: `{"model":"m","max_tokens":32000,"thinking":{"type":"adaptive","display":"updates"},"output_config":{"effort":"medium"},"messages":[{"role":"user","content":"q1"}]}`,
+			has:  []string{"thinking"}, lacks: []string{"field:anthropic_messages:output_config.format"},
+		},
+		{
+			name: "structured output format is recorded", wantEffort: "low", wantMax: 2000,
+			body: `{"model":"m","max_tokens":2000,"output_config":{"effort":"low","format":{"type":"json_schema","schema":{"type":"object"}}},"messages":[{"role":"user","content":"q1"}]}`,
+			has:  []string{"field:anthropic_messages:output_config.format"}, lacks: []string{"thinking"},
 		},
 		{
 			name: "top-level effort beats the thinking budget", wantEffort: "low", wantMax: 32000,
@@ -54,6 +60,7 @@ func TestShapeRequestCarriesOutputSettings(t *testing.T) {
 		{
 			name: "thinking budget alone", wantEffort: "high", wantMax: 32000,
 			body: `{"model":"m","max_tokens":32000,"thinking":{"type":"enabled","budget_tokens":31999},"messages":[{"role":"user","content":"q1"}]}`,
+			has:  []string{"thinking"},
 		},
 		{
 			name: "system entry with text", wantEffort: "", wantMax: 512,
