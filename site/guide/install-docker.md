@@ -10,7 +10,7 @@ Harbor Pilot ships as two container images, published with each release:
 Both images listen on port 8080, keep their data in `/data`, read the master key from `/run/secrets/master_key`, and
 run `harbor-pilot healthcheck` against `/readyz` as their container health check.
 
-Each release is tagged three ways, for linux/amd64 and linux/arm64: the exact version (`0.1.6`), the minor version
+Each release is tagged three ways, for linux/amd64 and linux/arm64: the exact version (`0.1.7`), the minor version
 (`0.1`, which moves to each patch release) and `latest`. The examples pin `0.1`.
 
 ## 1. Create a master key

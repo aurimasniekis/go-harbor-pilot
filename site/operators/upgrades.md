@@ -59,8 +59,18 @@ See [Backup and restore](/operators/backup).
 
 ## Notes for specific versions
 
-### Unreleased
+### 0.1.7
 
+- **No migrations.** One new configuration key, `gateway.usage_headers` (`HP_GATEWAY_USAGE_HEADERS`), default `off`,
+  which leaves responses unchanged.
+- **Usage in Claude Code (D-048).** Set `gateway.usage_headers: auto` (see
+  [Configuration](/reference/configuration#gateway)) to report usage in the headers Claude Code shows in `/usage` and
+  its status line. Claude Code reads them only when its users pass the gateway token as `CLAUDE_CODE_OAUTH_TOKEN`; see
+  [Claude Code](/tools/claude-code#see-your-usage-in-claude-code).
+- **`oauth-…` beta flags are dropped.** The `oauth-…` flag in `anthropic-beta` is no longer forwarded to Anthropic
+  upstreams; other flags pass as before.
+- **Bridge effort.** The Claude Code bridge now passes a request's top-level `output_config.effort` to the CLI as
+  `--effort`.
 - **Reasoning option per model (D-047).** A model can carry a `reasoning` option that translates Claude Code's adaptive
   thinking and effort, and other clients' reasoning settings, for its upstream; see
   [Providers](/operators/providers#reasoning). Models without it send the same upstream bodies as before. Only the
