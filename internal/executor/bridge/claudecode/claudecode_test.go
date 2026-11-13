@@ -53,7 +53,9 @@ func newRig(t *testing.T) *rig {
 	r := &rig{up: up}
 	r.b = New(Options{Binary: bin, Root: t.TempDir(), ExtraEnv: []string{"ANTHROPIC_BASE_URL=" + srv.URL},
 		OnRateLimit: func(_ string, info RateLimitInfo) { r.mu.Lock(); r.rl = append(r.rl, info); r.mu.Unlock() }})
-	t.Cleanup(r.b.Close)
+	// Close whichever bridge the test ends with: some tests replace r.b,
+	// and a bridge left open keeps its CLIs writing under the TempDir.
+	t.Cleanup(func() { r.b.Close() })
 	r.tgt = executor.Target{Provider: &cp.Res[cp.ProviderSpec]{ID: "prv_cc", Spec: cp.ProviderSpec{Type: cp.ProviderClaudeCode}},
 		Account: &cp.Res[cp.AccountSpec]{ID: "acc_cc", Spec: cp.AccountSpec{Billing: cp.BillingSubscription}}, Model: "claude-test-model"}
 	return r
