@@ -435,7 +435,7 @@ func BuildRequest(r *ir.Request) ([]byte, []ir.Loss, error) {
 			gc["responseJsonSchema"] = wire.RawOrEmptyObject(rf.Schema)
 		}
 	}
-	if rc := r.Reasoning; rc != nil {
+	if rc := r.Reasoning.Legacy(); rc != nil {
 		tc := map[string]any{}
 		switch {
 		case rc.Enabled != nil && !*rc.Enabled, rc.Effort == "none":

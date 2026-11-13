@@ -521,12 +521,15 @@ func TestParserLimits(t *testing.T) {
 // ---------- fuzzing ----------
 
 func FuzzParsers(f *testing.F) {
-	for _, s := range []string{anthropicReq, chatReq, responsesReq, `{}`, `[]`, `{"messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","data":"!!"}}]}]}`} {
+	for _, s := range []string{anthropicReq, chatReq, responsesReq, `{}`, `[]`, `{"messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","data":"!!"}}]}]}`,
+		claudeCodeAdaptive, `{"messages":[],"output_config":{"effort":7}}`, `{"messages":[],"output_config":"high","thinking":{"type":"adaptive"}}`} {
 		f.Add([]byte(s))
 	}
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if r, err := anthropic.ParseRequest(data, anthropic.DefaultLimits); err == nil {
+			_, _, _ = anthropic.BuildRequest(r, anthropic.BuildOptions{Model: "m"})
 			_, _, _ = openaichat.BuildRequest(r, openaichat.BuildOptions{Model: "m"})
+			_, _, _ = openairesponses.BuildRequest(r, openairesponses.BuildOptions{Model: "m", Stateless: true})
 			_, _, _ = gemini.BuildRequest(r)
 		}
 		if r, err := openaichat.ParseRequest(data, openaichat.DefaultLimits); err == nil {

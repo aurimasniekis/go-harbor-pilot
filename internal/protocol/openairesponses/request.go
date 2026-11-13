@@ -515,7 +515,7 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 		losses.Add("seed", "seed is not supported by Responses", ir.LossDrop)
 	}
 	include := []string{}
-	if rc := r.Reasoning; rc != nil {
+	if rc := r.Reasoning.Legacy(); rc != nil {
 		rb := map[string]any{}
 		switch {
 		case rc.Effort != "":
@@ -544,7 +544,7 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 	}
 	if store != nil {
 		body["store"] = *store
-		if !*store && !contains(include, "reasoning.encrypted_content") && r.Reasoning != nil {
+		if !*store && !contains(include, "reasoning.encrypted_content") && r.Reasoning.Legacy() != nil {
 			include = append(include, "reasoning.encrypted_content")
 		}
 	}

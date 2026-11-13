@@ -138,7 +138,8 @@ See [Masking: guarantees and limits](/security/masking).
 - **Claude Code bridge fidelity.** The model sees a system prompt prefixed with the CLI's identity line and an
   environment note, and your tool's tools appear with an `mcp__client__` prefix (mapped back for the client).
   Sampling parameters, stop sequences and forced tool choice are not passed; each is recorded as an approximate loss.
-  The output limit and effort are passed. A system message with text inside the conversation reaches the model as
+  The output limit and effort are passed (Claude Code's `output_config.effort` included); whether the model thinks
+  adaptively or with a budget is the CLI's choice. A system message with text inside the conversation reaches the model as
   user text. Provider-run tools such as web search are not available. Your tool's prompt-cache breakpoints
   are replaced by the CLI's own, which keep your cache lifetime (one hour or five minutes) but not your placement
   (recorded as an approximate loss).

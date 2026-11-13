@@ -407,13 +407,19 @@ func shapeRequest(r *ir.Request, model string, maxOut int) (*conv, []ir.Loss, er
 
 var effortLevels = map[string]bool{"low": true, "medium": true, "high": true, "xhigh": true, "max": true}
 
-// conversationEffort is the effort the next turn runs at: the request's,
-// or the latest mid-conversation system entry's output_config.effort (it
-// applies to later turns). settingsOnly reports that the conversation has
-// system entries and none carries text.
+// conversationEffort is the effort the next turn runs at: the request's
+// top-level output_config.effort, else the level its thinking budget maps
+// to, overridden by the latest mid-conversation system entry's
+// output_config.effort (it applies to later turns). settingsOnly reports
+// that the conversation has system entries and none carries text.
 func conversationEffort(r *ir.Request) (effort string, settingsOnly bool) {
-	if rc := r.Reasoning; rc != nil && effortLevels[rc.Effort] {
-		effort = rc.Effort
+	if rc := r.Reasoning; rc != nil {
+		switch {
+		case effortLevels[rc.OutputEffort]:
+			effort = rc.OutputEffort
+		case effortLevels[rc.Effort]:
+			effort = rc.Effort
+		}
 	}
 	sys, text := 0, false
 	for _, m := range r.Messages {

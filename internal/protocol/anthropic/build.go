@@ -199,7 +199,7 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 	if r.ServiceTier != "" {
 		body["service_tier"] = r.ServiceTier
 	}
-	if rc := r.Reasoning; rc != nil {
+	if rc := r.Reasoning.Legacy(); rc != nil {
 		switch {
 		case rc.Enabled != nil && !*rc.Enabled, rc.Effort == "none":
 			// Default for Anthropic is no extended thinking; send nothing.

@@ -568,7 +568,7 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 			body["response_format"] = map[string]any{"type": rf.Type}
 		}
 	}
-	if rc := r.Reasoning; rc != nil {
+	if rc := r.Reasoning.Legacy(); rc != nil {
 		switch {
 		case rc.Effort != "":
 			body["reasoning_effort"] = rc.Effort
