@@ -280,6 +280,16 @@ func (e *Env) Provider(name, typ, baseURL string, models ...Model) string {
 		}
 		ms = append(ms, mm)
 	}
+	return e.provider(name, typ, baseURL, ms)
+}
+
+// ProviderWithModels creates a provider from raw model specs, so a test can
+// set fields the Model helper does not model (request fields, provider pins).
+func (e *Env) ProviderWithModels(name, typ, baseURL string, models ...map[string]any) string {
+	return e.provider(name, typ, baseURL, models)
+}
+
+func (e *Env) provider(name, typ, baseURL string, ms []map[string]any) string {
 	var o obj
 	e.Admin.MustDo(201, "POST", "/api/v1/providers", map[string]any{"name": name, "spec": map[string]any{"type": typ, "display_name": name,
 		"base_url": baseURL, "allow_private_network": true, "classification": "", "headers": map[string]string{}, "request_timeout_seconds": 30,

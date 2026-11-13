@@ -3,6 +3,45 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
+## 0.1.6 (2026-11-13)
+
+Per-model upstream request fields: pin the upstream provider behind an OpenAI-compatible router for clients that
+cannot choose one, and set allowlisted sampling and tagging options on the model instead of in every client. No
+migrations and no new configuration keys. Models that configure nothing behave exactly as before.
+
+### Providers
+
+- **Upstream request fields per model (D-046).** A model in a provider's catalog can carry extra upstream request
+  body fields, so a client no longer has to send them. Two shapes: **pin the upstream provider**, a typed block sent
+  as the request's `provider` (order, only, ignore, sort, fallbacks, data collection, zero data retention,
+  quantizations, max price) on `openai_compatible` providers only, so a client with no such option (Claude Code, for
+  one) still reaches the provider you chose; and **request fields**, a JSON object of other options. Both appear under
+  **Upstream request fields** in a model's dialog, and a model that uses them shows an **Upstream fields** badge.
+- **An allowlist per provider type.** Request fields accept only sampling, routing and tagging options from the
+  provider type's allowlist (the table is in the operator guide and the config contract), in any spelling (`top_p` =
+  `topP`). Output limits, extra candidates, model lists, tools, plugins, stored state, `cache_control`, streaming and
+  structural fields are never configurable, and an unknown name is refused at save time with the allowed names.
+  Gemini `generationConfig` takes only its sampling keys and is merged into the request's own; another spelling of
+  it in the same request (`generation_config`) is dropped, so it cannot raise the budgeted output cap.
+- **Conflict rule.** **When the client already sends one of these** chooses between **Send mine and replace theirs**
+  (`request_field_policy: "configured"`, the default), **Keep theirs, only fill missing ones** (`"client"`) and
+  **Refuse requests that set them** (`"reject"`). Only the client's own request counts, never a value the gateway
+  filled in. A refusal is decided before any candidate is tried, over all candidates (the strictest wins), and answered
+  with 400. An override or a kept client value is recorded as an approximate translation loss `request_field:<name>`
+  and shows on the request page.
+- **Where it applies.** Translated, native and passthrough requests for Anthropic, OpenAI, OpenAI-compatible, Gemini
+  and Ollama providers, including the classifier and probe calls. CLI bridge providers refuse the fields. A model that
+  configures nothing leaves the request body byte-for-byte unchanged. The three new spec fields are in
+  `api/openapi.yaml`; no migration is needed. Updating a provider replaces its spec, so an API client or Terraform
+  configuration must include the fields to keep them.
+
+### Upgrading
+
+- **No migrations, no new configuration keys.** The new provider spec fields are optional; a model without them
+  sends exactly the request it sent before.
+- **API and Terraform clients.** `PUT /providers/{id}` replaces the whole spec, so a client that writes providers must
+  send `provider_routing`, `request_fields` and `request_field_policy` back, or values set in the UI are cleared.
+
 ## 0.1.5 (2026-11-12)
 
 Claude Code bridge: a fix for the 400 that broke every turn after the first, session retention so a paused

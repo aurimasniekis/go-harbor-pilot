@@ -152,18 +152,27 @@ func (e *Executor) Execute(ctx context.Context, t executor.Target, cred credenti
 	}
 	var body []byte
 	var err error
+	var ferr error
+	var fields ir.Losses
 	if req.Passthrough {
 		if up != req.Inbound {
 			return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrUnsupported, Message: "native passthrough requires an upstream speaking " + string(req.Inbound)}}
 		}
 		mode = executor.ModePassthrough
-		body, err = passthroughBody(req.RawBody, t.Model, up, stream)
+		body, ferr, err = passthroughBody(req.RawBody, t, up, stream, req.IR, &fields)
 	} else {
 		body, losses, err = build(req.IR, t, up, stream)
+		if err == nil {
+			body, ferr = applyRequestFields(body, t.Provider.Spec.Type, t.ModelSpec, ClientSettingsOf(req.IR, req.RawBody), &fields)
+		}
 	}
 	if err != nil {
 		return nil, &executor.AttemptError{Err: &ir.Error{Kind: ir.ErrInternal, Message: "could not build upstream request"}}
 	}
+	if ferr != nil {
+		return nil, &executor.AttemptError{Err: requestFieldError(ferr)}
+	}
+	losses = append(losses, fields.List()...)
 	if ir.HasReject(losses) && !req.AllowLosses {
 		var feats []string
 		for _, l := range losses {
@@ -354,19 +363,49 @@ func build(r *ir.Request, t executor.Target, up ir.Protocol, stream bool) ([]byt
 
 // passthroughBody forwards the client body, changing only the model field
 // (and the stream flag the gateway relies on) for protocols that carry them.
-func passthroughBody(raw []byte, model string, p ir.Protocol, stream bool) ([]byte, error) {
+// A model's configured request fields are applied here too, because the
+// client's bytes are what would otherwise bypass them.
+// passthroughBody returns the client's body with the model rewritten and the
+// model's request fields applied. ferr is a failure to apply those fields;
+// err is anything else (a body that does not parse), so an unconfigured model
+// never reports a field problem.
+func passthroughBody(raw []byte, t executor.Target, p ir.Protocol, stream bool, r *ir.Request, fields *ir.Losses) (body []byte, ferr, err error) {
+	fs, ok := configuredFields(t.Provider.Spec.Type, t.ModelSpec)
+	var cs ClientSettings
+	if ok {
+		cs = ClientSettingsOf(r, raw)
+	}
 	if p == ir.Gemini {
-		return raw, nil
+		if !ok {
+			return raw, nil, nil
+		}
+		// Gemini carries the model in the path, so its body is otherwise
+		// untouched; the configured fields still apply.
+		o, err := wire.ParseObject(raw)
+		if err != nil {
+			return nil, nil, err
+		}
+		if err := mergeFields(o, fs, cs, fields); err != nil {
+			return nil, err, nil
+		}
+		body, err := wire.Marshal(o)
+		return body, nil, err
 	}
 	o, err := wire.ParseObject(raw)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	o["model"] = wire.MustMarshal(model)
+	o["model"] = wire.MustMarshal(t.Model)
 	if p == ir.OpenAIChat && stream {
 		o["stream_options"] = json.RawMessage(`{"include_usage":true}`)
 	}
-	return wire.Marshal(o)
+	if ok {
+		if err := mergeFields(o, fs, cs, fields); err != nil {
+			return nil, err, nil
+		}
+	}
+	body, err = wire.Marshal(o)
+	return body, nil, err
 }
 
 func setHeaders(r *http.Request, t executor.Target, up ir.Protocol, cred credentials.Secret, stream bool, ua, reqID string) {

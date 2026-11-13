@@ -3845,6 +3845,17 @@ export interface components {
             max_output_tokens?: number;
             /** @description List prices for estimates; omit when unknown. */
             pricing?: components["schemas"]["ModelPricing"];
+            /** @description Pin which upstream provider serves this model, on openai_compatible providers only. Sent as the request's provider field. */
+            provider_routing?: components["schemas"]["UpstreamProviderSpec"];
+            /**
+             * @description When the client's own request already sets one of these fields: configured (the model's value wins), client (the client's value wins), reject (refuse the request before any upstream is contacted). Empty = configured.
+             * @enum {string}
+             */
+            request_field_policy?: "configured" | "client" | "reject" | "";
+            /** @description Extra upstream request fields for this model. Only fields on the provider type's allowlist are accepted (for example temperature, transforms, safetySettings); output limits, tools, stored state, caching and structural fields never are. */
+            request_fields?: {
+                [key: string]: unknown;
+            };
         };
         MonitorView: {
             account_id: string;
@@ -5472,6 +5483,44 @@ export interface components {
         UnlinkInBody: {
             issuer: string;
             subject: string;
+        };
+        UpstreamMaxPrice: {
+            /** Format: double */
+            completion?: number;
+            /** Format: double */
+            image?: number;
+            /** Format: double */
+            prompt?: number;
+            /** Format: double */
+            request?: number;
+        };
+        UpstreamProviderSpec: {
+            /** @description Let the upstream fall back to another provider. Unset = upstream default. */
+            allow_fallbacks?: boolean;
+            /**
+             * @description Restrict upstreams that store prompts: allow, deny. Empty = upstream default.
+             * @enum {string}
+             */
+            data_collection?: "allow" | "deny" | "";
+            /** @description Never use these upstream providers. */
+            ignore?: string[];
+            /** @description Upper price bound; upstreams above it are not used. */
+            max_price?: components["schemas"]["UpstreamMaxPrice"];
+            /** @description Use only these upstream providers. */
+            only?: string[];
+            /** @description Preferred upstream providers, first choice first. */
+            order?: string[];
+            /** @description Allowed weight quantizations, e.g. fp8, int4. */
+            quantizations?: string[];
+            /** @description Only use upstreams that accept every request parameter. Unset = upstream default. */
+            require_parameters?: boolean;
+            /**
+             * @description Rank upstreams by this instead of the upstream default.
+             * @enum {string}
+             */
+            sort?: "price" | "throughput" | "latency" | "";
+            /** @description Only use zero-data-retention upstreams. Unset = upstream default. */
+            zdr?: boolean;
         };
         UsageGroup: {
             allocated: components["schemas"]["CostAmount"][];

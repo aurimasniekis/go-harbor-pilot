@@ -68,6 +68,42 @@ cost. **Add a model** to set:
 
 These prices are what [Spend](/operators/spend) calls _estimated cost_.
 
+### Upstream request fields
+
+Some routers let the caller choose which provider serves a model, and some clients (Claude Code, for one) have no
+setting for it. Rather than putting that in every client's configuration, set it once on the model under **Upstream
+request fields**:
+
+- **Pin the upstream provider** (`openai_compatible` providers only; other provider types never receive it). Name a
+  particular provider in **Prefer in order**, **Only these** or **Never these**; choose a **Rank by** order, restrict
+  **Providers that store prompts**, require **zero data retention** or **all parameters**, list **Quantizations**, and
+  **Cap the price** per million tokens, per request or per image. A field left at its default is omitted from the
+  request rather than sent, so the router's own default applies.
+- **Other fields (JSON object)** takes fields from a short allowlist per provider type:
+
+  | Provider type | Allowed fields |
+  |---|---|
+  | OpenAI-compatible | `transforms`, `provider` (instead of the pin), `temperature`, `top_p`, `top_k`, `min_p`, `top_a`, `frequency_penalty`, `presence_penalty`, `repetition_penalty`, `seed`, `stop`, `logit_bias`, `user`, `metadata` |
+  | OpenAI | `temperature`, `top_p`, `user`, `metadata` |
+  | Ollama | `temperature`, `top_p`, `seed`, `stop`, `frequency_penalty`, `presence_penalty` |
+  | Anthropic | `metadata`, `temperature`, `top_p`, `top_k`, `stop_sequences` |
+  | Gemini | `safetySettings`; `generationConfig` with only `temperature`, `topP`, `topK`, `stopSequences` |
+
+  Spelling doesn't matter (`top_p` and `topP` are the same field). Anything else is refused when you save, and the
+  message lists what is allowed. Output limits, extra candidates, model lists, tools, plugins, stored state, prompt
+  caching, streaming and the request's structure are never configurable: they would bypass budgets or change what the
+  client asked for. Gemini's `generationConfig` is merged key by key, so the client's other settings in it stay. Only the
+  `generationConfig` spelling is merged: a `generation_config` in the same request is dropped and shows as a loss.
+- **When the client already sends one of these** decides the conflict: **Send mine and replace theirs** (the default),
+  **Keep theirs, only fill missing ones**, or **Refuse requests that set them**. Only what the client sent counts;
+  values the gateway fills in itself are never a conflict. A refusal answers the client with 400 before the request is
+  sent to any candidate (an intent classifier may already have run to choose the route), and if several models could serve a request and any of them refuses, the request is refused. An
+  override or a kept client value appears on the request page as a translation loss, so it is never silent.
+
+Models that keep this section empty are forwarded exactly as before. A model with any of it set shows an **Upstream
+fields** badge in the model list. Saving a provider replaces its whole spec, so a tool that updates providers through
+the API must send these fields back (see [Terraform](/operators/terraform#upstream-request-fields)).
+
 ## Add an account
 
 **+ Add account** on a provider opens the account dialog:

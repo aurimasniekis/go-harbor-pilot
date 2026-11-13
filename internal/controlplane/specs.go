@@ -1,6 +1,7 @@
 package controlplane
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -133,6 +134,102 @@ type ModelPricing struct {
 	PriceVersion      string `json:"price_version" doc:"Operator label for this price list, recorded on every cost estimate." required:"false"`
 }
 
+// UpstreamMaxPrice caps what an upstream router may charge, in US dollars per
+// million tokens (or per request/image where the upstream defines that).
+type UpstreamMaxPrice struct {
+	Prompt     *float64 `json:"prompt,omitempty" required:"false"`
+	Completion *float64 `json:"completion,omitempty" required:"false"`
+	Request    *float64 `json:"request,omitempty" required:"false"`
+	Image      *float64 `json:"image,omitempty" required:"false"`
+}
+
+// UpstreamProviderSpec pins which upstream provider should serve a model. It
+// is rendered as the request's "provider" object, so it applies to
+// OpenAI-compatible routers that accept that block. An unset field is omitted
+// rather than sent as its zero value.
+type UpstreamProviderSpec struct {
+	Order             []string          `json:"order" required:"false" doc:"Preferred upstream providers, first choice first."`
+	Only              []string          `json:"only" required:"false" doc:"Use only these upstream providers."`
+	Ignore            []string          `json:"ignore" required:"false" doc:"Never use these upstream providers."`
+	Sort              string            `json:"sort" enum:"price,throughput,latency," required:"false" doc:"Rank upstreams by this instead of the upstream default."`
+	AllowFallbacks    *bool             `json:"allow_fallbacks,omitempty" required:"false" doc:"Let the upstream fall back to another provider. Unset = upstream default."`
+	RequireParameters *bool             `json:"require_parameters,omitempty" required:"false" doc:"Only use upstreams that accept every request parameter. Unset = upstream default."`
+	DataCollection    string            `json:"data_collection" enum:"allow,deny," required:"false" doc:"Restrict upstreams that store prompts: allow, deny. Empty = upstream default."`
+	ZDR               *bool             `json:"zdr,omitempty" required:"false" doc:"Only use zero-data-retention upstreams. Unset = upstream default."`
+	Quantizations     []string          `json:"quantizations" required:"false" doc:"Allowed weight quantizations, e.g. fp8, int4."`
+	MaxPrice          *UpstreamMaxPrice `json:"max_price,omitempty" required:"false" doc:"Upper price bound; upstreams above it are not used."`
+}
+
+// Wire renders the configured fields as the upstream "provider" object. It
+// reports false when nothing is set.
+func (p *UpstreamProviderSpec) Wire() (json.RawMessage, bool) {
+	if p == nil {
+		return nil, false
+	}
+	o := map[string]any{}
+	if len(p.Order) > 0 {
+		o["order"] = p.Order
+	}
+	if len(p.Only) > 0 {
+		o["only"] = p.Only
+	}
+	if len(p.Ignore) > 0 {
+		o["ignore"] = p.Ignore
+	}
+	if p.Sort != "" {
+		o["sort"] = p.Sort
+	}
+	if p.AllowFallbacks != nil {
+		o["allow_fallbacks"] = *p.AllowFallbacks
+	}
+	if p.RequireParameters != nil {
+		o["require_parameters"] = *p.RequireParameters
+	}
+	if p.DataCollection != "" {
+		o["data_collection"] = p.DataCollection
+	}
+	if p.ZDR != nil {
+		o["zdr"] = *p.ZDR
+	}
+	if len(p.Quantizations) > 0 {
+		o["quantizations"] = p.Quantizations
+	}
+	if m := p.MaxPrice; m != nil {
+		price := map[string]any{}
+		if m.Prompt != nil {
+			price["prompt"] = *m.Prompt
+		}
+		if m.Completion != nil {
+			price["completion"] = *m.Completion
+		}
+		if m.Request != nil {
+			price["request"] = *m.Request
+		}
+		if m.Image != nil {
+			price["image"] = *m.Image
+		}
+		if len(price) > 0 {
+			o["max_price"] = price
+		}
+	}
+	if len(o) == 0 {
+		return nil, false
+	}
+	raw, err := json.Marshal(o)
+	if err != nil {
+		return nil, false
+	}
+	return raw, true
+}
+
+// Request field conflict policies: what happens when a request already
+// carries a field the model also configures.
+const (
+	FieldPolicyConfigured = "configured" // the model's value replaces the client's
+	FieldPolicyClient     = "client"     // the client's value wins; missing fields are filled
+	FieldPolicyReject     = "reject"     // a request that sets the field is refused
+)
+
 // ModelSpec declares a model served by a provider and its capabilities.
 type ModelSpec struct {
 	ID              string        `json:"id" doc:"Upstream model identifier."`
@@ -141,6 +238,13 @@ type ModelSpec struct {
 	MaxOutputTokens int           `json:"max_output_tokens" minimum:"0" required:"false"`
 	Capabilities    []string      `json:"capabilities" required:"false"`
 	Pricing         *ModelPricing `json:"pricing,omitempty" doc:"List prices for estimates; omit when unknown."`
+	// RequestFields are extra top-level fields added to the upstream request
+	// body for this model, so a client does not have to send them.
+	RequestFields map[string]json.RawMessage `json:"request_fields" required:"false" doc:"Extra upstream request fields for this model. Only fields on the provider type's allowlist are accepted (for example temperature, transforms, safetySettings); output limits, tools, stored state, caching and structural fields never are."`
+	// ProviderRouting is a typed upstream-routing pin, sent as "provider".
+	ProviderRouting *UpstreamProviderSpec `json:"provider_routing,omitempty" required:"false" doc:"Pin which upstream provider serves this model, on openai_compatible providers only. Sent as the request's provider field."`
+	// RequestFieldPolicy decides conflicts with a client-supplied field.
+	RequestFieldPolicy string `json:"request_field_policy" enum:"configured,client,reject," required:"false" doc:"When the client's own request already sets one of these fields: configured (the model's value wins), client (the client's value wins), reject (refuse the request before any upstream is contacted). Empty = configured."`
 }
 
 // ProviderSpec configures an upstream provider endpoint.
@@ -191,8 +295,38 @@ func normalizeProvider(s *ProviderSpec) {
 	}
 	sort.Slice(s.Models, func(i, j int) bool { return s.Models[i].ID < s.Models[j].ID })
 	for i := range s.Models {
-		s.Models[i].Capabilities = SortedUnique(s.Models[i].Capabilities)
+		m := &s.Models[i]
+		m.Capabilities = SortedUnique(m.Capabilities)
+		m.RequestFields = EmptyMap(m.RequestFields)
+		if m.RequestFieldPolicy == "" {
+			m.RequestFieldPolicy = FieldPolicyConfigured
+		}
+		if p := m.ProviderRouting; p != nil {
+			p.Order = uniqueKeepOrder(p.Order)
+			p.Only = SortedUnique(p.Only)
+			p.Ignore = SortedUnique(p.Ignore)
+			p.Quantizations = SortedUnique(p.Quantizations)
+			if _, ok := p.Wire(); !ok {
+				m.ProviderRouting = nil
+			}
+		}
 	}
+}
+
+// uniqueKeepOrder removes duplicates and blanks but keeps the order
+// the operator wrote (an upstream preference list is ordered).
+func uniqueKeepOrder(in []string) []string {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, s := range in {
+		s = strings.TrimSpace(s)
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	return out
 }
 
 func validateProvider(v *Validator, s *ProviderSpec) {
@@ -239,6 +373,9 @@ func validateProvider(v *Validator, s *ProviderSpec) {
 				}
 			}
 		}
+		v.Check(slices.Contains([]string{FieldPolicyConfigured, FieldPolicyClient, FieldPolicyReject}, m.RequestFieldPolicy),
+			loc+".request_field_policy", "must be configured, client or reject")
+		validateModelRequestFields(v, loc, t, m)
 	}
 }
 

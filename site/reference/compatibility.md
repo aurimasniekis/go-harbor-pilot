@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-What works with what, and how sure we are, as of 0.1.5. Everything here is tested against synthetic fixtures, fakes
+What works with what, and how sure we are, as of 0.1.6. Everything here is tested against synthetic fixtures, fakes
 and embedded servers, and **nothing has yet been verified against live provider accounts**. A cell
 only moves up when there is evidence for it.
 
@@ -116,6 +116,11 @@ Recognising which tool sent a request is a guess from its headers, not proof.
 | Claude subscription | Claude Code bridge | setup token per account | the CLI's rate-limit events (5-hour and 7-day windows) | see CLI bridges |
 | ChatGPT subscription | Codex bridge | per-account Codex sign-in | `codex_subscription` quota tracker | see CLI bridges |
 | Replaying a subscription token directly, or impersonating a vendor client | | | | **unsupported**, by design |
+
+Any HTTP provider's model can carry [upstream request fields](/operators/providers#upstream-request-fields): fields
+from a short allowlist per provider type, and a typed provider pin on OpenAI-compatible providers only (D-046). CLI
+bridge providers refuse them. The pin follows the documented router options; Harbor Pilot does not check them against
+a live router, so a router that changes its schema needs a matching change here.
 
 ## Quota tracking
 

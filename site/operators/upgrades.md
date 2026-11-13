@@ -59,6 +59,16 @@ See [Backup and restore](/operators/backup).
 
 ## Notes for specific versions
 
+### 0.1.6
+
+- **No migrations, no new configuration keys.**
+- **Upstream request fields (D-046).** A provider's models can pin the upstream provider (OpenAI-compatible providers
+  only) and set allowlisted request fields; see [Providers](/operators/providers#upstream-request-fields). Models that
+  configure nothing are unchanged.
+- **Writing providers through the API or Terraform.** Updating a provider replaces its whole spec, so a client that
+  leaves out `provider_routing`, `request_fields` or `request_field_policy` clears values set in the UI. Add them to
+  the resource's `spec` before applying.
+
 ### 0.1.5
 
 - **No migrations.**

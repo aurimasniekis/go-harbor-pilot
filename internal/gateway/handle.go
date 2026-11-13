@@ -15,6 +15,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/accounting"
 	cp "github.com/aurimasniekis/go-harbor-pilot/internal/controlplane"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/executor"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/executor/httpapi"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/ids"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/platform/observability"
@@ -336,6 +337,11 @@ func failoverAllowed(ae *executor.AttemptError) bool {
 }
 
 func (g *Gateway) dispatch(ctx context.Context, w http.ResponseWriter, rc *reqCtx, dec *routing.Decision) {
+	if e := refusedRequestField(rc, dec); e != nil {
+		g.finish(ctx, rc, "error", e, nil)
+		g.writeError(w, rc.inbound, e, rc.id)
+		return
+	}
 	policy := rc.plan.Published.Document.Fallback
 	var lastErr *ir.Error
 	var prev *routing.Candidate
@@ -451,6 +457,29 @@ func (g *Gateway) dispatch(ctx context.Context, w http.ResponseWriter, rc *reqCt
 	}
 	g.finish(ctx, rc, status, lastErr, nil)
 	g.writeError(w, rc.inbound, lastErr, rc.id)
+}
+
+// refusedRequestField applies the reject policy of per-model request fields
+// (D-046) before any candidate is tried. Every candidate is checked and the
+// strictest answer wins: if any candidate's model refuses a field the client
+// sets, the request is refused, so the outcome never depends on which
+// candidate happens to come first.
+func refusedRequestField(rc *reqCtx, dec *routing.Decision) *ir.Error {
+	var cs httpapi.ClientSettings
+	for i := range dec.Candidates {
+		cand := &dec.Candidates[i]
+		prov := rc.snap.Providers[cand.ProviderID]
+		if cand.ModelSpec == nil || prov == nil || cand.ModelSpec.RequestFieldPolicy != cp.FieldPolicyReject {
+			continue
+		}
+		if cs == nil {
+			cs = httpapi.ClientSettingsOf(rc.ir, rc.raw)
+		}
+		if name, ok := httpapi.RefusedRequestField(prov.Spec.Type, cand.ModelSpec, cs); ok {
+			return &ir.Error{Kind: ir.ErrInvalidRequest, Message: httpapi.RefusedFieldMessage(name)}
+		}
+	}
+	return nil
 }
 
 // execMode is how an attempt on cand runs (the executors' rule), for
