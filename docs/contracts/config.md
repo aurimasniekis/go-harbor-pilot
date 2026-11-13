@@ -145,7 +145,7 @@ upstream: Anthropic `thinking` (enabled, disabled or adaptive) and the top-level
 | `max_budget_tokens` | integer | A larger client budget is reduced to this (approximate loss `reasoning_budget`). |
 | `efforts` | list of levels | The levels the model accepts, stored in ladder order. A level outside it is clamped to the nearest lower one (else the lowest) with an approximate loss `reasoning_effort_clamped`. Empty: the style's defaults. |
 | `history` | `drop` (default) \| `field` | Earlier reasoning in a Chat history: dropped (`reasoning_history` loss) or sent back on the assistant message in `history_field`. Chat upstreams only (`openai_compatible`, `ollama`). |
-| `history_field` | lowercase identifier | The assistant message field for `history: field`. Empty: the style's default. Standard message fields (`content`, `role`, `tool_calls`, …) are refused. |
+| `history_field` | lowercase identifier | The assistant message field for `history: field`. Empty: the style's default. Standard message fields (`content`, `role`, `tool_calls`, …) and `reasoning_details`, `prefix`, `cache_control` are refused. |
 
 Effort ladder: `none` < `minimal` < `low` < `medium` < `high` < `xhigh` < `max` (`none` is `mode: off`).
 
@@ -176,12 +176,17 @@ is always dropped outside Anthropic.
 
 **Not affected:** routing requirements (adaptive thinking or an output effort alone never requires the `reasoning`
 capability; an explicit client level or thinking budget still does, so a model in any mode receives those requests
-only when it declares the capability), passthrough requests (the client's bytes are forwarded), and the
-CLI bridges (refused: the CLI chooses its own thinking).
+only when it declares the capability), passthrough requests (the client's bytes are forwarded), the gateway's own
+intent classifier and connection probe (built without the option), and the CLI bridges (refused: the CLI chooses its
+own thinking). On a native Anthropic upstream the option writes only `thinking`; the client's `output_config.effort`
+is sent as written in every mode. With an active option the client's own raw reasoning field of the upstream's
+protocol (`reasoning`, `reasoning_effort`, `thinking`) is replaced, not sent beside it. A router budget is kept below
+the request's `max_tokens`.
 
 Validation: the style must be allowed for the provider type; `auto` takes no style, levels or budgets; `client` and
-`fixed` cannot use style `none`; `fixed` needs exactly one of `effort` or `budget_tokens`; `off` takes no levels;
-`effort` must be in `efforts` when both are set;
+`fixed` cannot use style `none`; `fixed` needs exactly one of `effort` or `budget_tokens`, a budget only for styles
+that take one (not `openai_reasoning_effort`, `openai_responses_reasoning` or `deepseek_thinking`), and an effort the
+style sends unless `efforts` lists it; `off` takes no levels; `effort` must be in `efforts` when both are set;
 `budget_tokens` ≤ `max_budget_tokens`; `history: field` needs a `history_field` when the style has no default. On
 `anthropic` and `gemini` providers, whose styles turn a level into a thinking budget, `effort` and `efforts` must be
 among the style's default efforts (minimal … xhigh).

@@ -2,8 +2,12 @@ package controlplane
 
 import (
 	"encoding/json"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/reasoning"
 )
 
 func TestModelReasoningValidation(t *testing.T) {
@@ -44,6 +48,13 @@ func TestModelReasoningValidation(t *testing.T) {
 		{"level without a budget on anthropic", ProviderAnthropic, rs(ModelReasoningSpec{Mode: "fixed", Effort: "max"}), "spec.models[0].reasoning.effort"},
 		{"efforts without a budget on gemini", ProviderGemini, rs(ModelReasoningSpec{Mode: "client", Efforts: []string{"high", "max"}}), "spec.models[0].reasoning.efforts"},
 		{"max on a router", ProviderOpenAICompatible, rs(ModelReasoningSpec{Mode: "fixed", Style: "openrouter_reasoning", Effort: "max"}), ""},
+		{"fixed budget on an effort-only style", ProviderOpenAICompatible, rs(ModelReasoningSpec{Mode: "fixed", Style: "deepseek_thinking", BudgetTokens: 4000}), "spec.models[0].reasoning.budget_tokens"},
+		{"fixed budget on the default chat style", ProviderOllama, rs(ModelReasoningSpec{Mode: "fixed", BudgetTokens: 4000}), "spec.models[0].reasoning.budget_tokens"},
+		{"fixed budget on a router", ProviderOpenAICompatible, rs(ModelReasoningSpec{Mode: "fixed", Style: "openrouter_reasoning", BudgetTokens: 4000}), ""},
+		{"fixed effort the style cannot send", ProviderOpenAICompatible, rs(ModelReasoningSpec{Mode: "fixed", Style: "deepseek_thinking", Effort: "medium"}), "spec.models[0].reasoning.effort"},
+		{"fixed effort allowed by efforts", ProviderOpenAICompatible, rs(ModelReasoningSpec{Mode: "fixed", Effort: "xhigh", Efforts: []string{"high", "xhigh"}}), ""},
+		{"fixed effort outside responses levels", ProviderOpenAI, rs(ModelReasoningSpec{Mode: "fixed", Effort: "xhigh"}), "spec.models[0].reasoning.effort"},
+		{"reserved history field reasoning_details", ProviderOpenAICompatible, rs(ModelReasoningSpec{History: "field", HistoryField: "reasoning_details"}), "spec.models[0].reasoning.history_field"},
 		{"on a CLI bridge", ProviderClaudeCode, rs(ModelReasoningSpec{Mode: "off"}), "spec.models[0].reasoning"},
 	}
 	for _, tc := range tests {
@@ -109,4 +120,37 @@ func TestReasoningRequestFieldPointsAtTheOption(t *testing.T) {
 		}
 	}
 	t.Fatalf("errors %v", v.Errors)
+}
+
+// The style enum the API documents is exactly the registered methods.
+func TestReasoningStyleEnumMatchesMethods(t *testing.T) {
+	f, _ := reflect.TypeOf(ModelReasoningSpec{}).FieldByName("Style")
+	var enum []string
+	for _, s := range strings.Split(f.Tag.Get("enum"), ",") {
+		if s != "" {
+			enum = append(enum, s)
+		}
+	}
+	slices.Sort(enum)
+	if !slices.Equal(enum, reasoning.Names()) {
+		t.Errorf("enum %v, methods %v", enum, reasoning.Names())
+	}
+	for typ, styles := range reasoningStyles {
+		for _, s := range styles {
+			if _, ok := reasoning.Lookup(s); !ok {
+				t.Errorf("%s allows unknown style %s", typ, s)
+			}
+		}
+	}
+}
+
+// A stored option serialises only what is set, so a client that writes
+// {"mode":"off"} reads back the same object (no Terraform drift).
+func TestModelReasoningOmitsEmptyFields(t *testing.T) {
+	s := modelFieldProvider(ProviderOpenAICompatible, ModelSpec{Reasoning: &ModelReasoningSpec{Mode: "off", Efforts: []string{}}})
+	normalizeProvider(&s)
+	b, _ := json.Marshal(s.Models[0].Reasoning)
+	if string(b) != `{"mode":"off"}` {
+		t.Errorf("stored option %s", b)
+	}
 }

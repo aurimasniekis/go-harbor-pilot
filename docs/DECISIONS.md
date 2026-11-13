@@ -652,8 +652,19 @@ path and adapter version, one work item per fingerprint.
   back on requests with tools, so the documented setting for Claude Code → DeepSeek directly is `mode: off`. Showing
   foreign reasoning to Anthropic clients with gateway-sealed signatures is deferred to a later decision.
 - **Not changed.** `context_management` stays dropped outside Anthropic, with a loss detail that says why;
-  `output_config.format` is not translated yet (a mixed `output_config` is still dropped); passthrough ignores the
-  option; the classifier and plan probes go through the same builders, so `fixed` and `off` apply to them as well.
+  `output_config.format` is not translated yet (only the effort of a mixed `output_config` is, and the other keys
+  are recorded as dropped); passthrough ignores the option. On a native Anthropic upstream the option writes only
+  `thinking`: the client's `output_config.effort` is still sent as written, whatever the mode.
+- **The gateway's own calls** (the intent classifier and the connection probe, both capped at a few output tokens)
+  are built without the option, so a fixed level or default effort never adds billed reasoning to them.
+- **Budgets fit the request.** A router budget is kept below the request's `max_tokens` (`reasoning_budget` loss),
+  as the Anthropic budget already was. A budget reduced by `max_budget_tokens` also lowers the level the parser read
+  from it, for styles that send a level; styles that take no budget record that they sent its level instead.
+- **The policy owns the wire.** With an active option, a client's own raw `reasoning`, `reasoning_effort` or
+  `thinking` field of the upstream's protocol is not passed on beside the option's (`reasoning_policy` loss).
+- **Validation is per style.** `fixed` with `budget_tokens` is refused for styles that send only a level
+  (`openai_reasoning_effort`, `openai_responses_reasoning`, `deepseek_thinking`), and a fixed `effort` must be one
+  the style sends unless `efforts` lists it. The stored option serialises only the fields that are set.
 - **Updates.** A provider `PUT` replaces the whole spec, so leaving `reasoning` out clears it
   (`TestScenarioP8_SpecPutClearsTheOption`), as with the D-046 fields.
 

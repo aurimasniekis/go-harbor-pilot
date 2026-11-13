@@ -67,6 +67,9 @@ See [Backup and restore](/operators/backup).
   wording of some recorded losses changed (`context_management`, `thinking` and `output_config` drops now say why).
 - **Writing providers through the API or Terraform.** As with the request fields, a provider update that leaves
   `reasoning` out of a model clears it.
+- **New losses on Claude Code bridge requests.** The bridge now records the client's thinking mode (`thinking`,
+  approximate: the CLI chooses its own) and a top-level `output_config.format` (dropped). Requests are sent as before;
+  alerts or reports that count losses will see them.
 
 ### 0.1.6
 

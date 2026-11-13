@@ -87,7 +87,7 @@ func (g *Gateway) classifyWithModel(ctx context.Context, rc *reqCtx, cfg cp.Plan
 		Messages: []ir.Message{{Role: ir.RoleUser, Parts: []ir.Part{{Kind: ir.PartText, Text: text}}}}}
 	t := executor.Target{Provider: prov, Account: acc, Model: model}
 	if m, ok := rc.snap.ModelOf(prov.ID, model); ok {
-		t.ModelSpec = m
+		t.ModelSpec = internalCallSpec(m)
 	}
 	inbound := g.upstreamFor(prov.Spec.Type, ir.OpenAIChat)
 	res, aerr := g.executorFor(prov.Spec.Type).Execute(cctx, t, secret, executor.Request{IR: req, Inbound: inbound, RequestID: rc.id}, false)
@@ -127,4 +127,18 @@ func (g *Gateway) classifyWithModel(ctx context.Context, rc *reqCtx, cfg cp.Plan
 		return label, ""
 	}
 	return "", "invalid_label"
+}
+
+// internalCallSpec is the model spec for the gateway's own short calls (the
+// intent classifier, the connection probe): without the model's reasoning
+// option, so a fixed level or a default effort never adds reasoning, which
+// is billed, to a call capped at a few output tokens (D-047). Everything
+// else (request fields, output cap) still applies.
+func internalCallSpec(m *cp.ModelSpec) *cp.ModelSpec {
+	if m == nil || m.Reasoning == nil {
+		return m
+	}
+	c := *m
+	c.Reasoning = nil
+	return &c
 }

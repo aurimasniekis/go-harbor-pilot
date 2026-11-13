@@ -176,6 +176,9 @@ func (openAIReasoningEffort) Write(p Plan, t *Target) Result {
 		t.Body["reasoning_effort"] = EffortNone
 	case p.Effort != "":
 		t.Body["reasoning_effort"] = p.Effort
+		if p.BudgetTokens > 0 {
+			t.Losses.Add("reasoning_budget", "thinking budget mapped to a reasoning effort level", ir.LossApproximate)
+		}
 	case p.BudgetTokens > 0:
 		t.Body["reasoning_effort"] = chatEffortForBudget(p.BudgetTokens)
 		t.Losses.Add("reasoning_budget", "thinking budget mapped to a reasoning effort level", ir.LossApproximate)
@@ -243,6 +246,9 @@ func (openAIResponsesReasoning) Write(p Plan, t *Target) Result {
 		rb["effort"] = EffortNone
 	case p.Effort != "":
 		rb["effort"] = p.Effort
+		if p.BudgetTokens > 0 {
+			t.Losses.Add("reasoning_budget", "thinking budget mapped to a reasoning effort level", ir.LossApproximate)
+		}
 	case p.BudgetTokens > 0:
 		rb["effort"] = responsesEffortForBudget(p.BudgetTokens)
 		t.Losses.Add("reasoning_budget", "thinking budget mapped to a reasoning effort level", ir.LossApproximate)

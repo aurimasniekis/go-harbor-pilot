@@ -101,6 +101,14 @@ type Method interface {
 	Write(p Plan, t *Target) Result
 }
 
+// ownFields are the reasoning fields a policy writes for each protocol
+// (other than Messages, whose client thinking object anthropic_thinking
+// handles itself).
+var ownFields = map[ir.Protocol][]string{
+	ir.OpenAIChat:      {"reasoning", "reasoning_effort", "thinking"},
+	ir.OpenAIResponses: {"reasoning"},
+}
+
 // legacyWriter is implemented by the protocol defaults: the translation
 // each builder used before methods existed, kept byte for byte.
 type legacyWriter interface {
@@ -190,7 +198,17 @@ func Apply(r *ir.Request, p ir.Protocol, t *Target) Result {
 	if p != ir.AnthropicMessages {
 		// The policy translated the client's Messages reasoning fields
 		// for this upstream: they are not reported as dropped.
-		res.Consumed = append(res.Consumed, sourceKeys(r.Ext)...)
+		res.Consumed = append(res.Consumed, sourceKeys(r.Ext, t.Losses)...)
+		// The policy owns this protocol's reasoning fields: a raw one the
+		// client sent (one the parser does not model) is not passed on
+		// beside the policy's own.
+		for _, k := range ownFields[p] {
+			key := string(p) + ":" + k
+			if _, ok := r.Ext[key]; ok {
+				res.Consumed = append(res.Consumed, key)
+				t.Losses.Add("reasoning_policy", "the client's "+k+" field is replaced by the model's reasoning option", ir.LossApproximate)
+			}
+		}
 	}
 	return res
 }

@@ -154,6 +154,8 @@ TRACEABILITY.md (`planned`, `in-progress`).
 - **Accepted levels are configured, not discovered.** Clamping uses the model's `efforts` or the style's defaults. An
   OpenAI-compatible router with `require_parameters` routes only to hosts that accept the reasoning parameter sent.
 - **Passthrough ignores the option**, and the CLI bridges refuse it (the CLI chooses its own thinking).
+- **Native Anthropic: only `thinking`.** On an Anthropic upstream the option writes the `thinking` object; the client's
+  `output_config.effort` is still sent as written, even with `fixed`, `off` or style `none`.
 - **Not live-verified.** The OpenRouter and DeepSeek shapes follow their public documentation and are tested against
   synthetic upstreams only.
 

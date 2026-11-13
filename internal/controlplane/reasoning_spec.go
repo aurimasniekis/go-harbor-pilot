@@ -15,14 +15,14 @@ import (
 // translated for this model's upstream. Leaving it out keeps the built-in
 // translation byte for byte.
 type ModelReasoningSpec struct {
-	Mode            string   `json:"mode" enum:"auto,client,fixed,off," required:"false" doc:"auto (default): the built-in translation. client: follow the client's settings, written in this model's style, with effort/budget_tokens as the default when the client names no level. fixed: always ask for effort or budget_tokens. off: always ask the upstream not to reason."`
-	Style           string   `json:"style" enum:"anthropic_thinking,openai_reasoning_effort,openai_responses_reasoning,openrouter_reasoning,deepseek_thinking,gemini_thinking_config,none," required:"false" doc:"The upstream's reasoning wire shape. Empty = the upstream protocol's default. Allowed values depend on the provider type."`
-	Effort          string   `json:"effort" enum:"minimal,low,medium,high,xhigh,max," required:"false" doc:"Default (client) or fixed (fixed) effort level."`
-	BudgetTokens    int      `json:"budget_tokens" minimum:"0" required:"false" doc:"Default (client) or fixed (fixed) thinking budget in tokens, instead of effort."`
-	MaxBudgetTokens int      `json:"max_budget_tokens" minimum:"0" required:"false" doc:"Larger client thinking budgets are reduced to this. 0 = no cap."`
-	Efforts         []string `json:"efforts" required:"false" doc:"The effort levels the model accepts; other levels are clamped to the nearest lower one. Empty = the style's defaults."`
-	History         string   `json:"history" enum:"drop,field," required:"false" doc:"Earlier reasoning in a Chat history: drop (default) or field (sent back in history_field)."`
-	HistoryField    string   `json:"history_field" required:"false" doc:"Assistant message field that carries earlier reasoning back when history is field. Empty = the style's default (reasoning_content for deepseek_thinking, reasoning for openrouter_reasoning)."`
+	Mode            string   `json:"mode,omitempty" enum:"auto,client,fixed,off," required:"false" doc:"auto (default): the built-in translation. client: follow the client's settings, written in this model's style, with effort/budget_tokens as the default when the client names no level. fixed: always ask for effort or budget_tokens. off: always ask the upstream not to reason."`
+	Style           string   `json:"style,omitempty" enum:"anthropic_thinking,openai_reasoning_effort,openai_responses_reasoning,openrouter_reasoning,deepseek_thinking,gemini_thinking_config,none," required:"false" doc:"The upstream's reasoning wire shape. Empty = the upstream protocol's default. Allowed values depend on the provider type."`
+	Effort          string   `json:"effort,omitempty" enum:"minimal,low,medium,high,xhigh,max," required:"false" doc:"Default (client) or fixed (fixed) effort level."`
+	BudgetTokens    int      `json:"budget_tokens,omitempty" minimum:"0" required:"false" doc:"Default (client) or fixed (fixed) thinking budget in tokens, instead of effort."`
+	MaxBudgetTokens int      `json:"max_budget_tokens,omitempty" minimum:"0" required:"false" doc:"Larger client thinking budgets are reduced to this. 0 = no cap."`
+	Efforts         []string `json:"efforts,omitempty" required:"false" doc:"The effort levels the model accepts; other levels are clamped to the nearest lower one. Empty = the style's defaults."`
+	History         string   `json:"history,omitempty" enum:"drop,field," required:"false" doc:"Earlier reasoning in a Chat history: drop (default) or field (sent back in history_field)."`
+	HistoryField    string   `json:"history_field,omitempty" required:"false" doc:"Assistant message field that carries earlier reasoning back when history is field. Empty = the style's default (reasoning_content for deepseek_thinking, reasoning for openrouter_reasoning)."`
 }
 
 // reasoningStyles are the styles each provider type accepts.
@@ -48,7 +48,28 @@ var historyFieldRE = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
 // reservedMessageFields are Chat message fields a history field must not
 // overwrite.
-var reservedMessageFields = []string{"role", "content", "name", "tool_calls", "tool_call_id", "refusal", "audio", "function_call"}
+var reservedMessageFields = []string{"role", "content", "name", "tool_calls", "tool_call_id", "refusal", "audio", "function_call",
+	"reasoning_details", "prefix", "cache_control"}
+
+// chatProtocolsFor are the protocols a provider type's upstream may speak
+// (an openai provider answers Chat clients with Chat, others with
+// Responses).
+func chatProtocolsFor(providerType string) []ir.Protocol {
+	switch providerType {
+	case ProviderAnthropic:
+		return []ir.Protocol{ir.AnthropicMessages}
+	case ProviderGemini:
+		return []ir.Protocol{ir.Gemini}
+	case ProviderOpenAI:
+		return []ir.Protocol{ir.OpenAIChat, ir.OpenAIResponses}
+	case ProviderOpenAICompatible, ProviderOllama:
+		return []ir.Protocol{ir.OpenAIChat}
+	}
+	return nil
+}
+
+// effortOnlyStyles send a level, never a token budget.
+var effortOnlyStyles = []string{reasoning.StyleOpenAIReasoningEffort, reasoning.StyleOpenAIResponsesReasoning, reasoning.StyleDeepSeekThinking}
 
 // normalizeReasoning folds an option that changes nothing into nil, so an
 // unconfigured model and one saved with defaults store the same spec.
@@ -131,6 +152,21 @@ func validateModelReasoning(v *Validator, loc string, providerType string, t Pro
 	case reasoning.ModeFixed:
 		v.Check(r.Style != reasoning.StyleNone, loc+".style", "mode fixed cannot use style none (use mode off)")
 		v.Check((r.Effort != "") != (r.BudgetTokens > 0), loc+".effort", "mode fixed needs exactly one of effort or budget_tokens")
+		// The fixed level must be one the upstream's style can send as is,
+		// whichever protocol the provider answers with.
+		for _, p := range chatProtocolsFor(providerType) {
+			m := reasoning.MethodFor(r.Style, p)
+			if m == nil || m.Name() == reasoning.StyleNone {
+				continue
+			}
+			if r.BudgetTokens > 0 {
+				v.Check(!slices.Contains(effortOnlyStyles, m.Name()), loc+".budget_tokens", m.Name()+" sends an effort level, not a budget: use effort")
+			}
+			if r.Effort != "" && len(r.Efforts) == 0 {
+				v.Check(slices.Contains(m.DefaultEfforts(), r.Effort), loc+".effort",
+					m.Name()+" accepts "+strings.Join(m.DefaultEfforts(), ", ")+" (list efforts to allow others)")
+			}
+		}
 	case reasoning.ModeOff:
 		v.Check(r.Effort == "" && r.BudgetTokens == 0 && r.MaxBudgetTokens == 0 && len(r.Efforts) == 0, loc+".mode", "mode off takes no effort, budgets or efforts")
 	}
