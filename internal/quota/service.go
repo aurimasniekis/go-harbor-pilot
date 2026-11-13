@@ -270,6 +270,12 @@ func (s *Service) Health(accountID string) routing.Health {
 	return s.board.health(accountID, s.o.Clock.Now())
 }
 
+// SeatWindows returns an account's fresh 5-hour and 7-day subscription
+// windows from the quota board. It never blocks on I/O.
+func (s *Service) SeatWindows(accountID string) []SeatWindow {
+	return s.board.seatWindows(accountID, s.o.Clock.Now())
+}
+
 // sink persists poll results.
 type sink struct{ s *Service }
 

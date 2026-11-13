@@ -172,6 +172,7 @@ func (g *Gateway) deliverComplete(ctx context.Context, w http.ResponseWriter, rc
 		}
 	}
 	body := protocol.EncodeResponse(rc.inbound, r, rc.ir.Model, rc.start)
+	g.setUsageHeaders(ctx, w.Header(), rc, &fi.cand)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	n, _ := w.Write(body)
@@ -194,6 +195,7 @@ func (g *Gateway) deliverStream(ctx context.Context, w http.ResponseWriter, rc *
 	sendHeaders := func() {
 		if !headersSent {
 			headersSent = true
+			g.setUsageHeaders(ctx, w.Header(), rc, &fi.cand)
 			sw.Header(http.StatusOK)
 		}
 	}

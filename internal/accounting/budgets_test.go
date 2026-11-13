@@ -422,3 +422,60 @@ func BenchmarkCheckOneTimeBudget(b *testing.B) {
 		})
 	}
 }
+
+// Tightest picks the applicable active budget closest to its limit and
+// ignores local and free traffic (D-048).
+func TestBudgetTightest(t *testing.T) {
+	ctx := context.Background()
+	db := openDB(t)
+	now := time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)
+	created := now.AddDate(0, -2, 0)
+	spend(t, db.W, now.Add(-time.Hour), "4")
+	in := ReserveInput{ProjectID: "prj_a", WorkspaceID: "wsp_a", BindingID: "cbd_a", AccountID: "acc_a", Billing: cp.BillingMetered, Currency: "USD"}
+	for _, tt := range []struct {
+		name    string
+		budgets []*cp.Res[cp.BudgetSpec]
+		billing string
+		want    string
+		frac    float64
+	}{
+		{"none", nil, cp.BillingMetered, "", 0},
+		{"one", []*cp.Res[cp.BudgetSpec]{budget("bdg_a", created, cp.BudgetSpec{Period: "month"})}, cp.BillingMetered, "bdg_a", 0.4},
+		{"tightest wins", []*cp.Res[cp.BudgetSpec]{
+			budget("bdg_a", created, cp.BudgetSpec{Period: "month", Limit: "40"}),
+			budget("bdg_b", created, cp.BudgetSpec{Period: "day", Limit: "5", Scope: cp.BudgetBinding, ScopeID: "cbd_a"}),
+		}, cp.BillingMetered, "bdg_b", 0.8},
+		{"account budget counts", []*cp.Res[cp.BudgetSpec]{
+			budget("bdg_a", created, cp.BudgetSpec{Period: "month", Limit: "40"}),
+			budget("bdg_c", created, cp.BudgetSpec{Period: "week", Limit: "8", Scope: cp.BudgetAccount, ScopeID: "acc_a"}),
+		}, cp.BillingMetered, "bdg_c", 0.5},
+		{"other scope ignored", []*cp.Res[cp.BudgetSpec]{budget("bdg_d", created, cp.BudgetSpec{Period: "month", Scope: cp.BudgetProject, ScopeID: "prj_z"})},
+			cp.BillingMetered, "", 0},
+		{"scheduled ignored", []*cp.Res[cp.BudgetSpec]{budget("bdg_e", created, cp.BudgetSpec{Period: "once", StartsAt: "2026-07-01T00:00:00Z"})},
+			cp.BillingMetered, "", 0},
+		{"tie keeps the later end", []*cp.Res[cp.BudgetSpec]{
+			budget("bdg_a", created, cp.BudgetSpec{Period: "day"}),
+			budget("bdg_b", created, cp.BudgetSpec{Period: "month"}),
+		}, cp.BillingMetered, "bdg_b", 0.4},
+		{"local traffic", []*cp.Res[cp.BudgetSpec]{budget("bdg_a", created, cp.BudgetSpec{Period: "month"})}, cp.BillingLocal, "", 0},
+		{"free traffic", []*cp.Res[cp.BudgetSpec]{budget("bdg_a", created, cp.BudgetSpec{Period: "month"})}, cp.BillingFree, "", 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			in := in
+			in.Billing = tt.billing
+			got, err := budgets(tt.budgets...).Tightest(ctx, db.R, in, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.want == "" {
+				if got != nil {
+					t.Fatalf("got %s, want none", got.BudgetID)
+				}
+				return
+			}
+			if got == nil || got.BudgetID != tt.want || got.Fraction != tt.frac {
+				t.Fatalf("got %+v, want %s at %v", got, tt.want, tt.frac)
+			}
+		})
+	}
+}

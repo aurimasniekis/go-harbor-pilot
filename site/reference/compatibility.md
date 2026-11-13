@@ -96,7 +96,7 @@ What a bridge can and cannot carry is in [Known limitations](/security/limitatio
 
 | Tool | Speaks | What setup writes | `harbor-pilot harness` | Live |
 |---|---|---|---|---|
-| [Claude Code](/tools/claude-code) | Anthropic Messages | `settings.json`: base URL, model, and an `apiKeyHelper` that reads the token file | contract-tested; request shape contract-tested against 2.1.318, including system messages inside the conversation | pending |
+| [Claude Code](/tools/claude-code) | Anthropic Messages | `settings.json`: base URL, model, and an `apiKeyHelper` that reads the token file; the token as `CLAUDE_CODE_OAUTH_TOKEN` instead to see usage in `/usage` and the status line | contract-tested; request shape contract-tested against 2.1.318, including system messages inside the conversation; usage headers contract-tested, and how 2.1.323 shows them observed against a synthetic server | pending |
 | [Codex](/tools/codex) | OpenAI Responses | `config.toml`: a `[model_providers.<id>]` entry | contract-tested | blocked: binary not installed |
 | [OpenCode](/tools/opencode) | OpenAI-compatible or Anthropic | `opencode.json` provider options | contract-tested | blocked: binary not installed |
 | [Pi](/tools/pi) | OpenAI-compatible or Anthropic | `models.json` | contract-tested | blocked: binary not installed |
