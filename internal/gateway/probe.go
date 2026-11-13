@@ -54,7 +54,7 @@ func (g *Gateway) Probe(ctx context.Context, providerID, path string) (*ir.Error
 	}
 	t := executor.Target{Provider: prov, Account: acc, Model: model}
 	if m, ok := snap.ModelOf(providerID, model); ok {
-		t.ModelSpec = m
+		t.ModelSpec = internalCallSpec(m)
 	}
 	reqID := ids.New(ids.Request)
 	res, aerr := g.executorFor(prov.Spec.Type).Execute(ctx, t, secret, executor.Request{IR: req, Inbound: ir.Protocol(inbound), RequestID: reqID}, true)

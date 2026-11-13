@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
 )
@@ -115,7 +116,11 @@ func Resolve(rc *ir.ReasoningConfig, pol *Policy, m Method, losses *ir.Losses) P
 			if oe != "" && Rank(oe) <= Rank(EffortNone) {
 				// The parser keeps the client's raw value; only ladder
 				// levels are translated.
-				losses.Add("reasoning_effort", fmt.Sprintf("output effort %q is not a known level and was not translated", oe), ir.LossDrop)
+				detail := fmt.Sprintf("output effort %q is not a known level and was not translated", oe)
+				if oe == EffortNone {
+					detail = `output effort "none" is not translated; reasoning is turned off by the client's thinking setting or the model's mode off`
+				}
+				losses.Add("reasoning_effort", detail, ir.LossDrop)
 				oe = ""
 			}
 			if oe != "" && (rc.Adaptive || rc.Effort == "") {
@@ -145,6 +150,11 @@ func clamp(p *Plan, pol *Policy, m Method, losses *ir.Losses) {
 	}
 	if pol.MaxBudgetTokens > 0 && p.BudgetTokens > pol.MaxBudgetTokens {
 		losses.Add("reasoning_budget", fmt.Sprintf("thinking budget reduced to the model's maximum of %d tokens", pol.MaxBudgetTokens), ir.LossApproximate)
+		if p.Effort == EffortForThinkingBudget(p.BudgetTokens) {
+			// The level was read from the budget (Messages thinking), so it
+			// follows the reduced budget for styles that send a level.
+			p.Effort = EffortForThinkingBudget(pol.MaxBudgetTokens)
+		}
 		p.BudgetTokens = pol.MaxBudgetTokens
 	}
 	allowed := pol.Efforts
@@ -187,17 +197,30 @@ func Clamp(effort string, allowed []string) string {
 }
 
 // sourceKeys are the client's raw reasoning fields a policy translated for
-// a foreign upstream: they are not reported as dropped. output_config
-// counts only when effort is all it carries.
-func sourceKeys(ext map[string]json.RawMessage) []string {
+// a foreign upstream: they are not reported as dropped. An output_config
+// with more than its effort is consumed too, and its other keys recorded
+// as dropped here, so the loss says the effort was translated.
+func sourceKeys(ext map[string]json.RawMessage, losses *ir.Losses) []string {
 	var out []string
 	if _, ok := ext[AnthropicThinkingKey]; ok {
 		out = append(out, AnthropicThinkingKey)
 	}
 	if raw, ok := ext[OutputConfigKey]; ok {
+		out = append(out, OutputConfigKey)
 		var oc map[string]json.RawMessage
-		if json.Unmarshal(raw, &oc) == nil && len(oc) == 1 && oc["effort"] != nil {
-			out = append(out, OutputConfigKey)
+		if json.Unmarshal(raw, &oc) != nil {
+			losses.Add("field:"+OutputConfigKey, "output_config is not an object and was not translated", ir.LossDrop)
+			return out
+		}
+		var other []string
+		for k := range oc {
+			if k != "effort" {
+				other = append(other, k)
+			}
+		}
+		if len(other) > 0 {
+			slices.Sort(other)
+			losses.Add("field:"+OutputConfigKey, "only output_config.effort is translated; "+strings.Join(other, ", ")+" dropped", ir.LossDrop)
 		}
 	}
 	return out

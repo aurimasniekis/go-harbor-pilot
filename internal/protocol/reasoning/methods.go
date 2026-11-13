@@ -42,6 +42,18 @@ func (openRouterReasoning) Write(p Plan, t *Target) Result {
 	switch {
 	case p.Off:
 		rb = map[string]any{"effort": EffortNone}
+	case p.BudgetTokens > 0 && t.MaxTokens > 0 && p.BudgetTokens >= t.MaxTokens:
+		// The router needs the budget below the request's output limit.
+		if t.MaxTokens > 1 {
+			t.Losses.Add("reasoning_budget", "thinking budget reduced to fit max_tokens", ir.LossApproximate)
+			rb = map[string]any{"max_tokens": t.MaxTokens - 1}
+		} else if p.Effort != "" {
+			t.Losses.Add("reasoning_budget", "max_tokens is too small for the thinking budget; its effort level was sent", ir.LossApproximate)
+			rb = map[string]any{"effort": p.Effort}
+		} else {
+			t.Losses.Add("reasoning", "max_tokens is too small for a thinking budget; reasoning left at the upstream default", ir.LossDrop)
+			return Result{}
+		}
 	case p.BudgetTokens > 0:
 		rb = map[string]any{"max_tokens": p.BudgetTokens}
 	case p.Effort != "":
@@ -76,6 +88,9 @@ func (deepSeekThinking) Write(p Plan, t *Target) Result {
 	case p.Effort != "":
 		t.Body["thinking"] = map[string]any{"type": "enabled"}
 		t.Body["reasoning_effort"] = p.Effort
+		if p.BudgetTokens > 0 {
+			t.Losses.Add("reasoning_budget", "this upstream takes no thinking budget; the budget's effort level was sent", ir.LossApproximate)
+		}
 	case p.BudgetTokens > 0:
 		t.Body["thinking"] = map[string]any{"type": "enabled"}
 		t.Losses.Add("reasoning_budget", "this upstream takes no thinking budget; thinking enabled at its default effort", ir.LossApproximate)

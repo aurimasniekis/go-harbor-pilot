@@ -572,7 +572,11 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 			body["response_format"] = map[string]any{"type": rf.Type}
 		}
 	}
-	rres := reasoning.Apply(r, ir.OpenAIChat, &reasoning.Target{Body: body, Losses: &losses, Policy: o.Reasoning})
+	maxTok := 0
+	if r.MaxOutputTokens != nil {
+		maxTok = *r.MaxOutputTokens
+	}
+	rres := reasoning.Apply(r, ir.OpenAIChat, &reasoning.Target{Body: body, Losses: &losses, Policy: o.Reasoning, MaxTokens: maxTok})
 	if r.User != "" {
 		body["user"] = r.User
 	}

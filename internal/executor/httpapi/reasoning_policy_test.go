@@ -46,6 +46,14 @@ func TestReasoningPolicyBuild(t *testing.T) {
 			want: map[string]string{"reasoning": `{"max_tokens":8000}`, "thinking": "-"}, lossHas: []string{"reasoning_budget"},
 		},
 		{
+			// A fixed budget above the request's max_tokens (32000): the
+			// router gets one below the output limit.
+			name: "openrouter budget stays below max_tokens", fixture: "anthropic_enabled_budget", provider: controlplane.ProviderOpenAICompatible,
+			spec:    controlplane.ModelReasoningSpec{Mode: "fixed", Style: "openrouter_reasoning", BudgetTokens: 60000},
+			want:    map[string]string{"reasoning": `{"max_tokens":31999}`},
+			lossHas: []string{"reasoning_budget"},
+		},
+		{
 			name: "client effort for other compatible providers", fixture: "anthropic_adaptive_effort", provider: controlplane.ProviderOllama,
 			spec:      controlplane.ModelReasoningSpec{Mode: "client"},
 			want:      map[string]string{"reasoning_effort": `"high"`, "reasoning": "-"},
