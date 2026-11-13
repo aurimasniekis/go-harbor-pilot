@@ -125,6 +125,8 @@ func Resolve(rc *ir.ReasoningConfig, pol *Policy, m Method, losses *ir.Losses) P
 			}
 			if oe != "" && (rc.Adaptive || rc.Effort == "") {
 				p.Effort = oe
+			} else if oe != "" && oe != rc.Effort {
+				losses.Add("reasoning_effort", fmt.Sprintf("output effort %q is not used: the client's thinking budget sets the level", oe), ir.LossApproximate)
 			}
 			p.Summary, p.IncludeEncrypted = rc.Summary, rc.IncludeEncrypted
 			// Kept with a level too: a native upstream receives adaptive

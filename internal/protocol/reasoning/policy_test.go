@@ -49,7 +49,7 @@ func TestResolve(t *testing.T) {
 		{"client adaptive alone without default", &ir.ReasoningConfig{Enabled: &on, Adaptive: true}, Policy{Mode: ModeClient}, or, Plan{Adaptive: true}, ""},
 		{"client nothing takes the model default", nil, Policy{Mode: ModeClient, Effort: "low"}, or, Plan{Effort: "low"}, ""},
 		{"client nothing without default", nil, Policy{Mode: ModeClient}, or, Plan{}, ""},
-		{"client budget beats output effort", &ir.ReasoningConfig{Enabled: &on, BudgetTokens: 5000, Effort: "low", OutputEffort: "max"}, Policy{Mode: ModeClient}, or, Plan{Effort: "low", BudgetTokens: 5000}, ""},
+		{"client budget beats output effort", &ir.ReasoningConfig{Enabled: &on, BudgetTokens: 5000, Effort: "low", OutputEffort: "max"}, Policy{Mode: ModeClient}, or, Plan{Effort: "low", BudgetTokens: 5000}, "reasoning_effort"},
 		{"client disabled", &ir.ReasoningConfig{Enabled: &off, Effort: "none", OutputEffort: "high"}, Policy{Mode: ModeClient, Effort: "high"}, or, Plan{Off: true}, ""},
 		{"client unknown output effort is ignored", &ir.ReasoningConfig{Enabled: &on, Adaptive: true, OutputEffort: "ultra"}, Policy{Mode: ModeClient}, or, Plan{Adaptive: true}, "reasoning_effort"},
 		{"client output effort none is ignored", &ir.ReasoningConfig{OutputEffort: "none"}, Policy{Mode: ModeClient, Effort: "low"}, or, Plan{Effort: "low"}, "reasoning_effort"},
@@ -251,5 +251,32 @@ func TestApplyPolicyOwnsRawFields(t *testing.T) {
 	all := strings.Join(details, "\n")
 	if !strings.Contains(all, `output effort "none" is not translated`) || !strings.Contains(all, "only output_config.effort is translated; format dropped") {
 		t.Errorf("details:\n%s", all)
+	}
+}
+
+// M-A: in client mode a raw field the method did not write is passed on.
+func TestClientModeKeepsUnwrittenRawFields(t *testing.T) {
+	ext := map[string]json.RawMessage{
+		"openai_chat:reasoning": json.RawMessage(`{"max_tokens":4000}`),
+		"openai_chat:thinking":  json.RawMessage(`{"type":"enabled"}`),
+	}
+	for _, tc := range []struct {
+		pol      Policy
+		consumed []string
+	}{
+		{Policy{Mode: ModeClient, Style: StyleOpenRouterReasoning}, nil},
+		{Policy{Mode: ModeClient, Style: StyleOpenRouterReasoning, Effort: "low"}, []string{"openai_chat:reasoning"}},
+		{Policy{Mode: ModeClient, Style: StyleDeepSeekThinking}, nil},
+		{Policy{Mode: ModeOff, Style: StyleOpenRouterReasoning}, []string{"openai_chat:reasoning", "openai_chat:thinking"}},
+	} {
+		var losses ir.Losses
+		res := Apply(&ir.Request{Ext: ext}, ir.OpenAIChat, &Target{Body: map[string]any{}, Losses: &losses, Policy: &tc.pol})
+		if !slices.Equal(res.Consumed, tc.consumed) {
+			t.Errorf("%+v: consumed %v, want %v", tc.pol, res.Consumed, tc.consumed)
+		}
+		// A replaced field is recorded (losses are kept once per feature).
+		if n := len(losses.List()); (n > 0) != (len(tc.consumed) > 0) {
+			t.Errorf("%+v: %d losses, want a reasoning_policy loss exactly when a field is replaced", tc.pol, n)
+		}
 	}
 }
