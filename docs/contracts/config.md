@@ -179,8 +179,8 @@ capability; an explicit client level or thinking budget still does, so a model i
 only when it declares the capability), passthrough requests (the client's bytes are forwarded), the gateway's own
 intent classifier and connection probe (built without the option), and the CLI bridges (refused: the CLI chooses its
 own thinking). On a native Anthropic upstream the option writes only `thinking`; the client's `output_config.effort`
-is sent as written in every mode. With an active option the client's own raw reasoning field of the upstream's
-protocol (`reasoning`, `reasoning_effort`, `thinking`) is replaced, not sent beside it. A router budget is kept below
+is sent as written in every mode. A Chat client's own raw `reasoning`, `reasoning_effort` or `thinking` field is replaced in `fixed` and `off`
+mode, and in `client` mode only where the style writes the same field; otherwise it is passed on. A router budget is kept below
 the request's `max_tokens`.
 
 Validation: the style must be allowed for the provider type; `auto` takes no style, levels or budgets; `client` and
