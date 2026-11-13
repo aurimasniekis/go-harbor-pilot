@@ -271,6 +271,15 @@ func New(ctx context.Context, o Options) (*App, error) {
 	})
 	a.setupBridges(o)
 	a.Gateway.ObserveResponse = a.Quota.ObserveResponse
+	a.Gateway.UsageHeaders = a.Cfg.Gateway.UsageHeaders == config.UsageHeadersAuto
+	a.Gateway.SeatWindows = func(accountID string) []gateway.SeatWindow {
+		ws := a.Quota.SeatWindows(accountID)
+		out := make([]gateway.SeatWindow, len(ws))
+		for i, w := range ws {
+			out[i] = gateway.SeatWindow{Name: w.Name, Utilization: w.Utilization, ResetAt: w.ResetAt, Exhausted: w.Exhausted}
+		}
+		return out
+	}
 	a.AddBackground(a.Quota.Run)
 	a.AddBackground(a.Acct.Run)
 	a.AddBackground(a.Tel.Run)

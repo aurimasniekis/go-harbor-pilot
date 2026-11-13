@@ -601,3 +601,56 @@ path and adapter version, one work item per fingerprint.
   Terraform provider sends `spec` as written and zero-fills only required properties, and these three are optional,
   so it can carry them today; the Terraform guide documents them with an example. Not yet checked against the
   provider's acceptance suite.
+
+## D-048: Usage headers for Anthropic Messages clients (owner, 2026-11-13)
+
+- **Goal.** A Claude Code session that goes through Harbor Pilot should see its usage standing (`/usage`, the
+  statusline's rate-limit fields, the near-limit notice) the way it does against a subscription. The owner's rule:
+  traffic served by a Claude subscription seat passes the seat's session usage through; other traffic reports the
+  session's or token's usage and a limit, if Harbor Pilot has one.
+- **Off by default.** `gateway.usage_headers` (`HP_GATEWAY_USAGE_HEADERS`) is `off` or `auto`; `off` leaves every
+  response exactly as before. It is a server setting, not a per-client one, because a per-binding override would need a
+  spec field, an API change and UI work for little gain. With `auto` the headers go only to Anthropic Messages clients;
+  OpenAI and Gemini clients have no such convention.
+- **What the client reads** (observed with Claude Code 2.1.323 against a synthetic server,
+  `contracts/harness-wire-facts.md` §1.6): `anthropic-ratelimit-unified-status` (`allowed`, `allowed_warning`,
+  `rejected`), `-representative-claim`, `-reset` (unix seconds), and per window `-<w>-status`, `-<w>-utilization` (a
+  fraction from 0 to 1), `-<w>-reset` and `-<w>-surpassed-threshold`. `<w>` is `5h` or `7d`; with the `overage` claim
+  `<w>` is `overage`, plus `-overage-period`. The client shows the near-limit notice when a surpassed threshold is
+  sent, and only when it believes it is signed in to a subscription or a gateway. With `ANTHROPIC_AUTH_TOKEN`,
+  `ANTHROPIC_API_KEY` or `apiKeyHelper` it ignores all of these headers. Clients that want the headers therefore pass
+  the gateway token as `CLAUDE_CODE_OAUTH_TOKEN`. The client's device-flow gateway sign-in is not implemented.
+- **Seat traffic.** For an account billed as a subscription on a `claude_code` (or `anthropic`) provider, the 5-hour and
+  7-day windows come from the quota board: the CLI's rate-limit events and the subscription monitor, the latest
+  observation of each window winning. Stale observations and windows whose reset has passed are left out. A window's
+  status is `rejected` when the board counts it exhausted, `allowed_warning` from 0.75, otherwise `allowed`. The
+  surpassed threshold is `0.75` or `0.95` (`1` when exhausted). Utilization is rounded to two decimals and kept at or
+  below 0.99 unless exhausted. The top-level status, claim and reset name the worst window (the fuller one on a tie).
+  Values are as fresh as the board: the CLI reports a turn's windows while that turn runs, so a response usually
+  carries the previous turn's figures.
+- **Other traffic.** Metered, translated and Codex-subscription traffic reports the tightest active budget that
+  applies to the request: global, workspace, project, client binding or the serving account, whichever has the highest
+  `(spent + reserved) / limit`, the later window end on a tie. The figures include the request's own reservation. It is
+  sent as the window-agnostic `overage` claim: a budget follows calendar periods, and the 5-hour and 7-day names mean
+  rolling windows the client does time arithmetic on. Utilization is capped at 0.99, because a response is only
+  written while requests are allowed (a warn-only budget over its limit stays at 0.99). `-reset` and `-overage-reset`
+  are the window end. A one-time budget without `ends_at` has none. `-overage-period` is `daily`, `weekly` or
+  `monthly`, and is left out for one-time budgets. With no budget, no headers are sent. Local and free traffic gets
+  none, since budgets never count it. A budget read failure is logged and the response goes out without headers.
+- **Failover.** Headers are computed for the attempt that delivers the response, immediately before its first byte,
+  so they always describe the account that served the request, never one that failed before it.
+- **Never forwarded.** The gateway never copies an upstream's `anthropic-ratelimit-*` headers to a client, with the
+  setting on or off: an account's org-wide quota is not the client's.
+- **OAuth beta flag.** A client that sends its token as `CLAUDE_CODE_OAUTH_TOKEN` adds `oauth-2025-04-20` to
+  `anthropic-beta`. That flag describes how the client authenticated to the gateway, so it is dropped (any `oauth-*`
+  flag, whatever the setting) before `anthropic-beta` is forwarded upstream.
+- **Not done here.** A budget refusal stays the existing 429 in the client's protocol. A dedicated shape, with
+  `x-should-retry: false`, a `rejected` status and a billing error type, would change the Anthropic error envelope and
+  is left for later. Unified headers on direct Anthropic API responses are not read into the quota board: that needs a
+  bucket source of its own in the API and UI. Prometheus gauges per quota window are not added.
+
+**Why:** the headers are what the client already reads, so no client change is needed beyond the token variable. A
+budget is the only limit Harbor Pilot itself enforces for metered traffic, so it is the honest cap to report, and
+reporting none without one matches a client with no cap. D-001's rule against impersonating vendor client headers
+is about requests to vendors. These are response headers to Harbor Pilot's own clients, describing Harbor Pilot's
+own view.

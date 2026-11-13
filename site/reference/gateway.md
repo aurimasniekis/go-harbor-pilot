@@ -13,12 +13,14 @@ No custom headers, local daemon or SDK changes are required.
 
 | Protocol | Base URL | Token in |
 |---|---|---|
-| Anthropic Messages (Claude Code, Anthropic SDKs) | `<origin>` or `<origin>/anthropic` | `Authorization: Bearer` (`ANTHROPIC_AUTH_TOKEN`) or `x-api-key` |
+| Anthropic Messages (Claude Code, Anthropic SDKs) | `<origin>` or `<origin>/anthropic` | `Authorization: Bearer` (`ANTHROPIC_AUTH_TOKEN` or `CLAUDE_CODE_OAUTH_TOKEN`) or `x-api-key` |
 | OpenAI Chat Completions and Responses (Codex, OpenCode, OpenAI SDKs) | `<origin>/v1` or `<origin>/openai/v1` | `Authorization: Bearer` |
 | Gemini `generateContent` | `<origin>` or `<origin>/gemini` | `x-goog-api-key`, `?key=` or `Authorization: Bearer` |
 
 The prefix only picks a namespace; it never authenticates or routes. The gateway token is **never** forwarded to a
-provider: upstream requests carry the account's own credential, or none for local model servers.
+provider: upstream requests carry the account's own credential, or none for local model servers. The `oauth-…` flag a client adds
+to `anthropic-beta` when it signs in with `CLAUDE_CODE_OAUTH_TOKEN` is not forwarded either; other `anthropic-beta`
+flags go to Anthropic upstreams unchanged.
 
 ## Endpoints
 
@@ -55,6 +57,28 @@ Outside the gateway, the server also answers:
 | `Retry-After` | On a refusal that can be retried (a rate limit, a cooldown), seconds to wait. |
 | `X-Harbor-Mode: passthrough` | The request was forwarded byte for byte to a provider that speaks the same protocol, instead of being translated. |
 | `X-HP-Token-Count: estimated` | On token-count answers: the figure is an estimate. |
+| `anthropic-ratelimit-unified-*` | Only with `gateway.usage_headers: auto`, and only on Anthropic Messages responses: the client's usage standing, described below. |
+
+### Usage headers
+
+With `gateway.usage_headers: auto`, a successful Anthropic Messages response carries the caller's usage in the
+`anthropic-ratelimit-unified-*` headers Claude Code reads for `/usage`, its status line and its "You've used NN%"
+notice, whenever there is something to report: a fresh window of the subscription seat that served it, or a budget
+that applies. What they describe depends on the account that served the request. After a failover, that is the account
+that answered, not the one that failed.
+
+| Served by | Headers | Values |
+|---|---|---|
+| A Claude subscription seat | `-status`, `-representative-claim` (`five_hour` or `seven_day`), `-reset`, and for each window `-5h-…` and `-7d-…`: `status`, `utilization`, `reset`, `surpassed-threshold` | The seat's 5-hour and 7-day windows as the quota board last saw them (from the CLI on each request, or the subscription monitor). Windows that are stale or already reset are left out. |
+| Any other account, when a budget applies | `-status`, `-representative-claim: overage`, `-reset`, `-overage-status`, `-overage-utilization`, `-overage-reset`, `-overage-period`, `-overage-surpassed-threshold` | The budget closest to its limit among those covering the request (global, workspace, project, client or the serving account): (spent + reserved) / limit, its window end and period (`daily`, `weekly`, `monthly`; none for a one-time budget). A one-time budget's reset is its end (`ends_at`, none without one), when it stops applying; Claude Code still words it as "resets". |
+| Any other account, no budget; local or free accounts | none | |
+
+Utilization is a fraction (`0.82`), at most `0.99` while requests are allowed. Resets are unix seconds. Status is
+`allowed`, `allowed_warning` from 75%, or `rejected` for an exhausted seat window. `surpassed-threshold` is `0.75` or
+`0.95` once crossed; it is what makes Claude Code show its notice. The provider's own rate-limit headers are never
+passed on. For requests that don't go to a subscription seat, `auto` reads the applicable budgets from the database
+(one small read each, on the read connection) before the first byte is sent. Claude Code only reads these headers when the token is given as `CLAUDE_CODE_OAUTH_TOKEN`; see
+[Claude Code](/tools/claude-code#see-your-usage-in-claude-code).
 
 ## Optional hints from tools
 

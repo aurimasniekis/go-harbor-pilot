@@ -34,7 +34,8 @@ the file, writes atomically, and refuses on conflict.
 
 Harbor Pilot must tolerate:
 - `anthropic-beta` values that change between versions. These are **forwarded only to native-Anthropic
-  upstreams**. Unknown betas on translated routes trigger the capability/downgrade policy.
+  upstreams**. Unknown betas on translated routes trigger the capability/downgrade policy. OAuth flags (`oauth-*`, added
+  when the token is passed as `CLAUDE_CODE_OAUTH_TOKEN`, §1.6) are never forwarded (D-048).
 - Keepalive needs (see `reference-magpie-observations.md` §5). These are a doc-claim until a live test.
 
 ### 1.2 As a subscription executor (Harbor Pilot → `claude` CLI bridge)
@@ -127,7 +128,21 @@ Observed as in 1.3 and 1.4 (synthetic upstream, synthetic token, the bridge's fl
 | Appended tool results | verified for 2.1.318, 2.1.319, 2.1.321, 2.1.322 | The bridge reads `version` from the session's last entry and appends only for these versions. 2.1.322 (2026-11-12): a tool round trip wrote the same entry types with the same keys as 2.1.321, including the CLI's own tool-result `user` entry, and a shelved tool call resumed with the appended results. The bridge image pins 2.1.318 with the auto-updater off (`TestImagePinsVerifiedCLI`). The shelf tests read the installed CLI's version: a verified one must resume the shelved session, any other must fall back to the transcript with the results delivered, so a CLI update alone does not fail them. |
 | Mid-conversation system entries | not verified | No documented session entry carries caller-provided system text; the bridge keeps inlining it as user text. |
 
-### 1.6 Thinking and output settings (2026-11-13, 2.1.323)
+### 1.6 Usage headers as a gateway client (2026-11-13, 2.1.323)
+
+Observed by running the CLI (`-p --output-format stream-json`, and interactively with a statusline command and
+`/usage`) against a local synthetic server that answered `/v1/messages` with fixed `anthropic-ratelimit-unified-*`
+headers. Only the sign-in variables changed between runs. Used by D-048.
+
+| Fact | Status | Observation |
+|---|---|---|
+| Sign-in decides whether the headers are read | verified (observed) | With `CLAUDE_CODE_OAUTH_TOKEN` (any opaque value, e.g. a gateway token) and `ANTHROPIC_BASE_URL`, the CLI reads the headers. With `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY` or an `apiKeyHelper` it ignores them: no `rate_limit_event`, the statusline's `rate_limits` is null and `/usage` shows no limits. `ANTHROPIC_AUTH_TOKEN` and `apiKeyHelper` each take precedence over `CLAUDE_CODE_OAUTH_TOKEN` when both are set. |
+| OAuth-mode request | verified (observed) | Sends `Authorization: Bearer <token>`, adds `oauth-2025-04-20` to `anthropic-beta` and makes a `HEAD /api/hello` to the base URL. It made no other call to the base URL. |
+| Window headers | verified (observed) | `-5h-utilization` and `-7d-utilization` are fractions (0.87 shows as 87%), `-5h-reset` and `-7d-reset` are unix seconds, and `-status` is `allowed`, `allowed_warning` or `rejected`. They appear in the statusline's `rate_limits.five_hour` and `rate_limits.seven_day` (`used_percentage`, `resets_at`), in `/usage` as "Current session" and "Current week", and in the stream-json `rate_limit_event`. |
+| Near-limit notice | verified (observed) | With `-5h-surpassed-threshold: 0.75` the CLI printed "You've used 87% of your 5-hour limit · resets …". |
+| `overage` claim | verified (observed) | With `-representative-claim: overage`, `-overage-utilization: 0.82`, `-overage-surpassed-threshold: 0.75`, `-overage-reset` and `-overage-period: monthly`, the CLI printed "You've used 82% of your usage credits · resets …". The statusline's `rate_limits` stayed null and `/usage` showed no windows for that sign-in. |
+
+### 1.7 Thinking and output settings (2026-11-13, 2.1.323)
 
 Observed as in 1.3: the real binary against a local synthetic Anthropic upstream with the bridge's flags, no `--effort`, and the target model name varied. The bodies are what the CLI itself sends upstream, which is also what a Claude Code client sends to a gateway.
 

@@ -12,7 +12,7 @@ captured request, and none contains a real prompt.
 
 ## Reasoning (`reasoning/`)
 
-Request bodies with reasoning settings, one per source protocol and shape. `internal/executor/httpapi` builds each one for every HTTP provider type and compares the upstream body and losses byte for byte with `reasoning/golden/<name>.golden.json` (`TestReasoningGoldens`; regenerate with `-update` and review the diff). The Claude Code shapes follow `docs/contracts/harness-wire-facts.md` §1.6.
+Request bodies with reasoning settings, one per source protocol and shape. `internal/executor/httpapi` builds each one for every HTTP provider type and compares the upstream body and losses byte for byte with `reasoning/golden/<name>.golden.json` (`TestReasoningGoldens`; regenerate with `-update` and review the diff). The Claude Code shapes follow `docs/contracts/harness-wire-facts.md` §1.7.
 
 | File | Shape it covers |
 |---|---|
