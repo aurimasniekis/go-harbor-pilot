@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/reasoning"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/wire"
 )
 
@@ -568,17 +569,7 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 			body["response_format"] = map[string]any{"type": rf.Type}
 		}
 	}
-	if rc := r.Reasoning.Legacy(); rc != nil {
-		switch {
-		case rc.Effort != "":
-			body["reasoning_effort"] = rc.Effort
-		case rc.BudgetTokens > 0:
-			body["reasoning_effort"] = effortFromBudget(rc.BudgetTokens)
-			losses.Add("reasoning_budget", "thinking budget mapped to a reasoning effort level", ir.LossApproximate)
-		case rc.Enabled != nil && !*rc.Enabled:
-			// Chat Completions has no explicit "off"; omit.
-		}
-	}
+	reasoning.Apply(r, ir.OpenAIChat, &reasoning.Target{Body: body, Losses: &losses})
 	if r.User != "" {
 		body["user"] = r.User
 	}
@@ -614,16 +605,6 @@ func nonEmpty(v, d string) string {
 		return d
 	}
 	return v
-}
-
-func effortFromBudget(b int) string {
-	switch {
-	case b < 8192:
-		return "low"
-	case b < 24000:
-		return "medium"
-	}
-	return "high"
 }
 
 func buildMessages(m ir.Message, o BuildOptions, losses *ir.Losses) []any {

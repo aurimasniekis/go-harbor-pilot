@@ -9,6 +9,7 @@ import (
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/openaichat"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/reasoning"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/wire"
 )
 
@@ -515,28 +516,7 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 		losses.Add("seed", "seed is not supported by Responses", ir.LossDrop)
 	}
 	include := []string{}
-	if rc := r.Reasoning.Legacy(); rc != nil {
-		rb := map[string]any{}
-		switch {
-		case rc.Effort != "":
-			rb["effort"] = rc.Effort
-		case rc.BudgetTokens > 0:
-			rb["effort"] = effortFromBudget(rc.BudgetTokens)
-			losses.Add("reasoning_budget", "thinking budget mapped to a reasoning effort level", ir.LossApproximate)
-		case rc.Enabled != nil && !*rc.Enabled:
-			rb["effort"] = "minimal"
-			losses.Add("reasoning_off", "reasoning cannot be fully disabled; minimal effort requested", ir.LossApproximate)
-		}
-		if rc.Summary != "" {
-			rb["summary"] = rc.Summary
-		}
-		if len(rb) > 0 {
-			body["reasoning"] = rb
-		}
-		if rc.IncludeEncrypted {
-			include = append(include, "reasoning.encrypted_content")
-		}
-	}
+	rres := reasoning.Apply(r, ir.OpenAIResponses, &reasoning.Target{Body: body, Losses: &losses, Include: &include})
 	store := r.Store
 	if store == nil && o.Stateless {
 		f := false
@@ -544,7 +524,7 @@ func BuildRequest(r *ir.Request, o BuildOptions) ([]byte, []ir.Loss, error) {
 	}
 	if store != nil {
 		body["store"] = *store
-		if !*store && !contains(include, "reasoning.encrypted_content") && r.Reasoning.Legacy() != nil {
+		if !*store && !contains(include, "reasoning.encrypted_content") && rres.Active {
 			include = append(include, "reasoning.encrypted_content")
 		}
 	}
@@ -622,18 +602,6 @@ func nonEmpty(v, d string) string {
 		return d
 	}
 	return v
-}
-
-func effortFromBudget(b int) string {
-	switch {
-	case b < 4096:
-		return "minimal"
-	case b < 8192:
-		return "low"
-	case b < 24000:
-		return "medium"
-	}
-	return "high"
 }
 
 func itemID(p ir.Part) string {

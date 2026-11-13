@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/reasoning"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/wire"
 )
 
@@ -153,7 +154,7 @@ func ParseRequest(body []byte, lim Limits) (*ir.Request, error) {
 		switch th.Type {
 		case "enabled":
 			t := true
-			r.Reasoning = &ir.ReasoningConfig{Enabled: &t, BudgetTokens: th.BudgetTokens, Effort: EffortForBudget(th.BudgetTokens)}
+			r.Reasoning = &ir.ReasoningConfig{Enabled: &t, BudgetTokens: th.BudgetTokens, Effort: reasoning.EffortForThinkingBudget(th.BudgetTokens)}
 		case "disabled":
 			f := false
 			r.Reasoning = &ir.ReasoningConfig{Enabled: &f, Effort: "none"}
@@ -187,40 +188,6 @@ func ParseRequest(body []byte, lim Limits) (*ir.Request, error) {
 	}
 	r.Ext = o.Ext(P, r.Ext)
 	return r, nil
-}
-
-// EffortForBudget maps a thinking budget to an effort level.
-func EffortForBudget(b int) string {
-	switch {
-	case b <= 0:
-		return ""
-	case b < 4096:
-		return "minimal"
-	case b < 8192:
-		return "low"
-	case b < 20000:
-		return "medium"
-	case b < 32000:
-		return "high"
-	}
-	return "xhigh"
-}
-
-// BudgetForEffort maps an effort level to a thinking budget.
-func BudgetForEffort(e string) int {
-	switch e {
-	case "minimal":
-		return 1024
-	case "low":
-		return 4096
-	case "medium":
-		return 10000
-	case "high":
-		return 24000
-	case "xhigh":
-		return 32000
-	}
-	return 0
 }
 
 func parseSystem(raw json.RawMessage) ([]ir.Part, error) {

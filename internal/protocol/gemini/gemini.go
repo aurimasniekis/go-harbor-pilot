@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/aurimasniekis/go-harbor-pilot/internal/ir"
+	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/reasoning"
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/wire"
 )
 
@@ -435,24 +436,7 @@ func BuildRequest(r *ir.Request) ([]byte, []ir.Loss, error) {
 			gc["responseJsonSchema"] = wire.RawOrEmptyObject(rf.Schema)
 		}
 	}
-	if rc := r.Reasoning.Legacy(); rc != nil {
-		tc := map[string]any{}
-		switch {
-		case rc.Enabled != nil && !*rc.Enabled, rc.Effort == "none":
-			tc["thinkingBudget"] = 0
-		case rc.BudgetTokens > 0:
-			tc["thinkingBudget"] = rc.BudgetTokens
-		case rc.Effort != "":
-			tc["thinkingBudget"] = map[string]int{"minimal": 512, "low": 2048, "medium": 8192, "high": 24576, "xhigh": 32768}[rc.Effort]
-			losses.Add("reasoning_effort", "reasoning effort mapped to a thinking budget", ir.LossApproximate)
-		}
-		if rc.Summary != "" && rc.Summary != "none" {
-			tc["includeThoughts"] = true
-		}
-		if len(tc) > 0 {
-			gc["thinkingConfig"] = tc
-		}
-	}
+	reasoning.Apply(r, ir.Gemini, &reasoning.Target{Body: gc, Losses: &losses})
 	if len(gc) > 0 {
 		body["generationConfig"] = gc
 	}
