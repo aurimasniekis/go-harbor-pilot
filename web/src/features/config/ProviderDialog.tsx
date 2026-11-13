@@ -182,6 +182,7 @@ export function ModelDialog({ model, providerType, onSave, onClose }: {
   const setPrice = (p: Partial<NonNullable<ModelSpec['pricing']>>) => set({ pricing: { ...pricing!, ...p } })
   const bridge = isBridge(providerType)
   const [fieldsInvalid, setFieldsInvalid] = useState(false)
+  const [reasoningInvalid, setReasoningInvalid] = useState(false)
   return (
     <Dialog
       open
@@ -189,13 +190,13 @@ export function ModelDialog({ model, providerType, onSave, onClose }: {
       onClose={onClose}
       footer={
         <>
-          {fieldsInvalid && (
+          {(fieldsInvalid || reasoningInvalid) && (
             <Text size="xs" c="dimmed" mr="auto">
-              Fix the upstream fields first.
+              {fieldsInvalid ? 'Fix the upstream fields first.' : 'Fix the reasoning settings first.'}
             </Text>
           )}
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!m.id.trim() || fieldsInvalid}
+          <Button variant="primary" disabled={!m.id.trim() || fieldsInvalid || reasoningInvalid}
             onClick={() => onSave({ ...cleanModel(m), reasoning: cleanReasoning(m.reasoning, providerType) })}>
             Done
           </Button>
@@ -228,7 +229,7 @@ export function ModelDialog({ model, providerType, onSave, onClose }: {
         </SimpleGrid>
       )}
       {!bridge && <UpstreamFieldsEditor model={m} providerType={providerType} onChange={set} onInvalid={setFieldsInvalid} />}
-      {!bridge && <ReasoningEditor value={m.reasoning} providerType={providerType} onChange={(r) => set({ reasoning: r })} />}
+      {!bridge && <ReasoningEditor value={m.reasoning} providerType={providerType} onChange={(r) => set({ reasoning: r })} onInvalid={setReasoningInvalid} />}
     </Dialog>
   )
 }

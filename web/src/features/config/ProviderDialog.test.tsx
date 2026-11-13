@@ -176,6 +176,21 @@ describe('ModelDialog reasoning option', () => {
     expect((onSave.mock.calls[0]![0] as ModelSpec).reasoning).toEqual({ mode: 'client', style: 'deepseek_thinking', history: 'field' })
   })
 
+  it('offers a fixed style only the levels it can send, and blocks saving without one', async () => {
+    const onSave = open(model({ reasoning: { mode: 'fixed', style: 'deepseek_thinking' } }))
+    await showReasoning()
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose the level')
+    expect(done()).toBeDisabled()
+    // DeepSeek takes no budget, so none is offered.
+    expect(screen.queryByLabelText('Or a thinking budget')).toBeNull()
+    await userEvent.click(screen.getByLabelText('Level', { selector: 'input' }))
+    expect(await screen.findByRole('option', { name: 'high', hidden: true })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'medium', hidden: true })).toBeNull()
+    await userEvent.click(screen.getByRole('option', { name: 'high', hidden: true }))
+    await userEvent.click(done())
+    expect((onSave.mock.calls[0]![0] as ModelSpec).reasoning).toEqual({ mode: 'fixed', style: 'deepseek_thinking', effort: 'high' })
+  })
+
   it('is not offered for a CLI bridge', () => {
     open(model(), 'claude_code')
     expect(screen.queryByRole('button', { name: /^Reasoning/ })).toBeNull()
