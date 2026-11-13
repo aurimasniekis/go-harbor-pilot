@@ -64,6 +64,7 @@ func TestLoadRejects(t *testing.T) {
 		{name: "demo on a public address", yaml: "server:\n  listen: 0.0.0.0:8080\ndemo:\n  enabled: true\n", want: "loopback"},
 		{name: "broad env prefix", yaml: "security:\n  secret_env_prefixes: [HP_]\n", want: "too broad"},
 		{name: "empty-ish env prefix", yaml: "security:\n  secret_env_prefixes: [A]\n", want: "too broad"},
+		{name: "bad usage headers", yaml: "gateway:\n  usage_headers: seat\n", want: "gateway.usage_headers"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -127,5 +128,23 @@ func TestEmptyFileUsesDefaults(t *testing.T) {
 	}
 	if c.Server.Listen != Defaults().Server.Listen {
 		t.Fatalf("defaults not applied: %+v", c.Server)
+	}
+}
+
+func TestUsageHeadersSetting(t *testing.T) {
+	c, err := Load("", func(string) string { return "" }, Flags{})
+	if err != nil || c.Gateway.UsageHeaders != UsageHeadersOff {
+		t.Fatalf("default %q, %v", c.Gateway.UsageHeaders, err)
+	}
+	p := filepath.Join(t.TempDir(), "c.yaml")
+	if err := os.WriteFile(p, []byte("gateway:\n  usage_headers: auto\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if c, err = Load(p, func(string) string { return "" }, Flags{}); err != nil || c.Gateway.UsageHeaders != UsageHeadersAuto {
+		t.Fatalf("file %q, %v", c.Gateway.UsageHeaders, err)
+	}
+	env := map[string]string{"HP_GATEWAY_USAGE_HEADERS": "off"}
+	if c, err = Load(p, func(k string) string { return env[k] }, Flags{}); err != nil || c.Gateway.UsageHeaders != UsageHeadersOff {
+		t.Fatalf("env %q, %v", c.Gateway.UsageHeaders, err)
 	}
 }
