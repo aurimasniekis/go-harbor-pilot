@@ -660,8 +660,9 @@ path and adapter version, one work item per fingerprint.
 - **Budgets fit the request.** A router budget is kept below the request's `max_tokens` (`reasoning_budget` loss),
   as the Anthropic budget already was. A budget reduced by `max_budget_tokens` also lowers the level the parser read
   from it, for styles that send a level; styles that take no budget record that they sent its level instead.
-- **The policy owns the wire.** With an active option, a client's own raw `reasoning`, `reasoning_effort` or
-  `thinking` field of the upstream's protocol is not passed on beside the option's (`reasoning_policy` loss).
+- **The policy owns the wire it writes.** A Chat client's own raw `reasoning`, `reasoning_effort` or `thinking` field
+  is replaced (`reasoning_policy` loss) in `fixed` and `off`, and in `client` mode only where the style writes the
+  same field; a field the style does not write is passed on as before.
 - **Validation is per style.** `fixed` with `budget_tokens` is refused for styles that send only a level
   (`openai_reasoning_effort`, `openai_responses_reasoning`, `deepseek_thinking`), and a fixed `effort` must be one
   the style sends unless `efforts` lists it. The stored option serialises only the fields that are set.
