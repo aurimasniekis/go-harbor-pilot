@@ -61,7 +61,7 @@ The Messages API accepts at most four `cache_control` breakpoints (a top-level a
 
 ### Claude Code bridge: what the CLI carries
 
-Each request records the features the bridge cannot carry as losses. Settings the CLI fixes per process (cache TTL, effort, output limit) are part of the parked-process and shelf match, so a process only continues a conversation with the same settings. In particular `max_tokens` is part of the key: a client that changes it on every turn gets no process or shelf reuse (and so fewer cache reads). Claude Code sends a constant value. Facts about the CLI are in `contracts/harness-wire-facts.md` §1.4–1.6.
+Each request records the features the bridge cannot carry as losses. Settings the CLI fixes per process (cache TTL, effort, output limit) are part of the parked-process and shelf match, so a process only continues a conversation with the same settings. In particular `max_tokens` is part of the key: a client that changes it on every turn gets no process or shelf reuse (and so fewer cache reads). Claude Code sends a constant value. Facts about the CLI are in `contracts/harness-wire-facts.md` §1.4, §1.5 and §1.7.
 
 | Feature | Status | Reason | Evidence |
 |---|---|---|---|
