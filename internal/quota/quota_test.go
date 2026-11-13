@@ -99,3 +99,65 @@ func TestBoardHealth(t *testing.T) {
 		}
 	})
 }
+
+func TestSeatWindows(t *testing.T) {
+	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
+	future, later, past := now.Add(time.Hour), now.Add(72*time.Hour), now.Add(-time.Minute)
+	spec := func(key string) domain.BucketSpec {
+		return domain.BucketSpec{Key: key, Global: true, Unit: domain.UnitPercent, Kind: domain.KindFixedWindow}
+	}
+	mon := func(key string, used float64, reset *time.Time, age time.Duration) bucketState {
+		return bucketState{owner: "qmn_1", monitorID: "qmn_1", accountID: "acc_1", source: sourceAdapter,
+			obs: domain.BucketObservation{Spec: spec(key), Limit: fp(100), Used: fp(used), Remaining: fp(100 - used), ResetAt: reset}, observedAt: now.Add(-age)}
+	}
+	cli := func(key string, used float64, reset *time.Time, age time.Duration) bucketState {
+		s := mon(key, used, reset, age)
+		s.owner, s.monitorID, s.source = "acc_1", "", sourceCLI
+		return s
+	}
+	type want struct {
+		name      string
+		util      float64
+		exhausted bool
+	}
+	tests := []struct {
+		name    string
+		monitor []bucketState
+		cli     []bucketState
+		want    []want
+	}{
+		{"monitor only", []bucketState{mon("five_hour", 40, &future, time.Minute), mon("seven_day", 12, &later, time.Minute)}, nil,
+			[]want{{"five_hour", 0.40, false}, {"seven_day", 0.12, false}}},
+		{"cli newer than the monitor wins", []bucketState{mon("five_hour", 40, &future, 10*time.Minute)},
+			[]bucketState{cli("cli:five_hour", 87, &future, time.Minute)}, []want{{"five_hour", 0.87, false}}},
+		{"monitor newer than cli wins", []bucketState{mon("five_hour", 40, &future, time.Minute)},
+			[]bucketState{cli("cli:five_hour", 87, &future, 10*time.Minute)}, []want{{"five_hour", 0.40, false}}},
+		{"stale left out", []bucketState{mon("five_hour", 40, &future, 2*time.Hour)}, []bucketState{cli("cli:seven_day", 30, &later, time.Hour)}, nil},
+		{"reset passed left out", []bucketState{mon("five_hour", 40, &past, time.Minute)}, nil, nil},
+		{"exhausted", nil, []bucketState{cli("cli:five_hour", 100, &future, time.Minute)}, []want{{"five_hour", 1, true}}},
+		{"other buckets ignored", []bucketState{mon("seven_day:model:opus", 99, &later, time.Minute), mon("extra_usage", 50, &later, time.Minute)}, nil, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := newBoard()
+			b.setLinks(map[string]monitorLink{"qmn_1": {accountID: "acc_1", staleAfter: 30 * time.Minute}})
+			b.replaceOwner("qmn_1", tt.monitor)
+			if len(tt.cli) > 0 {
+				b.mergeOwner("acc_1", tt.cli)
+			}
+			got := b.seatWindows("acc_1", now)
+			if len(got) != len(tt.want) {
+				t.Fatalf("windows %+v, want %+v", got, tt.want)
+			}
+			for i, w := range tt.want {
+				g := got[i]
+				if g.Name != w.name || g.Utilization != w.util || g.Exhausted != w.exhausted || g.ResetAt == nil {
+					t.Fatalf("window %d = %+v, want %+v", i, g, w)
+				}
+			}
+		})
+	}
+	if w := newBoard().seatWindows("acc_x", now); len(w) != 0 {
+		t.Fatalf("unknown account: %+v", w)
+	}
+}

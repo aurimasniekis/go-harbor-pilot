@@ -446,13 +446,15 @@ func setHeaders(r *http.Request, t executor.Target, up ir.Protocol, cred credent
 
 // ClientHeaders copies allowlisted client headers that alter upstream
 // behaviour for native requests (beta feature flags). Credentials and
-// identity headers are never forwarded.
+// identity headers are never forwarded, and neither is the client's OAuth
+// beta flag (see upstreamBetas).
 func ClientHeaders(dst, src http.Header, up ir.Protocol) {
 	if up == ir.AnthropicMessages {
-		for _, k := range []string{"anthropic-beta", "anthropic-version"} {
-			if v := src.Values(k); len(v) > 0 {
-				dst[http.CanonicalHeaderKey(k)] = append([]string(nil), v...)
-			}
+		if v := upstreamBetas(src.Values("anthropic-beta")); len(v) > 0 {
+			dst["Anthropic-Beta"] = v
+		}
+		if v := src.Values("anthropic-version"); len(v) > 0 {
+			dst["Anthropic-Version"] = append([]string(nil), v...)
 		}
 	}
 	if up == ir.OpenAIResponses || up == ir.OpenAIChat {
@@ -460,6 +462,34 @@ func ClientHeaders(dst, src http.Header, up ir.Protocol) {
 			dst.Set("OpenAI-Beta", v)
 		}
 	}
+}
+
+// upstreamBetas drops OAuth beta flags ("oauth-2025-04-20" and later
+// versions) from a client's anthropic-beta values. A client sends one when it
+// signs in with a bearer token as if to a subscription; it describes how the
+// client authenticated to the gateway, never how the gateway authenticates
+// upstream, and an API-key upstream may refuse it. Other flags keep their
+// order; a header line left empty is dropped.
+func upstreamBetas(vals []string) []string {
+	var out []string
+	for _, line := range vals {
+		if !strings.Contains(strings.ToLower(line), "oauth-") {
+			out = append(out, line)
+			continue
+		}
+		var keep []string
+		for _, f := range strings.Split(line, ",") {
+			f = strings.TrimSpace(f)
+			if f == "" || strings.HasPrefix(strings.ToLower(f), "oauth-") {
+				continue
+			}
+			keep = append(keep, f)
+		}
+		if len(keep) > 0 {
+			out = append(out, strings.Join(keep, ","))
+		}
+	}
+	return out
 }
 
 func transportError(parent context.Context, err error) *executor.AttemptError {

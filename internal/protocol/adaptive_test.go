@@ -11,7 +11,7 @@ import (
 	"github.com/aurimasniekis/go-harbor-pilot/internal/protocol/openairesponses"
 )
 
-// Claude Code's request shape (harness-wire-facts §1.6).
+// Claude Code's request shape (harness-wire-facts §1.7).
 const claudeCodeAdaptive = `{"model":"m","max_tokens":32000,"messages":[{"role":"user","content":"hi"}],` +
 	`"thinking":{"type":"adaptive","display":"updates"},"output_config":{"effort":"high"},` +
 	`"context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}}`

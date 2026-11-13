@@ -291,3 +291,63 @@ func na(v sql.NullInt64) *money.Amount {
 	a := money.Amount(v.Int64)
 	return &a
 }
+
+// SeatWindow is one subscription window of a provider account, as the
+// gateway reports it to clients (D-048).
+type SeatWindow struct {
+	// Name is "five_hour" or "seven_day".
+	Name string
+	// Utilization is the used fraction, 0 to 1.
+	Utilization float64
+	ResetAt     *time.Time
+	// Exhausted is true when the window blocks the account.
+	Exhausted bool
+}
+
+// seatKeys maps the board keys that describe an account's rolling
+// subscription windows (CLI events and the subscription monitor) to window
+// names.
+var seatKeys = map[string]string{"cli:five_hour": "five_hour", "five_hour": "five_hour", "cli:seven_day": "seven_day", "seven_day": "seven_day"}
+
+// seatWindows returns the 5-hour and 7-day windows of an account. Stale
+// observations and windows whose reset has passed are left out; when both
+// sources hold a window the latest observation wins.
+func (b *board) seatWindows(accountID string, now time.Time) []SeatWindow {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	best := map[string]bucketState{}
+	for owner := range b.byAcct[accountID] {
+		for key, s := range b.owners[owner] {
+			name, ok := seatKeys[key]
+			if !ok || s.obs.Spec.Unit != domain.UnitPercent || s.obs.Used == nil || now.Sub(s.observedAt) > b.staleAfter(s) {
+				continue
+			}
+			if s.obs.ResetAt != nil && !s.obs.ResetAt.After(now) {
+				continue
+			}
+			if cur, ok := best[name]; ok && !s.observedAt.After(cur.observedAt) {
+				continue
+			}
+			best[name] = s
+		}
+	}
+	out := make([]SeatWindow, 0, len(best))
+	for _, name := range []string{"five_hour", "seven_day"} {
+		s, ok := best[name]
+		if !ok {
+			continue
+		}
+		limit := 100.0
+		if s.obs.Limit != nil && *s.obs.Limit > 0 {
+			limit = *s.obs.Limit
+		}
+		u := min(max(*s.obs.Used/limit, 0), 1)
+		w := SeatWindow{Name: name, Utilization: u, Exhausted: isExhausted(s, b.links[s.owner].exhaustedBelow, now)}
+		if s.obs.ResetAt != nil {
+			r := *s.obs.ResetAt
+			w.ResetAt = &r
+		}
+		out = append(out, w)
+	}
+	return out
+}

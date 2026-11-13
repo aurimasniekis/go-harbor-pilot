@@ -42,7 +42,7 @@ func TestShapeRequestCarriesOutputSettings(t *testing.T) {
 			lacks: []string{"mid_conversation_system"},
 		},
 		{
-			// Claude Code's own shape (harness-wire-facts §1.6): adaptive
+			// Claude Code's own shape (harness-wire-facts §1.7): adaptive
 			// thinking with a top-level output_config.effort.
 			name: "top-level output_config effort", wantEffort: "medium", wantMax: 32000,
 			body: `{"model":"m","max_tokens":32000,"thinking":{"type":"adaptive","display":"updates"},"output_config":{"effort":"medium"},"messages":[{"role":"user","content":"q1"}]}`,

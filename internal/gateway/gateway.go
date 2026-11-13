@@ -87,6 +87,12 @@ type Gateway struct {
 	// ObserveResponse receives upstream response headers for quota
 	// observations (must not block).
 	ObserveResponse func(accountID, providerType, model string, h http.Header)
+	// UsageHeaders turns on the anthropic-ratelimit-unified-* response
+	// headers for Anthropic Messages clients (gateway.usage_headers, D-048).
+	UsageHeaders bool
+	// SeatWindows reports a subscription account's rolling windows from the
+	// quota board (must not block; nil = none known).
+	SeatWindows func(accountID string) []SeatWindow
 	// AfterRequest runs after the response has been written (events).
 	AfterRequest func(ctx context.Context, r *Outcome)
 

@@ -29,7 +29,22 @@ type Config struct {
 	Log      Log      `yaml:"log"`
 	Demo     Demo     `yaml:"demo"`
 	Bridges  Bridges  `yaml:"bridges"`
+	Gateway  Gateway  `yaml:"gateway"`
 }
+
+// Gateway holds data-plane settings.
+type Gateway struct {
+	// UsageHeaders reports usage to Anthropic Messages clients in
+	// anthropic-ratelimit-unified-* response headers (D-048): "off" (the
+	// default) or "auto".
+	UsageHeaders string `yaml:"usage_headers"`
+}
+
+// Usage header modes.
+const (
+	UsageHeadersOff  = "off"
+	UsageHeadersAuto = "auto"
+)
 
 // Server settings.
 type Server struct {
@@ -129,7 +144,8 @@ func Defaults() Config {
 			DataDir:         "./.data",
 			ShutdownTimeout: 30 * time.Second,
 		},
-		Log: Log{Level: "info"},
+		Log:     Log{Level: "info"},
+		Gateway: Gateway{UsageHeaders: UsageHeadersOff},
 	}
 }
 
@@ -173,6 +189,7 @@ func Load(path string, env func(string) string, f Flags) (Config, error) {
 	setStr(&c.Log.Level, "HP_LOG_LEVEL")
 	setStr(&c.Bridges.ClaudeCode.Binary, "HP_CLAUDE_BINARY")
 	setStr(&c.Bridges.Codex.Binary, "HP_CODEX_BINARY")
+	setStr(&c.Gateway.UsageHeaders, "HP_GATEWAY_USAGE_HEADERS")
 	if v := strings.TrimSpace(env("HP_SECRET_ENV_PREFIXES")); v != "" {
 		c.Security.SecretEnvPrefixes = nil
 		for _, p := range strings.Split(v, ",") {
@@ -261,6 +278,11 @@ func (c Config) Validate() error {
 				break
 			}
 		}
+	}
+	switch c.Gateway.UsageHeaders {
+	case "", UsageHeadersOff, UsageHeadersAuto:
+	default:
+		errs = append(errs, fmt.Errorf("gateway.usage_headers %q is not one of off|auto", c.Gateway.UsageHeaders))
 	}
 	switch strings.ToLower(c.Log.Level) {
 	case "debug", "info", "warn", "warning", "error":
