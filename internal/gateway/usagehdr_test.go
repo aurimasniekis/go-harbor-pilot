@@ -140,3 +140,38 @@ func TestSeatAccount(t *testing.T) {
 		}
 	}
 }
+
+// Thresholds apply to the value the client is shown: the fraction rounded
+// to two decimals, kept below 1 while requests are allowed.
+func TestUsageThresholdBoundaries(t *testing.T) {
+	for _, tt := range []struct {
+		in        float64
+		exhausted bool
+		util      string
+		status    string
+		threshold string
+	}{
+		{0.7449, false, "0.74", "allowed", ""},
+		{0.745, false, "0.75", "allowed_warning", "0.75"},
+		{0.75, false, "0.75", "allowed_warning", "0.75"},
+		{0.9449, false, "0.94", "allowed_warning", "0.75"},
+		{0.95, false, "0.95", "allowed_warning", "0.95"},
+		{0.995, false, "0.99", "allowed_warning", "0.95"},
+		{1.0, false, "0.99", "allowed_warning", "0.95"},
+		{1.4, false, "0.99", "allowed_warning", "0.95"},
+		{-0.2, false, "0", "allowed", ""},
+		{1.0, true, "1", "rejected", "1"},
+		{0.6, true, "1", "rejected", "1"},
+	} {
+		u := clientUtilization(tt.in, tt.exhausted)
+		if got := formatFraction(u); got != tt.util {
+			t.Errorf("%v (exhausted %v): utilization %s, want %s", tt.in, tt.exhausted, got, tt.util)
+		}
+		if got := windowStatus(u, tt.exhausted); got != tt.status {
+			t.Errorf("%v (exhausted %v): status %s, want %s", tt.in, tt.exhausted, got, tt.status)
+		}
+		if got := surpassed(u, tt.exhausted); got != tt.threshold {
+			t.Errorf("%v (exhausted %v): threshold %q, want %q", tt.in, tt.exhausted, got, tt.threshold)
+		}
+	}
+}

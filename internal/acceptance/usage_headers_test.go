@@ -2,6 +2,7 @@ package acceptance_test
 
 import (
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -128,11 +129,18 @@ func TestUsageHeadersReportBudget(t *testing.T) {
 }
 
 // With usage_headers off (the default), responses carry exactly the
-// headers they did before the setting existed.
+// headers and bytes they did before the setting existed: comparing an off
+// server with an auto one, the only difference is the usage headers. Ids
+// and dates are normalised, since every request gets new ones.
 func TestUsageHeadersOffLeavesResponsesUnchanged(t *testing.T) {
-	names := func(mode string) map[string][]string {
+	ids := regexp.MustCompile(`\b(req|msg|att|chatcmpl|resp|toolu)_[0-9A-Za-z_]+`)
+	type answer struct {
+		header map[string]string
+		body   string
+	}
+	run := func(mode string) map[string]answer {
 		r := newUsageRig(t, mode)
-		out := map[string][]string{}
+		out := map[string]answer{}
 		for _, c := range []struct {
 			name, model string
 			stream      bool
@@ -140,40 +148,66 @@ func TestUsageHeadersOffLeavesResponsesUnchanged(t *testing.T) {
 			r.ant.Push(apptest.Reply{Text: "ok", InputTok: 10, Headers: upstreamWindows})
 			r.oai.Push(apptest.Reply{Text: "ok", InputTok: 10})
 			resp := r.e.Gateway("POST", "/v1/messages", r.budgeted, anthropicBody(c.model, c.stream))
-			apptest.ReadAll(resp)
+			body := apptest.ReadAll(resp)
 			if resp.StatusCode != 200 {
 				t.Fatalf("%s %s: %d", mode, c.name, resp.StatusCode)
 			}
-			var ks []string
+			a := answer{header: map[string]string{}, body: ids.ReplaceAllString(body, "${1}_X")}
 			for k := range resp.Header {
 				if k != "Date" {
-					ks = append(ks, strings.ToLower(k))
+					a.header[strings.ToLower(k)] = ids.ReplaceAllString(strings.Join(resp.Header.Values(k), ","), "${1}_X")
 				}
 			}
-			slices.Sort(ks)
-			out[c.name] = ks
+			out[c.name] = a
 		}
 		return out
 	}
-	off, auto := names(config.UsageHeadersOff), names(config.UsageHeadersAuto)
-	for name, ks := range off {
-		for _, k := range ks {
+	off, auto := run(config.UsageHeadersOff), run(config.UsageHeadersAuto)
+	for name, o := range off {
+		a := auto[name]
+		added := 0
+		for k, v := range a.header {
+			if strings.HasPrefix(k, unified) {
+				added++
+				continue
+			}
+			if o.header[k] != v {
+				t.Errorf("%s: %s off %q, auto %q", name, k, o.header[k], v)
+			}
+		}
+		for k := range o.header {
 			if strings.HasPrefix(k, "anthropic-ratelimit-") {
-				t.Fatalf("%s: %s sent with usage headers off", name, k)
+				t.Errorf("%s: %s sent with usage headers off", name, k)
+			}
+			if _, ok := a.header[k]; !ok {
+				t.Errorf("%s: %s missing with auto", name, k)
 			}
 		}
-		var stripped []string
-		for _, k := range auto[name] {
-			if !strings.HasPrefix(k, unified) {
-				stripped = append(stripped, k)
-			}
+		if added == 0 {
+			t.Errorf("%s: auto added no usage headers", name)
 		}
-		if !slices.Equal(ks, stripped) {
-			t.Fatalf("%s: off %v, auto without usage headers %v", name, ks, stripped)
+		if o.body != a.body {
+			t.Errorf("%s: bodies differ\noff:  %s\nauto: %s", name, o.body, a.body)
 		}
-		if len(auto[name]) == len(ks) {
-			t.Fatalf("%s: auto added no usage headers", name)
-		}
+	}
+}
+
+// A budget refusal is the existing 429 in the client's protocol, without
+// usage headers (D-048 leaves a dedicated shape for later).
+func TestUsageHeadersNotOnBudgetRefusal(t *testing.T) {
+	r := newUsageRig(t, config.UsageHeadersAuto)
+	r.ant.Push(apptest.Reply{Text: "ok", InputTok: 10_000_000})
+	resp := r.e.Gateway("POST", "/v1/messages", r.budgeted, anthropicBody("native", false))
+	if b := apptest.ReadAll(resp); resp.StatusCode != 200 {
+		t.Fatalf("seed: %d %s", resp.StatusCode, b)
+	}
+	resp = r.e.Gateway("POST", "/v1/messages", r.budgeted, anthropicBody("native", true))
+	body := apptest.ReadAll(resp)
+	if resp.StatusCode != 429 || !strings.Contains(body, "budget") {
+		t.Fatalf("refusal: %d %s", resp.StatusCode, body)
+	}
+	if got := usageHeaders(resp.Header); len(got) != 0 {
+		t.Fatalf("usage headers on a refusal: %v", got)
 	}
 }
 
