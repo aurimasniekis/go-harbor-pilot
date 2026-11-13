@@ -58,6 +58,16 @@ export function defaultHistoryField(style: string): string {
   return { deepseek_thinking: 'reasoning_content', openrouter_reasoning: 'reasoning' }[style] ?? ''
 }
 
+/**
+ * True when the style the model ends up with sends only a level, never a
+ * token budget (a fixed budget is refused for these).
+ */
+export function levelOnly(style: string, type: string): boolean {
+  const levelStyles = ['openai_reasoning_effort', 'openai_responses_reasoning', 'deepseek_thinking']
+  if (style) return levelStyles.includes(style)
+  return type === 'openai' || type === 'openai_compatible' || type === 'ollama'
+}
+
 /** A blank option for the editor to start from. */
 export function emptyReasoning(): ModelReasoningSpec {
   return { mode: 'auto' }
@@ -75,7 +85,7 @@ export function cleanReasoning(r: ModelReasoningSpec | undefined, type: string):
   if (mode !== 'auto' && r.style) out.style = r.style
   if (mode === 'client' || mode === 'fixed') {
     if (r.effort) out.effort = r.effort
-    else if (r.budget_tokens) out.budget_tokens = r.budget_tokens
+    else if (r.budget_tokens && !(mode === 'fixed' && levelOnly(r.style ?? '', type))) out.budget_tokens = r.budget_tokens
   }
   if (mode === 'client') {
     if (r.efforts?.length) out.efforts = ladder.filter((l) => r.efforts!.includes(l))

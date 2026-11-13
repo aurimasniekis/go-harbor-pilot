@@ -5,6 +5,7 @@ import {
   defaultHistoryField,
   emptyReasoning,
   historyAllowed,
+  levelOnly,
   levelsFor,
   modeOptions,
   styleLabels,
@@ -28,6 +29,8 @@ export function ReasoningEditor({ value, providerType, onChange }: {
   const styles = stylesFor(providerType)
   const levels = levelsFor(providerType)
   const usesLevel = mode === 'client' || mode === 'fixed'
+  // A fixed budget only for styles that send one.
+  const budgetOK = !(mode === 'fixed' && levelOnly(r.style ?? '', providerType))
   const history = r.history === 'field'
   const configured = mode !== 'auto' || history
 
@@ -51,9 +54,11 @@ export function ReasoningEditor({ value, providerType, onChange }: {
           <SelectField label={mode === 'fixed' ? 'Level' : 'Default level'}
             hint={mode === 'fixed' ? 'Sent on every request.' : 'Used when the client names no level.'}
             value={r.effort ?? ''} onChange={(v) => set({ effort: v as ModelReasoningSpec['effort'], budget_tokens: v ? 0 : r.budget_tokens })}
-            options={[{ value: '', label: mode === 'fixed' ? 'Use a budget instead' : 'None' }, ...levels.map((l) => ({ value: l, label: l }))]} />
-          <NumberField label="Or a thinking budget" unit="tokens" min={1} placeholder="None" disabled={!!r.effort}
-            value={r.budget_tokens || null} onChange={(n) => set({ budget_tokens: n ?? 0 })} w="100%" />
+            options={[{ value: '', label: mode === 'fixed' ? (budgetOK ? 'Use a budget instead' : 'Choose a level') : 'None' }, ...levels.map((l) => ({ value: l, label: l }))]} />
+          {budgetOK && (
+            <NumberField label="Or a thinking budget" unit="tokens" min={1} placeholder="None" disabled={!!r.effort}
+              value={r.budget_tokens || null} onChange={(n) => set({ budget_tokens: n ?? 0 })} w="100%" />
+          )}
         </SimpleGrid>
       )}
       {mode === 'client' && (

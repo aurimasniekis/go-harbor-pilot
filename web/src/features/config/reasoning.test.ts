@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cleanReasoning, levelsFor, reasoningBadge, reasoningForType, stylesFor } from './reasoning'
+import { cleanReasoning, levelOnly, levelsFor, reasoningBadge, reasoningForType, stylesFor } from './reasoning'
 import { modelsForType } from './upstreamFields'
 import type { ModelSpec } from '@/lib/api/types'
 
@@ -17,6 +17,15 @@ describe('cleanReasoning', () => {
       .toEqual({ mode: 'fixed', effort: 'low' })
     expect(cleanReasoning({ mode: 'client', efforts: ['high', 'low'], max_budget_tokens: 8000 }, 'openai_compatible'))
       .toEqual({ mode: 'client', efforts: ['low', 'high'], max_budget_tokens: 8000 })
+  })
+
+  it('drops a fixed budget for styles that send only a level', () => {
+    expect(cleanReasoning({ mode: 'fixed', style: 'deepseek_thinking', budget_tokens: 4000 }, 'openai_compatible'))
+      .toEqual({ mode: 'fixed', style: 'deepseek_thinking' })
+    expect(cleanReasoning({ mode: 'fixed', style: 'openrouter_reasoning', budget_tokens: 4000 }, 'openai_compatible'))
+      .toEqual({ mode: 'fixed', style: 'openrouter_reasoning', budget_tokens: 4000 })
+    expect(levelOnly('', 'ollama')).toBe(true)
+    expect(levelOnly('', 'anthropic')).toBe(false)
   })
 
   it('keeps a history field only for Chat upstreams, also in auto mode', () => {
