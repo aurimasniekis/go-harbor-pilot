@@ -61,21 +61,23 @@ Outside the gateway, the server also answers:
 
 ### Usage headers
 
-With `gateway.usage_headers: auto`, every successful Anthropic Messages response carries the caller's usage in the
+With `gateway.usage_headers: auto`, a successful Anthropic Messages response carries the caller's usage in the
 `anthropic-ratelimit-unified-*` headers Claude Code reads for `/usage`, its status line and its "You've used NN%"
-notice. What they describe depends on the account that served the request. After a failover, that is the account
+notice, whenever there is something to report: a fresh window of the subscription seat that served it, or a budget
+that applies. What they describe depends on the account that served the request. After a failover, that is the account
 that answered, not the one that failed.
 
 | Served by | Headers | Values |
 |---|---|---|
 | A Claude subscription seat | `-status`, `-representative-claim` (`five_hour` or `seven_day`), `-reset`, and for each window `-5h-…` and `-7d-…`: `status`, `utilization`, `reset`, `surpassed-threshold` | The seat's 5-hour and 7-day windows as the quota board last saw them (from the CLI on each request, or the subscription monitor). Windows that are stale or already reset are left out. |
-| Any other account, when a budget applies | `-status`, `-representative-claim: overage`, `-reset`, `-overage-status`, `-overage-utilization`, `-overage-reset`, `-overage-period`, `-overage-surpassed-threshold` | The budget closest to its limit among those covering the request (global, workspace, project, client or the serving account): (spent + reserved) / limit, its window end and period (`daily`, `weekly`, `monthly`; none for a one-time budget). |
+| Any other account, when a budget applies | `-status`, `-representative-claim: overage`, `-reset`, `-overage-status`, `-overage-utilization`, `-overage-reset`, `-overage-period`, `-overage-surpassed-threshold` | The budget closest to its limit among those covering the request (global, workspace, project, client or the serving account): (spent + reserved) / limit, its window end and period (`daily`, `weekly`, `monthly`; none for a one-time budget). A one-time budget's reset is its end (`ends_at`, none without one), when it stops applying; Claude Code still words it as "resets". |
 | Any other account, no budget; local or free accounts | none | |
 
 Utilization is a fraction (`0.82`), at most `0.99` while requests are allowed. Resets are unix seconds. Status is
 `allowed`, `allowed_warning` from 75%, or `rejected` for an exhausted seat window. `surpassed-threshold` is `0.75` or
 `0.95` once crossed; it is what makes Claude Code show its notice. The provider's own rate-limit headers are never
-passed on. Claude Code only reads these headers when the token is given as `CLAUDE_CODE_OAUTH_TOKEN`; see
+passed on. For requests that don't go to a subscription seat, `auto` reads the applicable budgets from the database
+(one small read each, on the read connection) before the first byte is sent. Claude Code only reads these headers when the token is given as `CLAUDE_CODE_OAUTH_TOKEN`; see
 [Claude Code](/tools/claude-code#see-your-usage-in-claude-code).
 
 ## Optional hints from tools

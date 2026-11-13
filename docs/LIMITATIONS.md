@@ -80,7 +80,10 @@ TRACEABILITY.md (`planned`, `in-progress`).
   clients get their usage in `anthropic-ratelimit-unified-*` headers. A subscription seat's windows are account-wide:
   every client routed to the seat sees the same figures, which include usage from outside Harbor Pilot. They are only
   as fresh as the quota board, so they usually lag one request behind, and a stale window is left out. Budget figures
-  include in-flight reservations, so they run slightly high. Claude Code reads the headers only when the token is
+  include in-flight reservations, so they run slightly high. Global, workspace and account budgets are shown to every
+  token they cover: only a fraction, the window end and the period, never a name, id or amount, but a token in one
+  project can still watch the aggregate spend of a budget it shares with others. A one-time budget's `-reset` is its
+  `ends_at`, when it stops applying, which Claude Code words as "resets". Claude Code reads the headers only when the token is
   passed as `CLAUDE_CODE_OAUTH_TOKEN` (not with `apiKeyHelper` or `ANTHROPIC_AUTH_TOKEN`). Its device-flow gateway
   sign-in is not implemented. A budget refusal keeps the existing 429 shape, so the client shows the error text,
   not its own "limit reached" line (for now). Unified headers on direct Anthropic API responses are not read into the
