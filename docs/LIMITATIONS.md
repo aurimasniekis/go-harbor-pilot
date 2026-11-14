@@ -183,7 +183,12 @@ TRACEABILITY.md (`planned`, `in-progress`).
 - **Claude Code fidelity.** The model sees a system prompt prefixed with the CLI's identity line and an environment
   note (`system_prompt`, approximate: inherent to running the CLI); client tools appear with an `mcp__client__` prefix
   (mapped back). Sampling parameters, stop sequences and forced tool choice are not passed, each recorded as an
-  approximate loss. `max_tokens` (up to the model's limit) and effort (the top-level `output_config.effort`, else a
+  approximate loss. A reply that reaches the output limit ends the turn at the upstream's first `max_tokens` stop: the client gets the partial output with
+  `stop_reason: max_tokens`, and the CLI's own recovery calls (a continuation prompt each) are never made. The process is
+  discarded, so the client's continuation of that conversation is rebuilt from the transcript and the upstream prompt cache
+  is written again for it: the CLI has not yet saved the truncated reply when the turn ends, and adds its recovery prompt to
+  the session within about 100 ms, so the session cannot be kept safely.
+  `max_tokens` (up to the model's limit) and effort (the top-level `output_config.effort`, else a
   thinking budget's level, and an effort-only `output_config` on a mid-conversation system entry) are passed per
   process. `thinking` itself is not: the CLI picks adaptive or budgeted thinking for the model (`thinking`, approximate),
   and a top-level `output_config.format` is dropped (`field:anthropic_messages:output_config.format`). A mid-conversation system entry with text is sent as user

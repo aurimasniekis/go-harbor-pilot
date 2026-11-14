@@ -154,6 +154,20 @@ Observed as in 1.3: the real binary against a local synthetic Anthropic upstream
 | `context_management` | verified (observed) | Every request carried `{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}`, Anthropic's server-side context editing. It has no Chat, Responses or Gemini equivalent. |
 | `thinking.display` | verified (observed) | Sent in both modes. The gateway's parser models `enabled` and `disabled` only by type and budget, so on a rebuilt native request `display` is not carried for `enabled` (an `adaptive` object is kept whole). Characterised in `testdata/protocol/reasoning/golden/`. |
 
+### 1.8 Output limit reached (2026-11-14, 2.1.325)
+
+Observed as in 1.3: the real binary, a synthetic token, and a synthetic upstream that answers with
+`stop_reason: "max_tokens"` and a partial text. Not run against a real subscription account (none is reachable from
+the development node), so the real upstream's own behaviour at the limit is a doc-claim.
+
+| Fact | Status | Observation |
+|---|---|---|
+| Recovery loop | verified (observed, synthetic upstream) | With `CLAUDE_CODE_MAX_OUTPUT_TOKENS=64` and every reply stopping at `max_tokens`, the CLI streamed the first partial reply, then made three more upstream calls (a continuation prompt each) and streamed their text too. A continuation that ends normally is merged into the same turn. |
+| Error after recovery | verified (observed, synthetic upstream) | When the continuations also stop at `max_tokens`, the turn ends with `API Error: Claude's response exceeded the 64 output token maximum. To configure this behavior, set the CLAUDE_CODE_MAX_OUTPUT_TOKENS environment variable.` and no HTTP status or error type, so it looked like a generic upstream failure and was failed over. |
+| Session at the stop | verified (observed, synthetic upstream) | When the first `max_tokens` stop arrives, the session file does not exist yet (the CLI saves it later). If the process is left running, the CLI appends a `user` entry `"Output token limit hit. Resume directly — no apology, no recap…"` (`isMeta`, `turnCompanion`) about 80 ms after the user prompt was saved and starts the next upstream call. So the session is either absent or carries the recovery prompt: shelving it (D-045) is not safe, and the client's continuation takes the transcript path. |
+| Report line | verified (observed, synthetic upstream) | The final report is an `assistant` line with `model: "<synthetic>"`, `stop_reason: "stop_sequence"`, the text above, and top-level `error: "max_output_tokens"`, `is_api_error_message: true`, `api_error: "max_output_tokens"`, `api_error_params: {"cut":"output_limit"}`; the `result` line has `is_error: true`, `api_error: "max_output_tokens"`, `terminal_reason: "api_error"` and the same text. |
+| Bridge behaviour | decision | The turn ends at the first upstream `max_tokens` stop: the client gets the content streamed so far, `stop_reason: max_tokens` and the usage of that call, and the process is discarded (stopped before the final events are delivered, so a slow consumer cannot let the CLI start an unaccounted continuation call). The error text above, when it arrives without such a stop, ends the turn the same way. Thinking does not change this: effort only reaches the CLI's `--effort`, and a thinking-only reply is still a truncated reply. A higher floor for `CLAUDE_CODE_MAX_OUTPUT_TOKENS` with truncation on the gateway side was considered and not chosen: the gateway has no exact token counter for the model's output, a floor makes every small side call generate (and bill) more than the client asked for, and it would add a second cut-off rule beside the upstream's own. Ending at the upstream's stop costs one call and is exact. |
+
 ## 2. Codex (not installed; doc-claim)
 
 | Item | Value |

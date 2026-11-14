@@ -28,6 +28,9 @@ type Reply struct {
 	Chunks     int
 	ChunkDelay time.Duration
 	ErrorEvent string // stream an error event (after headers) instead of content
+	// StopReason overrides the Anthropic stop_reason of a content reply
+	// (e.g. "max_tokens" for output cut at the request's limit).
+	StopReason string
 	InputTok   int64
 	OutputTok  int64
 	CacheRead  int64
@@ -235,6 +238,9 @@ func (u *Upstream) anthropicStream(w http.ResponseWriter, r Reply) {
 		return
 	}
 	stop := "end_turn"
+	if r.StopReason != "" {
+		stop = r.StopReason
+	}
 	if r.ToolName != "" {
 		stop = "tool_use"
 		sse(w, "content_block_start", js(map[string]any{"type": "content_block_start", "index": 0, "content_block": map[string]any{"type": "tool_use", "id": "toolu_fake1", "name": r.ToolName, "input": map[string]any{}}}))
@@ -264,6 +270,9 @@ func (r Reply) anthropicUsage(in, out int64) map[string]any {
 func (u *Upstream) anthropicJSON(w http.ResponseWriter, r Reply) {
 	content := []any{map[string]any{"type": "text", "text": r.Text}}
 	stop := "end_turn"
+	if r.StopReason != "" {
+		stop = r.StopReason
+	}
 	if r.ToolName != "" {
 		var args any
 		_ = json.Unmarshal([]byte(r.ToolArgs), &args)

@@ -1432,6 +1432,19 @@ func (p *proc) turn(ctx context.Context, c *conv, sent []json.RawMessage, out ch
 		retryAt := p.retryAt
 		p.mu.Unlock()
 		evs, done, ferr := t.feed(l, retryAt, p.b.o.Now())
+		if done == doneMaxTokens && ferr == nil {
+			// The CLI is mid-recovery: within about 100 ms it appends its
+			// own continuation prompt to the session and calls the upstream
+			// again (harness-wire-facts 1.8), so its state is not reusable.
+			// It is stopped before the final events go out, so a slow
+			// consumer cannot leave it free to make that call, which would
+			// be unaccounted.
+			p.kill("output limit reached")
+			if !emit(evs) {
+				return ctx.Err()
+			}
+			return nil
+		}
 		if !emit(evs) {
 			p.kill("client went away")
 			return ctx.Err()

@@ -2,6 +2,7 @@ package claudecode
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"time"
 
@@ -16,6 +17,9 @@ const (
 	doneTurn
 	doneTools
 	doneError
+	// doneMaxTokens: the output budget ran out; the turn ends with
+	// stop_reason max_tokens and the CLI's own recovery is cut short.
+	doneMaxTokens
 )
 
 // translator merges the CLI's per-API-call message streams into one client
@@ -94,6 +98,12 @@ func accountProblem(msg string) ir.ErrorKind {
 	}
 	return ""
 }
+
+// outputCapRE matches the CLI's report that a response hit the output limit
+// (harness-wire-facts §1.8). The turn normally ends at the upstream's
+// max_tokens stop before the CLI reports it; the text is the fallback for a
+// report that arrives without one.
+var outputCapRE = regexp.MustCompile(`(?i)response exceeded the \d+ output token maximum`)
 
 // cliError maps the CLI's API error classification.
 func cliError(kind string, status int, msg string, retryAt int64, now time.Time) *ir.Error {
@@ -175,6 +185,9 @@ func (t *translator) feed(l line, retryAt int64, now time.Time) ([]ir.Event, don
 				break
 			}
 		}
+		if outputCapRE.MatchString(msg) {
+			return t.finish(ir.StopMaxTokens), doneMaxTokens, nil
+		}
 		return nil, doneError, cliError(w.Error, w.APIErrorStatus, msg, retryAt, now)
 	case "result":
 		var w struct {
@@ -185,6 +198,9 @@ func (t *translator) feed(l line, retryAt int64, now time.Time) ([]ir.Event, don
 			Subtype        string `json:"subtype"`
 		}
 		_ = json.Unmarshal(l.raw, &w)
+		if w.IsError && outputCapRE.MatchString(w.Result) {
+			return t.finish(ir.StopMaxTokens), doneMaxTokens, nil
+		}
 		if w.IsError && !t.semantic {
 			kind := ""
 			if w.APIError == "usage_limit_reached" {
@@ -282,6 +298,13 @@ func (t *translator) streamEvent(name string, data json.RawMessage) ([]ir.Event,
 			t.haveUse = true
 		}
 		t.offset += t.msgMax
+		if t.lastStop == ir.StopMaxTokens {
+			// Anthropic semantics: the client gets what was generated and
+			// stop_reason max_tokens. The CLI would otherwise re-ask the model
+			// to continue (up to three more upstream calls) and then report an
+			// API error; the turn ends here instead.
+			return append(out, t.finish(ir.StopMaxTokens)...), doneMaxTokens, nil
+		}
 		if t.lastStop == ir.StopToolUse && len(t.toolIDs) > 0 {
 			return append(out, t.finish(ir.StopToolUse)...), doneTools, nil
 		}
