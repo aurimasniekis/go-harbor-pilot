@@ -154,6 +154,18 @@ Observed as in 1.3: the real binary against a local synthetic Anthropic upstream
 | `context_management` | verified (observed) | Every request carried `{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}`, Anthropic's server-side context editing. It has no Chat, Responses or Gemini equivalent. |
 | `thinking.display` | verified (observed) | Sent in both modes. The gateway's parser models `enabled` and `disabled` only by type and budget, so on a rebuilt native request `display` is not carried for `enabled` (an `adaptive` object is kept whole). Characterised in `testdata/protocol/reasoning/golden/`. |
 
+### 1.8 Output limit reached (2026-11-14, 2.1.325)
+
+Observed as in 1.3: the real binary, a synthetic token, and a synthetic upstream that answers with
+`stop_reason: "max_tokens"` and a partial text. Not run against a real subscription account (none is reachable from
+the development node), so the real upstream's own behaviour at the limit is a doc-claim.
+
+| Fact | Status | Observation |
+|---|---|---|
+| Recovery loop | verified (observed, synthetic upstream) | With `CLAUDE_CODE_MAX_OUTPUT_TOKENS=64` and every reply stopping at `max_tokens`, the CLI streamed the first partial reply, then made three more upstream calls (a continuation prompt each) and streamed their text too. A continuation that ends normally is merged into the same turn. |
+| Error after recovery | verified (observed, synthetic upstream) | When the continuations also stop at `max_tokens`, the turn ends with `API Error: Claude's response exceeded the 64 output token maximum. To configure this behavior, set the CLAUDE_CODE_MAX_OUTPUT_TOKENS environment variable.` and no HTTP status or error type, so it looked like a generic upstream failure and was failed over. |
+| Bridge behaviour | decision | The turn ends at the first upstream `max_tokens` stop: the client gets the content streamed so far, `stop_reason: max_tokens` and the usage of that call, and the process is discarded. The error text above, when it arrives without such a stop, ends the turn the same way. Thinking does not change this: effort only reaches the CLI's `--effort`, and a thinking-only reply is still a truncated reply. A higher floor for `CLAUDE_CODE_MAX_OUTPUT_TOKENS` with truncation on the gateway side was considered and not chosen: the gateway has no exact token counter for the model's output, a floor makes every small side call generate (and bill) more than the client asked for, and it would add a second cut-off rule beside the upstream's own. Ending at the upstream's stop costs one call and is exact. |
+
 ## 2. Codex (not installed; doc-claim)
 
 | Item | Value |

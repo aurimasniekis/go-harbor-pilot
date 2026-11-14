@@ -3,6 +3,15 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
+## Unreleased
+
+### Fixed
+
+- **Claude Code bridge: small `max_tokens` no longer fails.** A request whose output reached its `max_tokens` (for
+  example Claude Code's own 64-token side calls) failed with "response exceeded the N output token maximum" and was
+  failed over to another account, where it failed the same way. The reply now ends with the output generated so far
+  and `stop_reason: max_tokens`, streaming or not, with the usage of that call, and no failover.
+
 ## 0.1.7 (2026-11-13)
 
 Claude Code can show its usage through the gateway, and a per-model reasoning option translates Claude Code's adaptive

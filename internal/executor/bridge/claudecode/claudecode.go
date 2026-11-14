@@ -1446,6 +1446,11 @@ func (p *proc) turn(ctx context.Context, c *conv, sent []json.RawMessage, out ch
 			return ferr
 		}
 		switch done {
+		case doneMaxTokens:
+			// The CLI is mid-recovery (it would re-ask the model and then
+			// fail), so its state is not reusable.
+			p.kill("output limit reached")
+			return nil
 		case doneTurn:
 			p.mu.Lock()
 			p.state, p.lastUsed = stateIdle, p.b.o.Now()
