@@ -100,7 +100,7 @@ func accountProblem(msg string) ir.ErrorKind {
 }
 
 // outputCapRE matches the CLI's report that a response hit the output limit
-// (harness-wire-facts §1.7). The turn normally ends at the upstream's
+// (harness-wire-facts §1.8). The turn normally ends at the upstream's
 // max_tokens stop before the CLI reports it; the text is the fallback for a
 // report that arrives without one.
 var outputCapRE = regexp.MustCompile(`(?i)response exceeded the \d+ output token maximum`)

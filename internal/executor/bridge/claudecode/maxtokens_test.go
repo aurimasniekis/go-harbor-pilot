@@ -116,8 +116,9 @@ func TestBridgeLargeMaxTokensUnchanged(t *testing.T) {
 func TestTranslatorOutputCapReport(t *testing.T) {
 	msg := "API Error: Claude's response exceeded the 64 output token maximum. To configure this behavior, set the CLAUDE_CODE_MAX_OUTPUT_TOKENS environment variable."
 	for name, raw := range map[string]string{
-		"assistant": mustJSON(map[string]any{"type": "assistant", "error": "max_output_tokens", "message": map[string]any{"content": []any{map[string]any{"type": "text", "text": msg}}}}),
-		"result":    mustJSON(map[string]any{"type": "result", "is_error": true, "result": msg}),
+		"assistant": mustJSON(map[string]any{"type": "assistant", "error": "max_output_tokens", "is_api_error_message": true, "api_error": "max_output_tokens", "api_error_params": map[string]any{"cut": "output_limit"},
+			"message": map[string]any{"role": "assistant", "model": "<synthetic>", "stop_reason": "stop_sequence", "content": []any{map[string]any{"type": "text", "text": msg}}}}),
+		"result": mustJSON(map[string]any{"type": "result", "is_error": true, "result": msg}),
 	} {
 		t.Run(name, func(t *testing.T) {
 			tr := newTranslator(&conv{}, "m")
@@ -132,3 +133,59 @@ func TestTranslatorOutputCapReport(t *testing.T) {
 }
 
 func mustJSON(v any) string { b, _ := json.Marshal(v); return string(b) }
+
+// The process is stopped before the final events are delivered: when the
+// client sees the stop, the CLI can no longer start its own continuation call
+// upstream.
+func TestBridgeMaxTokensKillsBeforeFinalEvents(t *testing.T) {
+	r := newRig(t)
+	r.up.Push(synthetic.Reply{Text: "cut ", StopReason: "max_tokens", InputTok: 12, OutputTok: 64})
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	req := &ir.Request{Source: ir.AnthropicMessages, Model: "x", Messages: []ir.Message{userText("hi")}, Stream: true, MaxOutputTokens: ptr(64)}
+	res, aerr := r.b.Execute(ctx, r.tgt, credentials.NewSecret("sk-ant-oat01-synthetic-test-token"), executor.Request{IR: req, Inbound: ir.AnthropicMessages}, true)
+	if aerr != nil {
+		t.Fatal(aerr)
+	}
+	for e := range res.Stream {
+		if e.Kind != ir.EvStop {
+			continue
+		}
+		r.b.mu.Lock()
+		live := len(r.b.procs)
+		r.b.mu.Unlock()
+		if live != 0 {
+			t.Fatalf("%d process(es) still live when the stop reached the client", live)
+		}
+	}
+}
+
+// The continuation after a truncated main turn is rebuilt from the transcript:
+// the CLI has not yet written the truncated reply when the turn ends, and
+// appends its own recovery prompt within about 100 ms (harness-wire-facts
+// 1.8), so the session is not shelved. The client still gets a correct
+// continuation.
+func TestBridgeMaxTokensContinuationUsesTranscript(t *testing.T) {
+	r := newRig(t)
+	r.up.Push(synthetic.Reply{Text: "a long answer that was cut ", StopReason: "max_tokens", InputTok: 12, OutputTok: 64}, synthetic.Reply{Text: "and the rest.", InputTok: 20, OutputTok: 4})
+	first := []ir.Message{userText("write a long answer")}
+	limit := func(x *ir.Request) { x.MaxOutputTokens = ptr(64) }
+	res, _ := r.executeWith(t, first, limit)
+	if res.StopReason != ir.StopMaxTokens {
+		t.Fatalf("stop %q", res.StopReason)
+	}
+	r.b.mu.Lock()
+	shelved := len(r.b.shelf)
+	r.b.mu.Unlock()
+	if shelved != 0 {
+		t.Fatal("a session holding the CLI's recovery prompt was shelved")
+	}
+	second := append(first, ir.Message{Role: ir.RoleAssistant, Parts: res.Parts}, userText("continue"))
+	res2, ex2 := r.executeWith(t, second, limit)
+	if provenancePath(ex2) != pathTranscript || res2.Parts[0].Text != "and the rest." {
+		t.Fatalf("continuation served by %q: %+v", provenancePath(ex2), res2)
+	}
+	if n := r.up.Count(); n != 2 {
+		t.Fatalf("%d upstream calls", n)
+	}
+}
