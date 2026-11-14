@@ -493,7 +493,7 @@ It recommends go or no-go. No product code.
 - A3. The routing plan for the agents maps the main models to the bridge pool. Whether it maps `claude-sonnet-5` and
   Haiku IDs is unknown.
 - A4. Bridge seats are subscription accounts. The inner CLI is not in auto mode and requests no server review itself.
-- A5. No captured traces from the demo space were used. Infra's answer on the demo wiring may change A1–A3.
+- A5. No captured traces from a live deployment were used; details of the live wiring may change A1–A3.
 
 ## 8. Open questions for the owner
 
