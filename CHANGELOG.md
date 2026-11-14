@@ -3,7 +3,12 @@
 Notable changes to Harbor Pilot. Until 1.0, a minor version may change configuration or defaults; the
 [upgrade notes](https://aurimasniekis.github.io/go-harbor-pilot/operators/upgrades) say what needs action.
 
-## Unreleased
+## 0.1.7 (2026-11-13)
+
+Claude Code can show its usage through the gateway, and a per-model reasoning option translates Claude Code's adaptive
+thinking and effort for upstreams that take reasoning settings in their own terms. The Claude Code bridge now passes
+Claude Code's effort. No migrations. One new configuration key, `gateway.usage_headers`, off by default. Models without
+the new option behave as before.
 
 ### Gateway
 
@@ -40,6 +45,22 @@ Notable changes to Harbor Pilot. Until 1.0, a minor version may change configura
 - **Clearer losses.** A dropped `context_management`, `thinking` or `output_config` now says why, and the request-field
   refusal of `reasoning`/`thinking` points at the new option. The Claude Code bridge now records that it does not pass
   the client's thinking mode (`thinking`) or a top-level `output_config.format`.
+
+### Upgrading
+
+- **No migrations.** One new optional configuration key, `gateway.usage_headers` (`HP_GATEWAY_USAGE_HEADERS`), whose
+  default `off` leaves responses as before. To see usage in Claude Code, set it to `auto` and have Claude Code users
+  pass their gateway token as `CLAUDE_CODE_OAUTH_TOKEN`; the Claude Code guide shows how.
+- **`oauth-…` beta flags are no longer forwarded.** The `oauth-…` flag in `anthropic-beta` is dropped before a request
+  goes to an Anthropic upstream; other flags pass as before.
+- **Reasoning option.** `spec.models[].reasoning` is optional; a model without it sends the same upstream request as
+  before. `PUT /providers/{id}` replaces the whole spec, so an API client or Terraform configuration that writes
+  providers must send `reasoning` back, or a value set in the UI is cleared.
+- **Loss changes.** Dropped `context_management`, `thinking` and `output_config` losses have new wording. Claude Code
+  bridge requests record two new losses: `thinking` (approximate) and a top-level `output_config.format` (dropped).
+  Alerts or reports that count or match losses will see them.
+- **Bridge effort.** The Claude Code bridge now passes a request's top-level `output_config.effort` to the CLI as
+  `--effort`, so bridge turns may run at a different effort than before.
 
 ## 0.1.6 (2026-11-13)
 
